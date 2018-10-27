@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 Baidu, Inc. All Rights Reserved.
+ * Copyright (c) 2017 Rockchip, Inc. All Rights Reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -21,8 +21,8 @@
 
 namespace DeviceIOFramework {
 
-#define dbg(fmt, ...) APP_INFO("[duer timer debug] " fmt, ##__VA_ARGS__)
-#define err(fmt, ...) APP_INFO("[duer timer error] " fmt, ##__VA_ARGS__)
+#define dbg(fmt, ...) APP_INFO("[rk timer debug] " fmt, ##__VA_ARGS__)
+#define err(fmt, ...) APP_INFO("[rk timer error] " fmt, ##__VA_ARGS__)
 
 list<Timer*> TimerManager::m_startList;
 list<Timer*> TimerManager::m_stopList;

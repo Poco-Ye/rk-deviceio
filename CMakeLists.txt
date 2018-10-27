@@ -5,6 +5,7 @@ PROJECT (deviceio_test)
 message(${PROJECT_SOURCE_DIR})
 message(${PROJECT_BINARY_DIR})
 
+add_definitions("-Wall -g")
 
 set(SRC_FILES
     DeviceIOTest.cpp

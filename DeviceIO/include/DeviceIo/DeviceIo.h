@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 Baidu, Inc. All Rights Reserved.
+ * Copyright (c) 2017 Rockchip, Inc. All Rights Reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -85,13 +85,22 @@ enum class BtControl {
     BLE_SERVER_SEND,
     BLE_IS_OPENED,
     GET_BT_MAC,
+};
+
+/* wifi control cmd */
+enum class WifiControl {
+    WIFI_OPEN,
+    WIFI_CLOSE,
+    WIFI_IS_OPENED,
+    WIFI_IS_CONNECTED,
+    WIFI_SCAN,
+    WIFI_IS_FIRST_CONFIG,
     GET_WIFI_MAC,
     GET_WIFI_IP,
     GET_WIFI_SSID,
     GET_WIFI_BSSID,
     GET_LOCAL_NAME,
 };
-
 /* input event */
 enum class DeviceInput {
     KEY_ONE_SHORT,
@@ -147,7 +156,8 @@ enum class DeviceInput {
 
     KEY_SHUT_DOWN,
     KEY_SLEEP_MODE,
-    KEY_RK816_POWER
+    KEY_RK816_POWER,
+    KEY_HEADPHONE_INSERT
 };
 
 /* device input event notify */
@@ -211,6 +221,15 @@ public:
     int controlBt(BtControl cmd, void *data = NULL, int len = 0);
 
     /**
+     * @brief control the wifi
+     *
+     * @param cmd  see enum WifiControl
+     * @param data data
+     * @param len  data length
+     * @return 0 on success
+     */
+    int controlWifi(WifiControl cmd, void *data = NULL, int len = 0);
+    /**
     * @brief transimit infrared code
     *
     * @param infraredCode the infrared code
@@ -238,6 +257,13 @@ public:
      * @return true on opened
      */
     bool isMicrophoneOpened();
+
+    /**
+     * @brief get headphone status
+     *
+     * @return true on opened
+     */
+    bool isHeadPhoneInserted();
 
     /**
      * @brief get volume
@@ -295,57 +321,15 @@ public:
     bool inOtaMode();
 
     void rmOtaFile();
-    
-    /**
-     * @brief get wifi mac address
-     *
-     * @return true on success
-     */
-    bool getWifiMac(char *mac);
 
     /**
-     * @brief get wifi connected state
+     * @brief start network config
      *
-     * @return true on connected
-     */
-    bool isWifiConnected();
-
-    /** 
-     * @brief start/stop network config service
-     *
-     * @return true on connected
+     * @return true if started succeed
      */
     bool startNetworkConfig();
+
     bool stopNetworkConfig();
-
-    /**
-     * @brief check whether network configed none
-     *
-     * @return true if no network configed
-     */
-    bool isWifiConfigedNone();
-
-    /**
-     * @brief check network state
-     *
-     * @return true if network ping succeed
-     */
-    bool checkNetworkStatus();
-
-    /**
-     * @brief get BT Address
-     *
-     * @return true on succeed
-     */
-    bool getBTAddr(char *address);
-
-
-    /**
-     * @brief get BT Address
-     *
-     * @return true on opened
-     */
-    bool getBTState();
 
 private:
     static DeviceIo* m_instance;

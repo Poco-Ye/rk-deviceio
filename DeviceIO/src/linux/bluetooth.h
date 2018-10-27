@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Baidu, Inc. All Rights Reserved.
+ * Copyright (c) 2018 Rockchip, Inc. All Rights Reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -21,6 +21,6 @@
 
 using DeviceIOFramework::BtControl;
 
-int duer_bt_control(BtControl cmd, void *data, int len);
+int rk_bt_control(BtControl cmd, void *data, int len);
 
 #endif //DEVICEIO_FRAMEWORK_BLUETOOTH_H

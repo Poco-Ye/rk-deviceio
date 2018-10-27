@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 Baidu, Inc. All Rights Reserved.
+ * Copyright (c) 2017 Rockchip, Inc. All Rights Reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -18,8 +18,8 @@
 #ifndef DEVICEIO_LINUX_BUTTON_H
 #define DEVICEIO_LINUX_BUTTON_H
 
-int duer_key_init(void);
+int rk_key_init(void);
 
-int duer_key_exit(void);
+int rk_key_exit(void);
 
 #endif //DEVICEIO_LINUX_BUTTON_H

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Baidu, Inc. All Rights Reserved.
+ * Copyright (c) 2018 Rockchip, Inc. All Rights Reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -34,8 +34,8 @@ static const int RED = 0xFF0000;
 static const int BLUE = 0x0000FF;
 static const int OFF = 0x000000;
 
-#define dbg(fmt, ...) APP_DEBUG("[duer leds debug] " fmt, ##__VA_ARGS__)
-#define err(fmt, ...) APP_ERROR("[duer leds error] " fmt, ##__VA_ARGS__)
+#define dbg(fmt, ...) APP_DEBUG("[rk leds debug] " fmt, ##__VA_ARGS__)
+#define err(fmt, ...) APP_ERROR("[rk leds error] " fmt, ##__VA_ARGS__)
 #define container_of(ptr, type, member) \
     (type *)((char *)(ptr) - (char *) &((type *)0)->member)
 #define ARRAY_SIZE(x) sizeof(x)/sizeof((x)[0])
@@ -631,7 +631,7 @@ static void *led_task(void *param)
     }
 }
 
-int duer_led_init(void)
+int rk_led_init(void)
 {
     int ret = 0;
     memset(&s_led, 0x00, sizeof(s_led));
@@ -671,7 +671,7 @@ quit:
     return -1;
 }
 
-int duer_led_exit(void)
+int rk_led_exit(void)
 {
     pthread_cancel(s_led.tid);
     pthread_mutex_destroy(&s_led.mutex);
@@ -680,7 +680,7 @@ int duer_led_exit(void)
     return 0;
 }
 
-int duer_led_control(LedState cmd, void *data, int len)
+int rk_led_control(LedState cmd, void *data, int len)
 {
     if ((int)cmd < 0 || (int)cmd >= (int)(ARRAY_SIZE(s_led_ops))) {
         err("command is not invalid: %d\n", (int)cmd);

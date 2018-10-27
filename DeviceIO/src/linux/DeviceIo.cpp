@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 Baidu, Inc. All Rights Reserved.
+ * Copyright (c) 2017 Rockchip, Inc. All Rights Reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -26,10 +26,9 @@
 #include "led.h"
 #include "key.h"
 #include "bluetooth.h"
+#include "wifi.h"
 #include "Logger.h"
 #include "shell.h"
-#include <iostream> 
-#include <fstream> 
 using namespace std; 
 
 
@@ -321,13 +320,13 @@ DeviceIo::DeviceIo() {
 
     m_notify = nullptr;
 
-    ret = duer_led_init();
+    ret = rk_led_init();
     if (ret) {
-        APP_ERROR("[%s] error: duer_led_init fail, err is:%d\n",  __FUNCTION__, ret);
+        APP_ERROR("[%s] error: rk_led_init fail, err is:%d\n",  __FUNCTION__, ret);
     }
-    ret = duer_key_init();
+    ret = rk_key_init();
     if (ret) {
-        APP_ERROR("[%s] error: duer_key_init fail, err is:%d\n",  __FUNCTION__, ret);
+        APP_ERROR("[%s] error: rk_key_init fail, err is:%d\n",  __FUNCTION__, ret);
     }
 #ifndef SOFTVOL
     ret = mixer_init(nullptr, nullptr);
@@ -357,7 +356,7 @@ DeviceIo::~DeviceIo() {
 #ifndef SOFTVOL
     mixer_exit();
 #endif
-    duer_led_exit();
+    rk_led_exit();
     m_notify = nullptr;
     m_initOnce = PTHREAD_ONCE_INIT;
 }
@@ -409,12 +408,16 @@ int DeviceIo::controlLed(LedState cmd, void *data, int len) {
     if (isOtaMode && cmd != LedState::LED_SLEEP_MODE) {
         return 0;
     } else {
-        return duer_led_control(cmd, data, len);
+        return rk_led_control(cmd, data, len);
     }
 }
 
 int DeviceIo::controlBt(BtControl cmd, void *data, int len) {
-    return duer_bt_control(cmd, data, len);
+    return rk_bt_control(cmd, data, len);
+}
+
+int DeviceIo::controlWifi(WifiControl cmd, void *data, int len) {
+    return rk_wifi_control(cmd, data, len);
 }
 
 int DeviceIo::transmitInfrared(std::string& infraredCode) {
@@ -564,107 +567,28 @@ void DeviceIo::rmOtaFile() {
 
 }
 
-bool DeviceIo::getWifiMac(char *mac) {
+bool DeviceIo::isHeadPhoneInserted() {
     char ret_buff[1024] = {0};
     bool ret;
 
-    ret = Shell::exec("ifconfig | grep wlan0 | awk '{print $5}'",ret_buff);
+    ret = Shell::exec("cat /sys/devices/platform/ff560000.acodec/rk3308-acodec-dev/dac_output",ret_buff);
     if(!ret){
-        APP_ERROR("getWifiMac failed.\n");
+        APP_ERROR("cat dac_output failed.\n");
         return false;
     }
-    strncpy(mac, ret_buff, 17);
-    return true;
-}
-
-bool DeviceIo::isWifiConnected() {
-    char ret_buff[1024] = {0};
-    bool ret;
-
-    ret = Shell::exec("wpa_cli -iwlan0 status | grep wpa_state | awk -F '=' '{printf $2}'", ret_buff);
-    if (!ret) {
-        APP_ERROR("getWifiMac failed.\n");
-        return false;
-    }
-    if (!strncmp(ret_buff, "COMPLETED", 9))
+    if (strstr(ret_buff, "hp out"));
         return true;
     return false;
 }
 
 bool DeviceIo::startNetworkConfig() {
-    return true;
+    //DeviceIo::getInstance()->controlWifi(WifiControl::OPEN_SOFTAP);
+    DeviceIo::getInstance()->controlBt(BtControl::BLE_OPEN_SERVER);
 }
 
 bool DeviceIo::stopNetworkConfig() {
-    return true;
+    //DeviceIo::getInstance()->controlWifi(WifiControl::OPEN_SOFTAP);
+    DeviceIo::getInstance()->controlBt(BtControl::BLE_CLOSE_SERVER);
 }
-
-bool isWifiConfigedNone() {
-
-    ifstream it_stream;
-    int length = 0;
-    string wpa_config_file = "/data/cfg/wpa_supplicant.conf";
-
-    it_stream.open(wpa_config_file.c_str());
-    if (!it_stream.is_open()) {
-        APP_ERROR("wpa config file open error.");
-        return false;
-    }
-
-    it_stream.seekg(0,std::ios::end);
-    length = it_stream.tellg();
-    it_stream.seekg(0,std::ios::beg);
-
-    char *buffer = new char[length + 1];
-    it_stream.read(buffer, length);
-    it_stream.close();
-    buffer[length] = 0;
-
-    char * position = nullptr;
-    position = strstr(buffer,"ssid");
-    delete [] buffer;
-    buffer = nullptr;
-
-    if (nullptr == position) {
-        APP_ERROR("First network config.");
-        return true;
-    }
-
-    APP_INFO("Not first network config.");
-
-    return false;
-}
-
-bool DeviceIo::checkNetworkStatus() {
-    return true;
-}
-
-bool DeviceIo::getBTAddr(char *address) {
-    char ret_buff[1024] = {0};
-    bool ret;
-
-    ret = Shell::exec("hciconfig hci0 | grep Address | awk '{print $3}'",ret_buff);
-    if(!ret){
-        APP_ERROR("get bt address failed.\n");
-        return false;
-    }
-    strncpy(address, ret_buff, 17);
-    return true;
-}
-
-bool DeviceIo::getBTState() {
-    char ret_buff[1024] = {0};
-    bool ret;
-
-    ret = Shell::exec("hciconfig hci0 | grep UP",ret_buff);
-    if(!ret){
-        APP_ERROR("get bt address failed.\n");
-        return false;
-    }
-    if (strstr(ret_buff, "UP"));
-	return true;
-    return false;
-}
-
 } // namespace framework
 

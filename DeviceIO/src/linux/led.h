@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Baidu, Inc. All Rights Reserved.
+ * Copyright (c) 2018 Rockchip, Inc. All Rights Reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -15,17 +15,17 @@
  */
 
 
-#ifndef DUEROS_FRAMEWORK_LED_H_
-#define DUEROS_FRAMEWORK_LED_H_
+#ifndef RK_FRAMEWORK_LED_H_
+#define RK_FRAMEWORK_LED_H_
 
 #include <DeviceIo/DeviceIo.h>
 
 using DeviceIOFramework::LedState;
 
-int duer_led_init(void);
+int rk_led_init(void);
 
-int duer_led_exit(void);
+int rk_led_exit(void);
 
-int duer_led_control(LedState cmd, void* data, int len);
+int rk_led_control(LedState cmd, void* data, int len);
 
-#endif //DUEROS_FRAMEWORK_LED_H_
+#endif //RK_FRAMEWORK_LED_H_

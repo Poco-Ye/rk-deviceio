@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 Baidu, Inc. All Rights Reserved.
+ * Copyright (c) 2017 Rockchip, Inc. All Rights Reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 
 using namespace DeviceIOFramework;
 
-int main(int argc, char* argv[]) {
+int main_test(int argc, char* argv[]) {
     while (true) {
 
         printf("check led LED_NET_WAIT_CONNECT\n\n");
@@ -86,8 +86,8 @@ int main(int argc, char* argv[]) {
         DeviceIo::getInstance()->controlLed(LedState::LED_VOLUME, &volume, sizeof(volume));
         sleep(5);
 
-        printf("check led LED_MUTE\n\n");
-        DeviceIo::getInstance()->controlLed(LedState::LED_MUTE);
+        printf("check led LED_MICMUTE\n\n");
+        DeviceIo::getInstance()->controlLed(LedState::LED_MICMUTE);
         sleep(5);
 
         printf("check led LED_DISABLE_MIC\n\n");
@@ -102,8 +102,8 @@ int main(int argc, char* argv[]) {
         DeviceIo::getInstance()->controlLed(LedState::LED_CLOSE_A_LAYER, &layer, sizeof(int));
         sleep(5);
 
-        printf("[remove]check led LED_MUTE\n\n");
-        layer = LedState::LED_MUTE;
+        printf("[remove]check led LED_MICMUTE\n\n");
+        layer = LedState::LED_MICMUTE;
         DeviceIo::getInstance()->controlLed(LedState::LED_CLOSE_A_LAYER, &layer, sizeof(int));
         sleep(5);
 

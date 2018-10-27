@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 Baidu, Inc. All Rights Reserved.
+ * Copyright (c) 2017 Rockchip, Inc. All Rights Reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -26,8 +26,8 @@
 #include <math.h>
 #include "Logger.h"
 
-#define dbg(fmt, ...) APP_DEBUG("[duer keys debug ]" fmt, ##__VA_ARGS__)
-#define err(fmt, ...) APP_ERROR("[duer keys error ]" fmt, ##__VA_ARGS__)
+#define dbg(fmt, ...) APP_DEBUG("[rk keys debug ]" fmt, ##__VA_ARGS__)
+#define err(fmt, ...) APP_ERROR("[rk keys error ]" fmt, ##__VA_ARGS__)
 
 using DeviceIOFramework::Timer;
 using DeviceIOFramework::TimerManager;
@@ -46,6 +46,7 @@ enum keys_bit {
 struct key_manager {
     int gpio_keys_fd;
     int rk816_keys_fd;
+    int hpdet_fd;
     int keys_state;
     int keys_state_prev;
     int count;
@@ -103,7 +104,18 @@ static void handle_keys_on_2s(int state) {
         report_key_event(DeviceInput::KEY_ENTER_AP, NULL, 0);
     }
 }
-
+static void handle_keys_on_3s(int state) {
+    if (state == (KEYS_BIT_POWER)) {
+        dbg("on 3s KEYS_BIT_POWER\n");
+        report_key_event(DeviceInput::KEY_SHUT_DOWN, NULL, 0);
+    }
+}
+static void handle_keys_on_5s(int state) {
+    if (state == (KEYS_BIT_MIC_MUTE)) {
+        dbg("on 5s KEYS_BIT_MIC_MUTE\n");
+        report_key_event(DeviceInput::KEY_ENTER_AP, NULL, 0);
+    }
+}
 static void handle_keys_after_1s(int state) {
     switch (state) {
     case KEYS_BIT_VOLUME_DOWN: {
@@ -148,6 +160,14 @@ static void handle_keys(void) {
 
             if (key.count == 20) {
                 handle_keys_on_2s(key.keys_state);
+            }
+ 
+            if (key.count == 30) {
+                handle_keys_on_3s(key.keys_state);
+            }
+
+            if (key.count == 50) {
+                handle_keys_on_5s(key.keys_state);
             }
         }
     }
@@ -201,6 +221,16 @@ static void check_keys(struct input_event* event) {
             key.keys_state &= ~KEYS_BIT_POWER;
         break;
     }
+    case SW_HEADPHONE_INSERT: {
+        if (event->value) {
+            int value = 1;
+            report_key_event(DeviceInput::KEY_HEADPHONE_INSERT, &value, sizeof(value));
+        } else {
+            int value = 0;
+            report_key_event(DeviceInput::KEY_HEADPHONE_INSERT, &value, sizeof(value));
+        }
+        break;
+    }
     default: {
         pthread_mutex_unlock(&key.keys_state_mutex);
         return;
@@ -222,6 +252,7 @@ static void * key_task(void *param) {
     int nfds = 0;
 
     nfds = key.gpio_keys_fd > key.rk816_keys_fd ? key.gpio_keys_fd : key.rk816_keys_fd;
+    nfds = nfds > key.hpdet_fd ? nfds : key.hpdet_fd;
     nfds = nfds + 1;
 
     while (1) {
@@ -229,6 +260,8 @@ static void * key_task(void *param) {
         FD_SET(key.gpio_keys_fd, &rfds);
         if (key.rk816_keys_fd > 0)
             FD_SET(key.rk816_keys_fd, &rfds);
+        if (key.hpdet_fd > 0)
+            FD_SET(key.hpdet_fd, &rfds);
 
         select(nfds, &rfds, NULL, NULL, NULL);
 
@@ -247,17 +280,25 @@ static void * key_task(void *param) {
             if (ret == sizeof(ev_key)) {
                 check_keys(&ev_key);
             }
+        } else if (FD_ISSET(key.hpdet_fd, &rfds)) {
+            ret = read(key.hpdet_fd, &ev_key, sizeof(ev_key));
+            dbg("head phone ret=%d key=%d value=%d\n", ret, ev_key.code, ev_key.value);
+            if (ret == sizeof(ev_key)) {
+                check_keys(&ev_key);
+            }
         }
     }
 }
 
-int duer_key_init(void) {
+int rk_key_init(void) {
     int ret = 0;
 
     memset(&key, 0x00, sizeof(key));
 
     key.gpio_keys_fd = open("/dev/input/event2", O_RDONLY);
     key.rk816_keys_fd = open("/dev/input/event0", O_RDONLY);
+    key.hpdet_fd = open("/dev/input/event1", O_RDONLY);
+
     if (key.gpio_keys_fd < 0) {
         err("[%s]open gpio keys fd failed\n", __FUNCTION__);
         return -1;
@@ -266,6 +307,9 @@ int duer_key_init(void) {
         err("[%s]open rk816 keys fd failed\n", __FUNCTION__);
     }
 
+    if (key.hpdet_fd < 0) {
+        err("[%s]open hpdet keys fd failed\n", __FUNCTION__);
+    }
     key.notify = new KeyNotify();
     key.timer = TimerManager::getInstance()->timer_create(0.1, key.notify, true, false);
     if (key.timer == NULL) {
@@ -293,7 +337,7 @@ int duer_key_init(void) {
     return  0;
 }
 
-int duer_key_exit(void) {
+int rk_key_exit(void) {
     if (key.tid) {
         pthread_cancel(key.tid);
         pthread_join(key.tid, NULL);
@@ -320,6 +364,11 @@ int duer_key_exit(void) {
     if (key.rk816_keys_fd) {
         close(key.rk816_keys_fd);
         key.rk816_keys_fd = 0;
+    }
+
+    if (key.hpdet_fd) {
+        close(key.hpdet_fd);
+        key.hpdet_fd = 0;
     }
     return 0;
 }
