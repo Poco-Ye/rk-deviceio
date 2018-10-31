@@ -160,6 +160,34 @@ enum class DeviceInput {
     KEY_HEADPHONE_INSERT
 };
 
+enum class DevicePowerSupply {
+	NULL_DEVICEPOWERSUPPLY = 0,
+
+	USB_CURRENT_MAX = 1,
+	USB_ONLINE,
+	USB_VOLTAGE_MAX,
+	USB_TYPE,
+
+	AC_CURRENT_MAX = 50,
+	AC_ONLINE,
+	AC_VOLTAGE_MAX,
+	AC_TYPE,
+
+	BATTERY_CAPACITY = 100,
+	BATTERY_CHARGE_COUNTER,
+	BATTERY_CURRENT_NOW,
+	BATTERY_VOLTAGE_NOW,
+	BATTERY_PRESENT,
+	BATTERY_TEMP,
+	BATTERY_HEALTH,
+	BATTERY_STATUS,
+	BATTERY_TYPE,
+
+	POWER_CFG_CAPACITY_DETECT_PERIOD = 200,
+	POWER_CFG_LOW_POWER_THRESHOLD,
+	POWER_CFG_NULL
+};
+
 /* device input event notify */
 class DeviceInNotify {
 public:
@@ -209,6 +237,16 @@ public:
      * @return 0 on success
      */
     int controlLed(LedState cmd, void *data = NULL, int len = 0);
+
+    /**
+     * @brief control the power
+     *
+     * @param cmd  see enum DevicePowerSupply
+     * @param data data
+     * @param len  data length
+     * @return 0 on success
+     */
+    int controlPower(DevicePowerSupply cmd, void *data = NULL, int len = 0);
 
     /**
      * @brief control the bt

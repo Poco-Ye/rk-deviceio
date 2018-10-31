@@ -16,6 +16,7 @@
 
 #include "DeviceIo/DeviceIo.h"
 
+#include <linux/rtc.h>
 #include <sys/ioctl.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -29,6 +30,7 @@
 #include "wifi.h"
 #include "Logger.h"
 #include "shell.h"
+#include "power.h"
 using namespace std; 
 
 
@@ -328,6 +330,11 @@ DeviceIo::DeviceIo() {
     if (ret) {
         APP_ERROR("[%s] error: rk_key_init fail, err is:%d\n",  __FUNCTION__, ret);
     }
+    ret = power_init();
+    if (ret) {
+        APP_ERROR("[%s] error: power_init fail, err is:%d\n",  __FUNCTION__, ret);
+    }
+
 #ifndef SOFTVOL
     ret = mixer_init(nullptr, nullptr);
 
@@ -353,6 +360,7 @@ DeviceIo::DeviceIo() {
 
 DeviceIo::~DeviceIo() {
     pthread_mutex_destroy(&user_volume_mutex);
+    power_deinit();
 #ifndef SOFTVOL
     mixer_exit();
 #endif
@@ -410,6 +418,10 @@ int DeviceIo::controlLed(LedState cmd, void *data, int len) {
     } else {
         return rk_led_control(cmd, data, len);
     }
+}
+
+int DeviceIo::controlPower(DevicePowerSupply cmd, void *data, int len) {
+    return power_supply_control(cmd, data, len);
 }
 
 int DeviceIo::controlBt(BtControl cmd, void *data, int len) {

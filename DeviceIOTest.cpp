@@ -30,6 +30,7 @@ using DeviceIOFramework::DeviceInput;
 using DeviceIOFramework::LedState;
 using DeviceIOFramework::BtControl;
 using DeviceIOFramework::WifiControl;
+using DeviceIOFramework::DevicePowerSupply;
 
 class DeviceInputWrapper: public DeviceIOFramework::DeviceInNotify {
 public:
@@ -89,6 +90,13 @@ int main()
 
     DeviceIo::getInstance()->getSn(value);
     std::cout << "serial number:" << value << std::endl;
+
+    DeviceIo::getInstance()->controlPower(DevicePowerSupply::BATTERY_CAPACITY, value, 18);
+    std::cout << "Get Battery Capacity: " << value << std::endl;
+
+    unsigned int det_period = 30;
+    DeviceIo::getInstance()->controlPower(DevicePowerSupply::POWER_CFG_CAPACITY_DETECT_PERIOD, &det_period, 0);
+    std::cout << "Set Battery Capacity Detect Period: " << det_period << " seconds." << std::endl;
 
     DeviceIo::getInstance()->controlWifi(WifiControl::GET_WIFI_MAC, value, 18);
     std::cout << "Wifi Mac: " << value << std::endl;
