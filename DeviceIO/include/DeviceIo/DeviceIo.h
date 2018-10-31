@@ -188,6 +188,20 @@ enum class DevicePowerSupply {
 	POWER_CFG_NULL
 };
 
+enum class DeviceRTC {
+	DEVICE_RTC_READ_TIME = 0,
+	DEVICE_RTC_SET_TIME,
+	DEVICE_RTC_READ_ALARM,
+	DEVICE_RTC_ENABLE_ALARM_INTERRUPT,
+	DEVICE_RTC_DISABLE_ALARM_INTERRUPT,
+	DEVICE_RTC_READ_IRQ_RATE,
+	DEVICE_RTC_SET_IRQ_PERIODIC,
+	DEVICE_RTC_ENABLE_PERIODIC_INTERRUPT,
+	DEVICE_RTC_DISABLE_PERIODIC_INTERRUPT,
+	DEVICE_RTC_WAIT_ALARM_RING,
+	DEVICE_RTC_NULL_COMMAND
+};
+
 /* device input event notify */
 class DeviceInNotify {
 public:
@@ -237,6 +251,16 @@ public:
      * @return 0 on success
      */
     int controlLed(LedState cmd, void *data = NULL, int len = 0);
+
+    /**
+     * @brief control the rtc
+     *
+     * @param cmd  see enum DeviceRTC
+     * @param data data
+     * @param len  data length
+     * @return 0 on success
+     */
+    int controlRtc(DeviceRTC cmd, void *data = NULL, int len = 0);
 
     /**
      * @brief control the power

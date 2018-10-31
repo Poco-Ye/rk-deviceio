@@ -29,6 +29,7 @@
 #include "bluetooth.h"
 #include "wifi.h"
 #include "Logger.h"
+#include "rtc.h"
 #include "shell.h"
 #include "power.h"
 using namespace std; 
@@ -335,6 +336,11 @@ DeviceIo::DeviceIo() {
         APP_ERROR("[%s] error: power_init fail, err is:%d\n",  __FUNCTION__, ret);
     }
 
+    ret = rtc_init();
+    if (ret) {
+        APP_ERROR("[%s] error: rtc_init fail, err is:%d\n",  __FUNCTION__, ret);
+    }
+
 #ifndef SOFTVOL
     ret = mixer_init(nullptr, nullptr);
 
@@ -360,6 +366,7 @@ DeviceIo::DeviceIo() {
 
 DeviceIo::~DeviceIo() {
     pthread_mutex_destroy(&user_volume_mutex);
+    rtc_deinit();
     power_deinit();
 #ifndef SOFTVOL
     mixer_exit();
@@ -418,6 +425,10 @@ int DeviceIo::controlLed(LedState cmd, void *data, int len) {
     } else {
         return rk_led_control(cmd, data, len);
     }
+}
+
+int DeviceIo::controlRtc(DeviceRTC cmd, void *data, int len) {
+    return rtc_control(cmd, data, len);
 }
 
 int DeviceIo::controlPower(DevicePowerSupply cmd, void *data, int len) {

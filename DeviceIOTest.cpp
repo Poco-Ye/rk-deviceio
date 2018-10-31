@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <linux/input.h>
+#include <linux/rtc.h>
 #include <math.h>
 #include<iostream>
 
@@ -30,6 +31,7 @@ using DeviceIOFramework::DeviceInput;
 using DeviceIOFramework::LedState;
 using DeviceIOFramework::BtControl;
 using DeviceIOFramework::WifiControl;
+using DeviceIOFramework::DeviceRTC;
 using DeviceIOFramework::DevicePowerSupply;
 
 class DeviceInputWrapper: public DeviceIOFramework::DeviceInNotify {
@@ -90,6 +92,23 @@ int main()
 
     DeviceIo::getInstance()->getSn(value);
     std::cout << "serial number:" << value << std::endl;
+
+    struct rtc_time tmp_rtc;
+    std::cout << "Rtc Read time:" << std::endl;
+    DeviceIo::getInstance()->controlRtc(DeviceRTC::DEVICE_RTC_READ_TIME, &tmp_rtc, sizeof(tmp_rtc));
+
+    unsigned int settime = 3;
+    std::cout << "Rtc Set alarm wakeup after " << settime << " seconds" << std::endl;
+    DeviceIo::getInstance()->controlRtc(DeviceRTC::DEVICE_RTC_SET_TIME, &settime, 0);
+
+    std::cout << "Rtc Read alarm setting" << std::endl;
+    DeviceIo::getInstance()->controlRtc(DeviceRTC::DEVICE_RTC_READ_ALARM, &tmp_rtc, 0);
+
+    std::cout << "Rtc Enable alarm" << std::endl;
+    DeviceIo::getInstance()->controlRtc(DeviceRTC::DEVICE_RTC_ENABLE_ALARM_INTERRUPT, NULL, 0);
+
+    std::cout << "Rtc Wait alarm wakeup" << std::endl;
+    DeviceIo::getInstance()->controlRtc(DeviceRTC::DEVICE_RTC_WAIT_ALARM_RING, NULL, 0);
 
     DeviceIo::getInstance()->controlPower(DevicePowerSupply::BATTERY_CAPACITY, value, 18);
     std::cout << "Get Battery Capacity: " << value << std::endl;
