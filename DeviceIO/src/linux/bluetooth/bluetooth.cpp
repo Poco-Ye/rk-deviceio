@@ -13,7 +13,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-
+#ifndef BLUEZ5_UTILS
 #include "bluetooth.h"
 #include "socket_app.h"
 #include "Logger.h"
@@ -612,7 +612,7 @@ int get_bt_mac(char *bt_mac)
 #endif
 }
 
-int rk_bsa_bt_control(BtControl cmd, void *data, int len)
+int rk_bt_control(BtControl cmd, void *data, int len)
 {
     using BtControl_rep_type = std::underlying_type<BtControl>::type;
 
@@ -730,3 +730,4 @@ int rk_bsa_bt_control(BtControl cmd, void *data, int len)
 
     return ret;
 }
+#endif

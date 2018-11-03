@@ -54,6 +54,7 @@ public:
         }
 	case DeviceInput::KEY_MIC_MUTE: {
             printf("key mic mute\n");
+				DeviceIo::getInstance()->controlBt(BtControl::BT_PLAY);
             break;
         }
 	case DeviceInput::KEY_ENTER_AP: {
@@ -74,6 +75,26 @@ public:
         }
         case DeviceInput::KEY_SHUT_DOWN: { //shutdown
             printf("key shut down key pressed\n");
+			    break;
+			}
+			case DeviceInput::BT_CONNECT: {
+			    printf("=== BT_CONNECT ===\n");
+			    break;
+			}
+			case DeviceInput::BT_DISCONNECT: {
+			    printf("=== BT_DISCONNECT ===\n");
+			    break;
+			}
+			case DeviceInput::BT_START_PLAY: {
+			    printf("=== BT_START_PLAY ===\n");
+			    break;
+			}
+			case DeviceInput::BT_PAUSE_PLAY: {
+			    printf("=== BT_PAUSE_PLAY ===\n");
+			    break;
+			}
+			case DeviceInput::BT_STOP_PLAY: {
+			    printf("=== BT_STOP_PLAY ===\n");
             break;
         }
       }

@@ -72,6 +72,7 @@ enum class BtControl {
     BT_IS_OPENED,
     BT_IS_CONNECTED,
     BT_UNPAIR,
+    BT_PLAY,
     BT_PAUSE_PLAY,
     BT_RESUME_PLAY,
     BT_VOLUME_UP,
@@ -131,10 +132,12 @@ enum class DeviceInput {
     BT_PAIR_FAILED_OTHER,
     //蓝牙配对成功
     BT_PAIR_SUCCESS = 20,
+    BT_CONNECT,
     //手机关闭蓝牙蓝牙断开
     BT_DISCONNECT,
     //蓝牙开始播放
     BT_START_PLAY,
+    BT_PAUSE_PLAY,
     //蓝牙结束播放
     BT_STOP_PLAY,
     //ble

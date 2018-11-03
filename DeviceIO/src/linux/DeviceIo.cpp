@@ -32,6 +32,7 @@
 #include "rtc.h"
 #include "shell.h"
 #include "power.h"
+#include "bluetooth/avrcpctrl.h"
 using namespace std; 
 
 
