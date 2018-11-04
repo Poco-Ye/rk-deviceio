@@ -22,6 +22,10 @@
 #define WIFI_CONFIG_MAX 240
 
 #define DEVICE_CONFIG_FILE "/data/property.txt"
+
+#define NETWORK_DEVICE_FOR_WORK "wlan0"
+#define NETWORK_DEVICE_FOR_AP "wlan1"
+
 class WifiUtil{
 public:
 
@@ -42,9 +46,17 @@ public:
      * @brief open wifi
      *
      */
-    void openWifi();
+    bool start_wpa_supplicant();
+		
+    bool stop_wpa_supplicant();
 
-    void closeWifi();
+    /**
+     * @brief open wifi ap mode
+     *
+     */
+    bool start_ap_mode(char *ap_name);
+
+    bool stop_ap_mode();
 
     /* use wpa_cli to get wifi list from device*/
     std::string getWifiListJson();
@@ -57,7 +69,9 @@ public:
      * it will create a new thread detached to check wifi state.
      * @Param recv_buff  http request header.
      */ 
-    void WifiConnect(char *recv_buff);
+    void connectJson(char *recv_buff);
+    void connect(char *ssid, char *psk);
+    void disconnect();
 
 private:
     static WifiUtil *m_instance;

@@ -18,6 +18,7 @@
 #include "socket_app.h"
 #include "Logger.h"
 #include "WifiUtil.h"
+#include "shell.h"
 
 #include <sys/ioctl.h>
 #include <sys/socket.h>
@@ -239,6 +240,20 @@ static bool isWifiFirstConfig() {
     return false;
 }
 
+bool isWifiConnected() {
+    char ret_buff[1024] = {0};
+    bool ret;
+
+    ret = Shell::exec("wpa_cli -iwlan0 status | grep wpa_state | awk -F '=' '{printf $2}'", ret_buff);
+    if (!ret) {
+        APP_ERROR("getWifiMac failed.\n");
+        return false;
+    }
+    if (!strncmp(ret_buff, "COMPLETED", 9))
+        return true;
+    return false;
+}
+
 int rk_wifi_control(WifiControl cmd, void *data, int len)
 {
     APP_DEBUG("controlWifi, cmd: %d\n", cmd);
@@ -248,17 +263,26 @@ int rk_wifi_control(WifiControl cmd, void *data, int len)
     switch (cmd) {
 
     case WifiControl::WIFI_OPEN:
-        WifiUtil::getInstance()->openWifi();
+        WifiUtil::getInstance()->start_wpa_supplicant();
         break;
 
     case WifiControl::WIFI_CLOSE:
-        WifiUtil::getInstance()->closeWifi();
+        WifiUtil::getInstance()->stop_wpa_supplicant();
+        break;
+
+    case WifiControl::WIFI_CONNECT:
+        WifiUtil::getInstance()->connect(NULL, NULL);
+        break;
+
+    case WifiControl::WIFI_DISCONNECT:
+        WifiUtil::getInstance()->disconnect();
         break;
 
     case WifiControl::WIFI_IS_OPENED:
         break;
 
     case WifiControl::WIFI_IS_CONNECTED:
+        return isWifiConnected();
         break;
 
     case WifiControl::WIFI_SCAN: {
@@ -269,6 +293,14 @@ int rk_wifi_control(WifiControl cmd, void *data, int len)
 
     case WifiControl::WIFI_IS_FIRST_CONFIG:
         ret = isWifiFirstConfig();
+        break;
+
+    case WifiControl::WIFI_OPEN_AP_MODE:
+        WifiUtil::getInstance()->start_ap_mode((char *)data);
+        break;
+
+    case WifiControl::WIFI_CLOSE_AP_MODE:
+        WifiUtil::getInstance()->stop_ap_mode();
         break;
 
     case WifiControl::GET_WIFI_MAC:

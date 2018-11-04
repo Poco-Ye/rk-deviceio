@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
-project(DeviceIo LANGUAGES CXX)
+project(DeviceIo)
 
 add_subdirectory("ThirdParty")
 add_subdirectory("src")

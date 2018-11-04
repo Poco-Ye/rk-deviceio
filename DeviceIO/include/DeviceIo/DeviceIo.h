@@ -92,16 +92,34 @@ enum class BtControl {
 enum class WifiControl {
     WIFI_OPEN,
     WIFI_CLOSE,
+    WIFI_CONNECT,
+    WIFI_DISCONNECT,
     WIFI_IS_OPENED,
     WIFI_IS_CONNECTED,
     WIFI_SCAN,
     WIFI_IS_FIRST_CONFIG,
+    WIFI_OPEN_AP_MODE,
+    WIFI_CLOSE_AP_MODE,
     GET_WIFI_MAC,
     GET_WIFI_IP,
     GET_WIFI_SSID,
     GET_WIFI_BSSID,
     GET_LOCAL_NAME,
 };
+
+enum NetLinkNetworkStatus {
+    NETLINK_NETWORK_CONFIG_STARTED,
+    NETLINK_NETWORK_CONFIGING,
+    NETLINK_NETWORK_CONFIG_SUCCEEDED,
+    NETLINK_NETWORK_CONFIG_FAILED,
+    NETLINK_NETWORK_SUCCEEDED,
+    NETLINK_NETWORK_FAILED,
+    NETLINK_NETWORK_RECOVERY_START,
+    NETLINK_NETWORK_RECOVERY_SUCCEEDED,
+    NETLINK_NETWORK_RECOVERY_FAILED,
+    NETLINK_WAIT_LOGIN
+};
+
 /* input event */
 enum class DeviceInput {
     KEY_ONE_SHORT,
@@ -205,8 +223,15 @@ enum class DeviceRTC {
 	DEVICE_RTC_NULL_COMMAND
 };
 
+class INetLinkWrapperCallback {
+public:
+    virtual void networkReady() = 0;
+    virtual void netlinkNetworkOnlineStatus(bool status) = 0;
+    virtual void netlinkNetworkStatusChanged(NetLinkNetworkStatus networkStatus) = 0;
+};
+
 /* device input event notify */
-class DeviceInNotify {
+class DeviceInNotify : public INetLinkWrapperCallback{
 public:
     virtual void callback(DeviceInput event, void *data, int len) = 0;
 
@@ -389,13 +414,25 @@ public:
 
     /**
      * @brief start network config
+     * @timeout, networkconfig timeout in seconds
      *
      * @return true if started succeed
      */
-    bool startNetworkConfig();
+    bool startNetworkConfig(int timeout_s);
 
     bool stopNetworkConfig();
 
+    /**
+     * @brief start network config
+     *
+     * @return true if started succeed
+     */
+    bool startNetworkRecovery();
+    bool stopNetworkRecovery();
+
+    NetLinkNetworkStatus getNetworkStatus() const;
+
+    void poweroff();
 private:
     static DeviceIo* m_instance;
     static DeviceInNotify* m_notify;

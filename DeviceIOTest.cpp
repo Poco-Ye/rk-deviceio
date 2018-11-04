@@ -33,9 +33,34 @@ using DeviceIOFramework::BtControl;
 using DeviceIOFramework::WifiControl;
 using DeviceIOFramework::DeviceRTC;
 using DeviceIOFramework::DevicePowerSupply;
+using DeviceIOFramework::NetLinkNetworkStatus;
 
-class DeviceInputWrapper: public DeviceIOFramework::DeviceInNotify {
+class DeviceInputWrapper: public DeviceIOFramework::DeviceInNotify{
 public:
+    void networkReady() {
+        printf("net ready\n");
+    }
+    void netlinkNetworkOnlineStatus(bool status) {
+        if (status)
+            printf("net changed to online\n");
+        else
+            printf("net changed to offline\n");
+    }
+    void netlinkNetworkStatusChanged(NetLinkNetworkStatus networkStatus) {
+        printf("%s : %d\n", __func__, networkStatus);
+        switch (DeviceIo::getInstance()->getNetworkStatus()) {
+            case DeviceIOFramework::NETLINK_NETWORK_CONFIG_STARTED:
+            case DeviceIOFramework::NETLINK_NETWORK_CONFIGING:
+            case DeviceIOFramework::NETLINK_NETWORK_CONFIG_SUCCEEDED:
+            case DeviceIOFramework::NETLINK_NETWORK_CONFIG_FAILED:
+            case DeviceIOFramework::NETLINK_NETWORK_SUCCEEDED:
+            case DeviceIOFramework::NETLINK_NETWORK_FAILED:
+            case DeviceIOFramework::NETLINK_NETWORK_RECOVERY_START:
+            case DeviceIOFramework::NETLINK_NETWORK_RECOVERY_SUCCEEDED:
+            case DeviceIOFramework::NETLINK_NETWORK_RECOVERY_FAILED:
+                break;
+            }
+    }
     void callback(DeviceInput event, void *data, int len) {
       printf("hardware  event:%d \n", static_cast<int>(event));
 
@@ -59,11 +84,22 @@ public:
         }
 	case DeviceInput::KEY_ENTER_AP: {
             printf("key enter ap to config network\n");
-            DeviceIo::getInstance()->startNetworkConfig();
+            switch (DeviceIo::getInstance()->getNetworkStatus()) {
+                case DeviceIOFramework::NETLINK_NETWORK_CONFIG_STARTED:
+                case DeviceIOFramework::NETLINK_NETWORK_CONFIGING:
+                        DeviceIo::getInstance()->stopNetworkConfig();
+                        break;
+                case DeviceIOFramework::NETLINK_NETWORK_RECOVERY_START:
+                        DeviceIo::getInstance()->stopNetworkRecovery();
+                        break;
+                default:
+                        DeviceIo::getInstance()->startNetworkConfig(90);
+                        break;
+            }
             break;
         }
         case DeviceInput::KEY_HEADPHONE_INSERT: {
-            if (*((int *)data) == 1)
+            if ((data != NULL) && *((int *)data) == 1)
                 printf("headphone inserted\n");
             else
                 printf("headphone plug out\n");
@@ -109,6 +145,8 @@ int main()
     class DeviceInputWrapper *input = new DeviceInputWrapper();
     DeviceIo::getInstance()->setNotify(input);
 
+    DeviceIo::getInstance()->setVolume(30,0);
+
     std::cout << "version:" << DeviceIo::getInstance()->getVersion() << std::endl;
 
     DeviceIo::getInstance()->getSn(value);
@@ -147,26 +185,7 @@ int main()
     ret = DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_IS_CONNECTED);
     std::cout << "is wifi connected: " << ret << std::endl;
 
-    if (DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_IS_FIRST_CONFIG)) {
-        //DeviceIo::getInstance()->controlWifi(WifiControl::OPEN_SOFTAP);
-
-        //wifi start wpa_supplicant for scanning
-        DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_OPEN);
-        sleep(3);
-        //wifi scanning
-        char *wifi_list = (char *)malloc(10 * 1024);
-        memset(wifi_list, 0, 10 * 1024);
-        DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_SCAN, wifi_list, 10 * 1024);
-        std::cout << "wifi list: " << wifi_list << std::endl;
-        free(wifi_list);
-        //bt start ble server for networkconfig
-        DeviceIo::getInstance()->controlBt(BtControl::BLE_OPEN_SERVER);
-    } else {
-        //network start auto connect
-        DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_OPEN);
-        //open bt a2dp sink
-        DeviceIo::getInstance()->controlBt(BtControl::BT_OPEN);
-    }
+    DeviceIo::getInstance()->startNetworkRecovery();
 
     while(true) {
         sleep(1);

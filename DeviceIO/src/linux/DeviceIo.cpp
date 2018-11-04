@@ -33,6 +33,7 @@
 #include "shell.h"
 #include "power.h"
 #include "bluetooth/avrcpctrl.h"
+#include "NetLinkWrapper.h"
 using namespace std; 
 
 
@@ -403,6 +404,7 @@ void DeviceIo::destroy() {
 void DeviceIo::setNotify(DeviceInNotify* notify) {
     if (notify) {
         m_notify = notify;
+        NetLinkWrapper::getInstance()->setCallback(notify);
     }
 }
 
@@ -605,14 +607,29 @@ bool DeviceIo::isHeadPhoneInserted() {
     return false;
 }
 
-bool DeviceIo::startNetworkConfig() {
-    //DeviceIo::getInstance()->controlWifi(WifiControl::OPEN_SOFTAP);
-    DeviceIo::getInstance()->controlBt(BtControl::BLE_OPEN_SERVER);
+bool DeviceIo::startNetworkConfig(int timeout) {
+    NetLinkWrapper::getInstance()->startNetworkConfig(timeout);
 }
 
 bool DeviceIo::stopNetworkConfig() {
-    //DeviceIo::getInstance()->controlWifi(WifiControl::OPEN_SOFTAP);
-    DeviceIo::getInstance()->controlBt(BtControl::BLE_CLOSE_SERVER);
+    NetLinkWrapper::getInstance()->stopNetworkConfig();
+}
+
+bool DeviceIo::startNetworkRecovery() {
+    NetLinkWrapper::getInstance()->startNetworkRecovery();
+}
+
+bool DeviceIo::stopNetworkRecovery() {
+    NetLinkWrapper::getInstance()->stopNetworkRecovery();
+}
+
+NetLinkNetworkStatus DeviceIo::getNetworkStatus() const{
+    return NetLinkWrapper::getInstance()->getNetworkStatus();
+}
+
+void DeviceIo::poweroff() {
+    Shell::system("poweroff");
 }
 } // namespace framework
+
 

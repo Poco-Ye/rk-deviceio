@@ -6,7 +6,8 @@
 class Shell {
 public:
     static bool exec(const char* cmd, char* result);
-    static int get_pid(const char *Name);
+    static int pidof(const char *Name);
+    static bool system(const char *cmd);
 };
 
 #endif //__DEVICEIO_SHELL_H__

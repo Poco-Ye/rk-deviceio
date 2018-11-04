@@ -3,8 +3,25 @@
 #include "Logger.h"
 
 #include <stdlib.h>
-#include <unistd.h>
 #include <thread>
+#include <string>
+#include <fstream>
+#include <unistd.h>
+#include <cstring>
+#include <algorithm>
+#include <netdb.h>
+#include <sys/ioctl.h>
+#include <net/if.h>
+#include <arpa/inet.h>
+#include <sys/time.h>
+#include <netinet/ip.h>
+#include <netinet/ip_icmp.h>
+#include <csignal>
+#include <fcntl.h>
+
+using std::string;
+using std::vector;
+using std::ifstream;
 
 typedef std::list<std::string> LIST_STRING;
 typedef std::list<WifiInfo*> LIST_WIFIINFO;
@@ -48,20 +65,213 @@ void WifiUtil::destroy() {
     }
 }
 
-void WifiUtil::openWifi() {
-    char ret_buff[MSG_BUFF_LEN] = {0};
-    int pid = Shell::get_pid("wpa_supplicant");
-    if(pid != 0) {
-        log_info("wpa_supplicant already started.\n");        
-         return;
+bool check_ap_interface_status(string ap) {
+    int sockfd;
+    bool ret = false;
+    struct ifreq ifr_mac;
+
+    if ((sockfd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) <= 0) {
+        APP_ERROR("socket create failed.\n");
+        return false;
     }
-    Shell::exec("wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf", ret_buff);
+
+    memset(&ifr_mac,0,sizeof(ifr_mac));
+    strncpy(ifr_mac.ifr_name, ap.c_str(), sizeof(ifr_mac.ifr_name)-1);
+
+    if ((ioctl(sockfd, SIOCGIFHWADDR, &ifr_mac)) < 0) {
+        APP_ERROR("Mac ioctl failed.\n");
+    } else {
+        APP_DEBUG("Mac ioctl suceess.\n");
+        ret = true;
+    }
+    close(sockfd);
+
+    return ret;
 }
 
-void WifiUtil::closeWifi() {
-    char ret_buff[MSG_BUFF_LEN] = {0};
-    Shell::exec("killall wpa_supplicant", ret_buff);
+bool WifiUtil::start_wpa_supplicant() {
+    Shell::system("ifconfig wlan0 0.0.0.0");
+    Shell::system("killall dhcpcd");
+    Shell::system("killall wpa_supplicant");
+    sleep(1);
+    Shell::system("wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf");
+    Shell::system("dhcpcd -k wlan0");//udhcpc -b -i wlan0 -q ");
+    sleep(1);
+    Shell::system("dhcpcd wlan0 -t 0&");
+    return true;
 }
+
+bool WifiUtil::stop_wpa_supplicant() {
+    return Shell::system("killall wpa_supplicant &");
+}
+
+bool WifiUtil::stop_ap_mode() {
+    APP_INFO("stop_ap_mode\n");
+
+    Shell::system("softapDemo stop");
+    Shell::system("killall softapServer &");
+    int time = 100;
+    while (time-- > 0 && !access("/var/run/hostapd", F_OK)) {
+        usleep(10 * 1000);
+    }
+    APP_INFO("End stop_ap_mode\n");
+}
+
+bool WifiUtil::start_ap_mode(char *ap_name) {
+    bool ret_value = true;
+    string cmd;
+
+    if (ap_name == NULL)
+        ap_name = "RockchipEcho-123";
+
+    APP_INFO("start_ap_mode: %s\n", ap_name);
+
+    cmd.append("softapServer ");
+    cmd += ap_name;
+    cmd += " &";
+
+    if (Shell::pidof("hostapd") || Shell::pidof("softapServer"))
+        stop_ap_mode();
+
+    Shell::system(cmd.c_str());
+    int time = 100;
+    while (time-- > 0 && access("/var/run/hostapd", F_OK)) {
+        usleep(100 * 1000);
+    }
+    usleep(100 * 1000);
+    APP_INFO("End start_ap_mode");
+
+    return ret_value;
+}
+
+bool starup_ap_interface() {
+    if (check_ap_interface_status(NETWORK_DEVICE_FOR_AP)) {
+        APP_DEBUG("%s is up.\n", NETWORK_DEVICE_FOR_AP);
+
+        return true;
+    }
+
+    return Shell::system("ifconfig wlan1 up &");
+}
+
+bool down_ap_interface() {
+    if (!check_ap_interface_status(NETWORK_DEVICE_FOR_AP)) {
+        APP_DEBUG("%s is down.\n", NETWORK_DEVICE_FOR_AP);
+        return true;
+    }
+
+    return Shell::system("ifconfig wlan1 down &");
+}
+
+bool starup_wlan0_interface() {
+
+    return Shell::system("ifconfig wlan0 up &");
+}
+
+bool down_wlan0_interface() {
+    if (!check_ap_interface_status(NETWORK_DEVICE_FOR_WORK)) {
+        APP_DEBUG("%s is down.\n", NETWORK_DEVICE_FOR_WORK);
+        return true;
+    }
+
+    Shell::system("ifconfig wlan0 0.0.0.0");
+
+    return Shell::system("ifconfig wlan0 down &");
+}
+
+bool stop_dhcp_server() {
+    return Shell::system("killall dnsmasq &");
+}
+
+bool start_dhcp_server() {
+    if (stop_dhcp_server()) {
+        APP_DEBUG("[Start_dhcp_server] dnsmasq is killed.\n");
+    }
+    sleep(1);
+
+    return Shell::system("dnsmasq &");
+}
+
+bool get_device_interface_ip()
+{
+    int sock_ip;
+    struct ifreq ifr;
+        struct sockaddr_in  sin;
+
+    sock_ip = socket( AF_INET, SOCK_DGRAM, 0 );
+    if (sock_ip == -1) {
+        APP_ERROR("create ip socket failed.\n");
+        return false;
+    }
+
+    memset(&ifr,0,sizeof(ifr));
+    strncpy(ifr.ifr_name, NETWORK_DEVICE_FOR_WORK, sizeof(ifr.ifr_name)-1);
+
+    if ((ioctl( sock_ip, SIOCGIFADDR, &ifr)) < 0) {
+        APP_ERROR("ip socket ioctl failed.\n");
+        close(sock_ip);
+        return false;
+    }
+
+        memcpy(&sin,&ifr.ifr_addr,sizeof(sin));
+        APP_DEBUG("eth0 ip: %s\n",inet_ntoa(sin.sin_addr));
+    return true;
+
+}
+
+bool get_device_interface_mac(string &mac_address) {
+    int sock_mac;
+    struct ifreq ifr_mac;
+    char mac_addr[30] = {0};
+
+    sock_mac = socket( AF_INET, SOCK_STREAM, 0 );
+    if (sock_mac == -1) {
+        APP_ERROR("create mac socket failed.\n");
+        return false;
+    }
+
+    memset(&ifr_mac,0,sizeof(ifr_mac));
+    strncpy(ifr_mac.ifr_name, NETWORK_DEVICE_FOR_WORK, sizeof(ifr_mac.ifr_name)-1);
+
+    if ((ioctl( sock_mac, SIOCGIFHWADDR, &ifr_mac)) < 0) {
+        APP_ERROR("Mac socket ioctl failed.\n");
+        close(sock_mac);
+        return false;
+    }
+
+    sprintf(mac_addr,"%02X%02X",
+            (unsigned char)ifr_mac.ifr_hwaddr.sa_data[4],
+            (unsigned char)ifr_mac.ifr_hwaddr.sa_data[5]);
+
+    APP_DEBUG("local mac:%s\n",mac_addr);
+
+    close(sock_mac);
+
+    mac_address = mac_addr;
+
+    std::transform(mac_address.begin(), mac_address.end(), mac_address.begin(), toupper);
+
+    return true;
+}
+
+void get_device_wifi_chip_type(string &wifi_chip_type)
+{
+	char wifi_chip[30] = {0};
+    int fd = open("/sys/class/rkwifi/chip", O_RDONLY);
+    if (fd < 0) {
+		APP_ERROR("open /sys/class/rkwifi/chip err!\n");
+		bzero(wifi_chip, sizeof(wifi_chip));
+		strcpy(wifi_chip, "RTL8723DS");
+	}
+    else {
+        memset(wifi_chip, '\0', sizeof(wifi_chip));
+        read(fd, wifi_chip, sizeof(wifi_chip));
+        close(fd);
+    } 
+	wifi_chip_type = wifi_chip;
+	APP_INFO("get wifi chip: %s\n", wifi_chip);
+}
+
 /**
  * split buff array by '\n' into string list.
  * @parm buff[]
@@ -225,7 +435,7 @@ bool wifiConnect(std::string ssid,std::string password){
     return true;
 }
 
-bool checkWifiIsConnected(){
+bool checkWifiIsConnected() {
     char ret_buff[MSG_BUFF_LEN] = {0};
     char cmdline[MSG_BUFF_LEN] = {0};
 
@@ -233,7 +443,7 @@ bool checkWifiIsConnected(){
     LIST_STRING::iterator iterator;   
 
     // udhcpc network
-    int udhcpc_pid = Shell::get_pid("udhcpc");
+    int udhcpc_pid = Shell::pidof("udhcpc");
     if(udhcpc_pid != 0){
         memset(cmdline, 0, sizeof(cmdline));
         sprintf(cmdline,"kill %d",udhcpc_pid);
@@ -397,7 +607,18 @@ static bool saveWifiConfig(const char* name, const char* pwd)
     return 0;
 }
 
-void WifiUtil::WifiConnect(char *recv_buff) {
+void WifiUtil::connect(char *ssid, char *psk) {
+    if (ssid && psk)
+        wifiConnect(ssid, psk);
+    else
+        Shell::system("wpa_cli -iwlan0 reconnect");
+}
+
+void WifiUtil::disconnect() {
+    Shell::system("wpa_cli -iwlan0 disconnect");
+}
+
+void WifiUtil::connectJson(char *recv_buff) {
     std::string jsonString = getJsonFromMessage(recv_buff);
 
     /* get setUp user name and password */

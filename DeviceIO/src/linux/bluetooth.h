@@ -21,6 +21,21 @@
 
 using DeviceIOFramework::BtControl;
 
+#define SYSTEM_BT_POWER_ON     "hciconfig hci0 up"
+#define SYSTEM_BT_POWER_DOWN     "hciconfig hci0 down"
+
+#define BT_SACN_SW 1
+#if BT_SACN_SW
+#define SYSTEM_BT_NOSCAN_CMD  "hciconfig hci0 noscan"
+#define SYSTEM_BT_PISCAN_CMD  "hciconfig hci0 piscan"
+#endif
+
+#define SYSTEM_BT_RESTART_UP_CMD  "/oem/bt_restart.sh 1 &"
+#define SYSTEM_BT_RESTART_DOWN_CMD  "/oem/bt_restart.sh 0 &"
+
+#define SYSTEM_BT_RESTART_CMD1  "killall bluealsa"
+#define SYSTEM_BT_RESTART_CMD2	"/oem/bt_start.sh &"
+
 int rk_bt_control(BtControl cmd, void *data, int len);
 
 #endif //DEVICEIO_FRAMEWORK_BLUETOOTH_H

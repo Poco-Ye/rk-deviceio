@@ -685,7 +685,7 @@ void pause_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to pause: %s\n");
+		printf("Failed to pause: %s\n", __func__);
 		dbus_error_free(&error);
 		return;
 	}
