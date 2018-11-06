@@ -28,6 +28,55 @@
 
 using DeviceIOFramework::DevicePowerSupply;
 
+#define BATTERY_PROP_TYPE_UNKNOWN              "Unknown"
+#define BATTERY_PROP_TYPE_BATTERY              "Battery"
+#define BATTERY_PROP_TYPE_UPS                  "UPS"
+#define BATTERY_PROP_TYPE_MAINS                "Mains"
+#define BATTERY_PROP_TYPE_USB                  "USB"
+#define BATTERY_PROP_TYPE_USB_DCP              "USB_DCP"
+#define BATTERY_PROP_TYPE_USB_CDP              "USB_CDP"
+#define BATTERY_PROP_TYPE_USB_ACA              "USB_ACA"
+
+#define BATTERY_PROP_STATUS_UNKNOWN            "Unknown"
+#define BATTERY_PROP_STATUS_CHARGING           "Charging"
+#define BATTERY_PROP_STATUS_DISCHARGING        "Discharging"
+#define BATTERY_PROP_STATUS_NOT_CHARGING       "Not charging"
+#define BATTERY_PROP_STATUS_FULL               "Full"
+
+#define BATTERY_PROP_CHARGE_UNKNOWN            "Unknown"
+#define BATTERY_PROP_CHARGE_NA                 "N/A"
+#define BATTERY_PROP_CHARGE_TRICKLE            "Trickle"
+#define BATTERY_PROP_CHARGE_FAST               "Fast"
+
+#define BATTERY_PROP_HEALTH_UNKNOWN            "Unknown"
+#define BATTERY_PROP_HEALTH_COLD               "Cold"
+#define BATTERY_PROP_HEALTH_GOOD               "Good"
+#define BATTERY_PROP_HEALTH_DEAD               "Dead"
+#define BATTERY_PROP_HEALTH_OVER               "Over voltage"
+#define BATTERY_PROP_HEALTH_OVERHEAT           "Overheat"
+#define BATTERY_PROP_HEALTH_SAFETY             "Safety timer expire"
+#define BATTERY_PROP_HEALTH_UNSPECIFIED        "Unspecified failure"
+#define BATTERY_PROP_HEALTH_WATCHDOG           "Watchdog timer expire"
+
+#define BATTERY_PROP_TECHNOLOGY_UNKNOWN        "Unknown"
+#define BATTERY_PROP_TECHNOLOGY_NIMH           "NiMH"
+#define BATTERY_PROP_TECHNOLOGY_LI_ION         "Li-ion"
+#define BATTERY_PROP_TECHNOLOGY_LI_POLY        "Li-poly"
+#define BATTERY_PROP_TECHNOLOGY_LIFE           "LiFe"
+#define BATTERY_PROP_TECHNOLOGY_NICD           "NiCd"
+#define BATTERY_PROP_TECHNOLOGY_LIMN           "LiMn"
+
+#define BATTERY_PROP_CAPACITY_LEVEL_UNKNOWN    "Unknown"
+#define BATTERY_PROP_CAPACITY_LEVEL_CRITICAL   "Critical"
+#define BATTERY_PROP_CAPACITY_LEVEL_LOW        "Low"
+#define BATTERY_PROP_CAPACITY_LEVEL_NORMAL     "Normal"
+#define BATTERY_PROP_CAPACITY_LEVEL_HIGH       "High"
+#define BATTERY_PROP_CAPACITY_LEVEL_FULL       "Full"
+
+#define BATTERY_PROP_SCOPE_UNKNOWN             "Unknown"
+#define BATTERY_PROP_SCOPE_SYSTEM              "System"
+#define BATTERY_PROP_SCOPE_DEVICE              "Device"
+
 int power_supply_control(DevicePowerSupply cmd, void *data, int len);
 int power_init(void);
 int power_deinit(void);

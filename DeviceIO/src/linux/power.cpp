@@ -258,7 +258,9 @@ int power_supply_control(DevicePowerSupply cmd, void *data, int len)
 
 static void* power_task(void *param) {
 #define	CAPACITY_BUFFER_SIZE	(8)
+#define	STATUS_BUFFER_SIZE	(32)
 	char capacity_buf[CAPACITY_BUFFER_SIZE] = {0};
+	char status_buf[STATUS_BUFFER_SIZE] = {0};
 	unsigned int capacity_level = 0;
 
     while (1) {
@@ -276,16 +278,30 @@ static void* power_task(void *param) {
 				pm_err("[%s:%d] read capacity error.\n", __func__, __LINE__);
 				continue;
 			}
+			ret = power_supply_control(DevicePowerSupply::BATTERY_STATUS,
+					status_buf, sizeof(status_buf));
+			if (ret) {
+				pm_err("%s:%d read battery status error.\n", __func__, __LINE__);
+				continue;
+			}
 			// pm_info("capacity_buf [%s]\n", capacity_buf);
 			capacity_level = str2int(capacity_buf);
 			// pm_info("Battery capacity is %d.\n", capacity_level);
 
 			if (capacity_level < pm_g.low_power_threshold) {
-				pm_info("Battery capacity is lower then %d, And poweroff system.\n",
+				pm_info("Battery capacity is lower then %d\n",
 						pm_g.low_power_threshold);
-				pm_poweroff();
+				if (strncmp(BATTERY_PROP_STATUS_CHARGING, status_buf,
+						strlen(BATTERY_PROP_STATUS_CHARGING))) {
+					pm_poweroff();
+				} else {
+					pm_info("But Battery Status is %s\n",
+							status_buf);
+				}
 			} else {
-				pm_info("Battery capacity is %d.\n", capacity_level);
+				pm_info("Battery capacity is %d and status is %s\n",
+						capacity_level,
+						status_buf);
 			}
 
 			memset(capacity_buf, 0, CAPACITY_BUFFER_SIZE);
