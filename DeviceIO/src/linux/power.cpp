@@ -32,6 +32,11 @@
 #define pm_err(fmt, ...)	APP_ERROR("PowerManager error: " fmt, ##__VA_ARGS__)
 
 #define	CMD_SIZE	2048
+#define	TEMPERTURE_AMPLIFY	10
+#define	BATTERY_CHARGE_ENABLE	1
+#define	BATTERY_CHARGE_DISABLE	0
+#define	POWER_STRING_ONLINE	"online"
+#define	POWER_CHARGE_CONTROL_NODE	"input_current_limit"
 
 using DeviceIOFramework::DevicePowerSupply;
 
@@ -43,8 +48,12 @@ struct SysfsItem {
 struct power_manager {
 	unsigned int low_power_threshold;
 	unsigned int capacity_detect_period;
+	unsigned int temperture_detect_period;
+	int temperture_threshold[2];
+	int charging_fd;
 
 	pthread_t tid;
+	pthread_t tid_det_temp;
 };
 
 static struct power_manager pm_g;
@@ -58,6 +67,21 @@ static const char* mapSysfsString(DevicePowerSupply cmd,
     return NULL;
 }
 
+static int set_item_value(const char *path, const char *val)
+{
+	FILE *wfd = NULL;
+
+	wfd = fopen(path, "w");
+	if (!wfd) {
+		pm_err("fopen %s fail %s\n", path, strerror(errno));
+		return -1;
+	}
+	fwrite(val, 1, strlen(val), wfd);
+	fclose(wfd);
+
+	return 0;
+}
+
 static int get_item_value(const char *path, char *buffer)
 {
     int ret = -1;
@@ -69,13 +93,32 @@ static int get_item_value(const char *path, char *buffer)
     return 0;
 }
 
+static int usb_set_value(const char *cmd, const char *data)
+{
+	char full_path[CMD_SIZE] = { 0 };
+	int ret = -1;
+
+	memset(full_path, 0, sizeof(full_path));
+	sprintf(full_path, "%s/%s/%s", DEVICEIO_POWER_DIRECTORY_PATH,
+			DEVICEIO_POWER_TYPE_USB, cmd);
+
+	ret = set_item_value(full_path, data);
+	if (ret) {
+		pm_err("%s:%d Set item [%s] value error.\n",
+				__func__, __LINE__, full_path);
+		return -1;
+	}
+
+	return 0;
+}
+
 static int usb_get_value(const char *cmd, char *data)
 {
 	char full_path[CMD_SIZE] = { 0 };
 	int ret = -1;
 
 	memset(full_path, 0, sizeof(full_path));
-	sprintf(full_path, " /%s/%s/%s ", DEVICEIO_POWER_DIRECTORY_PATH,
+	sprintf(full_path, " %s/%s/%s ", DEVICEIO_POWER_DIRECTORY_PATH,
 			DEVICEIO_POWER_TYPE_USB, cmd);
 
 	ret = get_item_value(full_path, data);
@@ -88,13 +131,32 @@ static int usb_get_value(const char *cmd, char *data)
     return 0;
 }
 
+static int ac_set_value(const char *cmd, char *data)
+{
+	char full_path[CMD_SIZE] = { 0 };
+	int ret = -1;
+
+	memset(full_path, 0, sizeof(full_path));
+	sprintf(full_path, "%s/%s/%s", DEVICEIO_POWER_DIRECTORY_PATH,
+			DEVICEIO_POWER_TYPE_AC, cmd);
+
+	ret = set_item_value(full_path, data);
+	if (ret) {
+		pm_err("%s:%d Set item [%s] value error.\n",
+				__func__, __LINE__, full_path);
+		return -1;
+	}
+
+	return 0;
+}
+
 static int ac_get_value(const char *cmd, char *data)
 {
 	char full_path[CMD_SIZE] = { 0 };
 	int ret = -1;
 
 	memset(full_path, 0, sizeof(full_path));
-	sprintf(full_path, " /%s/%s/%s ", DEVICEIO_POWER_DIRECTORY_PATH,
+	sprintf(full_path, " %s/%s/%s ", DEVICEIO_POWER_DIRECTORY_PATH,
 			DEVICEIO_POWER_TYPE_AC, cmd);
 
 	ret = get_item_value(full_path, data);
@@ -178,6 +240,74 @@ int power_set_low_power_threshold(unsigned int threshold_val)
 	return 0;
 }		/* -----  end of function power_set_LOW_POWER_THRESHOLD  ----- */
 
+int battery_temperture_period_detect(unsigned int period)
+{
+	if (period) {
+		pm_g.temperture_detect_period = period;
+	} else {
+		pm_err("Power Battery Temperture Detect Period Is Invalid.\n");
+		return -1;
+	}
+	return 0;
+}
+
+int battery_temperture_threshold(DevicePowerSupply cmd, int temp)
+{
+	if (cmd == DevicePowerSupply::POWER_CFG_BAT_TEMP_THRESHOLD_MIN) {
+		pm_g.temperture_threshold[0] = temp * TEMPERTURE_AMPLIFY;
+		pm_info("Set Battery Temperture threshold minimum %d.\n", temp);
+	}
+	else if (cmd == DevicePowerSupply::POWER_CFG_BAT_TEMP_THRESHOLD_MAX) {
+		pm_g.temperture_threshold[1] = temp * TEMPERTURE_AMPLIFY;
+		pm_info("Set Battery Temperture threshold maximum %d.\n", temp);
+	} else {
+		pm_err("No Found Battery Temperture threshold CMD.\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+static int battery_charge_set(int flag)
+{
+	char cmd_buf[CMD_SIZE] = { 0 };
+	char online_status[16] = {0};
+	int ret = -1;
+	int chg_status = 0;
+
+	ret = power_supply_control(DevicePowerSupply::USB_ONLINE,
+			online_status, sizeof(online_status));
+	if (ret) {
+		pm_err("%s:%d read usb online error.\n", __func__, __LINE__);
+	}
+	chg_status = str2int(online_status);
+	if (chg_status) {
+		memset(cmd_buf, 0, sizeof(cmd_buf));
+		sprintf(online_status, "%d", flag);
+		ret = usb_set_value(POWER_CHARGE_CONTROL_NODE, online_status);
+		return ret;
+	} else {
+		pm_err("%s:%d Set USB Charging Enable error.\n", __func__, __LINE__);
+		return -1;
+	}
+
+	ret = power_supply_control(DevicePowerSupply::AC_ONLINE,
+			online_status, sizeof(online_status));
+	if (ret) {
+		pm_err("%s:%d read ac online error.\n", __func__, __LINE__);
+	}
+	chg_status = str2int(online_status);
+	if (chg_status) {
+		memset(cmd_buf, 0, sizeof(cmd_buf));
+		sprintf(online_status, "%d", flag);
+		ret = ac_set_value(POWER_CHARGE_CONTROL_NODE, online_status);
+		return ret;
+	} else {
+		pm_err("%s:%d Set AC Charging Enable error.\n", __func__, __LINE__);
+		return -1;
+	}
+}
+
 int power_supply_control(DevicePowerSupply cmd, void *data, int len)
 {
     int ret = -1;
@@ -187,6 +317,7 @@ int power_supply_control(DevicePowerSupply cmd, void *data, int len)
 		{"online", DevicePowerSupply::USB_ONLINE},
 		{"voltage_max", DevicePowerSupply::USB_VOLTAGE_MAX},
 		{"current_max", DevicePowerSupply::USB_CURRENT_MAX},
+		{"input_current_limit", DevicePowerSupply::USB_CHARGE_ENABLE_STATUS},
 		{ NULL, DevicePowerSupply::NULL_DEVICEPOWERSUPPLY },
 	};
 
@@ -195,6 +326,7 @@ int power_supply_control(DevicePowerSupply cmd, void *data, int len)
 		{"online", DevicePowerSupply::AC_ONLINE},
 		{"voltage_max", DevicePowerSupply::AC_VOLTAGE_MAX},
 		{"current_max", DevicePowerSupply::AC_CURRENT_MAX},
+		{"input_current_limit", DevicePowerSupply::AC_CHARGE_ENABLE_STATUS},
 		{ NULL, DevicePowerSupply::NULL_DEVICEPOWERSUPPLY },
 	};
 
@@ -222,23 +354,22 @@ int power_supply_control(DevicePowerSupply cmd, void *data, int len)
     case DevicePowerSupply::BATTERY_CURRENT_NOW:
     case DevicePowerSupply::BATTERY_CHARGE_COUNTER:
 		ret = battery_get_value(mapSysfsString(cmd, battery_item_map), (char *)data);
-		pm_dbg("%s:%d data %s\n", __func__, __LINE__, data);
         break;
 
 	case DevicePowerSupply::USB_TYPE:
 	case DevicePowerSupply::USB_VOLTAGE_MAX:
 	case DevicePowerSupply::USB_CURRENT_MAX:
 	case DevicePowerSupply::USB_ONLINE:
+	case DevicePowerSupply::USB_CHARGE_ENABLE_STATUS:
 		ret = usb_get_value(mapSysfsString(cmd, usb_item_map), (char *)data);
-		pm_info("%s:%d data %s\n", __func__, __LINE__, data);
 		break;
 
 	case DevicePowerSupply::AC_TYPE:
 	case DevicePowerSupply::AC_VOLTAGE_MAX:
 	case DevicePowerSupply::AC_CURRENT_MAX:
 	case DevicePowerSupply::AC_ONLINE:
+	case DevicePowerSupply::AC_CHARGE_ENABLE_STATUS:
 		ret = ac_get_value(mapSysfsString(cmd, ac_item_map), (char *)data);
-		pm_dbg("%s:%d data %s\n", __func__, __LINE__, data);
 		break;
 
 	case DevicePowerSupply::POWER_CFG_CAPACITY_DETECT_PERIOD:
@@ -248,12 +379,94 @@ int power_supply_control(DevicePowerSupply cmd, void *data, int len)
 		ret = power_set_low_power_threshold(*((unsigned int *)data));
 		break;
 
+	case DevicePowerSupply::POWER_CFG_BAT_TEMP_PERIOD_DETECT:
+		ret = battery_temperture_period_detect(*((unsigned int *)data));
+		break;
+
+	case DevicePowerSupply::POWER_CFG_BAT_CHARGE_ENABLE:
+		ret = battery_charge_set(BATTERY_CHARGE_ENABLE);
+		break;
+
+	case DevicePowerSupply::POWER_CFG_BAT_CHARGE_DISABLE:
+		ret = battery_charge_set(BATTERY_CHARGE_DISABLE);
+		break;
+
+	case DevicePowerSupply::POWER_CFG_GET_CHARGE_ENABLE_STATUS:
+		ret = usb_get_value(mapSysfsString(DevicePowerSupply::USB_CHARGE_ENABLE_STATUS, usb_item_map),
+				(char *)data);
+		if (!ret) break;
+		ret = ac_get_value(mapSysfsString(DevicePowerSupply::AC_CHARGE_ENABLE_STATUS, ac_item_map),
+				(char *)data);
+		break;
+
+	case DevicePowerSupply::POWER_CFG_BAT_TEMP_THRESHOLD_MIN:
+	case DevicePowerSupply::POWER_CFG_BAT_TEMP_THRESHOLD_MAX:
+		ret = battery_temperture_threshold(cmd, *((int *)data));
+		break;
+
 		default:
 			pm_info("[%s:%d] cmd [%d] Not Found.\n", __func__, __LINE__, cmd);
 			break;
 	}
 
 	return ret;
+}
+
+static void* temperture_task(void *param) {
+#define	TEMP_BUFFER_SIZE	(8)
+	char temp_buf[TEMP_BUFFER_SIZE] = {0};
+	unsigned int temp_level = 0;
+	int charging_enable = 0;
+
+	while (1) {
+		int ret = 0;
+		struct timeval timeout;
+
+		timeout.tv_sec  = pm_g.temperture_detect_period;
+		timeout.tv_usec = 0;
+
+		ret = select(1, NULL, NULL, NULL, &timeout);
+		if (ret == 0) {
+			ret = power_supply_control(DevicePowerSupply::BATTERY_TEMP,
+					temp_buf, sizeof(temp_buf));
+			if (ret) {
+				pm_err("%s:%d read temp error.\n", __func__, __LINE__);
+				continue;
+			}
+			temp_level = str2int(temp_buf);
+
+			if (temp_level < pm_g.temperture_threshold[0]
+					|| temp_level > pm_g.temperture_threshold[1]) {
+				pm_info("Now Battery Temperture Overheat %d (%d ~ %d).\n",
+						temp_level,
+						pm_g.temperture_threshold[0],
+						pm_g.temperture_threshold[1]);
+
+				ret = battery_charge_set(BATTERY_CHARGE_DISABLE);
+				if (ret) {
+					pm_err("%s:%d Disable Charge Error.\n", __func__, __LINE__);
+				} else {
+					pm_info("%s:%d Disable Charge Ok.\n", __func__, __LINE__);
+				}
+			} else {
+				memset(temp_buf, 0, TEMP_BUFFER_SIZE);
+				ret = power_supply_control(DevicePowerSupply::POWER_CFG_GET_CHARGE_ENABLE_STATUS,
+						temp_buf, sizeof(temp_buf));
+				if (ret) {
+					pm_err("%s:%d Get Charge Enable Status Error.\n", __func__, __LINE__);
+					continue;
+				}
+				charging_enable = str2int(temp_buf);
+				if (!charging_enable) {
+					ret = battery_charge_set(BATTERY_CHARGE_ENABLE);
+				}
+
+				pm_info("Battery temp is %d.\n", temp_level);
+			}
+
+			memset(temp_buf, 0, TEMP_BUFFER_SIZE);
+		}
+	}
 }
 
 static void* power_task(void *param) {
@@ -318,7 +531,17 @@ int power_init(void)
 	pm_g.low_power_threshold = DEFAULT_LOW_POWER_THRESHOLD;
 	pm_g.capacity_detect_period = DEFAULT_CAPACITY_DETECT_PERIOD;
 
+	pm_g.temperture_threshold[0] = DEFAULT_TEMPERTURE_LOW_THRESHOLD;
+	pm_g.temperture_threshold[1] = DEFAULT_TEMPERTURE_HIGH_THRESHOLD;
+	pm_g.temperture_detect_period = DEFAULT_TEMPERTURE_DETECT_PERIOD;
+
     ret = pthread_create(&pm_g.tid, NULL, power_task, NULL);
+    if (ret) {
+		pm_err("[%s:%d] create thread fail.\n", __func__, __LINE__);
+        return -1;
+    }
+
+    ret = pthread_create(&pm_g.tid_det_temp, NULL, temperture_task, NULL);
     if (ret) {
 		pm_err("[%s:%d] create thread fail.\n", __func__, __LINE__);
         return -1;
@@ -333,6 +556,12 @@ int power_deinit(void)
 		pthread_cancel(pm_g.tid);
 		pthread_join(pm_g.tid, NULL);
 		pm_g.tid = 0;
+	}
+
+	if (pm_g.tid_det_temp) {
+		pthread_cancel(pm_g.tid_det_temp);
+		pthread_join(pm_g.tid_det_temp, NULL);
+		pm_g.tid_det_temp = 0;
 	}
 	return 0;
 }
