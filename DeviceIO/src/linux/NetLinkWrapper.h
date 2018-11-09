@@ -71,7 +71,7 @@ enum operation_type {
 #define NETLINK_WPA_CONFIG_FILE "/data/cfg/wpa_supplicant.conf"
 #define NETLINK_SSID_PREFIX_ROCKCHIP      "Rockchip-Echo-"
 
-#define NETLINK_AUTO_CONFIG_TIMEOUT 1*60//10*60
+#define NETLINK_AUTO_CONFIG_TIMEOUT 20*60//10*60
 #define NETLINK_NETWORK_CONFIGURE_PING_COUNT 18
 
 #define PACKET_SIZE         4096

@@ -143,18 +143,22 @@ static string generate_ssid(void) {
     ssid.erase(std::remove(ssid.begin(), ssid.end(), ':'), ssid.end());
     return ssid;
 }
-
 bool NetLinkWrapper::start_network_config() {
     string ssid = generate_ssid();
     //disconnect wifi if wifi network is ready;
     DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_DISCONNECT);
+    DeviceIo::getInstance()->controlBt(BtControl::BLE_CLOSE_SERVER);
+#ifdef ENABLE_SOFTAP
     DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_OPEN_AP_MODE, (void *)ssid.c_str(), strlen(ssid.c_str()));
+#endif
     DeviceIo::getInstance()->controlBt(BtControl::BLE_OPEN_SERVER);
     getInstance()->notify_network_config_status(ENetworkConfigStarted);
 }
 
 void NetLinkWrapper::stop_network_config() {
+#ifdef ENABLE_SOFTAP
     DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_CLOSE_AP_MODE);
+#endif
     DeviceIo::getInstance()->controlBt(BtControl::BLE_CLOSE_SERVER);
 }
 
@@ -165,7 +169,7 @@ void *NetLinkWrapper::monitor_work_routine(void *arg) {
     while(1) {
         thread->ping_network(false);
         time_count = time_interval = m_ping_interval;
-        APP_INFO("monitor_work_routine m_ping_interval:%d", m_ping_interval);
+        APP_DEBUG("monitor_work_routine m_ping_interval:%d", m_ping_interval);
 
         while (time_count > 0) {
             struct timeval tv;
@@ -174,7 +178,7 @@ void *NetLinkWrapper::monitor_work_routine(void *arg) {
             ::select(0, NULL, NULL, NULL, &tv);
             time_count--;
             if (time_interval != m_ping_interval) {
-                APP_INFO("monitor_work_routine m_ping_interval:%d, time_interval:%d", m_ping_interval, time_interval);
+                APP_DEBUG("monitor_work_routine m_ping_interval:%d, time_interval:%d", m_ping_interval, time_interval);
                 break;
             }
         }
@@ -194,6 +198,11 @@ bool is_first_network_config(string path) {
     ifstream it_stream;
     int length = 0;
     string wpa_config_file = path;
+
+#if 1 //for hisense board
+    if (access("/data/property.txt", F_OK))
+	return true;
+#endif
 
     it_stream.open(wpa_config_file.c_str());
     if (!it_stream.is_open()) {

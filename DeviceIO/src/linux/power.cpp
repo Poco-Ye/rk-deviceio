@@ -222,7 +222,7 @@ int power_supply_control(DevicePowerSupply cmd, void *data, int len)
     case DevicePowerSupply::BATTERY_CURRENT_NOW:
     case DevicePowerSupply::BATTERY_CHARGE_COUNTER:
 		ret = battery_get_value(mapSysfsString(cmd, battery_item_map), (char *)data);
-		pm_info("%s:%d data %s\n", __func__, __LINE__, data);
+		pm_dbg("%s:%d data %s\n", __func__, __LINE__, data);
         break;
 
 	case DevicePowerSupply::USB_TYPE:
@@ -238,7 +238,7 @@ int power_supply_control(DevicePowerSupply cmd, void *data, int len)
 	case DevicePowerSupply::AC_CURRENT_MAX:
 	case DevicePowerSupply::AC_ONLINE:
 		ret = ac_get_value(mapSysfsString(cmd, ac_item_map), (char *)data);
-		pm_info("%s:%d data %s\n", __func__, __LINE__, data);
+		pm_dbg("%s:%d data %s\n", __func__, __LINE__, data);
 		break;
 
 	case DevicePowerSupply::POWER_CFG_CAPACITY_DETECT_PERIOD:
