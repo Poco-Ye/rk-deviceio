@@ -109,6 +109,10 @@ static void handle_keys_on_3s(int state) {
         dbg("on 3s KEYS_BIT_POWER\n");
         report_key_event(DeviceInput::KEY_SHUT_DOWN, NULL, 0);
     }
+    if (state == (KEYS_BIT_VOLUME_UP | KEYS_BIT_POWER)) {
+        dbg("on 3s KEYS_BIT_VOLUME_UP | KEYS_BIT_POWER\n");
+        report_key_event(DeviceInput::KEY_FACTORY_RESET, NULL, 0);
+    }
 }
 static void handle_keys_on_5s(int state) {
     if (state == (KEYS_BIT_MIC_MUTE)) {

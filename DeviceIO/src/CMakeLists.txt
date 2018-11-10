@@ -15,13 +15,13 @@ add_library(DeviceIo SHARED
 find_package(PkgConfig)
 pkg_check_modules (GLIB2 glib-2.0 REQUIRED)
 pkg_check_modules (DBUS dbus-1 REQUIRED)
-pkg_check_modules (DBUS-GLIB dbus-glib-1 REQUIRED)
+#pkg_check_modules (DBUS-GLIB dbus-glib-1 REQUIRED)
 include_directories(${GLIB2_INCLUDE_DIRS})
 include_directories(${DBUS_INCLUDE_DIRS})
-include_directories(${DBUS-GLIB_INCLUDE_DIRS})
+#include_directories(${DBUS-GLIB_INCLUDE_DIRS})
 target_link_libraries (DeviceIo ${GLIB2_LIBRARIES})
 target_link_libraries (DeviceIo ${DBUS_LIBRARIES})
-target_link_libraries (DeviceIo ${DBUS-GLIB_LIBRARIES})
+#target_link_libraries (DeviceIo ${DBUS-GLIB_LIBRARIES})
 
 target_link_libraries(DeviceIo)
 

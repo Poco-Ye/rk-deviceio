@@ -630,6 +630,24 @@ NetLinkNetworkStatus DeviceIo::getNetworkStatus() const{
 void DeviceIo::poweroff() {
     Shell::system("poweroff");
 }
+
+void DeviceIo::factoryReset() {
+    Shell::system("recoverySystem reset &");
+}
+
+bool DeviceIo::OTAUpdate(std::string path) {
+    string cmd = "recoverySystem ota ";
+
+    cmd += path;
+    cmd += " &";
+    Shell::system(cmd.c_str());
+    return true;
+}
+
+void DeviceIo::suspend() {
+    Shell::system("echo mem > /sys/power/state");
+}
+
 } // namespace framework
 
 

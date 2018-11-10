@@ -111,8 +111,13 @@ public:
         }
         case DeviceInput::KEY_SHUT_DOWN: { //shutdown
             printf("key shut down key pressed\n");
-			    break;
-			}
+            break;
+        }
+        case DeviceInput::KEY_FACTORY_RESET: {
+            printf("key factory reset\n");
+            DeviceIo::getInstance()->factoryReset();
+            break;
+        }
 			case DeviceInput::BT_CONNECT: {
 			    printf("=== BT_CONNECT ===\n");
 			    break;
@@ -188,7 +193,23 @@ int main()
     DeviceIo::getInstance()->startNetworkRecovery();
 
     while(true) {
-        sleep(1);
+        char szBuf[64] = {0};
+        std::cout<<"Command Test:suspend,factoryReset,ota"<<std::endl;
+        if(!std::cin.getline(szBuf,64)) {
+            std::cout << "error" << std::endl;
+            continue;
+        }
+        if (!strncmp(szBuf, "suspend", 7)) {
+            DeviceIo::getInstance()->suspend();
+        }
+        if (!strncmp(szBuf, "factoryReset", 12)) {
+            DeviceIo::getInstance()->factoryReset();
+        }
+        if (!strncmp(szBuf, "ota", 3)) {
+            DeviceIo::getInstance()->OTAUpdate("");
+        }
+
+
     }
 
     return 0;

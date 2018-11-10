@@ -178,7 +178,8 @@ enum class DeviceInput {
     KEY_SHUT_DOWN,
     KEY_SLEEP_MODE,
     KEY_RK816_POWER,
-    KEY_HEADPHONE_INSERT
+    KEY_HEADPHONE_INSERT,
+    KEY_FACTORY_RESET
 };
 
 enum class DevicePowerSupply {
@@ -432,7 +433,24 @@ public:
 
     NetLinkNetworkStatus getNetworkStatus() const;
 
+    /**
+     * @brief system ctl
+     */
     void poweroff();
+    /**
+     * @brief reboot to recovery and reset userdata part
+     */
+    void factoryReset();
+    /**
+     * @brief reboot to recovery and start ota update
+     *
+     * @return true if started succeed
+     */
+    bool OTAUpdate(std::string path);
+    /**
+     * @brief suspend
+     */
+    void suspend();
 private:
     static DeviceIo* m_instance;
     static DeviceInNotify* m_notify;
