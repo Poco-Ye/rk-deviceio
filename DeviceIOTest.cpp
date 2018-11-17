@@ -62,9 +62,35 @@ public:
             }
     }
     void callback(DeviceInput event, void *data, int len) {
-      printf("hardware  event:%d \n", static_cast<int>(event));
+        //printf("hardware  event:%d \n", static_cast<int>(event));
 
-      switch (event) {
+        switch (event) {
+        case DeviceInput::KEY_RAW_INPUT_EVENT: {
+            struct input_event *ev = (struct input_event *)data;
+            int key_code = ev->code;
+            bool key_pressed = ev->value;
+
+            if (key_pressed) {
+                 printf("KEY_RAW_INPUT_EVENT: key %d pressed\n", key_code);
+                 switch (key_code) {
+                    case KEY_MICMUTE:
+                        break;
+                    case KEY_MODE:
+                        break;
+                    case KEY_PLAY:
+                        break;
+                    case KEY_VOLUMEDOWN:
+                        break;
+                    case KEY_VOLUMEUP:
+                        break;
+                    default:
+                        break;
+                }
+            } else {
+                if (key_code != 0)
+                    printf("KEY_RAW_INPUT_EVENT: key %d released\n", key_code);
+            }
+        }
         case DeviceInput::KEY_VOLUME_DOWN: {
             int vol = *((int *)data);
             int vol_cur = DeviceIo::getInstance()->getVolume();
@@ -211,8 +237,6 @@ int main()
         if (!strncmp(szBuf, "ota", 3)) {
             DeviceIo::getInstance()->OTAUpdate("");
         }
-
-
     }
 
     return 0;

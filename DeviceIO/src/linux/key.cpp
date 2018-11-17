@@ -188,6 +188,9 @@ class KeyNotify : public TimerNotify {
 static void check_keys(struct input_event* event) {
     pthread_mutex_lock(&key.keys_state_mutex);
 
+    //callback raw input_event for app
+    report_key_event(DeviceInput::KEY_RAW_INPUT_EVENT, event, sizeof(struct input_event));
+
     switch (event->code) {
     case KEY_PLAY:
     case KEY_PLAYPAUSE:{

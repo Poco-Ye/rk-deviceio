@@ -179,7 +179,9 @@ enum class DeviceInput {
     KEY_SLEEP_MODE,
     KEY_RK816_POWER,
     KEY_HEADPHONE_INSERT,
-    KEY_FACTORY_RESET
+    KEY_FACTORY_RESET,
+
+    KEY_RAW_INPUT_EVENT
 };
 
 enum class DevicePowerSupply {
