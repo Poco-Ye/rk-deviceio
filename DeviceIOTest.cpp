@@ -157,6 +157,9 @@ int main()
     DeviceIo::getInstance()->getSn(value);
     std::cout << "serial number:" << value << std::endl;
 
+    std::string chipid = DeviceIo::getInstance()->getChipID();
+    std::cout << "Chip ID : " << chipid.c_str() << std::endl;
+
     struct rtc_time tmp_rtc;
     std::cout << "Rtc Read time:" << std::endl;
     DeviceIo::getInstance()->controlRtc(DeviceRTC::DEVICE_RTC_READ_TIME, &tmp_rtc, sizeof(tmp_rtc));

@@ -381,6 +381,14 @@ public:
     bool setSn(char* sn);
     bool getPCB(char* sn);
     bool setPCB(char *sn);
+
+    /**
+     * @brief get cpu id
+     *
+     * @return string
+     */
+    std::string getChipID();
+
     /**
      * @brief get version
      *

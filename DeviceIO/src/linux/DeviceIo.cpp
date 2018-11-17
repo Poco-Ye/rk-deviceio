@@ -580,6 +580,14 @@ bool DeviceIo::setPCB(char *sn){
     return false;
 }
 
+std::string DeviceIo::getChipID() {
+    char ret[1024] = {0};
+    std::string chipid;
+
+    Shell::exec("cat /proc/cpuinfo | grep Serial | awk -F ': ' '{printf $2}'", ret);
+    chipid = ret;
+    return chipid;
+}
 
 std::string DeviceIo::getVersion() {
     return "";
