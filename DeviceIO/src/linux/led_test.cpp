@@ -21,7 +21,7 @@
 
 using namespace DeviceIOFramework;
 
-int main_test(int argc, char* argv[]) {
+int led_test(int argc, char* argv[]) {
     while (true) {
 
         printf("check led LED_NET_WAIT_CONNECT\n\n");

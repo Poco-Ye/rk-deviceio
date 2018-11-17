@@ -63,6 +63,11 @@ enum class LedState {
 
     LED_CLOSE_A_LAYER,
     LED_ALL_OFF,    // no param
+
+    //special cmd, direct set led brightness
+    LED_PWMR_SET,  //param 0 - 255
+    LED_PWMG_SET,  //param 0 - 255
+    LED_PWMB_SET   //param 0 - 255
 };
 
 /* bt control cmd */

@@ -50,14 +50,31 @@ public:
         printf("%s : %d\n", __func__, networkStatus);
         switch (DeviceIo::getInstance()->getNetworkStatus()) {
             case DeviceIOFramework::NETLINK_NETWORK_CONFIG_STARTED:
+                DeviceIo::getInstance()->controlLed(LedState::LED_NET_WAIT_CONNECT);
+                break;
             case DeviceIOFramework::NETLINK_NETWORK_CONFIGING:
+                DeviceIo::getInstance()->controlLed(LedState::LED_NET_DO_CONNECT);
+                break;
             case DeviceIOFramework::NETLINK_NETWORK_CONFIG_SUCCEEDED:
+                DeviceIo::getInstance()->controlLed(LedState::LED_NET_CONNECT_SUCCESS);
+                break;
             case DeviceIOFramework::NETLINK_NETWORK_CONFIG_FAILED:
+                DeviceIo::getInstance()->controlLed(LedState::LED_NET_CONNECT_FAILED);
+                break;
             case DeviceIOFramework::NETLINK_NETWORK_SUCCEEDED:
+                DeviceIo::getInstance()->controlLed(LedState::LED_NET_CONNECT_SUCCESS);
+                break;
             case DeviceIOFramework::NETLINK_NETWORK_FAILED:
+                DeviceIo::getInstance()->controlLed(LedState::LED_NET_CONNECT_FAILED);
+                break;
             case DeviceIOFramework::NETLINK_NETWORK_RECOVERY_START:
+                DeviceIo::getInstance()->controlLed(LedState::LED_NET_RECOVERY);
+                break;
             case DeviceIOFramework::NETLINK_NETWORK_RECOVERY_SUCCEEDED:
+                DeviceIo::getInstance()->controlLed(LedState::LED_NET_CONNECT_SUCCESS);
+                break;
             case DeviceIOFramework::NETLINK_NETWORK_RECOVERY_FAILED:
+                DeviceIo::getInstance()->controlLed(LedState::LED_NET_CONNECT_FAILED);
                 break;
             }
     }
@@ -105,7 +122,15 @@ public:
         }
 	case DeviceInput::KEY_MIC_MUTE: {
             printf("key mic mute\n");
-				DeviceIo::getInstance()->controlBt(BtControl::BT_PLAY);
+            static bool micmute = false;
+            if (!micmute) {
+                DeviceIo::getInstance()->controlLed(LedState::LED_MICMUTE);
+            } else {
+                LedState layer = LedState::LED_MICMUTE;
+                DeviceIo::getInstance()->controlLed(LedState::LED_CLOSE_A_LAYER, &layer, sizeof(int));
+            }
+
+            micmute = !micmute;
             break;
         }
 	case DeviceInput::KEY_ENTER_AP: {
@@ -168,7 +193,7 @@ public:
     }
 };
 
-int main()
+int main(int argc, char *argv[])
 {
     char value[1024]; 
     bool ret;
@@ -219,11 +244,26 @@ int main()
     ret = DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_IS_CONNECTED);
     std::cout << "is wifi connected: " << ret << std::endl;
 
+    int max_brightness = 255;
+    int min_brightness = 0;
+    DeviceIo::getInstance()->controlLed(LedState::LED_ALL_OFF);
+    sleep(1);
+    DeviceIo::getInstance()->controlLed(LedState::LED_PWMR_SET, &max_brightness, sizeof(int));
+    sleep(1);
+    DeviceIo::getInstance()->controlLed(LedState::LED_PWMR_SET, &min_brightness, sizeof(int));
+    DeviceIo::getInstance()->controlLed(LedState::LED_PWMG_SET, &max_brightness, sizeof(int));
+    sleep(1);
+    DeviceIo::getInstance()->controlLed(LedState::LED_PWMG_SET, &min_brightness, sizeof(int));
+    DeviceIo::getInstance()->controlLed(LedState::LED_PWMB_SET, &max_brightness, sizeof(int));
+    sleep(1);
+    DeviceIo::getInstance()->controlLed(LedState::LED_ALL_OFF);
+
     DeviceIo::getInstance()->startNetworkRecovery();
 
     while(true) {
+      if (argc > 1 && !strncmp(argv[1], "debug", 5)) {
         char szBuf[64] = {0};
-        std::cout<<"Command Test:suspend,factoryReset,ota"<<std::endl;
+        std::cout<<"Command Test:suspend,factoryReset,ota,led_test"<<std::endl;
         if(!std::cin.getline(szBuf,64)) {
             std::cout << "error" << std::endl;
             continue;
@@ -237,6 +277,13 @@ int main()
         if (!strncmp(szBuf, "ota", 3)) {
             DeviceIo::getInstance()->OTAUpdate("");
         }
+        if (!strncmp(szBuf, "led_test", 3)) {
+            extern int led_test(int argc, char* argv[]);
+            led_test(0, NULL);
+        }
+      } else {
+        sleep(10);
+      }
     }
 
     return 0;

@@ -433,6 +433,9 @@ static struct led_operation s_led_ops[] = {
 
     {8, "led_close_a_layer",       NULL,                       NULL},
     {8, "led_all_off",             NULL,                       NULL},
+    {8, "led_pwmr_set",            NULL,                       NULL},
+    {8, "led_pwmg_set",            NULL,                       NULL},
+    {8, "led_pwmb_set",            NULL,                       NULL},
 };
 
 static void led_final_write()
@@ -683,7 +686,7 @@ int rk_led_exit(void)
 int rk_led_control(LedState cmd, void *data, int len)
 {
     if ((int)cmd < 0 || (int)cmd >= (int)(ARRAY_SIZE(s_led_ops))) {
-        err("command is not invalid: %d\n", (int)cmd);
+        err("command is invalid: %d\n", (int)cmd);
         return -1;
     }
 
@@ -697,6 +700,23 @@ int rk_led_control(LedState cmd, void *data, int len)
         return 0;
     }
 
+    switch (cmd) {
+        case LedState::LED_PWMR_SET:
+           if (dprintf(s_led.leds_r_fd, "%d", *(int *)data) < 0)
+                err("write led_r_fd error\n");
+           goto exit;
+        case LedState::LED_PWMG_SET:
+            if (dprintf(s_led.leds_g_fd, "%d", *(int *)data) < 0)
+                err("write led_g_fd error\n");
+           goto exit;
+        case LedState::LED_PWMB_SET:
+            if (dprintf(s_led.leds_b_fd, "%d", *(int *)data) < 0)
+                err("write led_b_fd error\n");
+           goto exit;
+        default:
+            break;
+    }
+
     struct led_command led_cmd;
 
     led_cmd.cmd = cmd;
@@ -708,6 +728,7 @@ int rk_led_control(LedState cmd, void *data, int len)
     s_led.led_cmd.push_back(led_cmd);
     s_led.new_command_reached = true;
     pthread_cond_signal(&s_led.cond);
+exit:
     pthread_mutex_unlock(&s_led.mutex);
     return 0;
 }
