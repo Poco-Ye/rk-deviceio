@@ -656,6 +656,15 @@ void DeviceIo::suspend() {
     Shell::system("echo mem > /sys/power/state");
 }
 
+bool DeviceIo::setEQParameter(std::string EQBinDir) {
+    if (access(EQBinDir.c_str(), F_OK))
+        return false;
+
+    std::string cmd = "cp -rf " + EQBinDir + "/* /data/cfg/eq_bin/";
+    Shell::system(cmd.c_str());
+    Shell::system("sync");
+    return true;
+}
 } // namespace framework
 
 

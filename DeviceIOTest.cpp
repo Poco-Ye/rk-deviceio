@@ -258,6 +258,8 @@ int main(int argc, char *argv[])
     sleep(1);
     DeviceIo::getInstance()->controlLed(LedState::LED_ALL_OFF);
 
+    DeviceIo::getInstance()->setEQParameter("/data/eq_bin_new");
+
     DeviceIo::getInstance()->startNetworkRecovery();
 
     while(true) {

@@ -466,6 +466,14 @@ public:
      * @brief suspend
      */
     void suspend();
+
+    /**
+     * @brief setEQParameter
+     * @EQBinDir the directory of eq parameter files
+     *
+     * @return true if succeed
+     */
+    bool setEQParameter(std::string EQBinDir);
 private:
     static DeviceIo* m_instance;
     static DeviceInNotify* m_notify;
