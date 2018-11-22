@@ -635,6 +635,71 @@ NetLinkNetworkStatus DeviceIo::getNetworkStatus() const{
     return NetLinkWrapper::getInstance()->getNetworkStatus();
 }
 
+bool DeviceIo::a2dpSourceAutoConnect(char *address, unsigned short msec)
+{
+    BtScanParam scan_param;
+    BtDeviceInfo *start, *tmp;
+    int max_rssi = -100;
+    int ret = 0;
+    char target_address[17] = {0};
+    bool target_vaild = false;
+
+    /* Open bluetooth source */
+    DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_OPEN, NULL, 0);
+
+    /* Scan bluetooth devices */
+    scan_param.mseconds = msec;
+    scan_param.item_cnt = 100;
+    scan_param.device_list = NULL;
+    ret = DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_SCAN,
+                                             &scan_param, sizeof(scan_param));
+    if (ret) {
+        printf("ERROR: Scan error!\n");
+        return false;
+    }
+
+    /*
+     * Find the audioSink device from the device list,
+     * which has the largest rssi value.
+     */
+    max_rssi = -100;
+    tmp = NULL;
+    start = scan_param.device_list;
+    while (start) {
+        if (start->rssi_valid && (start->rssi > max_rssi) &&
+            (!strcmp(start->playrole, "AudioSink"))) {
+            printf("Name:%s\n", start->name);
+            printf("\tAddress:%s\n", start->address);
+            printf("\tRSSI:%d\n", start->rssi);
+            printf("\tPlayrole:%s\n", start->playrole);
+            max_rssi = start->rssi;
+
+            memcpy(target_address, start->address, 17);
+            target_vaild = true;
+        }
+        tmp = start;
+        start = start->next;
+        /* Free DeviceInfo */
+        free(tmp);
+    }
+
+    if (!target_vaild) {
+        printf("INFO: Cannot find audioSink devices.\n");
+        return false;
+    }
+
+    //target_address[18] = '\0';
+    ret = DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_CONNECT,
+                                             target_address, 17);
+    if (ret)
+        return false;
+
+    if (address)
+        memcpy(address, target_address, sizeof(target_address));
+
+    return true;
+}
+
 void DeviceIo::poweroff() {
     Shell::system("poweroff");
 }

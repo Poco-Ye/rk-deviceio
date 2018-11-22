@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include "avrcpctrl.h"
+#include "a2dp_source/a2dp_masterctrl.h"
 
 #include "DeviceIo/DeviceIo.h"
 
@@ -66,6 +67,7 @@ static bt_control_t bt_control = {0, 0, false, 0, 0, BtControlType::BT_NONE};
 
 
 static void bt_a2dp_sink_cmd_process(char *data);
+static int bt_close_a2dp_server();
 
 static bool bt_server_is_open()
 {
@@ -151,6 +153,9 @@ static int bt_server_close(void)
 static int bt_a2dp_sink_server_open(void)
 {
     APP_DEBUG("bt_a2dp_sink_server_open\n");
+
+    if (bt_is_a2dp_open())
+        bt_close_a2dp_server();
 
     system("bt_realtek_start start");
 	sleep(6);
@@ -260,7 +265,22 @@ static int bt_close_a2dp_server()
     return ret;
 }
 
-static int bt_open()
+/* Load the Bluetooth firmware and turn on the Bluetooth SRC service. */
+static int bt_a2dp_src_server_open(void)
+{
+    APP_DEBUG("%s\n", __func__);
+
+    if (bt_is_a2dp_open())
+        bt_close_a2dp_server();
+
+    system("bt_a2dp_source start");
+    init_a2dp_master_ctrl();
+    sleep(3);
+    bt_control.is_a2dp_open = 1;
+    return 0;
+}
+
+static int bt_open(BtControl type)
 {
     int ret = 0;
 
@@ -273,11 +293,20 @@ static int bt_open()
         }
     }
 
-    APP_DEBUG("Open a2dp sink.");
+    if (type == BtControl::BT_SINK_OPEN) {
+        APP_DEBUG("Open a2dp sink.");
 
-    if (bt_open_a2dp_server() < 0) {
-        ret = -1;
-        return ret;
+        if (bt_open_a2dp_server() < 0) {
+            ret = -1;
+            return ret;
+        }
+    } else if (type == BtControl::BT_SOURCE_OPEN) {
+        APP_DEBUG("Open a2dp source.");
+
+        if (bt_a2dp_src_server_open() < 0) {
+            ret = -1;
+            return ret;
+        }
     }
 
     return ret;
@@ -339,12 +368,40 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 
         break;
 
-    case BtControl::BT_OPEN:
+    case BtControl::BT_SINK_OPEN:
         ret = bt_server_open();
 
         if (!ret)
-            ret = bt_open();
+            ret = bt_open(BtControl::BT_SINK_OPEN);
 
+        break;
+
+    case BtControl::BT_SOURCE_OPEN:
+        ret = bt_server_open();
+
+        if (!ret)
+            ret = bt_open(BtControl::BT_SOURCE_OPEN);
+
+        break;
+
+    case BtControl::BT_SOURCE_SCAN:
+        ret = a2dp_master_scan(data, len);
+        break;
+
+    case BtControl::BT_SOURCE_CONNECT:
+        ret = a2dp_master_connect((const char *)data);
+        break;
+
+    case BtControl::BT_SOURCE_DISCONNECT:
+        ret = a2dp_master_disconnect((const char *)data);
+        break;
+
+    case BtControl::BT_SOURCE_STATUS:
+        ret = a2dp_master_status((char *)data);
+        break;
+
+    case BtControl::BT_SOURCE_REMOVE:
+        ret = a2dp_master_remove((const char *)data);
         break;
 
     case BtControl::BT_CLOSE:

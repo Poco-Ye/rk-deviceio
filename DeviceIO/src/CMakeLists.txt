@@ -1,4 +1,5 @@
 file(GLOB_RECURSE DeviceIo_SRC "${DeviceIo_SOURCE_DIR}/src/linux/*.cpp")
+file(GLOB_RECURSE DeviceIo_SRC_C "${DeviceIo_SOURCE_DIR}/src/linux/*.c")
 file(GLOB_RECURSE Gdbus_SRC "${DeviceIo_SOURCE_DIR}/src/linux/bluetooth/gdbus/*.c")
 
 if(BLUEZ5_UTILS)
@@ -8,6 +9,7 @@ endif(BLUEZ5_UTILS)
 
 add_library(DeviceIo SHARED
             ${DeviceIo_SRC}
+            ${DeviceIo_SRC_C}
 			${Gdbus_SRC}
 			${Bt_SRC}
 			)

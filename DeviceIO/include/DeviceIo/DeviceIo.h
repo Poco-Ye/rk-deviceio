@@ -20,6 +20,8 @@
 #include <pthread.h>
 #include <string>
 
+#include "BtsrcParameter.h"
+
 namespace DeviceIOFramework {
 
 #define PLAYBACK_DEVICE_NUM 1
@@ -73,6 +75,13 @@ enum class LedState {
 /* bt control cmd */
 enum class BtControl {
     BT_OPEN,
+    BT_SINK_OPEN,
+    BT_SOURCE_OPEN,
+    BT_SOURCE_SCAN,
+    BT_SOURCE_CONNECT,
+    BT_SOURCE_DISCONNECT,
+    BT_SOURCE_STATUS,
+    BT_SOURCE_REMOVE,
     BT_CLOSE,
     BT_IS_OPENED,
     BT_IS_CONNECTED,
@@ -447,6 +456,14 @@ public:
     bool stopNetworkRecovery();
 
     NetLinkNetworkStatus getNetworkStatus() const;
+
+    /**
+     * @brief Automatically connect to the AudioSink device,
+     *        which has the largest rssi value.
+     * @paremeter address:target device address; msec:scanning takes time.
+     * @return true if started succeed.
+     */
+    bool a2dpSourceAutoConnect(char *address, unsigned short msec);
 
     /**
      * @brief system ctl
