@@ -24,6 +24,10 @@
 #ifndef __A2DP_SOURCE_UTIL__
 #define __A2DP_SOURCE_UTIL__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <alloca.h>
@@ -188,5 +192,9 @@ static inline void put_be64(uint64_t val, void *dst)
 {
     put_unaligned(cpu_to_be64(val), (uint64_t *) dst);
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __A2DP_SOURCE_UTIL__ */

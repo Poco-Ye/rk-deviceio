@@ -24,6 +24,10 @@
 #ifndef __A2DP_SOURCE_SHELL__
 #define __A2DP_SOURCE_SHELL__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdio.h>
 #include <stdbool.h>
 #include <getopt.h>
@@ -102,5 +106,9 @@ void bt_shell_set_env(const char *name, void *value);
 void *bt_shell_get_env(const char *name);
 
 void bt_shell_cleanup(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __A2DP_SOURCE_SHELL__ */

@@ -27,6 +27,10 @@
 #include <stdbool.h>
 #include <sys/uio.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef void (*io_destroy_func_t)(void *data);
 
 struct io;
@@ -48,5 +52,9 @@ bool io_set_write_handler(struct io *io, io_callback_func_t callback,
                 void *user_data, io_destroy_func_t destroy);
 bool io_set_disconnect_handler(struct io *io, io_callback_func_t callback,
                 void *user_data, io_destroy_func_t destroy);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __A2DP_SOURCE_IO__ */

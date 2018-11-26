@@ -24,6 +24,10 @@
 #ifndef __A2DP_SOURCE_GATT__
 #define __A2DP_SOURCE_GATT__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void gatt_add_service(GDBusProxy *proxy);
 void gatt_remove_service(GDBusProxy *proxy);
 
@@ -73,5 +77,9 @@ void gatt_register_include(DBusConnection *conn, GDBusProxy *proxy,
                     int argc, char *argv[]);
 void gatt_unregister_include(DBusConnection *conn, GDBusProxy *proxy,
                         int argc, char *argv[]);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __A2DP_SOURCE_GATT__ */

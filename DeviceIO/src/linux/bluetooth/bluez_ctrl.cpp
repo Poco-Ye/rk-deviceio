@@ -389,11 +389,11 @@ int rk_bt_control(BtControl cmd, void *data, int len)
         break;
 
     case BtControl::BT_SOURCE_CONNECT:
-        ret = a2dp_master_connect((const char *)data);
+        ret = a2dp_master_connect((char *)data);
         break;
 
     case BtControl::BT_SOURCE_DISCONNECT:
-        ret = a2dp_master_disconnect((const char *)data);
+        ret = a2dp_master_disconnect((char *)data);
         break;
 
     case BtControl::BT_SOURCE_STATUS:
@@ -401,7 +401,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
         break;
 
     case BtControl::BT_SOURCE_REMOVE:
-        ret = a2dp_master_remove((const char *)data);
+        ret = a2dp_master_remove((char *)data);
         break;
 
     case BtControl::BT_CLOSE:

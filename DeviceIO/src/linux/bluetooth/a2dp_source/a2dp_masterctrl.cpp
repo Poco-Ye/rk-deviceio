@@ -21,6 +21,10 @@
 #include "gatt.h"
 #include "advertising.h"
 #include "DeviceIo/BtsrcParameter.h"
+#include "DeviceIo/DeviceIo.h"
+
+using DeviceIOFramework::DeviceIo;
+using DeviceIOFramework::DeviceInput;
 
 /* String display constants */
 #define COLORED_NEW COLOR_GREEN "NEW" COLOR_OFF
@@ -80,6 +84,11 @@ static const char *ad_arguments[] = {
 };
 
 static int a2dp_master_save_status(char *address);
+
+static void report_btsrc_event(DeviceInput event, void *data, int len) {
+    if (DeviceIo::getInstance()->getNotify())
+        DeviceIo::getInstance()->getNotify()->callback(event, data, len);
+}
 
 static void proxy_leak(gpointer data)
 {
@@ -447,13 +456,14 @@ static void set_default_device(GDBusProxy *proxy, const char *attribute)
     DBusMessageIter iter;
     const char *path;
     DBusMessageIter addr_iter;
-    const char *address = NULL;
+    char *address = NULL;
 
     default_dev = proxy;
 
     if (proxy == NULL) {
         default_attr = NULL;
         a2dp_master_save_status(NULL);
+        report_btsrc_event(DeviceInput::BT_DISCONNECT, NULL, 0);
         goto done;
     }
 
@@ -466,6 +476,7 @@ static void set_default_device(GDBusProxy *proxy, const char *attribute)
         dbus_message_iter_get_basic(&addr_iter, &address);
         printf("%s Address:%s\n", __func__, address);
         a2dp_master_save_status(address);
+        report_btsrc_event(DeviceInput::BT_CONNECT, NULL, 0);
     }
 
     path = g_dbus_proxy_get_path(proxy);
@@ -2414,7 +2425,7 @@ static void disconn_reply(DBusMessage *message, void *user_data)
     return bt_shell_noninteractive_quit(EXIT_SUCCESS);
 }
 
-void *init_a2dp_master(void)
+void *init_a2dp_master(void *)
 {
     GError *error = NULL;
 
@@ -2579,7 +2590,7 @@ int a2dp_master_scan(void *arg, int len)
     return 0;
 }
 
-int a2dp_master_connect(const char *t_address)
+int a2dp_master_connect(char *t_address)
 {
     GDBusProxy *proxy;
     char address[18] = {'\0'};
@@ -2616,7 +2627,7 @@ int a2dp_master_connect(const char *t_address)
     return 0;
 }
 
-int a2dp_master_disconnect(const char *address)
+int a2dp_master_disconnect(char *address)
 {
     GDBusProxy *proxy;
 
@@ -2647,7 +2658,7 @@ int a2dp_master_disconnect(const char *address)
 int a2dp_master_status(char *addr_buf)
 {
     DBusMessageIter iter;
-    const char *address;
+    char *address;
 
     if (!default_dev)
         return 0;
@@ -2666,7 +2677,7 @@ int a2dp_master_status(char *addr_buf)
     return 1;
 }
 
-int a2dp_master_remove(const char *t_address)
+int a2dp_master_remove(char *t_address)
 {
     GDBusProxy *proxy;
     char address[18] = {'\0'};

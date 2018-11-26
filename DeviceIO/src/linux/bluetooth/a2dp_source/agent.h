@@ -24,11 +24,19 @@
 #ifndef __A2DP_SOURCE_AGENT__
 #define __A2DP_SOURCE_AGENT__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void agent_register(DBusConnection *conn, GDBusProxy *manager,
                         const char *capability);
 void agent_unregister(DBusConnection *conn, GDBusProxy *manager);
 void agent_default(DBusConnection *conn, GDBusProxy *manager);
 
 dbus_bool_t agent_completion(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __A2DP_SOURCE_AGENT__ */

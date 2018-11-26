@@ -24,6 +24,10 @@
 #ifndef __A2DP_SOURCE_ADVERTISING__
 #define __A2DP_SOURCE_ADVERTISING__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void ad_register(DBusConnection *conn, GDBusProxy *manager, const char *type);
 void ad_unregister(DBusConnection *conn, GDBusProxy *manager);
 
@@ -44,5 +48,9 @@ void ad_advertise_data(DBusConnection *conn, int argc, char *argv[]);
 void ad_disable_data(DBusConnection *conn);
 void ad_advertise_discoverable(DBusConnection *conn, dbus_bool_t *value);
 void ad_advertise_discoverable_timeout(DBusConnection *conn, long int *value);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __A2DP_SOURCE_ADVERTISING__ */

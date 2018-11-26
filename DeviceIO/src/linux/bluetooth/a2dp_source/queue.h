@@ -26,6 +26,10 @@
 
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef void (*queue_destroy_func_t)(void *data);
 
 struct queue;
@@ -65,5 +69,9 @@ const struct queue_entry *queue_get_entries(struct queue *queue);
 
 unsigned int queue_length(struct queue *queue);
 bool queue_isempty(struct queue *queue);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __A2DP_SOURCE_QUEUE__ */
