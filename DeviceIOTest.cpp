@@ -197,6 +197,9 @@ int main(int argc, char *argv[])
 {
     char value[1024]; 
     bool ret;
+    char sn[128] = {0};
+    char hostname[64] = {0};
+    #define HOST_NAME_PREFIX "小聚音箱mini-"
 
     class DeviceInputWrapper *input = new DeviceInputWrapper();
     DeviceIo::getInstance()->setNotify(input);
@@ -205,8 +208,15 @@ int main(int argc, char *argv[])
 
     std::cout << "version:" << DeviceIo::getInstance()->getVersion() << std::endl;
 
-    DeviceIo::getInstance()->getSn(value);
-    std::cout << "serial number:" << value << std::endl;
+    DeviceIo::getInstance()->getSn(sn);
+    std::cout << "serial number:" << sn << std::endl;
+
+    //set hostname of speaker before wifi/bt start
+    if (strlen(sn) < 4)
+        sprintf(hostname, "%s%s", HOST_NAME_PREFIX, "1234");
+    else
+        sprintf(hostname, "%s%s", HOST_NAME_PREFIX, sn + strlen(sn) - 4);
+    DeviceIo::getInstance()->sethostname(hostname, strlen(hostname));
 
     std::string chipid = DeviceIo::getInstance()->getChipID();
     std::cout << "Chip ID : " << chipid.c_str() << std::endl;

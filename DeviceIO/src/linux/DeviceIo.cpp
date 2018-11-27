@@ -593,6 +593,14 @@ std::string DeviceIo::getVersion() {
     return "";
 }
 
+int DeviceIo::sethostname(const char *name, size_t len) {
+    sethostname(name, len);
+}
+
+int DeviceIo::gethostname(char *name, size_t len) {
+    gethostname(name, len);
+}
+
 bool DeviceIo::inOtaMode() {
     return false;
 }
