@@ -35,6 +35,12 @@ using DeviceIOFramework::DeviceRTC;
 using DeviceIOFramework::DevicePowerSupply;
 using DeviceIOFramework::NetLinkNetworkStatus;
 
+int gst_player(char *path);
+
+static int g_player_flag_eos = 0;
+static int g_player_flag_seekable = 0;
+static int g_player_flag_duration = 0;
+
 class DeviceInputWrapper: public DeviceIOFramework::DeviceInNotify{
 public:
     void networkReady() {
@@ -189,7 +195,31 @@ public:
 			    printf("=== BT_STOP_PLAY ===\n");
             break;
         }
-      }
+        case DeviceInput::GST_PLAYER_READY:
+            printf("=== GST_PLAYER_READY ===\n");
+            break;
+        case DeviceInput::GST_PLAYER_PAUSED:
+            printf("=== GST_PLAYER_PAUSED ===\n");
+            break;
+        case DeviceInput::GST_PLAYER_PLAYING:
+            printf("=== GST_PLAYER_PLAYING ===\n");
+            break;
+        case DeviceInput::GST_PLAYER_SEEKABLE:
+            printf("=== GST_PLAYER_SEEKABLE ===\n");
+            g_player_flag_seekable = 1;
+            break;
+        case DeviceInput::GST_PLAYER_EOS:
+            g_player_flag_eos = 1;
+            printf("=== GST_PLAYER_EOS ===\n");
+            break;
+        case DeviceInput::GST_PLAYER_ERROR:
+            printf("=== GST_PLAYER_ERROR ===\n");
+            break;
+        case DeviceInput::GST_PLAYER_DURATION:
+            g_player_flag_duration = 1;
+            printf("=== GST_PLAYER_DURATION ===\n");
+            break;
+        }
     }
 };
 
@@ -300,3 +330,72 @@ int main(int argc, char *argv[])
 
     return 0;
 }
+
+int gst_player(char *path)
+{
+    bool ret;
+    int timer = 0;
+    int64_t duration = 0;
+    int64_t position = 0;
+
+    printf("<%s> File Path:%s\n", __func__, path);
+    ret = DeviceIo::getInstance()->gstPlayerCreate(path);
+    if (ret) {
+        printf("<%s> Create Player failed!\n", __func__);
+        return -1;
+    } else
+        printf("<%s> Create Player sucess!\n", __func__);
+
+    ret = DeviceIo::getInstance()->gstPlayerStart();
+    if (ret) {
+        printf("<%s> Player start failed!\n", __func__);
+        return -1;
+    } else
+        printf("<%s> Player start sucess!\n", __func__);
+
+    while(!g_player_flag_eos) {
+        if (timer == 10) {
+            if (!g_player_flag_seekable)
+                printf("<%s> Seek func is not enable yet.\n", __func__);
+            else {
+                printf("<%s> Already played for 10 seconds, seek to 20 seconds\n", __func__);
+                ret = DeviceIo::getInstance()->gstPlayerSeek(20);
+                if (ret)
+                    printf("<%s> Seek error\n", __func__);
+            }
+        } else if (timer == 20) {
+            printf("<%s> Test pause.\n", __func__);
+            ret = DeviceIo::getInstance()->gstPlayerPause();
+            if (ret)
+                printf("<%s> Pause error\n", __func__);
+        } else if (timer == 25) {
+            printf("<%s> Test resume.\n", __func__);
+            ret = DeviceIo::getInstance()->gstPlayerResume();
+            if (ret)
+                printf("<%s> Resume error\n", __func__);
+        }
+
+        if (!duration && g_player_flag_duration) {
+            duration = DeviceIo::getInstance()->gstPlayerGetDuration();
+            if (duration < 0) {
+                printf("<%s> Get duration failed!\n", __func__);
+                duration = 0;
+            } else
+                printf("<%s> Duration = %dms\n", __func__, (int)(duration / 1000000));
+        }
+
+        position = DeviceIo::getInstance()->gstPlayerGetPosition();
+        if (position > 0)
+            printf("<%s> Position:%dms\n", __func__, (int)(position / 1000000));
+        else
+            printf("<%s> Get position failed!\n", __func__);
+
+        sleep(1);
+        timer++;
+    }
+
+    DeviceIo::getInstance()->gstPlayerClose();
+    printf("<%s> END\n", __func__);
+    return 0;
+}
+
