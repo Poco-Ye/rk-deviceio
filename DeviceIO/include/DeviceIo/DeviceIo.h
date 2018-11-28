@@ -18,6 +18,7 @@
 #define DEVICEIO_FRAMEWORK_DEVICEIO_H_
 
 #include <pthread.h>
+#include <stdint.h>
 #include <string>
 
 #include "BtsrcParameter.h"
@@ -195,7 +196,15 @@ enum class DeviceInput {
     KEY_HEADPHONE_INSERT,
     KEY_FACTORY_RESET,
 
-    KEY_RAW_INPUT_EVENT
+    KEY_RAW_INPUT_EVENT,
+
+    GST_PLAYER_PLAYING, // The stream is in PLAYING state.
+    GST_PLAYER_PAUSED, // The stream is in PAUSED state.
+    GST_PLAYER_READY, // The stream is in READ state.
+    GST_PLAYER_SEEKABLE, // The stream can perform a seek operation.
+    GST_PLAYER_EOS, // Reached end of the stream.
+    GST_PLAYER_ERROR, // Error occurs.
+    GST_PLAYER_DURATION //The stream duration changed.
 };
 
 enum class DevicePowerSupply {
@@ -491,6 +500,60 @@ public:
      * @return true if succeed
      */
     bool setEQParameter(std::string EQBinDir);
+
+    /**
+     * @brief Create a player and set the player resource address.
+     * @Parameter: uri->resource address.
+     *
+     * @return 0 if succeed.
+     */
+    int gstPlayerCreate(char *uri);
+    /**
+     * @brief Close a player.
+     *
+     * @return 0 if succeed.
+     */
+    int gstPlayerClose();
+    /**
+     * @brief Let the player start playing music.
+     *
+     * @return 0 if succeed.
+     */
+    int gstPlayerStart();
+    /**
+     * @brief Random seek.
+     * @Parameter: sec->which second to jump to.
+     *
+     * @return 0 if succeed.
+     */
+    int gstPlayerSeek(int sec);
+    /**
+     * @brief Get stream current position.
+     *
+     * @return: If > 0, it means that the position of
+     *          the stream is successfully obtained.
+     */
+    int64_t gstPlayerGetPosition();
+    /**
+     * @brief Get stream duration.
+     *
+     * @return: If > 0, it means that the duration of
+     *          the stream is successfully obtained.
+     */
+    int64_t gstPlayerGetDuration();
+    /**
+     * @brief Pause the stream.
+     *
+     * @return 0 if succeed.
+     */
+    int gstPlayerPause();
+    /**
+     * @brief Resume the stream.
+     *
+     * @return 0 if succeed.
+     */
+    int gstPlayerResume();
+
 private:
     static DeviceIo* m_instance;
     static DeviceInNotify* m_notify;
