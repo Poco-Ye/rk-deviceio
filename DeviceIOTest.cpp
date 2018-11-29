@@ -25,6 +25,7 @@
 #include<iostream>
 
 #include <DeviceIo/DeviceIo.h>
+#include <DeviceIo/Properties.h>
 
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
@@ -231,6 +232,9 @@ int main(int argc, char *argv[])
     char hostname[64] = {0};
     #define HOST_NAME_PREFIX "小聚音箱mini-"
 
+	DeviceIOFramework::Properties* properties;
+	properties = DeviceIOFramework::Properties::getInstance();
+
     class DeviceInputWrapper *input = new DeviceInputWrapper();
     DeviceIo::getInstance()->setNotify(input);
 
@@ -327,6 +331,9 @@ int main(int argc, char *argv[])
         sleep(10);
       }
     }
+
+	if (NULL != properties)
+		delete properties;
 
     return 0;
 }

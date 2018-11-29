@@ -1,6 +1,7 @@
 file(GLOB_RECURSE DeviceIo_SRC "${DeviceIo_SOURCE_DIR}/src/linux/*.cpp")
 file(GLOB_RECURSE DeviceIo_SRC_C "${DeviceIo_SOURCE_DIR}/src/linux/*.c")
 file(GLOB_RECURSE Gdbus_SRC "${DeviceIo_SOURCE_DIR}/src/linux/bluetooth/gdbus/*.c")
+file(GLOB_RECURSE DeviceIo_Properties "${DeviceIo_SOURCE_DIR}/src/linux/propity/*.cpp")
 
 if(BLUEZ5_UTILS)
 add_definitions(-DBLUEZ5_UTILS)
@@ -12,6 +13,7 @@ add_library(DeviceIo SHARED
             ${DeviceIo_SRC_C}
 			${Gdbus_SRC}
 			${Bt_SRC}
+			${DeviceIo_Properties}
 			)
 
 find_package(PkgConfig)
