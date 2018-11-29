@@ -76,7 +76,7 @@ public:
 private:
 	Properties();
 	Properties(const Properties&){};
-	Properties& operator=(const Properties&){};
+	Properties& operator=(const Properties&){return *this;};
 
 	/* Properties single instance */
 	static Properties* m_instance;

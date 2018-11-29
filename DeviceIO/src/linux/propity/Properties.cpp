@@ -111,7 +111,7 @@ void Properties::remove(const std::string& key) {
 	properties.erase(key);
 }
 
-std::string ltrim(const std::string& str) {
+static std::string ltrim(const std::string& str) {
 	std::string::size_type s = str.find_first_not_of(TRIM_DELIMITERS);
 	if (s == std::string::npos) {
 		return "";
@@ -119,7 +119,7 @@ std::string ltrim(const std::string& str) {
 	return str.substr(s);
 }
 
-std::string rtrim(const std::string& str) {
+static std::string rtrim(const std::string& str) {
 	std::string::size_type s = str.find_last_not_of(TRIM_DELIMITERS);
 	if (s == std::string::npos) {
 		return "";
@@ -127,11 +127,11 @@ std::string rtrim(const std::string& str) {
 	return str.substr(0, s+1);
 }
 
-std::string trim(const std::string& str) {
+static std::string trim(const std::string& str) {
 	return rtrim(ltrim(str));
 }
 
-bool isProperty(const std::string& str) {
+static bool isProperty(const std::string& str) {
 	std::string trimmedStr = ltrim(str);
 	std::string::size_type s = trimmedStr.find_first_of("=");
 	if (s == std::string::npos) {
@@ -145,12 +145,12 @@ bool isProperty(const std::string& str) {
 	return true;
 }
 
-bool isEmptyLine(const std::string& str) {
+static bool isEmptyLine(const std::string& str) {
 	std::string trimmedStr = ltrim(str);
 	return trimmedStr == "";
 }
 
-bool isComment(const std::string& str) {
+static bool isComment(const std::string& str) {
 	std::string trimmedStr = ltrim(str);
 	return trimmedStr[0] == '#';
 }

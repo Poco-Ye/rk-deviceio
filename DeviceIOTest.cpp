@@ -26,6 +26,9 @@
 
 #include <DeviceIo/DeviceIo.h>
 #include <DeviceIo/Properties.h>
+#include <DeviceIo/ScanResult.h>
+#include <DeviceIo/WifiInfo.h>
+#include <DeviceIo/WifiManager.h>
 
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
@@ -234,6 +237,11 @@ int main(int argc, char *argv[])
 
 	DeviceIOFramework::Properties* properties;
 	properties = DeviceIOFramework::Properties::getInstance();
+	properties->init();
+
+	DeviceIOFramework::WifiManager* wifiManager;
+	wifiManager = DeviceIOFramework::WifiManager::getInstance();
+	wifiManager->init(properties);
 
     class DeviceInputWrapper *input = new DeviceInputWrapper();
     DeviceIo::getInstance()->setNotify(input);
@@ -331,6 +339,9 @@ int main(int argc, char *argv[])
         sleep(10);
       }
     }
+
+	if (NULL != wifiManager)
+		delete wifiManager;
 
 	if (NULL != properties)
 		delete properties;
