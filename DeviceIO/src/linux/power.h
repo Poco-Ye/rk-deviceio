@@ -24,6 +24,10 @@
 #define DEFAULT_LOW_POWER_THRESHOLD		(5) /* 5 percent */
 #define DEFAULT_CAPACITY_DETECT_PERIOD	(60) /* 60 seconds */
 
+#define DEFAULT_TEMPERTURE_LOW_THRESHOLD	(0 * 10) /* 0 degree */
+#define DEFAULT_TEMPERTURE_HIGH_THRESHOLD	(60 * 10) /* 60.0 degree */
+#define DEFAULT_TEMPERTURE_DETECT_PERIOD	(60) /* 60 seconds */
+
 #include <DeviceIo/DeviceIo.h>
 
 using DeviceIOFramework::DevicePowerSupply;

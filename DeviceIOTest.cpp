@@ -263,6 +263,42 @@ int main(int argc, char *argv[])
     std::string chipid = DeviceIo::getInstance()->getChipID();
     std::cout << "Chip ID : " << chipid.c_str() << std::endl;
 
+    unsigned int bat_temp_period = 3;
+    DeviceIo::getInstance()->controlPower(DevicePowerSupply::POWER_CFG_BAT_TEMP_PERIOD_DETECT, &bat_temp_period, 0);
+    std::cout << "Set Battery Temperture Period Detect: " << bat_temp_period << std::endl;
+
+    int bat_temp_threshold_min = 0;
+    int bat_temp_threshold_max = 55;
+    DeviceIo::getInstance()->controlPower(DevicePowerSupply::POWER_CFG_BAT_TEMP_THRESHOLD_MIN,
+            &bat_temp_threshold_min, 0);
+    std::cout << "Set Battery Temperture Threshold Min: " << bat_temp_threshold_min << std::endl;
+
+    DeviceIo::getInstance()->controlPower(DevicePowerSupply::POWER_CFG_BAT_TEMP_THRESHOLD_MAX,
+            &bat_temp_threshold_max, 0);
+    std::cout << "Set Battery Temperture Threshold Max: " << bat_temp_threshold_max << std::endl;
+
+    DeviceIo::getInstance()->controlPower(DevicePowerSupply::USB_ONLINE, value, 1024);
+    std::cout << "Get USB Charge Status: " << value << std::endl;
+
+    DeviceIo::getInstance()->controlPower(DevicePowerSupply::AC_ONLINE, value, 1024);
+    std::cout << "Get AC Charge Status: " << value << std::endl;
+
+    int charge_enable = 0;
+    DeviceIo::getInstance()->controlPower(DevicePowerSupply::POWER_CFG_BAT_CHARGE_DISABLE,
+            &charge_enable, 0);
+    std::cout << "Disable Charge" << std::endl;
+
+    DeviceIo::getInstance()->controlPower(DevicePowerSupply::POWER_CFG_GET_CHARGE_ENABLE_STATUS, value, 1);
+    std::cout << "Charging Enable Status: " << ((value[0] == '1')? "YES":"NO") <<  std::endl;
+
+    charge_enable = 1;
+    DeviceIo::getInstance()->controlPower(DevicePowerSupply::POWER_CFG_BAT_CHARGE_ENABLE,
+            &charge_enable, 0);
+    std::cout << "Enable Charge" << std::endl;
+
+    DeviceIo::getInstance()->controlPower(DevicePowerSupply::POWER_CFG_GET_CHARGE_ENABLE_STATUS, value, 1);
+    std::cout << "Charging Enable Status: " << ((value[0] == '1')? "YES":"NO") <<  std::endl;
+
     struct rtc_time tmp_rtc;
     std::cout << "Rtc Read time:" << std::endl;
     DeviceIo::getInstance()->controlRtc(DeviceRTC::DEVICE_RTC_READ_TIME, &tmp_rtc, sizeof(tmp_rtc));
