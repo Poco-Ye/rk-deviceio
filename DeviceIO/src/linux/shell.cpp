@@ -9,7 +9,7 @@
 #include "Logger.h"
 
 bool Shell::exec(const char *cmdline, char *recv_buff) {
-    APP_INFO("exec: %s\n",cmdline);
+    printf("exec: %s\n",cmdline);
 
     FILE *stream = NULL;
     char buff[1024];

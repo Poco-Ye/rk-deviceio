@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+typedef unsigned char	  uint8_t;
 
 typedef struct _bt_device_info {
     char name[128]; // bt name
@@ -26,6 +27,26 @@ typedef struct _bt_scan_parameter {
     unsigned char item_cnt;
     BtDeviceInfo *device_list;
 } BtScanParam;
+
+#define GATT_MAX_CHR 10
+typedef struct BLE_CONTENT_T
+{
+	uint8_t advData[32];
+	uint8_t advDataLen;
+	uint8_t respData[32];
+	uint8_t respDataLen;
+	uint8_t server_uuid[38];
+	uint8_t char_uuid[GATT_MAX_CHR][38];
+	uint8_t char_cnt;
+	int (*cb_ble_recv_fun)(char *uuid, char *data, int len);
+	void (*cb_ble_request_data)(char *uuid);
+} ble_content_t;
+
+int gatt_main(ble_content_t *ble_content);
+int gatt_write_data(char *uuid, void *data, int len);
+void release_ble_gatt(void);
+void ble_enable_adv(void);
+void ble_disable_adv(void);
 
 #ifdef __cplusplus
 }

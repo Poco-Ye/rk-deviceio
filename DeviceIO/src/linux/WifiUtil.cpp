@@ -19,6 +19,18 @@
 #include <csignal>
 #include <fcntl.h>
 
+
+#include "DeviceIo/DeviceIo.h"
+#include "Timer.h"
+
+using DeviceIOFramework::Timer;
+using DeviceIOFramework::TimerManager;
+using DeviceIOFramework::TimerNotify;
+using DeviceIOFramework::DeviceIo;
+using DeviceIOFramework::DeviceInput;
+using DeviceIOFramework::wifi_config;
+using DeviceIOFramework::NetLinkNetworkStatus;
+
 using std::string;
 using std::vector;
 using std::ifstream;
@@ -26,6 +38,8 @@ using std::ifstream;
 typedef std::list<std::string> LIST_STRING;
 typedef std::list<WifiInfo*> LIST_WIFIINFO;
 static int network_id;
+struct wifi_config *gwifi_cfg;
+
 
 static const char *WIFI_CONFIG_FORMAT = "ctrl_interface=/var/run/wpa_supplicant\n"
                                 "ap_scan=1\n\nnetwork={\nssid=\"%s\"\n"
@@ -90,18 +104,30 @@ bool check_ap_interface_status(string ap) {
 }
 
 bool WifiUtil::start_wpa_supplicant() {
+    pthread_t start_wifi_monitor_threadId;
+
+	if (Shell::pidof("wpa_supplicant"))
+		goto monitor;
+
+    Shell::system("ifconfig wlan0 down");
+    Shell::system("ifconfig wlan0 up");
     Shell::system("ifconfig wlan0 0.0.0.0");
-    Shell::system("killall dhcpcd");
+    //Shell::system("killall dhcpcd");
     Shell::system("killall wpa_supplicant");
     sleep(1);
     Shell::system("wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf");
-    Shell::system("dhcpcd -k wlan0");//udhcpc -b -i wlan0 -q ");
-    sleep(1);
-    Shell::system("dhcpcd wlan0 -t 0&");
+    //Shell::system("dhcpcd -k wlan0");//udhcpc -b -i wlan0 -q ");
+    //sleep(1);
+    //Shell::system("dhcpcd wlan0 -t 0 &");
+monitor:
+    pthread_create(&start_wifi_monitor_threadId, nullptr, start_wifi_monitor, nullptr);
+    pthread_detach(start_wifi_monitor_threadId);
+
     return true;
 }
 
 bool WifiUtil::stop_wpa_supplicant() {
+    Shell::system("ifconfig wlan0 down");
     return Shell::system("killall wpa_supplicant &");
 }
 
@@ -383,6 +409,94 @@ std::string getJsonFromMessage(char message[]){
     return str.substr(str.find('{'));
 }
 
+static char wifi_ssid[256];
+static char wifi_ssid_bk[256];
+static char wifi_password[256];
+static char wifi_password_bk[256];
+static char wifi_security[256];
+static char wifi_hide[256];
+static char check_data[256];
+static int priority = 0;
+static volatile bool g_results = false;
+bool checkWifiIsConnected();
+
+
+static bool save_wifi_config(int mode)
+{
+	char buff[256] = {0};
+	char cmdline[256] = {0};
+
+	//7. save config
+	if (mode == 1) {
+		Shell::exec("wpa_cli enable_network all", buff);
+		Shell::exec("wpa_cli save_config", buff);
+		gwifi_cfg->wifi_status_callback(NetLinkNetworkStatus::NETLINK_NETWORK_CONFIG_SUCCEEDED);
+	} else { 
+		Shell::exec("wpa_cli flush", buff);
+		gwifi_cfg->wifi_status_callback(NetLinkNetworkStatus::NETLINK_NETWORK_CONFIG_FAILED);
+		sleep(2);
+		Shell::system("wpa_cli reconfigure");
+		Shell::system("wpa_cli reconnect");
+	}
+
+	return 0;
+}
+
+static void check_wifiinfo(int flag, char *info)
+{
+    char temp[1024];
+    char buff[1024] = {0};
+    char cmdline[1024] = {0};
+    int j = 0;
+	int scan_cnt = 6;
+    
+    if (flag == 0) {
+		for (int i = 0; i < strlen(info); i++) {
+			sprintf(temp+2*i, "%02x", info[i]);
+		}
+		temp[strlen(info)*2] = '\0';
+		strcpy(info, temp);
+		printf("check_wifiinfo ssid: %s\n", info);
+    } else if (flag == 1) {
+		memset(cmdline, 0, sizeof(cmdline));
+		sprintf(cmdline,"wpa_cli -iwlan0 scan_result | grep %s", wifi_ssid_bk);
+retry_scan:
+		Shell::exec("wpa_cli -iwlan0 scan", buff);
+		while (!g_results) {
+			sleep(1);
+			printf("==== g_results: %d ===\n", g_results);
+			if (scan_cnt)
+				break;
+		}
+		g_results = false;
+		Shell::exec(cmdline, buff);
+		scan_cnt--;
+		if ((!buff[0]) && (scan_cnt))
+			goto retry_scan;
+
+		printf("scan_r: %s.\n", buff);
+		if (strstr(buff, "WPA") != NULL)
+	        strcpy(wifi_security, "WPA-PSK");
+		else if (strstr(buff, "ESS") != NULL && strstr(buff, "WPA") == NULL)
+	        strcpy(wifi_security, "NONE");
+		else {
+			strcpy(wifi_security, "WPA-PSK");
+			printf("check_wifiinfo: wifi security is unknow !!!\n");
+		}
+
+		printf("check_wifiinfo security: %s\n", wifi_security);
+    } else if (flag == 2) {
+		for (int i = 0; i < strlen(info); i++) {
+	        temp[j++] = '\\';
+	        temp[j++] = info[i];
+		}
+		temp[j] = '\0';
+		strcpy(info, temp);
+
+		printf("check_wifiinfo password: %s\n", info);
+    }                
+}
+
 /**
  * use wpa_cli tool to connnect wifi in alexa device
  * @parm ssid
@@ -392,36 +506,78 @@ bool wifiConnect(std::string ssid,std::string password){
     char ret_buff[MSG_BUFF_LEN] = {0};
     char cmdline[MSG_BUFF_LEN] = {0};
     int id = -1;
-    bool execute_result = false;
+    bool execute_result = 0;
+
+	if (ssid.empty() || password.empty()) {
+		printf("Input param is empty.");
+	}
+
+	printf("%s ssid: %s, password: %s\n", __func__, ssid.c_str(), password.c_str());
+
+	strcpy(wifi_ssid, ssid.c_str());
+	strcpy(wifi_ssid_bk, ssid.c_str());
+
+	strcpy(wifi_password, password.c_str());
+	strcpy(wifi_password_bk, password.c_str());
+
+	Shell::exec("wpa_cli -iwlan0 disable_network all", ret_buff);
+	sleep(1);
 
     // 1. add network
-    Shell::exec("wpa_cli -iwlan0 add_network",ret_buff);
+    Shell::exec("wpa_cli -iwlan0 add_network", ret_buff);
     id = atoi(ret_buff);
-    if(id < 0){
+    if (id < 0) {
+		save_wifi_config(0);
         log_err("add_network failed.\n");
-        return false;
+		goto falsed;
     }
+
+	// prioity
+	priority = id + 1;
+
     // 2. setNetWorkSSID
+	check_wifiinfo(0, wifi_ssid);
     memset(cmdline, 0, sizeof(cmdline));
-    sprintf(cmdline,"wpa_cli -iwlan0 set_network %d ssid \\\"%s\\\"",id, ssid.c_str());
+    sprintf(cmdline,"wpa_cli -iwlan0 set_network %d ssid %s", id, wifi_ssid);
     printf("%s\n", cmdline);
-    Shell::exec(cmdline,ret_buff);
-    execute_result = !strncmp(ret_buff,"OK",2);
+    Shell::exec(cmdline, ret_buff);
+    execute_result = !strncmp(ret_buff, "OK", 2);
     if(!execute_result){
         log_err("setNetWorkSSID failed.\n");
-        return false;
+		goto falsed;
     }
-    // 3. setNetWorkPWD
+
+    // 3. setNetWorkSECURe
+    check_wifiinfo(1, wifi_security);
     memset(cmdline, 0, sizeof(cmdline));
-    sprintf(cmdline,"wpa_cli -iwlan0 set_network %d psk \\\"%s\\\"", id,password.c_str());
+    sprintf(cmdline,"wpa_cli -iwlan0 set_network %d key_mgmt %s", id, wifi_security);
+    printf("%s\n", cmdline);
+    Shell::exec(cmdline, ret_buff);
+    execute_result = !strncmp(ret_buff, "OK", 2);   
+    if(!execute_result){
+        perror("setNetWorkSECURe failed.\n");
+		goto falsed;
+    }
+
+	if (strcmp(wifi_security, "NONE") == 0) {
+        printf("wifi_security is NONE! ignore the password\n");
+		goto enable_network;
+    }
+
+    // 4. setNetWorkPWD
+	check_wifiinfo(2, wifi_password);
+    memset(cmdline, 0, sizeof(cmdline));
+    sprintf(cmdline,"wpa_cli -iwlan0 set_network %d psk \\\"%s\\\"", id, wifi_password);
     printf("%s\n", cmdline);
     Shell::exec(cmdline,ret_buff);
     execute_result = !strncmp(ret_buff,"OK",2);
     if(!execute_result){
         log_err("setNetWorkPWD failed.\n");
-        return false;
+		goto falsed;
     }
-    // 4. selectNetWork
+
+enable_network:
+    // 5. selectNetWork
     memset(cmdline, 0, sizeof(cmdline));
     sprintf(cmdline,"wpa_cli -iwlan0 select_network %d", id);
     printf("%s\n", cmdline);
@@ -429,10 +585,20 @@ bool wifiConnect(std::string ssid,std::string password){
     execute_result = !strncmp(ret_buff,"OK",2);
     if(!execute_result){
         log_err("setNetWorkPWD failed.\n");
-        return false;
+		goto falsed;
     }
 
-    return true;
+	if (checkWifiIsConnected()) {
+		save_wifi_config(1);
+	} else {
+		save_wifi_config(0);
+	}
+
+	return true;
+
+falsed:
+	save_wifi_config(0);
+	return false;	
 }
 
 bool checkWifiIsConnected() {
@@ -443,19 +609,15 @@ bool checkWifiIsConnected() {
     LIST_STRING::iterator iterator;   
 
     // udhcpc network
-    int udhcpc_pid = Shell::pidof("udhcpc");
-    if(udhcpc_pid != 0){
-        memset(cmdline, 0, sizeof(cmdline));
-        sprintf(cmdline,"kill %d",udhcpc_pid);
-        Shell::exec(cmdline,ret_buff);
-    }
-    Shell::exec("udhcpc -n -t 10 -i wlan0",ret_buff);
+    int udhcpc_pid = Shell::pidof("dhcpcd");
+    if (udhcpc_pid == 0)
+		Shell::exec("dhcpcd -AB -f /etc/dhcpcd.conf", ret_buff);
 
     bool isWifiConnected = false;
     int match = 0;
     /* 15s to check wifi whether connected */
-    for(int i=0;i<5;i++){
-        sleep(2);
+    for(int i=0;i<60;i++){
+        sleep(1);
         match = 0;
         Shell::exec("wpa_cli -iwlan0 status",ret_buff);
         stateSList = charArrayToList(ret_buff);
@@ -475,21 +637,12 @@ bool checkWifiIsConnected() {
         if(match >= 2){
             isWifiConnected = true;
             // TODO play audio: wifi connected
-            log_info("Congratulation: wifi connected.\n");
+            log_err("Congratulation: wifi connected.\n");
             break;
         }
-        log_info("Check wifi state with none state. try more %d/5, \n",i+1);
+        log_err("Check wifi state with none state. try more %d/5, \n",i+1);
     }
-
-    if(!isWifiConnected){
-        // TODO play audio: wifi failed.
-        log_info("wifi connect failed.please check enviroment.\n");
-        system("gst-play-1.0 -q --no-interactive /usr/ap_notification/wifi_connect_failed.mp3 &");
- 
-    } else {
-        system("gst-play-1.0 -q --no-interactive /usr/ap_notification/wifi_conneted.mp3 &");
-        system("softapServer stop &");
-    }
+	return isWifiConnected;
 }
 
 
@@ -502,21 +655,22 @@ std::string WifiUtil::getWifiListJson(){
     LIST_WIFIINFO wifiInfoList;
 
 retry:
-    Shell::exec("wpa_cli -i wlan0 scan", ret_buff);
+    Shell::exec("wpa_cli -i wlan0 -p /var/run/wpa_supplicant scan", ret_buff);
     /* wap_cli sacn is useable */
     if(!strncmp(ret_buff,"OK",2)){
         log_info("scan useable: OKOK\n");
-        Shell::exec("wpa_cli -i wlan0 scan_r", ret_buff);
+        Shell::exec("wpa_cli -i wlan0 -p /var/run/wpa_supplicant scan_r", ret_buff);
         wifiStringList = charArrayToList(ret_buff);
         wifiInfoList = wifiStringFormat(wifiStringList);
     }
     
     if ((wifiInfoList.size() == 0)  && (--retry_count > 0)) {
+	usleep(500000);
         goto retry;
     }
     // parse wifiInfo list into json.
     ret = parseIntoJson(wifiInfoList);
-    log_info("list size: %d\n",wifiInfoList.size());
+    log_info("list size: %d, ret.size: %d\n",wifiInfoList.size(), ret.size());
     return ret;
 }
 
@@ -607,15 +761,21 @@ static bool saveWifiConfig(const char* name, const char* pwd)
     return 0;
 }
 
-void WifiUtil::connect(char *ssid, char *psk) {
-    if (ssid && psk)
-        wifiConnect(ssid, psk);
-    else
-        Shell::system("wpa_cli -iwlan0 reconnect");
+void WifiUtil::connect(void *data) {
+	gwifi_cfg = data;
+	wifiConnect(gwifi_cfg->ssid, gwifi_cfg->psk);
 }
 
 void WifiUtil::disconnect() {
     Shell::system("wpa_cli -iwlan0 disconnect");
+}
+
+void WifiUtil::recovery() {
+	char ret_buff[1024];
+	printf("=== wifi recovery===\n");
+    Shell::exec("wpa_cli reconfigure", ret_buff);
+	sleep(1);
+    Shell::exec("wpa_cli reconnect", ret_buff);
 }
 
 void WifiUtil::connectJson(char *recv_buff) {
@@ -660,3 +820,291 @@ void WifiUtil::connectJson(char *recv_buff) {
     }
     return;
 }
+
+#define EVENT_BUF_SIZE 1024
+#define PROPERTY_VALUE_MAX 32
+#define PROPERTY_KEY_MAX 32
+#include <poll.h>
+#include <wpa_ctrl.h>
+void wifi_close_sockets();
+static const char WPA_EVENT_IGNORE[]    = "CTRL-EVENT-IGNORE ";
+static const char IFNAME[]              = "IFNAME=";
+static const char IFACE_DIR[]           = "/var/run/wpa_supplicant";
+#define WIFI_CHIP_TYPE_PATH				"/sys/class/rkwifi/chip"
+#define WIFI_DRIVER_INF         		"/sys/class/rkwifi/driver"
+#define IFNAMELEN                       (sizeof(IFNAME) - 1)
+static struct wpa_ctrl *ctrl_conn;
+static struct wpa_ctrl *monitor_conn;
+#define DBG_NETWORK 1
+
+static int exit_sockets[2];
+static char primary_iface[PROPERTY_VALUE_MAX] = "wlan0";
+char SSID[33];
+char PASSWD[65];
+
+#define HOSTAPD "hostapd"
+#define WPA_SUPPLICANT "wpa_supplicant"
+#define DNSMASQ "dnsmasq"
+#define SIMPLE_CONFIG "simple_config"
+#define SMART_CONFIG "smart_config"
+#define UDHCPC "udhcpc"
+
+int get_pid(const char Name[]) {
+    int len;
+    char name[20] = {0};
+    len = strlen(Name);
+    strncpy(name,Name,len);
+    name[len] ='\0';
+    char cmdresult[256] = {0};
+    char cmd[20] = {0};
+    FILE *pFile = NULL;
+    int  pid = 0;
+
+    sprintf(cmd, "pidof %s", name);
+    pFile = popen(cmd, "r");
+    if (pFile != NULL)  {
+        while (fgets(cmdresult, sizeof(cmdresult), pFile)) {
+            pid = atoi(cmdresult);
+            break;
+        }
+    }
+    pclose(pFile);
+    return pid;
+}
+
+void wifi_close_sockets() {
+	if (ctrl_conn != NULL) {
+		wpa_ctrl_close(ctrl_conn);
+		ctrl_conn = NULL;
+	}
+
+	if (monitor_conn != NULL) {
+		wpa_ctrl_close(monitor_conn);
+		monitor_conn = NULL;
+	}
+
+	if (exit_sockets[0] >= 0) {
+		close(exit_sockets[0]);
+		exit_sockets[0] = -1;
+	}
+
+	if (exit_sockets[1] >= 0) {
+		close(exit_sockets[1]);
+		exit_sockets[1] = -1;
+	}
+}
+
+int str_starts_with(char * str, char * search_str)
+{
+	if ((str == NULL) || (search_str == NULL))
+		return 0;
+	return (strstr(str, search_str) == str);
+}
+
+int dispatch_event(char* event)
+{
+	if (strstr(event, "CTRL-EVENT-BSS") || strstr(event, "CTRL-EVENT-TERMINATING"))
+		return 0;
+
+	if (1)
+		printf("%s: %s\n", __func__, event);
+	
+	if (str_starts_with(event, (char *)WPA_EVENT_DISCONNECTED)) {
+		printf("%s: wifi is disconnect\n", __FUNCTION__);
+		system("ip addr flush dev wlan0");
+	} else if (str_starts_with(event, (char *)WPA_EVENT_CONNECTED)) {
+		printf("%s: wifi is connected\n", __func__);
+	} else if (str_starts_with(event, (char *)WPA_EVENT_SCAN_RESULTS)) {
+		g_results = true;
+		printf("%s: wifi event results g_results: %d \n", __func__, g_results);
+	} else if (str_starts_with(event, (char *)WPA_EVENT_TERMINATING)) {
+		printf("%s: wifi is WPA_EVENT_TERMINATING!\n", __func__);
+		wifi_close_sockets();
+		return -1;
+	}
+
+	return 0;
+}
+
+int check_wpa_supplicant_state() {
+	int count = 5;
+	int wpa_supplicant_pid = 0;
+	wpa_supplicant_pid = get_pid(WPA_SUPPLICANT);
+	printf("%s: wpa_supplicant_pid = %d\n",__FUNCTION__,wpa_supplicant_pid);
+	if(wpa_supplicant_pid > 0) {
+		return 1;
+	}
+	return 0;
+}
+
+int wifi_ctrl_recv(char *reply, size_t *reply_len)
+{
+	int res;
+	int ctrlfd = wpa_ctrl_get_fd(monitor_conn);
+	struct pollfd rfds[2];
+
+	memset(rfds, 0, 2 * sizeof(struct pollfd));
+	rfds[0].fd = ctrlfd;
+	rfds[0].events |= POLLIN;
+	rfds[1].fd = exit_sockets[1];
+	rfds[1].events |= POLLIN;
+	do {
+		res = TEMP_FAILURE_RETRY(poll(rfds, 2, 30000));
+		if (res < 0) {
+			printf("Error poll = %d\n", res);
+			return res;
+		} else if (res == 0) {
+            /* timed out, check if supplicant is activeor not .. */
+			res = check_wpa_supplicant_state();
+			if (res < 0)
+				return -2;
+		}
+	} while (res == 0);
+
+	if (rfds[0].revents & POLLIN) {
+		return wpa_ctrl_recv(monitor_conn, reply, reply_len);
+	}
+	return -2;
+}
+
+int wifi_wait_on_socket(char *buf, size_t buflen)
+{
+	size_t nread = buflen - 1;
+	int result;
+	char *match, *match2;
+
+	if (monitor_conn == NULL) {
+		return snprintf(buf, buflen, "IFNAME=%s %s - connection closed",
+			primary_iface, WPA_EVENT_TERMINATING);
+	}
+
+	result = wifi_ctrl_recv(buf, &nread);
+
+	/* Terminate reception on exit socket */
+	if (result == -2) {
+		return snprintf(buf, buflen, "IFNAME=%s %s - connection closed",
+			primary_iface, WPA_EVENT_TERMINATING);
+	}
+
+	if (result < 0) {
+		//printf("wifi_ctrl_recv failed: %s\n", strerror(errno));
+		//return snprintf(buf, buflen, "IFNAME=%s %s - recv error",
+		//	primary_iface, WPA_EVENT_TERMINATING);
+	}
+
+	buf[nread] = '\0';
+
+	/* Check for EOF on the socket */
+	if (result == 0 && nread == 0) {
+        /* Fabricate an event to pass up */
+		printf("Received EOF on supplicant socket\n");
+		return snprintf(buf, buflen, "IFNAME=%s %s - signal 0 received",
+			primary_iface, WPA_EVENT_TERMINATING);
+	}
+
+	if (strncmp(buf, IFNAME, IFNAMELEN) == 0) {
+		match = strchr(buf, ' ');
+        if (match != NULL) {
+			if (match[1] == '<') {
+				match2 = strchr(match + 2, '>');
+					if (match2 != NULL) {
+						nread -= (match2 - match);
+						memmove(match + 1, match2 + 1, nread - (match - buf) + 1);
+					}
+			}
+		} else {
+			return snprintf(buf, buflen, "%s", WPA_EVENT_IGNORE);
+		}
+	} else if (buf[0] == '<') {
+		match = strchr(buf, '>');
+		if (match != NULL) {
+			nread -= (match + 1 - buf);
+			memmove(buf, match + 1, nread + 1);
+			if (0)
+				printf("supplicant generated event without interface - %s\n", buf);
+		}
+	} else {
+		if (0)
+			printf("supplicant generated event without interface and without message level - %s\n", buf);
+	}
+
+	return nread;
+}
+
+int wifi_connect_on_socket_path(const char *path)
+{
+	char supp_status[PROPERTY_VALUE_MAX] = {'\0'};
+
+	if(!check_wpa_supplicant_state()) {
+		printf("%s: wpa_supplicant is not ready\n",__FUNCTION__);
+		return -1;
+	}
+
+	ctrl_conn = wpa_ctrl_open(path);
+	if (ctrl_conn == NULL) {
+		printf("Unable to open connection to supplicant on \"%s\": %s\n",
+		path, strerror(errno));
+		return -1;
+	}
+	monitor_conn = wpa_ctrl_open(path);
+	if (monitor_conn == NULL) {
+		wpa_ctrl_close(ctrl_conn);
+		ctrl_conn = NULL;
+		return -1;
+	}
+	if (wpa_ctrl_attach(monitor_conn) != 0) {
+		wpa_ctrl_close(monitor_conn);
+		wpa_ctrl_close(ctrl_conn);
+		ctrl_conn = monitor_conn = NULL;
+		return -1;
+	}
+
+	if (socketpair(AF_UNIX, SOCK_STREAM, 0, exit_sockets) == -1) {
+		wpa_ctrl_close(monitor_conn);
+		wpa_ctrl_close(ctrl_conn);
+		ctrl_conn = monitor_conn = NULL;
+		return -1;
+	}
+	return 0;
+}
+
+/* Establishes the control and monitor socket connections on the interface */
+int wifi_connect_to_supplicant()
+{
+	static char path[1024];
+	int count = 10;
+
+	printf("%s \n", __FUNCTION__);
+	while(count-- > 0) {
+		if (access(IFACE_DIR, F_OK) == 0)
+			break;
+		sleep(1);
+	}
+
+	snprintf(path, sizeof(path), "%s/%s", IFACE_DIR, primary_iface);
+
+	return wifi_connect_on_socket_path(path);
+}
+
+
+void WifiUtil::start_wifi_monitor(void *arg)
+{
+	char eventStr[EVENT_BUF_SIZE];
+	int ret;
+
+	if ((ret = wifi_connect_to_supplicant()) != 0) {
+		printf("%s, connect to supplicant fail.\n", __FUNCTION__);
+		return;
+	}
+
+	for (;;) {
+		memset(eventStr, 0, EVENT_BUF_SIZE);
+		if (!wifi_wait_on_socket(eventStr, EVENT_BUF_SIZE))
+			continue;
+		if (dispatch_event(eventStr)) {
+			printf("disconnecting from the supplicant, no more events\n");
+			break;
+		}
+	}
+}
+

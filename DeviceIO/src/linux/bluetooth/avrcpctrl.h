@@ -46,42 +46,43 @@ enum AVK_CMD
     APP_AVK_MENU_QUIT = 99
 };
 
-    /**
-    * 初始化 蓝牙音频反向控制模块
-    */
-    int init_avrcp_ctrl();
-    /**
-    * 释放蓝牙音频反向控制相关资源
-    */
-    int release_avrcp_ctrl();
-    /**
-    * 播放
-    */
-    int play_avrcp();
-     /**
-    * 暂停播放
-    */
-    int pause_avrcp();
-    /**
-    * 停止播放
-    */
-    int stop_avrcp();
-    /**
-    * 下一首
-    */
-    int next_avrcp();
-    /**
-    * 上一首
-    */
-    int previous_avrcp();
-    /**
-    * 获取当前蓝牙音频状态
-    */
-    int getstatus_avrcp();
-    
-    void volumeup_avrcp();
-    
-    void volumedown_avrcp();
-	bool check_default_player(void);
+/**
+* 初始化 蓝牙音频反向控制模块
+*/
+int init_avrcp_ctrl();
+/**
+* 释放蓝牙音频反向控制相关资源
+*/
+int release_avrcp_ctrl();
+/**
+* 播放
+*/
+int play_avrcp();
+ /**
+* 暂停播放
+*/
+int pause_avrcp();
+/**
+* 停止播放
+*/
+int stop_avrcp();
+/**
+* 下一首
+*/
+int next_avrcp();
+/**
+* 上一首
+*/
+int previous_avrcp();
+/**
+* 获取当前蓝牙音频状态
+*/
+int getstatus_avrcp();
+
+void volumeup_avrcp();
+
+void volumedown_avrcp();
+bool check_default_player(void);
+void a2dp_sink_cmd_power(bool powered);
 
 #endif 

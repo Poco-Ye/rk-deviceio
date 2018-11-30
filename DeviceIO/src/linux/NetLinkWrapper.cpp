@@ -59,7 +59,9 @@ NetLinkWrapper::NetLinkWrapper() : m_networkStatus{NETLINK_NETWORK_SUCCEEDED},
                                      m_isNetworkOnline{false},
                                      m_isFirstNetworkReady{true},
                                      m_isFromConfigNetwork{false},
-                                     m_callback{NULL} {
+                                     m_callback{NULL},
+                                     wifi_link_state{false},
+                                     net_link_state{false}{
     s_destroyOnce = PTHREAD_ONCE_INIT;
     m_maxPacketSize = MAX_PACKETS_COUNT;
     m_datalen = 56;
@@ -143,15 +145,279 @@ static string generate_ssid(void) {
     ssid.erase(std::remove(ssid.begin(), ssid.end(), ':'), ssid.end());
     return ssid;
 }
+
+/* Immediate wifi Service UUID */
+#define WIFI_SERVICES_UUID       "1B7E8251-2877-41C3-B46E-CF057C562023"
+#define SECURITY_CHAR_UUID       "CAC2ABA4-EDBB-4C4A-BBAF-0A84A5CD93A1"
+#define HIDE_CHAR_UUID           "CAC2ABA4-EDBB-4C4A-BBAF-0A84A5CD26C7"
+#define SSID_CHAR_UUID           "ACA0EF7C-EEAA-48AD-9508-19A6CEF6B356"
+#define PASSWORD_CHAR_UUID       "40B7DE33-93E4-4C8B-A876-D833B415A6CE"
+#define CHECKDATA_CHAR_UUID      "40B7DE33-93E4-4C8B-A876-D833B415C759"
+#define NOTIFY_CHAR_UUID         "8AC32D3f-5CB9-4D44-BEC2-EE689169F626"
+#define NOTIFY_DESC_UUID         "00002902-0000-1000-8000-00805f9b34fb"
+#define WIFILIST_CHAR_UUID       "8AC32D3f-5CB9-4D44-BEC2-EE689169F627"
+#define DEVICECONTEXT_CHAR_UUID  "8AC32D3f-5CB9-4D44-BEC2-EE689169F628"
+
+#define BLE_UUID_SERVICE	"0000180A-0000-1000-8000-00805F9B34FB"
+#define BLE_UUID_WIFI_CHAR	"00009999-0000-1000-8000-00805F9B34FB"
+
+#define BT_CONFIG_FAILED 2
+#define BT_CONFIG_OK 1
+
+static pthread_t wificonfig_tid = 0;
+static char wifi_ssid[256];
+static char wifi_ssid_bk[256];
+static char wifi_password[256];
+static char wifi_password_bk[256];
+static char wifi_security[256];
+static char wifi_hide[256];
+static char check_data[256];
+static int priority = 0;
+ble_content_t ble_content;
+struct ble_config ble_cfg;
+struct wifi_config wifi_cfg;
+
+#define HOSTNAME_MAX_LEN	250	/* 255 - 3 (FQDN) - 2 (DNS enc) */
+#define BLE_CONFIG_WIFI_SUCCESS 1
+#define BLE_CONFIG_WIFI_FAILED	2
+#define UUID_MAX_LEN			36	
+#define MSG_BUFF_LEN (10 * 1024) //max size for wifi list
+
+char wifi_list_buf[MSG_BUFF_LEN] = {0};
+char devcontext_list_buf[MSG_BUFF_LEN] = {0};
+#define BLE_SEND_MAX_LEN (134) //(20) //(512)
+
+static void ble_request_data(char *uuid)
+{
+	static int scanr_len = 0, scanr_len_use = 0;
+	static int devcontext_len = 0, devcontext_len_use = 0;
+	int scan_retry;
+	if (!strcmp(WIFILIST_CHAR_UUID, uuid)) {
+		if (!scanr_len) {
+			scan_retry = 3;
+retry:
+			DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_SCAN, wifi_list_buf, scanr_len);
+			scanr_len_use = 0;
+			scanr_len = strlen(wifi_list_buf);
+			if (!scanr_len) {
+				printf("%s: wifi total list is null\n", __func__);
+				if (scan_retry-- > 0)
+					goto retry;
+			}
+		}
+
+		printf("%s: wifi use: %d, len: %d\n", __func__, scanr_len_use, scanr_len);
+
+		//chr_write(chr, slist, (len > BLE_SEND_MAX_LEN) ? BLE_SEND_MAX_LEN : len);
+		ble_cfg.len = (scanr_len > BLE_SEND_MAX_LEN) ? BLE_SEND_MAX_LEN : scanr_len;
+		memcpy(ble_cfg.data, wifi_list_buf + scanr_len_use, ble_cfg.len);
+		memcpy(ble_cfg.uuid, WIFILIST_CHAR_UUID, UUID_MAX_LEN);
+		DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_WRITE, &ble_cfg);
+		scanr_len -= ble_cfg.len;
+		scanr_len_use += ble_cfg.len;		
+	}
+
+	if (!strcmp(DEVICECONTEXT_CHAR_UUID, uuid)) {
+		if (!devcontext_len)
+			DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_GET_DEVICE_CONTEXT, devcontext_list_buf, devcontext_len);
+
+		devcontext_len = strlen(devcontext_list_buf);
+		printf("%s: WIFI_GET_DEVICE_CONTEXT is	%s, len = %d\n", __func__, devcontext_list_buf, devcontext_len);
+
+		//chr_write(chr, devicesn, (len > BLE_SEND_MAX_LEN) ? BLE_SEND_MAX_LEN : len);
+		ble_cfg.len = (devcontext_len > BLE_SEND_MAX_LEN) ? BLE_SEND_MAX_LEN : devcontext_len;
+		memcpy(ble_cfg.data, devcontext_len + devcontext_len_use, ble_cfg.len);
+		memcpy(ble_cfg.uuid, DEVICECONTEXT_CHAR_UUID, UUID_MAX_LEN);
+		DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_WRITE, &ble_cfg);
+		devcontext_len -= ble_cfg.len;
+		devcontext_len_use += ble_cfg.len;		
+	}
+
+}
+
+static void *config_wifi_thread(void)
+{
+	printf("config_wifi_thread\n");
+	NetLinkWrapper::getInstance()->notify_network_config_status(ENetworkConfigIng);
+    DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_CONNECT, &wifi_cfg);
+}
+
+static void wifi_status_callback(int status)
+{
+	printf("%s: status: %d.\n", __func__, status);
+
+	if (status == NetLinkNetworkStatus::NETLINK_NETWORK_CONFIG_FAILED) {
+	    NetLinkWrapper::getInstance()->notify_network_config_status(ENetworkWifiFailed);
+	} else if (status == NetLinkNetworkStatus::NETLINK_NETWORK_CONFIG_SUCCEEDED) {
+	    NetLinkWrapper::getInstance()->notify_network_config_status(ENetworkWifiSucceed);
+	}
+}
+
+static ble_callback(char *uuid, void *data, int len)
+{
+	char str[120];
+	memset(str, 0, 120);
+
+	memcpy(str, data, len);
+	str[len] = '\0';
+	printf("chr_write_value  %p, %d\n", data, len);
+
+	if (!strcmp(BLE_UUID_WIFI_CHAR, uuid)) {
+		strcpy(wifi_ssid, str + 20);
+		strcpy(wifi_password, str + 52);
+		printf("wifi ssid is %s\n", wifi_ssid);
+		printf("wifi psk is %s\n", wifi_password);
+		printf("wifi start: %d, end: %d %d\n", str[0], str[99], str[100]);
+
+		for (int i = 0; i < len; i++) {
+			if (!( i % 8))
+				printf("\n");
+			printf("0x%02x ", str[i]);
+		}
+		printf("\n");
+		char value = 6;
+		printf("start to back 6\n");
+		//chr_write(chr, &value, 1);
+	}
+
+	if (!strcmp(SSID_CHAR_UUID, uuid)) {
+		strcpy(wifi_ssid, str);
+		//saveCheckdata(2, wifi_ssid_bk);
+		strcpy(wifi_cfg.ssid, wifi_ssid);
+		wifi_cfg.ssid_len = sizeof(wifi_ssid);
+		printf("wifi ssid is %s, len: %d\n", wifi_cfg.ssid, wifi_cfg.ssid_len);
+	}
+
+	if (!strcmp(PASSWORD_CHAR_UUID, uuid)) {
+		strcpy(wifi_password, str);
+		strcpy(wifi_cfg.psk, wifi_password);
+		wifi_cfg.psk_len = sizeof(wifi_password);
+		printf("wifi pwd is %s, len: %d\n", wifi_cfg.psk, wifi_cfg.psk_len);
+	}
+
+	if (!strcmp(HIDE_CHAR_UUID, uuid)) {
+		strcpy(wifi_hide, str);
+		printf("wifi hide is %s\n", wifi_hide);
+	}
+		
+	if (!strcmp(SECURITY_CHAR_UUID, uuid)) {
+		strcpy(wifi_security, str);
+		strcpy(wifi_cfg.key_mgmt, wifi_security);
+		wifi_cfg.key_len = sizeof(wifi_security);
+		printf("wifi sec is %s, len: %d\n", wifi_cfg.key_mgmt, wifi_cfg.key_len);
+	}
+
+	if (!strcmp(CHECKDATA_CHAR_UUID, uuid)) {
+		strncpy(check_data, str, len);
+		printf("check_data is  %s\n", check_data);
+    	pthread_create(&wificonfig_tid, NULL, config_wifi_thread, NULL);
+	}
+}
+
+static void bt_adv_set(void)
+{
+	char hostname[HOSTNAME_MAX_LEN + 1];
+	size_t buf_len;
+	int i;
+
+	buf_len = sizeof(hostname);
+	if (gethostname(hostname, buf_len) != 0)
+		printf("gethostname error !!!!!!!!\n");
+	hostname[buf_len - 1] = '\0';
+
+	/* Deny sending of these local hostnames */
+	if (hostname[0] == '\0' || hostname[0] == '.' || strcmp(hostname, "(none)") == 0)
+		printf("gethostname format error !!!\n");
+	else
+		printf("gethostname: %s, len: %d \n", hostname, strlen(hostname));
+
+	ble_content.advData[0] = 0x15;
+	ble_content.advData[1] = 0x02;
+	ble_content.advData[2] = 0x01;
+	ble_content.advData[3] = 0x1a;
+	ble_content.advData[4] = 0x11;
+	ble_content.advData[5] = 0x07;
+	ble_content.advData[6] = 0x23;
+	ble_content.advData[7] = 0x20;
+	ble_content.advData[8] = 0x56;
+	ble_content.advData[9] = 0x7c;
+	ble_content.advData[11] = 0x05;
+	ble_content.advData[12] = 0xcf;
+	ble_content.advData[13] = 0x6e;
+	ble_content.advData[14] = 0xb4;
+	ble_content.advData[15] = 0xc3;
+	ble_content.advData[16] = 0x41;
+	ble_content.advData[17] = 0x77;
+	ble_content.advData[18] = 0x51;
+	ble_content.advData[10] = 0x82;
+	ble_content.advData[20] = 0x7e;
+	ble_content.advData[21] = 0x1b;
+
+	ble_content.advDataLen = 0x16;
+
+	/*
+	 * respdata devices name
+	 * hcitool -i hci0 cmd 0x08 0x0009 08 07 09 52 4b 5f 42 4c 45
+	 */
+	ble_content.respData[0] = 1 + 1 + strlen(hostname) + 4;//0x07;
+	ble_content.respData[1] = ble_content.respData[0] - 1;
+	ble_content.respData[2] = 0x09;
+
+	for (i = 0; i < strlen(hostname); i++) {
+		ble_content.respData[3 + i] = hostname[i];
+	}
+	//hostname_BLE
+	ble_content.respData[3 + i] = 0x5F;
+	ble_content.respData[4 + i] = 0x42;
+	ble_content.respData[5 + i] = 0x4C;
+	ble_content.respData[6 + i] = 0x45;
+	ble_content.respDataLen = ble_content.respData[0] + 1;
+
+	/* set uuid */
+	memcpy(ble_content.server_uuid, WIFI_SERVICES_UUID, 36);
+	ble_content.server_uuid[36] = '\0';
+	memcpy(ble_content.char_uuid[0], SECURITY_CHAR_UUID, 36);
+	ble_content.char_uuid[0][36] = '\0';
+	memcpy(ble_content.char_uuid[1], HIDE_CHAR_UUID, 36);
+	ble_content.char_uuid[1][36] = '\0';
+	memcpy(ble_content.char_uuid[2], SSID_CHAR_UUID, 36);
+	ble_content.char_uuid[2][36] = '\0';
+	memcpy(ble_content.char_uuid[3], PASSWORD_CHAR_UUID, 36);
+	ble_content.char_uuid[3][36] = '\0';
+	memcpy(ble_content.char_uuid[4], CHECKDATA_CHAR_UUID, 36);
+	ble_content.char_uuid[4][36] = '\0';
+	memcpy(ble_content.char_uuid[5], NOTIFY_CHAR_UUID, 36);
+	ble_content.char_uuid[5][36] = '\0';
+	memcpy(ble_content.char_uuid[6], NOTIFY_DESC_UUID, 36);
+	ble_content.char_uuid[6][36] = '\0';
+	memcpy(ble_content.char_uuid[7], WIFILIST_CHAR_UUID, 36);
+	ble_content.char_uuid[7][36] = '\0';
+	memcpy(ble_content.char_uuid[8], DEVICECONTEXT_CHAR_UUID, 36);
+	ble_content.char_uuid[8][36] = '\0';
+
+	//printf("server_uuid: %s, c0: %s, c1: %s\n", ble_content.server_uuid, ble_content.char_uuid[0], ble_content.char_uuid[1]);
+
+	ble_content.char_cnt = 9;
+	ble_content.cb_ble_recv_fun = ble_callback;
+	ble_content.cb_ble_request_data = ble_request_data;
+
+	wifi_cfg.wifi_status_callback = wifi_status_callback;
+}
+
 bool NetLinkWrapper::start_network_config() {
+	printf("==start start_network_config ===\n");
+
     string ssid = generate_ssid();
     //disconnect wifi if wifi network is ready;
     DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_DISCONNECT);
-    DeviceIo::getInstance()->controlBt(BtControl::BLE_CLOSE_SERVER);
+    DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_COLSE);
 #ifdef ENABLE_SOFTAP
     DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_OPEN_AP_MODE, (void *)ssid.c_str(), strlen(ssid.c_str()));
 #endif
-    DeviceIo::getInstance()->controlBt(BtControl::BLE_OPEN_SERVER);
+
+	bt_adv_set();
+	DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_OPEN, &ble_content);
+	printf("==start notify_network_config_status ===\n");
     getInstance()->notify_network_config_status(ENetworkConfigStarted);
 }
 
@@ -159,7 +425,7 @@ void NetLinkWrapper::stop_network_config() {
 #ifdef ENABLE_SOFTAP
     DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_CLOSE_AP_MODE);
 #endif
-    DeviceIo::getInstance()->controlBt(BtControl::BLE_CLOSE_SERVER);
+    DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_COLSE);
 }
 
 void *NetLinkWrapper::monitor_work_routine(void *arg) {
@@ -235,7 +501,6 @@ bool is_first_network_config(string path) {
 }
 
 void NetLinkWrapper::startNetworkRecovery() {
-
     DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_CLOSE_AP_MODE);
     DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_OPEN);
 
@@ -246,6 +511,8 @@ void NetLinkWrapper::startNetworkRecovery() {
     } else {
         check_recovery_network_status();
     }
+	
+	printf("==start start_network_monitor ===\n");
     start_network_monitor();
 }
 
@@ -259,6 +526,7 @@ bool NetLinkWrapper::startNetworkConfig(int timeout) {
     m_operation_type = operation_type::EManualConfig;
 
     start_network_config_timeout_alarm(timeout);
+	DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_OPEN);
     start_network_config();
 }
 
@@ -308,6 +576,10 @@ void NetLinkWrapper::setNetworkStatus(NetLinkNetworkStatus networkStatus) {
     std::lock_guard<std::mutex> lock(m_mutex);
     APP_INFO("#### setNetworkStatus from %s to %s\n", netstatus[m_networkStatus - NETLINK_NETWORK_CONFIG_STARTED],
         netstatus[networkStatus - NETLINK_NETWORK_CONFIG_STARTED]);
+
+	if (NetLinkWrapper::m_networkStatus == networkStatus)
+		return ;
+
     NetLinkWrapper::m_networkStatus = networkStatus;
     if (m_callback)
         m_callback->netlinkNetworkStatusChanged(networkStatus);
@@ -316,6 +588,8 @@ void NetLinkWrapper::setNetworkStatus(NetLinkNetworkStatus networkStatus) {
 void NetLinkWrapper::notify_network_config_status(notify_network_status_type notify_type) {
 
     APP_INFO("#### notify_event: ops %d, event: %s\n", get_operation_type(), notifyEvent[notify_type - ENetworkNone]);
+    printf("### notify_event: ops %d, notify_type: %d, event: %s ###\n",
+		get_operation_type(), notify_type, notifyEvent[notify_type - ENetworkNone]);
 
     switch (notify_type) {
         case ENetworkConfigStarted: {
@@ -337,9 +611,17 @@ void NetLinkWrapper::notify_network_config_status(notify_network_status_type not
             }
             break;
         }
+		case ENetworkWifiFailed:
+			wifi_link_state = false;
+
+			/* fall though */
         case ENetworkLinkFailed: {
             //Network config failed, reset wpa_supplicant.conf
             //set_wpa_conf(false);
+            ble_cfg.data[0] = BLE_CONFIG_WIFI_FAILED;
+			ble_cfg.len = 1;			
+			memcpy(ble_cfg.uuid, NOTIFY_CHAR_UUID, UUID_MAX_LEN);
+            DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_WRITE, &ble_cfg);
 
             setNetworkStatus(NETLINK_NETWORK_CONFIG_FAILED);
             SoundController::getInstance()->linkFailedPing(NetLinkWrapper::networkLinkFailed);
@@ -348,6 +630,10 @@ void NetLinkWrapper::notify_network_config_status(notify_network_status_type not
         case ENetworkConfigRouteFailed: {
             //Network config failed, reset wpa_supplicant.conf
             //set_wpa_conf(false);
+            ble_cfg.data[0] = BLE_CONFIG_WIFI_FAILED;
+			ble_cfg.len = 1;
+			memcpy(ble_cfg.uuid, NOTIFY_CHAR_UUID, UUID_MAX_LEN);            
+            DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_WRITE, &ble_cfg);
 
             setNetworkStatus(NETLINK_NETWORK_CONFIG_FAILED);
             SoundController::getInstance()->linkFailedIp(NetLinkWrapper::networkLinkFailed);
@@ -360,7 +646,17 @@ void NetLinkWrapper::notify_network_config_status(notify_network_status_type not
             APP_INFO("notify_network_config_status: ENetworkConfigExited=====End");
             break;
         }
+
+		case ENetworkWifiSucceed:
         case ENetworkLinkSucceed: {
+			if (notify_type == ENetworkWifiSucceed)
+				wifi_link_state = true;
+			else
+				net_link_state = true;
+
+			if (!(net_link_state && wifi_link_state))
+				break;
+
             setFromConfigNetwork(false);
             if (1) {//DeviceIoWrapper::getInstance()->isTouchStartNetworkConfig()) {
                 /// from networkConfig
@@ -368,7 +664,11 @@ void NetLinkWrapper::notify_network_config_status(notify_network_status_type not
             }
             //Network config succed, update wpa_supplicant.conf
             stop_network_config_timeout_alarm();
-            //set_wpa_conf(true);
+            //set_wpa_conf(true);			
+            ble_cfg.data[0] = BLE_CONFIG_WIFI_SUCCESS;
+			ble_cfg.len = 1;
+			memcpy(ble_cfg.uuid, NOTIFY_CHAR_UUID, UUID_MAX_LEN);
+            DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_WRITE, &ble_cfg);
 
             networkLinkOrRecoverySuccess();
 
@@ -378,6 +678,7 @@ void NetLinkWrapper::notify_network_config_status(notify_network_status_type not
 
             m_isLoopNetworkConfig = false;
             OnNetworkReady();
+			DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_COLSE);
 
             break;
         }
@@ -419,6 +720,7 @@ void NetLinkWrapper::network_status_changed(InternetConnectivity current_status,
             if (m_callback) {
                 m_callback->netlinkNetworkOnlineStatus(isNetworkOnline());
             }
+			printf("%s: AVAILABLE getNetworkStatus: %d.\n", __func__, getNetworkStatus());
             switch (getNetworkStatus()) {
                 case DeviceIOFramework::NETLINK_NETWORK_CONFIG_STARTED:
                 case DeviceIOFramework::NETLINK_NETWORK_CONFIGING:
@@ -450,12 +752,11 @@ void NetLinkWrapper::network_status_changed(InternetConnectivity current_status,
                 wakeupNetLinkNetworkStatus();
             }
         }
+
+		net_link_state = false;
+		printf("%s: !NO_AVAILABLE getNetworkStatus: %d.\n", __func__, getNetworkStatus());		
         switch (getNetworkStatus()) {
             case DeviceIOFramework::NETLINK_NETWORK_CONFIG_STARTED:
-                    if (!access(SYSTEM_AUTHOR_CODE_PATH, F_OK)) {
-                        Shell::system(SYSTEM_RM_AUTHOR_CODE);
-                        notify_network_config_status(ENetworkConfigIng);
-                    }
                     break;
             case DeviceIOFramework::NETLINK_NETWORK_CONFIG_SUCCEEDED:
             case DeviceIOFramework::NETLINK_NETWORK_SUCCEEDED:

@@ -768,10 +768,16 @@ static GDBusProxy *find_proxy_by_address(GList *source, const char *address)
 
 static gboolean check_default_ctrl(void)
 {
-    if (!default_ctrl) {
-        printf("No default controller available\n");
-        return FALSE;
+	int retry = 20;
+
+    while ((!default_ctrl) && (--retry)) {
+		usleep(100000);
     }
+
+	if (!default_ctrl) {
+		printf("No default controller available\n");
+		return FALSE;
+	}
 
     return TRUE;
 }
@@ -2466,9 +2472,11 @@ int init_a2dp_master_ctrl()
 }
 
 int release_a2dp_master_ctrl() {
+	g_main_loop_quit(btsrc_main_loop);
     g_dbus_client_unref(btsrc_client);
     dbus_connection_unref(dbus_conn);
     g_main_loop_unref(btsrc_main_loop);
+    printf("release_a2dp_master_ctrl ok\n");
 }
 
 static int a2dp_master_get_rssi(GDBusProxy *proxy)

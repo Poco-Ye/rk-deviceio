@@ -38,7 +38,7 @@ using DeviceIOFramework::WifiControl;
 using DeviceIOFramework::DeviceRTC;
 using DeviceIOFramework::DevicePowerSupply;
 using DeviceIOFramework::NetLinkNetworkStatus;
-
+using DeviceIOFramework::wifi_config;
 int gst_player(char *path);
 
 static int g_player_flag_eos = 0;
@@ -70,6 +70,7 @@ public:
                 break;
             case DeviceIOFramework::NETLINK_NETWORK_CONFIG_FAILED:
                 DeviceIo::getInstance()->controlLed(LedState::LED_NET_CONNECT_FAILED);
+                DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_RECOVERY);
                 break;
             case DeviceIOFramework::NETLINK_NETWORK_SUCCEEDED:
                 DeviceIo::getInstance()->controlLed(LedState::LED_NET_CONNECT_SUCCESS);
@@ -86,6 +87,8 @@ public:
             case DeviceIOFramework::NETLINK_NETWORK_RECOVERY_FAILED:
                 DeviceIo::getInstance()->controlLed(LedState::LED_NET_CONNECT_FAILED);
                 break;
+			default:
+				break;
             }
     }
     void callback(DeviceInput event, void *data, int len) {
@@ -226,6 +229,83 @@ public:
         }
     }
 };
+int a2dp_source_main()
+{
+		char value[1024]; 
+		bool ret;
+		char buff[4096];
+		BtScanParam scan_param;
+		int id = 0;
+	
+		std::cout << "Bt Open source... " << std::endl;
+		DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_OPEN, NULL, 0);
+	
+		char cmd[128];
+		while(1) {
+			scanf("%s", cmd);
+			printf("CMD:%s\n", cmd);
+			if (strcmp(cmd, "connect") == 0) {
+				printf("CONNECT: Please input target device addr:\n");
+				scanf("%s", cmd);
+				printf("Connecting %s...\n", cmd);
+				DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_CONNECT, cmd, 0);
+			} else if (strcmp(cmd, "disconnect") == 0) {
+				printf("DISCONNECT: Please input target device addr:\n");
+				scanf("%s", cmd);
+				printf("Disconnecting %s...\n", cmd);
+				DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_DISCONNECT, cmd, 0);
+			} else if (strcmp(cmd, "exit") == 0) {
+				printf("EXIT\n");
+				std::cout << "Bt Close source... " << std::endl;
+				DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_CLOSE, NULL, 0);
+				break;
+			} else if (strcmp(cmd, "scan") == 0) {
+				printf("SCAN\n");
+				scan_param.mseconds = 10000;
+				scan_param.item_cnt = 100;
+				scan_param.device_list = NULL;
+	
+				std::cout << "Bt Scan start... " << std::endl;
+				DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_SCAN, &scan_param, sizeof(scan_param));
+	
+				/*
+				 * Find the sink device from the device list,
+				 * which has the largest rssi value.
+				 */
+				BtDeviceInfo *start = scan_param.device_list;
+				BtDeviceInfo *tmp = NULL;
+				while (start) {
+					printf("\n[%d]Name:%s\n", id++, start->name);
+					printf("\tAddress:%s\n", start->address);
+					printf("\tRSSI:%d\n", start->rssi_valid?start->rssi:1);
+					printf("\tPlayrole:%s\n", start->playrole);
+	
+					tmp = start;
+					start = start->next;
+					/* Free DeviceInfo */
+					free(tmp);
+				}
+			} else if (strcmp(cmd, "remove") == 0) {
+				printf("REMOVE: Please input target device addr:\n");
+				scanf("%s", cmd);
+				printf("Removeing %s...\n", cmd);
+				DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_REMOVE, cmd, 0);
+			} else {
+				ret = DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_STATUS, value, 0);
+				if (ret)
+					printf("STATUS: connected! addr = %s\n", value);
+				else
+					printf("STATUS: disconnected!\n");
+			}
+		}
+	
+		return 0;
+}
+
+static void wifi_status_callback(int status)
+{
+	printf("%s: status: %d.\n", __func__, status);
+}
 
 int main(int argc, char *argv[])
 {
@@ -249,7 +329,7 @@ int main(int argc, char *argv[])
     DeviceIo::getInstance()->setVolume(30,0);
 
     std::cout << "version:" << DeviceIo::getInstance()->getVersion() << std::endl;
-
+	/*
     DeviceIo::getInstance()->getSn(sn);
     std::cout << "serial number:" << sn << std::endl;
 
@@ -349,7 +429,7 @@ int main(int argc, char *argv[])
     DeviceIo::getInstance()->setEQParameter("/data/eq_bin_new");
 
     DeviceIo::getInstance()->startNetworkRecovery();
-
+	*/
     while(true) {
       if (argc > 1 && !strncmp(argv[1], "debug", 5)) {
         char szBuf[64] = {0};
@@ -371,6 +451,51 @@ int main(int argc, char *argv[])
             extern int led_test(int argc, char* argv[]);
             led_test(0, NULL);
         }
+        if (!strncmp(szBuf, "led_test", 8)) {
+            extern int led_test(int argc, char* argv[]);
+            led_test(0, NULL);
+        }
+        if (!strncmp(szBuf, "bt_sink", 7)) {
+			printf("---------------bt sink ----------------\n");
+			DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_CLOSE);
+			DeviceIo::getInstance()->controlBt(BtControl::BT_SINK_OPEN);
+			sleep(6);
+			DeviceIo::getInstance()->controlBt(BtControl::BT_SINK_POWER);
+        }
+        if (!strncmp(szBuf, "bt_auto_source", 8)) {
+			char address[17] = {0};
+            printf("--------------- ble wifi ----------------\n");
+			DeviceIo::getInstance()->a2dpSourceAutoConnect(address, 10000);
+        }		
+        if (!strncmp(szBuf, "bt_source", 8)) {
+            printf("---------------bt sink ----------------\n");
+			DeviceIo::getInstance()->controlBt(BtControl::BT_SINK_CLOSE);
+			a2dp_source_main();
+        }
+        if (!strncmp(szBuf, "bt_ble", 6)) {
+            printf("---------------bt ble ----------------\n");
+			DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_CLOSE);
+			DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_OPEN);
+			a2dp_source_main();
+        }
+        if (!strncmp(szBuf, "ble_wifi_manual", 15)) {
+            printf("--------------- ble wifi ----------------\n");
+			DeviceIo::getInstance()->startNetworkConfig(600);
+        }		
+        if (!strncmp(szBuf, "ble_wifi", 8)) {
+            printf("--------------- ble wifi ----------------\n");
+			DeviceIo::getInstance()->startNetworkRecovery();
+        }
+        if (!strncmp(szBuf, "con_wifi", 8)) {
+            printf("--------------- con wifi ----------------\n");
+			struct wifi_config wifi_cfg;
+			strcpy(wifi_cfg.ssid, "fish");
+			strcpy(wifi_cfg.psk, "12345678");
+			wifi_cfg.wifi_status_callback = wifi_status_callback;
+
+			DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_OPEN);
+			DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_CONNECT, &wifi_cfg);
+        }		
       } else {
         sleep(10);
       }

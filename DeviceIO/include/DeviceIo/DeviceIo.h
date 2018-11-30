@@ -76,31 +76,42 @@ enum class LedState {
 /* bt control cmd */
 enum class BtControl {
     BT_OPEN,
-    BT_SINK_OPEN,
+
     BT_SOURCE_OPEN,
     BT_SOURCE_SCAN,
     BT_SOURCE_CONNECT,
     BT_SOURCE_DISCONNECT,
-    BT_SOURCE_STATUS,
+    BT_SOURCE_STATUS = 5,
     BT_SOURCE_REMOVE,
-    BT_CLOSE,
-    BT_IS_OPENED,
-    BT_IS_CONNECTED,
+	BT_SOURCE_CLOSE,
+	BT_SOURCE_IS_OPENED,
+
+    BT_SINK_OPEN,
+    BT_SINK_CLOSE = 10,
+	BT_SINK_RECONNECT,
+    BT_SINK_IS_OPENED,
+
+	BT_IS_CONNECTED,
     BT_UNPAIR,
-    BT_PLAY,
+
+	BT_PLAY,
     BT_PAUSE_PLAY,
     BT_RESUME_PLAY,
     BT_VOLUME_UP,
     BT_VOLUME_DOWN,
-    BT_AVRCP_FWD,
+    BT_AVRCP_FWD = 20,
     BT_AVRCP_BWD,
     BT_AVRCP_STOP,
     BT_HFP_RECORD,
-    BLE_OPEN_SERVER,
-    BLE_CLOSE_SERVER,
-    BLE_SERVER_SEND,
-    BLE_IS_OPENED,
+
+    BT_BLE_OPEN,
+    BT_BLE_COLSE = 25,
+    BT_BLE_IS_OPENED,
+	BT_BLE_WRITE,
+	BT_BLE_READ,
+
     GET_BT_MAC,
+    BT_SINK_POWER,
 };
 
 /* wifi control cmd */
@@ -111,15 +122,17 @@ enum class WifiControl {
     WIFI_DISCONNECT,
     WIFI_IS_OPENED,
     WIFI_IS_CONNECTED,
-    WIFI_SCAN,
+    WIFI_SCAN = 6,
     WIFI_IS_FIRST_CONFIG,
     WIFI_OPEN_AP_MODE,
     WIFI_CLOSE_AP_MODE,
     GET_WIFI_MAC,
     GET_WIFI_IP,
-    GET_WIFI_SSID,
+    GET_WIFI_SSID = 12,
     GET_WIFI_BSSID,
     GET_LOCAL_NAME,
+    WIFI_RECOVERY,
+	WIFI_GET_DEVICE_CONTEXT
 };
 
 enum NetLinkNetworkStatus {
@@ -204,7 +217,14 @@ enum class DeviceInput {
     GST_PLAYER_SEEKABLE, // The stream can perform a seek operation.
     GST_PLAYER_EOS, // Reached end of the stream.
     GST_PLAYER_ERROR, // Error occurs.
-    GST_PLAYER_DURATION //The stream duration changed.
+    GST_PLAYER_DURATION, //The stream duration changed.
+	//BT EVENT
+	BT_ENV_CONNECT,
+	BT_ENV_DISCONNECT,
+
+	//WIFI
+	WIFI_CB_CONNECT,
+	WIFI_CB_DISCONNECT,
 };
 
 enum class DevicePowerSupply {
@@ -256,6 +276,31 @@ enum class DeviceRTC {
 	DEVICE_RTC_WAIT_ALARM_RING,
 	DEVICE_RTC_NULL_COMMAND
 };
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+struct wifi_config {
+	char ssid[60];
+	int ssid_len;
+	char psk[60];
+	int psk_len;
+	char key_mgmt[22];
+	int key_len;
+	void (*wifi_status_callback)(int status);
+};
+
+struct ble_config {
+	char uuid[38];
+	char data[134];
+	int len;
+};
+
+#ifdef __cplusplus
+}
+#endif
+
+
 
 class INetLinkWrapperCallback {
 public:

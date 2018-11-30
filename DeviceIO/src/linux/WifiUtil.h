@@ -70,8 +70,10 @@ public:
      * @Param recv_buff  http request header.
      */ 
     void connectJson(char *recv_buff);
-    void connect(char *ssid, char *psk);
+    void connect(void *data);
     void disconnect();
+	void recovery();
+	static void start_wifi_monitor(void *arg);
 
 private:
     static WifiUtil *m_instance;

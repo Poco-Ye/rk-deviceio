@@ -35,6 +35,7 @@ using DeviceIOFramework::DeviceInput;
 using DeviceIOFramework::tSOCKET_APP;
 using DeviceIOFramework::socket_send;
 using DeviceIOFramework::socket_recieve;
+using DeviceIOFramework::wifi_config;
 
 #define dbg(fmt, ...) APP_DEBUG("[deviceio wifi debug ]" fmt, ##__VA_ARGS__)
 #define err(fmt, ...) APP_ERROR("[deviceio wifi error ]" fmt, ##__VA_ARGS__)
@@ -257,6 +258,7 @@ bool isWifiConnected() {
 int rk_wifi_control(WifiControl cmd, void *data, int len)
 {
     APP_DEBUG("controlWifi, cmd: %d\n", cmd);
+    printf("controlWifi, cmd: %d recovery: %d\n", cmd, WifiControl::WIFI_RECOVERY);
 
     int ret = 0;
 
@@ -271,7 +273,7 @@ int rk_wifi_control(WifiControl cmd, void *data, int len)
         break;
 
     case WifiControl::WIFI_CONNECT:
-        WifiUtil::getInstance()->connect(NULL, NULL);
+        WifiUtil::getInstance()->connect(data);
         break;
 
     case WifiControl::WIFI_DISCONNECT:
@@ -285,12 +287,23 @@ int rk_wifi_control(WifiControl cmd, void *data, int len)
         return isWifiConnected();
         break;
 
-    case WifiControl::WIFI_SCAN: {
-            std::string list = WifiUtil::getInstance()->getWifiListJson();
-            strncpy((char *)data, list.c_str(), len); 
-        }
-        break;
+    case WifiControl::WIFI_SCAN:
+    {
+		std::string list = WifiUtil::getInstance()->getWifiListJson();
+		if (list.size()) {
+			len = list.size();
+			strncpy((char *)data, list.c_str(), len);
+		}
 
+		break;
+    }
+	case WifiControl::WIFI_GET_DEVICE_CONTEXT:
+	{
+		std::string Dlist = WifiUtil::getInstance()->getDeviceContextJson();
+		strcpy((char *)data, Dlist.c_str());
+		len = strlen(Dlist.c_str());
+		break;
+	}
     case WifiControl::WIFI_IS_FIRST_CONFIG:
         ret = isWifiFirstConfig();
         break;
@@ -326,6 +339,10 @@ int rk_wifi_control(WifiControl cmd, void *data, int len)
             ret = -1;
 
         break;
+	case WifiControl::WIFI_RECOVERY:
+		printf("+++++++ WIFI_RECOVERY  ++++++++++\n");
+        WifiUtil::getInstance()->recovery();
+		break;
 
     default:
         APP_DEBUG("%s, cmd <%d> is not implemented.\n", __func__, cmd);

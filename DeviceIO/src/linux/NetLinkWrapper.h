@@ -51,8 +51,10 @@ enum notify_network_status_type {
     ENetworkLinkSucceed,
     ENetworkLinkFailed,
     ENetworkRecoveryStart,
-    ENetworkRecoverySucceed,
-    ENetworkRecoveryFailed
+    ENetworkRecoverySucceed = 20,
+    ENetworkRecoveryFailed,
+	ENetworkWifiSucceed,
+	ENetworkWifiFailed
 };
 //network status
 enum InternetConnectivity {
@@ -203,6 +205,8 @@ private:
     struct sockaddr_in m_from_addr;
     pid_t m_pid;
     pthread_mutex_t m_ping_lock;
+	bool wifi_link_state;
+	bool net_link_state;
 
 };
 

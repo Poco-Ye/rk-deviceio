@@ -6,6 +6,11 @@
 #include <signal.h>
 #include <sys/signalfd.h>
 
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <glib.h>
@@ -43,6 +48,29 @@ static void report_avrcp_event(DeviceInput event, void *data, int len) {
 #define PROMPT_ON	COLOR_BLUE "[bluetooth]" COLOR_OFF "# "
 #define PROMPT_OFF	"[bluetooth]# "
 
+#define pr_info(fmt, ...) \
+	printf(fmt"\n", ## __VA_ARGS__)
+#define pr_warn(fmt, ...) \
+	printf(fmt"\n", ## __VA_ARGS__)
+#define pr_err(fmt, ...) \
+	printf(fmt"\n", ## __VA_ARGS__)
+
+#define error(fmt, ...) \
+	printf(fmt"\n", ## __VA_ARGS__)
+
+#undef bt_shell_printf
+#define bt_shell_printf printf
+
+static GList *proxy_list;
+
+static const char *last_device_path;
+static char last_obj_path[] = "/org/bluez/hci0/dev_xx_xx_xx_xx_xx_xx";
+static GDBusProxy *last_connected_device_proxy;
+static GList *device_list;
+static guint reconnect_timer;
+#define STORAGE_PATH "/data/cfg/lib/bluetooth"
+
+
 #define BLUEZ_MEDIA_PLAYER_INTERFACE "org.bluez.MediaPlayer1"
 #define BLUEZ_MEDIA_FOLDER_INTERFACE "org.bluez.MediaFolder1"
 #define BLUEZ_MEDIA_ITEM_INTERFACE "org.bluez.MediaItem1"
@@ -54,11 +82,13 @@ GSList *folders = NULL;
 GSList *items = NULL;
 GDBusClient *client;
 GMainLoop *main_loop = NULL;
+static int first_ctrl = 1;
+void a2dp_sink_cmd_power(bool powered);
 
-bool system_command(const char* cmd) {
+bool system_command(const char* cmd)
+{
     pid_t status = 0;
     bool ret_value = false;
-
 
     status = system(cmd);
 
@@ -76,6 +106,14 @@ bool system_command(const char* cmd) {
     return ret_value;
 }
 
+void rkbt_inquiry_scan(bool tf)
+{
+	if (tf)
+		system_command("hciconfig hci0 piscan");
+	else
+		system_command("hciconfig hci0 noscan");
+}
+
 struct adapter {
 	GDBusProxy *proxy;
 	GDBusProxy *ad_proxy;
@@ -86,9 +124,6 @@ static struct adapter *default_ctrl;
 static GList *ctrl_list;
 static GDBusProxy *default_dev;
 static GDBusProxy *default_attr;
-
-#undef bt_shell_printf
-#define bt_shell_printf printf
 
 static void print_fixed_iter(const char *label, const char *name,
 						DBusMessageIter *iter)
@@ -196,10 +231,13 @@ static void print_iter(const char *label, const char *name,
 					valbool == TRUE ? "yes" : "no");
 		value = valbool ? 1 : 0;
 		if (!strncmp(name, "Connected", 9)) {
-			if (value)
+			if (value) {
+				rkbt_inquiry_scan(0);
 				report_avrcp_event(DeviceInput::BT_CONNECT, &value, sizeof(value));
-			else
+			} else {
+				rkbt_inquiry_scan(1);
 				report_avrcp_event(DeviceInput::BT_DISCONNECT, &value, sizeof(value));
+			}
 		}
 		break;
 	case DBUS_TYPE_UINT32:
@@ -258,6 +296,42 @@ static void print_iter(const char *label, const char *name,
 	}
 }
 
+static gboolean reconn_device(void *user_data);
+gboolean reconn_last(void);
+
+static gboolean device_is_child(GDBusProxy *device, GDBusProxy *master)
+{
+	DBusMessageIter iter;
+	const char *adapter, *path;
+
+	if (!master)
+		return FALSE;
+
+	if (g_dbus_proxy_get_property(device, "Adapter", &iter) == FALSE)
+		return FALSE;
+
+	dbus_message_iter_get_basic(&iter, &adapter);
+	path = g_dbus_proxy_get_path(master);
+
+	if (!strcmp(path, adapter))
+		return TRUE;
+
+	return FALSE;
+}
+
+static struct adapter *find_parent(GDBusProxy *device)
+{
+	GList *list;
+
+	for (list = g_list_first(ctrl_list); list; list = g_list_next(list)) {
+		struct adapter *adapter = list->data;
+
+		if (device_is_child(device, adapter->proxy) == TRUE)
+			return adapter;
+	}
+
+	return NULL;
+}
 
 static struct adapter *find_ctrl(GList *source, const char *path)
 {
@@ -297,29 +371,10 @@ static void set_default_device(GDBusProxy *proxy, const char *attribute)
 	desc = g_strdup_printf("[%s%s%s]# ", desc,
 				attribute ? ":" : "",
 				attribute ? attribute + strlen(path) : "");
+	printf("%s desc: %s\n", __func__, desc);
 
 done:
 	g_free(desc);
-}
-
-static gboolean device_is_child(GDBusProxy *device, GDBusProxy *master)
-{
-	DBusMessageIter iter;
-	const char *adapter, *path;
-
-	if (!master)
-		return FALSE;
-
-	if (g_dbus_proxy_get_property(device, "Adapter", &iter) == FALSE)
-		return FALSE;
-
-	dbus_message_iter_get_basic(&iter, &adapter);
-	path = g_dbus_proxy_get_path(master);
-
-	if (!strcmp(path, adapter))
-		return TRUE;
-
-	return FALSE;
 }
 
 static struct adapter *adapter_new(GDBusProxy *proxy)
@@ -349,20 +404,16 @@ void print_folder(GDBusProxy *proxy, const char *description)
 	const char *path;
 
 	path = g_dbus_proxy_get_path(proxy);
-
-	/*Log::debug("%s%s%sFolder %s\n", description ? "[" : "",
-					description ? : "",
-					description ? "] " : "",
-					path);*/
 }
- void folder_removed(GDBusProxy *proxy)
- {
-     folders = g_slist_remove(folders, proxy);
- 
-     print_folder(proxy, COLORED_DEL);
- }
- 
- char *proxy_description(GDBusProxy *proxy, const char *title,
+
+void folder_removed(GDBusProxy *proxy)
+{
+	folders = g_slist_remove(folders, proxy);
+
+	print_folder(proxy, COLORED_DEL);
+}
+
+char *proxy_description(GDBusProxy *proxy, const char *title,
 						const char *description)
 {
 	const char *path;
@@ -375,7 +426,8 @@ void print_folder(GDBusProxy *proxy, const char *description)
 					description ? "] " : "",
 					title, path);
 }
- void print_player(GDBusProxy *proxy, const char *description)
+
+void print_player(GDBusProxy *proxy, const char *description)
 {
 	char *str;
     char strplay[256];
@@ -387,7 +439,8 @@ void print_folder(GDBusProxy *proxy, const char *description)
     
 	g_free(str);
 }
- void player_added(GDBusProxy *proxy)
+
+void player_added(GDBusProxy *proxy)
 {
     printf("player_added \n");
 	players = g_slist_append(players, proxy);
@@ -400,62 +453,384 @@ void print_folder(GDBusProxy *proxy, const char *description)
 	print_player(proxy, COLORED_NEW);
 }
 void print_item(GDBusProxy *proxy, const char *description)
- {
-     const char *path, *name;
-     DBusMessageIter iter;
- 
-     path = g_dbus_proxy_get_path(proxy);
- 
-     if (g_dbus_proxy_get_property(proxy, "Name", &iter))
-         dbus_message_iter_get_basic(&iter, &name);
-     else
-         name = "<unknown>";
- 
-     /*Log::debug("%s%s%sItem %s %s\n", description ? "[" : "",
-                     description ? : "",
-                     description ? "] " : "",
-                     path, name);*/
- }
+{
+	const char *path, *name;
+	DBusMessageIter iter;
 
- void item_added(GDBusProxy *proxy)
- {
-     items = g_slist_append(items, proxy);
- 
-     print_item(proxy, COLORED_NEW);
- }
- 
- void folder_added(GDBusProxy *proxy)
- {
-     folders = g_slist_append(folders, proxy);
- 
-     print_folder(proxy, COLORED_NEW);
- }
+	path = g_dbus_proxy_get_path(proxy);
 
- void proxy_added(GDBusProxy *proxy, void *user_data)
- {
-    printf("proxy_added \n");
-     const char *interface;
-     interface = g_dbus_proxy_get_interface(proxy);
+	if (g_dbus_proxy_get_property(proxy, "Name", &iter))
+	 dbus_message_iter_get_basic(&iter, &name);
+	else
+	 name = "<unknown>";
+}
 
-     printf("proxy_added interface:%s \n", interface);
-	 
-	if (!strcmp(interface, "org.bluez.Adapter1")) {
-		printf("	 new org.bluez.Adapter1\n");
-		{
-			struct adapter *adapter;
-			adapter = find_ctrl(ctrl_list, g_dbus_proxy_get_path(proxy));
-			if (!adapter)
-			adapter = adapter_new(proxy);
-			adapter->proxy = proxy;
-		}
+void item_added(GDBusProxy *proxy)
+{
+	items = g_slist_append(items, proxy);
+
+	print_item(proxy, COLORED_NEW);
+}
+ 
+void folder_added(GDBusProxy *proxy)
+{
+	folders = g_slist_append(folders, proxy);
+
+	print_folder(proxy, COLORED_NEW);
+}
+
+static void adapter_added(GDBusProxy *proxy)
+{
+	struct adapter *adapter;
+	adapter = find_ctrl(ctrl_list, g_dbus_proxy_get_path(proxy));
+	if (!adapter)
+		adapter = adapter_new(proxy);
+
+	adapter->proxy = proxy;
+}
+
+static const char *load_connected_device(const char *str)
+{
+	int fd;
+	int result;
+	char path[64];
+
+	sprintf(path, "%s/%s/reconnect", STORAGE_PATH, str);
+
+	pr_info("Load path %s", path);
+
+	result = access(path, F_OK);
+	if (result == -1) {
+		pr_info("%s doesnot exist", path);
+		return NULL;
 	}
 
-     if (!strcmp(interface, BLUEZ_MEDIA_PLAYER_INTERFACE))
-         player_added(proxy);
-     else if (!strcmp(interface, BLUEZ_MEDIA_FOLDER_INTERFACE))
-         folder_added(proxy);
-     else if (!strcmp(interface, BLUEZ_MEDIA_ITEM_INTERFACE))
-         item_added(proxy);
+	fd = open(path, O_RDONLY);
+	if (fd == -1) {
+		error("Open %s error: %s", path,
+		      strerror(errno));
+		return NULL;
+	}
+
+	result = read(fd, last_obj_path, sizeof(last_obj_path) - 1);
+	close(fd);
+
+	if (result > 0) {
+		pr_info("Previous device path: %s", last_obj_path);
+		return last_obj_path;
+	} else {
+		error("Read %s error: %s", path,
+		      strerror(errno));
+		return NULL;
+	}
+}
+
+static void store_connected_device(GDBusProxy *proxy)
+{
+	int fd;
+	int result;
+	const char *object_path;
+	struct adapter *adapter = find_parent(proxy);
+	char path[64];
+	DBusMessageIter iter;
+	const char *str;
+
+	if (!adapter)
+		return;
+
+	if (g_dbus_proxy_get_property(adapter->proxy,
+				      "Address", &iter) == FALSE) {
+		pr_err("Get adapter address error");
+		return;
+	}
+
+	dbus_message_iter_get_basic(&iter, &str);
+
+	sprintf(path, "%s/%s/reconnect", STORAGE_PATH, str);
+	pr_info("Store path: %s", path);
+
+	object_path = g_dbus_proxy_get_path(proxy);
+
+	pr_info("Connected device object path: %s", object_path);
+
+	fd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0644);
+	if (fd == -1) {
+		error("Open %s error: %s", path,
+		      strerror(errno));
+		return;
+	}
+
+	result = write(fd, object_path, strlen(object_path) + 1);
+	close(fd);
+
+	if (result > 0)
+		memcpy(last_obj_path, object_path, sizeof(last_obj_path) - 1);
+	else
+		error("Write %s error: %s", path, strerror(errno));
+}
+
+static void device_connected_post(GDBusProxy *proxy)
+{
+	int device_num = g_list_length(device_list);
+
+	pr_info("Connected device number %d", device_num);
+
+	if (!device_num)
+		return;
+
+	store_connected_device(proxy);
+}
+
+static void disconn_device_reply(DBusMessage * message, void *user_data)
+{
+
+	DBusError error;
+	static int count = 3;
+
+	dbus_error_init(&error);
+	if (dbus_set_error_from_message(&error, message) == TRUE) {
+
+		if (strstr(error.name, "Failed"))
+			printf("disconn_device_reply failed\n");
+		dbus_error_free(&error);
+	}
+}
+
+#define RECONN_INTERVAL	2
+static void reconn_device_reply(DBusMessage * message, void *user_data)
+{
+
+	DBusError error;
+	static int count = 3;
+
+	dbus_error_init(&error);
+	if (dbus_set_error_from_message(&error, message) == TRUE) {
+
+		if (strstr(error.name, "Failed") && (count > 0)) {
+			pr_info("Retry to connect, count %d", count);
+			count--;
+			reconnect_timer = g_timeout_add_seconds(RECONN_INTERVAL,
+					reconn_device, user_data);
+		}
+
+		dbus_error_free(&error);
+	}
+}
+
+static void reconn_last_device_reply(DBusMessage * message, void *user_data)
+{
+
+	DBusError error;
+	static int count = 3;
+
+	dbus_error_init(&error);
+	if (dbus_set_error_from_message(&error, message) == TRUE) {
+
+		if (strstr(error.name, "Failed") && (count > 0)) {
+			pr_info("Retry to reconn_last connect, count %d", count);
+			count--;
+			reconnect_timer = g_timeout_add_seconds(RECONN_INTERVAL,
+					reconn_last, user_data);
+		}
+
+		dbus_error_free(&error);
+	}
+}
+
+
+gboolean disconn_device(void)
+{
+	GDBusProxy *proxy = last_connected_device_proxy;
+	DBusMessageIter iter;
+
+	if (!proxy) {
+		error("Invalid proxy, stop disconnecting");
+		return FALSE;
+	}
+
+	if (g_list_length(device_list) <= 0) {
+		error("Device already disconnected");
+		return FALSE;
+	}
+
+	pr_info("disconnect target device: %s", g_dbus_proxy_get_path(proxy));
+
+	if (g_dbus_proxy_method_call(proxy,
+				     "Disconnect",
+				     NULL,
+				     disconn_device_reply,
+				     last_connected_device_proxy, NULL) == FALSE) {
+		error("Failed to call org.bluez.Device1.Disonnect");
+	}
+
+	return FALSE;
+}
+
+gboolean reconn_last(void)
+{
+	GDBusProxy *proxy = last_connected_device_proxy;
+	DBusMessageIter iter;
+
+	if (reconnect_timer) {
+		g_source_remove(reconnect_timer);
+		reconnect_timer = 0;
+	}
+
+	if (!proxy) {
+		error("Invalid proxy, stop reconnecting");
+		return FALSE;
+	}
+
+	if (g_list_length(device_list) > 0) {
+		error("Device already connected");
+		return FALSE;
+
+	}
+
+	pr_info("reconn_last target device: %s", g_dbus_proxy_get_path(proxy));
+
+	if (g_dbus_proxy_method_call(proxy,
+				     "Connect",
+				     NULL,
+				     reconn_last_device_reply,
+				     last_connected_device_proxy, NULL) == FALSE) {
+		error("Failed to call org.bluez.Device1.Connect");
+	}
+
+	return FALSE;
+}
+
+
+static gboolean reconn_device(void *user_data)
+{
+	GDBusProxy *proxy = (GDBusProxy *)user_data;
+	DBusMessageIter iter;
+
+	if (reconnect_timer) {
+		g_source_remove(reconnect_timer);
+		reconnect_timer = 0;
+	}
+
+	if (!proxy) {
+		error("Invalid proxy, stop reconnecting");
+		return FALSE;
+	}
+
+	if (g_list_length(device_list) > 0) {
+		error("Device already connected");
+		return FALSE;
+
+	}
+
+	pr_info("Connect target device: %s", g_dbus_proxy_get_path(proxy));
+
+	if (g_dbus_proxy_method_call(proxy,
+				     "Connect",
+				     NULL,
+				     reconn_device_reply,
+				     user_data, NULL) == FALSE) {
+		error("Failed to call org.bluez.Device1.Connect");
+	}
+
+	return FALSE;
+}
+
+static int adapter_is_powered(GDBusProxy *proxy)
+{
+	DBusMessageIter iter;
+	dbus_bool_t powered;
+
+	if (g_dbus_proxy_get_property(proxy, "Powered", &iter)) {
+		dbus_message_iter_get_basic(&iter, &powered);
+		if (powered)
+			return 1;
+	}
+
+	return 0;
+}
+
+static void device_added(GDBusProxy *proxy)
+{
+	const char *path = g_dbus_proxy_get_path(proxy);
+	dbus_bool_t connected;
+	static int first = 1;
+	DBusMessageIter iter;
+	struct adapter *adapter = find_parent(proxy);
+
+	if (!adapter) {
+		/* TODO: Error */
+		return;
+	}
+
+	adapter->devices = g_list_append(adapter->devices, proxy);
+
+	if (g_dbus_proxy_get_property(proxy, "Connected", &iter)) {
+		dbus_message_iter_get_basic(&iter, &connected);
+
+		printf("%s, path: %s, connected: %d, aip: %d.\n", __func__, path, connected, adapter_is_powered(proxy));
+	
+		if (connected) {
+			device_list = g_list_append(device_list, proxy);
+			last_connected_device_proxy = proxy;
+			device_connected_post(proxy);
+			return;
+		}
+
+		/* Device will be connected when adapter is powered */
+		if (!adapter_is_powered(proxy)) {
+			//return;
+		}
+
+		if (last_device_path && !strcmp(path, last_device_path) && first) {
+			pr_info("Reconnecting to last connected device");
+			first = 0;
+			reconnect_timer = g_timeout_add_seconds(RECONN_INTERVAL,
+						reconn_device, (void *)proxy);
+		}
+	}
+}
+
+void proxy_added(GDBusProxy *proxy, void *user_data)
+{
+	printf("proxy_added \n");
+	const char *interface;
+	interface = g_dbus_proxy_get_interface(proxy);
+
+	printf("proxy_added interface:%s \n", interface);
+	 
+	if (!strcmp(interface, BLUEZ_MEDIA_PLAYER_INTERFACE))
+		player_added(proxy);
+	else if (!strcmp(interface, BLUEZ_MEDIA_FOLDER_INTERFACE))
+		folder_added(proxy);
+	else if (!strcmp(interface, BLUEZ_MEDIA_ITEM_INTERFACE))
+		item_added(proxy);
+
+	proxy_list = g_list_append(proxy_list, proxy);
+
+	if (!strcmp(interface, "org.bluez.Device1")) {
+		device_added(proxy);
+	} else if (!strcmp(interface, "org.bluez.Adapter1")) {
+		DBusMessageIter iter;
+		const char *str;
+
+		adapter_added(proxy);
+
+		if (!first_ctrl)
+			return;
+
+		if (!g_dbus_proxy_get_property(proxy, "Address", &iter)) {
+			pr_err("Failed to get adapter address");
+			return;
+		}
+
+		dbus_message_iter_get_basic(&iter, &str);
+		a2dp_sink_cmd_power(TRUE);
+
+		first_ctrl = 0;
+		/* Load previous connected device */
+		last_device_path = load_connected_device(str);
+	}
+
  }
 
  void player_removed(GDBusProxy *proxy)
@@ -474,6 +849,7 @@ void item_removed(GDBusProxy *proxy)
 
 	print_item(proxy, COLORED_DEL);
 }
+
  void proxy_removed(GDBusProxy *proxy, void *user_data)
 {
    printf("proxy_removed \n");
@@ -489,28 +865,29 @@ void item_removed(GDBusProxy *proxy)
 		item_removed(proxy);
 }
 
- void player_property_changed(GDBusProxy *proxy, const char *name,
-                         DBusMessageIter *iter)
- {
-     char *str;
- 
-     str = proxy_description(proxy, "Player", COLORED_CHG);
-	 printf("player_property_changed: str: %s, name: %s\n", str, name);
+void player_property_changed(GDBusProxy *proxy, const char *name,
+                     DBusMessageIter *iter)
+{
+	char *str;
 
-     print_iter(str, name, iter);
-     g_free(str);
- }
- void folder_property_changed(GDBusProxy *proxy, const char *name,
-                         DBusMessageIter *iter)
- {
-     char *str;
- 
-     str = proxy_description(proxy, "Folder", COLORED_CHG);
-     print_iter(str, name, iter);
-     g_free(str);
- }
- void item_property_changed(GDBusProxy *proxy, const char *name,
-						DBusMessageIter *iter)
+	str = proxy_description(proxy, "Player", COLORED_CHG);
+	printf("player_property_changed: str: %s, name: %s\n", str, name);
+
+	print_iter(str, name, iter);
+	g_free(str);
+}
+void folder_property_changed(GDBusProxy *proxy, const char *name,
+                     DBusMessageIter *iter)
+{
+	char *str;
+
+	str = proxy_description(proxy, "Folder", COLORED_CHG);
+	print_iter(str, name, iter);
+	g_free(str);
+}
+
+void item_property_changed(GDBusProxy *proxy, const char *name,
+					DBusMessageIter *iter)
 {
 	char *str;
 
@@ -519,72 +896,166 @@ void item_removed(GDBusProxy *proxy)
 	g_free(str);
 }
 
+static GDBusProxy *proxy_lookup(GList *list, int *index, const char *path,
+						const char *interface)
+{
+	GList *l;
+
+	if (!interface)
+		return NULL;
+
+	for (l = g_list_nth(list, index ? *index : 0); l; l = g_list_next(l)) {
+		GDBusProxy *proxy = l->data;
+		const char *proxy_iface = g_dbus_proxy_get_interface(proxy);
+		const char *proxy_path = g_dbus_proxy_get_path(proxy);
+
+		if (index)
+			(*index)++;
+
+		if (g_str_equal(proxy_iface, interface) == TRUE &&
+			g_str_equal(proxy_path, path) == TRUE)
+			return proxy;
+		}
+
+	return NULL;
+}
+
+static GDBusProxy *proxy_lookup_client(GDBusClient *client, int *index,
+					   const char* path,
+					   const char *interface)
+{
+	return proxy_lookup(proxy_list, index, path, interface);
+}
+
+static void device_changed(GDBusProxy *proxy, DBusMessageIter *iter,
+			   void *user_data)
+{
+	dbus_bool_t val;
+	const char *object_path = g_dbus_proxy_get_path(proxy);
+
+	dbus_message_iter_get_basic(iter, &val);
+
+	pr_info("%s connect status changed to %s", object_path,
+		val ? "TRUE" : "FALSE");
+	if (val) {
+		device_list = g_list_append(device_list, proxy);
+		device_connected_post(proxy);
+	} else {
+		/* Device has been stored when being connected */
+		device_list = g_list_remove(device_list, proxy);
+	}
+}
+
+static void adapter_changed(GDBusProxy *proxy, DBusMessageIter *iter,
+			   void *user_data)
+{
+	dbus_bool_t val;
+	const char *object_path = g_dbus_proxy_get_path(proxy);
+
+	dbus_message_iter_get_basic(iter, &val);
+
+	pr_info("Adapter powered changed to %s", val ? "TRUE" : "FALSE");
+	if (val) {
+		GDBusProxy *device_proxy;
+		char *device_interface = "org.bluez.Device1";
+
+		if (reconnect_timer) {
+			g_source_remove(reconnect_timer);
+			reconnect_timer = 0;
+		}
+
+		if (!last_device_path)
+			return;
+
+		pr_info("Reconnecting %s", last_device_path);
+
+		/* Check if the device exists */
+		device_proxy = proxy_lookup_client(client, NULL,
+						   last_device_path,
+						   device_interface);
+		if (!device_proxy) {
+			pr_err("No device proxy");
+			return;
+		}
+
+		reconn_device(device_proxy);
+	}
+}
+
 void property_changed(GDBusProxy *proxy, const char *name,
                      DBusMessageIter *iter, void *user_data)
 {
-     const char *interface;
- 
-     interface = g_dbus_proxy_get_interface(proxy);
-     printf("property_changed %s\n", interface);
+	const char *interface;
 
-	 if (!strcmp(interface, "org.bluez.Device1")) {
-		 if (default_ctrl && device_is_child(proxy,
-					 default_ctrl->proxy) == TRUE) {
-			 DBusMessageIter addr_iter;
-			 char *str;
-	 
-			 if (g_dbus_proxy_get_property(proxy, "Address",
-							 &addr_iter) == TRUE) {
-				 const char *address;
-	 
-				 dbus_message_iter_get_basic(&addr_iter,
-								 &address);
-				 str = g_strdup_printf("[CHG] Device %s ", address);
-			 } else
-				 str = g_strdup("");
-	 
-			 if (strcmp(name, "Connected") == 0) {
-				 dbus_bool_t connected;
-	 
-				 dbus_message_iter_get_basic(iter, &connected);
-	 
-				 if (connected && default_dev == NULL)
-					 set_default_device(proxy, NULL);
-				 else if (!connected && default_dev == proxy)
-					 set_default_device(NULL, NULL);
-			 }
-			 printf("Device1 str: %s, name: %s\n", str, name);
-			 print_iter(str, name, iter);
-			 g_free(str);
-		 }
-	 } else if (!strcmp(interface, "org.bluez.Adapter1")) {
-		 DBusMessageIter addr_iter;
-		 char *str;
-	 
-		 if (g_dbus_proxy_get_property(proxy, "Address",
+	interface = g_dbus_proxy_get_interface(proxy);
+	printf("property_changed %s\n", interface);
+
+	if (!strcmp(interface, "org.bluez.Device1")) {
+		if (default_ctrl && device_is_child(proxy,
+				 default_ctrl->proxy) == TRUE) {
+			DBusMessageIter addr_iter;
+			char *str;
+
+			if (g_dbus_proxy_get_property(proxy, "Address",
 						 &addr_iter) == TRUE) {
-			 const char *address;
-	 
-			 dbus_message_iter_get_basic(&addr_iter, &address);
-			 str = g_strdup_printf("[CHG] Controller %s ", address);
-		 } else
-			 str = g_strdup("");
-	 
-		 print_iter(str, name, iter);
-		 g_free(str);
-	 }
+				const char *address;
 
-     if (!strcmp(interface, BLUEZ_MEDIA_PLAYER_INTERFACE))
-         player_property_changed(proxy, name, iter);
-     else if (!strcmp(interface, BLUEZ_MEDIA_FOLDER_INTERFACE))
-         folder_property_changed(proxy, name, iter);
-     else if (!strcmp(interface, BLUEZ_MEDIA_ITEM_INTERFACE))
-         item_property_changed(proxy, name, iter);
- }
+				dbus_message_iter_get_basic(&addr_iter,
+							 &address);
+				str = g_strdup_printf("[CHG] Device %s ", address);
+			} else
+				str = g_strdup("");
+
+			if (strcmp(name, "Connected") == 0) {
+				dbus_bool_t connected;
+
+				dbus_message_iter_get_basic(iter, &connected);
+
+				if (connected && default_dev == NULL)
+					set_default_device(proxy, NULL);
+				else if (!connected && default_dev == proxy)
+					set_default_device(NULL, NULL);
+			}
+
+			if (!strcmp(name, "Connected"))
+				device_changed(proxy, iter, user_data);
+
+			printf("Device1 str: %s, name: %s\n", str, name);
+			print_iter(str, name, iter);
+			g_free(str);
+		}
+	} else if (!strcmp(interface, "org.bluez.Adapter1")) {
+		DBusMessageIter addr_iter;
+		char *str;
+
+		if (g_dbus_proxy_get_property(proxy, "Address",
+				 &addr_iter) == TRUE) {
+			const char *address;
+
+			dbus_message_iter_get_basic(&addr_iter, &address);
+			str = g_strdup_printf("[CHG] Controller %s ", address);
+		} else
+			str = g_strdup("");
+
+		if (!strcmp(name, "Powered"))
+			adapter_changed(proxy, iter, user_data);
+
+		print_iter(str, name, iter);
+		g_free(str);
+	}
+
+	if (!strcmp(interface, BLUEZ_MEDIA_PLAYER_INTERFACE))
+		player_property_changed(proxy, name, iter);
+	else if (!strcmp(interface, BLUEZ_MEDIA_FOLDER_INTERFACE))
+		folder_property_changed(proxy, name, iter);
+	else if (!strcmp(interface, BLUEZ_MEDIA_ITEM_INTERFACE))
+		item_property_changed(proxy, name, iter);
+}
+
 bool check_default_player(void)
 {
     if (!default_player) {
-        if(NULL != players) {
+        if (NULL != players) {
             GSList *l;
             l = players;
             GDBusProxy *proxy = (GDBusProxy *)l->data;
@@ -599,13 +1070,61 @@ bool check_default_player(void)
 
     return TRUE;
 }
- gboolean option_version = FALSE;
- 
- GOptionEntry options[] = {
-     { "version", 'v', 0, G_OPTION_ARG_NONE, &option_version,
-                 "Show version information and exit" },
-     { NULL },
- };
+
+static void generic_callback(const DBusError *error, void *user_data)
+{
+    char *str = (char *)user_data;
+
+    if (dbus_error_is_set(error)) {
+        printf("Failed to set %s: %s\n", str, error->name);
+        return ;
+    } else {
+        printf("Changing %s succeeded\n", str);
+        return ;
+    }
+}
+
+static gboolean check_default_ctrl(void)
+{
+	int retry = 20;
+
+    while ((!default_ctrl) && (--retry)) {
+		usleep(100000);
+    }
+
+	if (!default_ctrl) {
+		printf("No default controller available\n");
+		return FALSE;
+	}
+
+    return TRUE;
+}
+
+void a2dp_sink_cmd_power(bool ispowered)
+{
+    dbus_bool_t powered = ispowered;
+    char *str;
+	printf("=== a2dp_sink_cmd_power ===\n");
+	if (check_default_ctrl() == FALSE)
+		return;
+
+    str = g_strdup_printf("power %s", powered == TRUE ? "on" : "off");
+
+    if (g_dbus_proxy_set_property_basic(default_ctrl->proxy, "Powered",
+                    DBUS_TYPE_BOOLEAN, &powered,
+                    generic_callback, str, g_free) == TRUE)
+        return;
+
+    g_free(str);
+}
+
+gboolean option_version = FALSE;
+
+GOptionEntry options[] = {
+	{ "version", 'v', 0, G_OPTION_ARG_NONE, &option_version,
+	         "Show version information and exit" },
+	{ NULL },
+};
 
 void *init_avrcp(void *)
 {
@@ -636,14 +1155,18 @@ void *init_avrcp(void *)
 	g_main_loop_run(main_loop);
 }
 
- int init_avrcp_ctrl() {
-    pthread_t avrcp_thread;
-    
-    pthread_create(&avrcp_thread, NULL, init_avrcp, NULL);
-    return 1;
+int init_avrcp_ctrl(void)
+{
+	pthread_t avrcp_thread;
+	printf("call avrcp_thread init_avrcp ...\n");
+
+	pthread_create(&avrcp_thread, NULL, init_avrcp, NULL);
+	return 1;
 }
 
-int release_avrcp_ctrl() {
+int release_avrcp_ctrl(void)
+{
+	g_main_loop_quit(main_loop);
     g_dbus_client_unref(client);    
     dbus_connection_unref(dbus_conn);
     g_main_loop_unref(main_loop);
@@ -664,17 +1187,16 @@ void play_reply(DBusMessage *message, void *user_data)
     printf("Play successful\n");
 }
 
-int play_avrcp(){
-	{
-	    if (!check_default_player())
-	        return -1;
-	    if (g_dbus_proxy_method_call(default_player, "Play", NULL, play_reply,
-	                  NULL, NULL) == FALSE) {
-	        printf("Failed to play\n");
-	        return -1;
-	    }
-	    printf("Attempting to play\n");
-	}
+int play_avrcp(void)
+{
+	if (!check_default_player())
+        return -1;
+    if (g_dbus_proxy_method_call(default_player, "Play", NULL, play_reply,
+                  NULL, NULL) == FALSE) {
+        printf("Failed to play\n");
+        return -1;
+    }
+    printf("Attempting to play\n");
 	return 0;
 }
 
@@ -693,17 +1215,16 @@ void pause_reply(DBusMessage *message, void *user_data)
 	printf("Pause successful\n");
 }
 
-int pause_avrcp(){
-	{
-		if (!check_default_player())
-			return -1;
-		if (g_dbus_proxy_method_call(default_player, "Pause", NULL,
-						pause_reply, NULL, NULL) == FALSE) {
-			printf("Failed to pause\n");
-			return -1;
-		}
-		printf("Attempting to pause\n");
+int pause_avrcp(void)
+{
+	if (!check_default_player())
+		return -1;
+	if (g_dbus_proxy_method_call(default_player, "Pause", NULL,
+					pause_reply, NULL, NULL) == FALSE) {
+		printf("Failed to pause\n");
+		return -1;
 	}
+	printf("Attempting to pause\n");
 	return 0;
 }
 
@@ -722,17 +1243,16 @@ void volumedown_reply(DBusMessage *message, void *user_data)
 	printf("volumedown successful\n");
 }
 
-void volumedown_avrcp(){
-	{
-	    if (!check_default_player())
-	                return;
-	    if (g_dbus_proxy_method_call(default_player, "VolumeDown", NULL, volumedown_reply,
-	                            NULL, NULL) == FALSE) {
-	        printf("Failed to volumeup\n");
-	        return;
-	    }
-	    printf("Attempting to volumeup\n");
+void volumedown_avrcp(void)
+{
+	if (!check_default_player())
+	            return;
+	if (g_dbus_proxy_method_call(default_player, "VolumeDown", NULL, volumedown_reply,
+	                        NULL, NULL) == FALSE) {
+	    printf("Failed to volumeup\n");
+	    return;
 	}
+	printf("Attempting to volumeup\n");
 }
 
 void volumeup_reply(DBusMessage *message, void *user_data)
@@ -751,17 +1271,16 @@ void volumeup_reply(DBusMessage *message, void *user_data)
 }
 
 
-void volumeup_avrcp(){
-	{
-	    if (!check_default_player())
-	                return;
-	    if (g_dbus_proxy_method_call(default_player, "VolumeUp", NULL, volumeup_reply,
-	                            NULL, NULL) == FALSE) {
-	        printf("Failed to volumeup\n");
-	        return;
-	    }
-	    printf("Attempting to volumeup\n");
+void volumeup_avrcp()
+{
+	if (!check_default_player())
+	            return;
+	if (g_dbus_proxy_method_call(default_player, "VolumeUp", NULL, volumeup_reply,
+	                        NULL, NULL) == FALSE) {
+	    printf("Failed to volumeup\n");
+	    return;
 	}
+	printf("Attempting to volumeup\n");
 }
 
 void stop_reply(DBusMessage *message, void *user_data)
@@ -779,17 +1298,16 @@ void stop_reply(DBusMessage *message, void *user_data)
 	printf("Stop successful\n");
 }
 
-int stop_avrcp(){
-	{
-	    if (!check_default_player())
-	            return -1;
-	    if (g_dbus_proxy_method_call(default_player, "Stop", NULL, stop_reply,
-	                            NULL, NULL) == FALSE) {
-	        printf("Failed to stop\n");
-	        return -1;
-	    }
-	    printf("Attempting to stop\n");
-	}
+int stop_avrcp()
+{
+    if (!check_default_player())
+            return -1;
+    if (g_dbus_proxy_method_call(default_player, "Stop", NULL, stop_reply,
+                            NULL, NULL) == FALSE) {
+        printf("Failed to stop\n");
+        return -1;
+    }
+    printf("Attempting to stop\n");
 
 	return 0;
 }
@@ -809,7 +1327,7 @@ void next_reply(DBusMessage *message, void *user_data)
 	printf("Next successful\n");
 }
 
-int next_avrcp()
+int next_avrcp(void)
 {
 	{
 		if (!check_default_player())
@@ -840,18 +1358,17 @@ void previous_reply(DBusMessage *message, void *user_data)
 	printf("Previous successful\n");
 }
 
-int previous_avrcp()
+int previous_avrcp(void)
 {
-	{
-		if (!check_default_player())
-			return -1;
-		if (g_dbus_proxy_method_call(default_player, "Previous", NULL,
-						previous_reply, NULL, NULL) == FALSE) {
-			printf("Failed to jump to previous\n");
-			return -1;
-		}
-		printf("Attempting to jump to previous\n");
+
+	if (!check_default_player())
+		return -1;
+	if (g_dbus_proxy_method_call(default_player, "Previous", NULL,
+					previous_reply, NULL, NULL) == FALSE) {
+		printf("Failed to jump to previous\n");
+		return -1;
 	}
+	printf("Attempting to jump to previous\n");
 
 	return 0;
 }
@@ -912,7 +1429,7 @@ void rewind_avrcp(){
 	}
 }
 
-int getstatus_avrcp()
+int getstatus_avrcp(void)
 {
 	GDBusProxy *proxy;
 	DBusMessageIter iter;
