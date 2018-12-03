@@ -434,16 +434,13 @@ bool checkWifiIsConnected();
 
 static bool save_wifi_config(int mode)
 {
-	char buff[256] = {0};
-	char cmdline[256] = {0};
-
 	//7. save config
 	if (mode == 1) {
-		Shell::exec("wpa_cli enable_network all", buff);
-		Shell::exec("wpa_cli save_config", buff);
+		Shell::system("wpa_cli enable_network all");
+		Shell::system("wpa_cli save_config");
 		gwifi_cfg->wifi_status_callback(NetLinkNetworkStatus::NETLINK_NETWORK_CONFIG_SUCCEEDED);
 	} else { 
-		Shell::exec("wpa_cli flush", buff);
+		Shell::system("wpa_cli flush");
 		gwifi_cfg->wifi_status_callback(NetLinkNetworkStatus::NETLINK_NETWORK_CONFIG_FAILED);
 		sleep(2);
 		Shell::system("wpa_cli reconfigure");
@@ -531,7 +528,7 @@ bool wifiConnect(std::string ssid,std::string password){
 	strcpy(wifi_password, password.c_str());
 	strcpy(wifi_password_bk, password.c_str());
 
-	Shell::exec("wpa_cli -iwlan0 disable_network all", ret_buff);
+	Shell::system("wpa_cli -iwlan0 disable_network all");
 	sleep(1);
 
     // 1. add network
@@ -782,11 +779,10 @@ void WifiUtil::disconnect() {
 }
 
 void WifiUtil::recovery() {
-	char ret_buff[1024];
 	printf("=== wifi recovery===\n");
-    Shell::exec("wpa_cli reconfigure", ret_buff);
+    Shell::system("wpa_cli reconfigure");
 	sleep(1);
-    Shell::exec("wpa_cli reconnect", ret_buff);
+    Shell::system("wpa_cli reconnect");
 }
 
 void WifiUtil::connectJson(char *recv_buff) {

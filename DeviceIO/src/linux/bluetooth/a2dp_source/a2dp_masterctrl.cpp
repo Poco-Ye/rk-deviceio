@@ -167,7 +167,7 @@ static void btsrc_scan_save_device(GDBusProxy *proxy, const char *description)
             btsrc_scan_list = &device_info->next;
             btsrc_scan_cnt++;
         } else
-            printf("ERROR:%s malloc scan device info failed!\n");
+            printf("ERROR:%s malloc scan device info failed!\n", __func__);
     }
 }
 
