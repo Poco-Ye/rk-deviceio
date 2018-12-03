@@ -258,7 +258,6 @@ bool isWifiConnected() {
 int rk_wifi_control(WifiControl cmd, void *data, int len)
 {
     APP_DEBUG("controlWifi, cmd: %d\n", cmd);
-    printf("controlWifi, cmd: %d recovery: %d\n", cmd, WifiControl::WIFI_RECOVERY);
 
     int ret = 0;
 

@@ -767,7 +767,8 @@ static void device_added(GDBusProxy *proxy)
 	if (g_dbus_proxy_get_property(proxy, "Connected", &iter)) {
 		dbus_message_iter_get_basic(&iter, &connected);
 
-		printf("%s, path: %s, connected: %d, aip: %d.\n", __func__, path, connected, adapter_is_powered(proxy));
+		printf("%s, path: %s, connected: %d, adapter_is_powered: %d.\n", __func__,
+				path, connected, adapter_is_powered(default_ctrl->proxy));
 	
 		if (connected) {
 			device_list = g_list_append(device_list, proxy);
@@ -777,8 +778,8 @@ static void device_added(GDBusProxy *proxy)
 		}
 
 		/* Device will be connected when adapter is powered */
-		if (!adapter_is_powered(proxy)) {
-			//return;
+		if (!adapter_is_powered(default_ctrl->proxy)) {
+			return;
 		}
 
 		if (last_device_path && !strcmp(path, last_device_path) && first) {
@@ -824,7 +825,7 @@ void proxy_added(GDBusProxy *proxy, void *user_data)
 		}
 
 		dbus_message_iter_get_basic(&iter, &str);
-		a2dp_sink_cmd_power(TRUE);
+		//a2dp_sink_cmd_power(TRUE);
 
 		first_ctrl = 0;
 		/* Load previous connected device */
@@ -1109,6 +1110,7 @@ void a2dp_sink_cmd_power(bool ispowered)
 		return;
 
     str = g_strdup_printf("power %s", powered == TRUE ? "on" : "off");
+	printf("=== a2dp_sink_cmd_power str: %s ===\n", str);
 
     if (g_dbus_proxy_set_property_basic(default_ctrl->proxy, "Powered",
                     DBUS_TYPE_BOOLEAN, &powered,

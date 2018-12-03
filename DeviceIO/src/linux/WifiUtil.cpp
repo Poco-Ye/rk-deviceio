@@ -19,6 +19,9 @@
 #include <csignal>
 #include <fcntl.h>
 
+#include <signal.h>//SIGQUIT /usr/include/bits/signum.h
+#include <errno.h>// ESRCH  /usr/include/asm-/error-bash.h
+
 
 #include "DeviceIo/DeviceIo.h"
 #include "Timer.h"
@@ -104,10 +107,19 @@ bool check_ap_interface_status(string ap) {
 }
 
 bool WifiUtil::start_wpa_supplicant() {
-    pthread_t start_wifi_monitor_threadId;
+	static pthread_t start_wifi_monitor_threadId;
 
-	if (Shell::pidof("wpa_supplicant"))
-		goto monitor;
+	if (Shell::pidof("wpa_supplicant")) {
+		int kill_ret = pthread_kill(start_wifi_monitor_threadId, 0);
+		if (kill_ret == ESRCH) {
+			printf("start_wifi_monitor_threadId not found\n");
+		} else if (kill_ret == EINVAL)
+			printf("start_wifi_monitor_threadId no vaild\n");
+		else if (kill_ret == 0) {
+			printf("start_wifi_monitor_threadId is found\n");
+			return 1;
+		}
+	}
 
     Shell::system("ifconfig wlan0 down");
     Shell::system("ifconfig wlan0 up");
@@ -119,7 +131,6 @@ bool WifiUtil::start_wpa_supplicant() {
     //Shell::system("dhcpcd -k wlan0");//udhcpc -b -i wlan0 -q ");
     //sleep(1);
     //Shell::system("dhcpcd wlan0 -t 0 &");
-monitor:
     pthread_create(&start_wifi_monitor_threadId, nullptr, start_wifi_monitor, nullptr);
     pthread_detach(start_wifi_monitor_threadId);
 

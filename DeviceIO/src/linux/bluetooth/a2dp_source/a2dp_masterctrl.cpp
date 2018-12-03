@@ -2389,16 +2389,37 @@ static void client_ready(GDBusClient *client, void *user_data)
     return;
 }
 
+static guint reconnect_timer;
+
 static void connect_reply(DBusMessage *message, void *user_data)
 {
     GDBusProxy *proxy = (GDBusProxy *)user_data;
     DBusError error;
+	static int count = 3;
+    DBusMessageIter iter;
+    char *address;
 
     dbus_error_init(&error);
 
     if (dbus_set_error_from_message(&error, message) == TRUE) {
         printf("Failed to connect: %s\n", error.name);
         dbus_error_free(&error);
+
+		g_dbus_proxy_get_property(proxy, "Address", &iter);
+		dbus_message_iter_get_basic(&iter, &address);
+
+		count--;
+		if (count > 0) {
+			if (reconnect_timer) {
+				g_source_remove(reconnect_timer);
+				reconnect_timer = 0;
+			}
+			reconnect_timer = g_timeout_add_seconds(2,
+						a2dp_master_connect, address);
+			return;
+		}
+
+		count = 3;
         btsrc_connect_status = BTSRC_CONNECT_FAILED;
         return bt_shell_noninteractive_quit(EXIT_FAILURE);
     }
