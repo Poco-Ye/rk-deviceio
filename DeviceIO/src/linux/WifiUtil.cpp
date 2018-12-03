@@ -107,9 +107,9 @@ bool check_ap_interface_status(string ap) {
 }
 
 bool WifiUtil::start_wpa_supplicant() {
-	static pthread_t start_wifi_monitor_threadId;
+	static pthread_t start_wifi_monitor_threadId = -1;
 
-	if (Shell::pidof("wpa_supplicant")) {
+	if (Shell::pidof("wpa_supplicant") && (start_wifi_monitor_threadId != -1)) {
 		int kill_ret = pthread_kill(start_wifi_monitor_threadId, 0);
 		if (kill_ret == ESRCH) {
 			printf("start_wifi_monitor_threadId not found\n");
@@ -131,6 +131,8 @@ bool WifiUtil::start_wpa_supplicant() {
     //Shell::system("dhcpcd -k wlan0");//udhcpc -b -i wlan0 -q ");
     //sleep(1);
     //Shell::system("dhcpcd wlan0 -t 0 &");
+	if (start_wifi_monitor_threadId > 0)
+		pthread_cancel(start_wifi_monitor_threadId);
     pthread_create(&start_wifi_monitor_threadId, nullptr, start_wifi_monitor, nullptr);
     pthread_detach(start_wifi_monitor_threadId);
 

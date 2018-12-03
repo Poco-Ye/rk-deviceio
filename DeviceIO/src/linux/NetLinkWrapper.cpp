@@ -330,7 +330,7 @@ static void bt_adv_set(void)
 		printf("gethostname format error !!!\n");
 	else
 		printf("gethostname: %s, len: %d \n", hostname, strlen(hostname));
-
+	//#define SERVICES_UUID            "23 20 56 7c 05 cf 6e b4 c3 41 77 28 51 82 7e 1b"
 	ble_content.advData[0] = 0x15;
 	ble_content.advData[1] = 0x02;
 	ble_content.advData[2] = 0x01;
@@ -341,15 +341,16 @@ static void bt_adv_set(void)
 	ble_content.advData[7] = 0x20;
 	ble_content.advData[8] = 0x56;
 	ble_content.advData[9] = 0x7c;
-	ble_content.advData[11] = 0x05;
-	ble_content.advData[12] = 0xcf;
-	ble_content.advData[13] = 0x6e;
-	ble_content.advData[14] = 0xb4;
-	ble_content.advData[15] = 0xc3;
-	ble_content.advData[16] = 0x41;
-	ble_content.advData[17] = 0x77;
+	ble_content.advData[10] = 0x05;
+	ble_content.advData[11] = 0xcf;
+	ble_content.advData[12] = 0x6e;
+	ble_content.advData[13] = 0xb4;
+	ble_content.advData[14] = 0xc3;
+	ble_content.advData[15] = 0x41;
+	ble_content.advData[16] = 0x77;
+	ble_content.advData[17] = 0x28;
 	ble_content.advData[18] = 0x51;
-	ble_content.advData[10] = 0x82;
+	ble_content.advData[19] = 0x82;
 	ble_content.advData[20] = 0x7e;
 	ble_content.advData[21] = 0x1b;
 
