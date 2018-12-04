@@ -29,6 +29,7 @@
 #include <DeviceIo/ScanResult.h>
 #include <DeviceIo/WifiInfo.h>
 #include <DeviceIo/WifiManager.h>
+#include <DeviceIo/RkMediaPlayer.h>
 
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
@@ -39,11 +40,17 @@ using DeviceIOFramework::DeviceRTC;
 using DeviceIOFramework::DevicePowerSupply;
 using DeviceIOFramework::NetLinkNetworkStatus;
 using DeviceIOFramework::wifi_config;
-int gst_player(char *path);
 
-static int g_player_flag_eos = 0;
-static int g_player_flag_seekable = 0;
-static int g_player_flag_duration = 0;
+static int g_player0_flag_eos = 0;
+static int g_player0_flag_seekable = 0;
+static int g_player0_flag_playing = 0;
+static int g_player1_flag_eos = 0;
+static int g_player1_flag_seekable = 0;
+static int g_player1_flag_playing = 0;
+
+int gst_multi_player_test(char *uri0, char *uri1);
+int gst_single_player_with_multi_urls(char *uri0, char *uri1);
+int gst_single_player_test(char *uri0);
 
 class DeviceInputWrapper: public DeviceIOFramework::DeviceInNotify{
 public:
@@ -202,30 +209,6 @@ public:
 				printf("=== BT_STOP_PLAY ===\n");
 			break;
 		}
-		case DeviceInput::GST_PLAYER_READY:
-			printf("=== GST_PLAYER_READY ===\n");
-			break;
-		case DeviceInput::GST_PLAYER_PAUSED:
-			printf("=== GST_PLAYER_PAUSED ===\n");
-			break;
-		case DeviceInput::GST_PLAYER_PLAYING:
-			printf("=== GST_PLAYER_PLAYING ===\n");
-			break;
-		case DeviceInput::GST_PLAYER_SEEKABLE:
-			printf("=== GST_PLAYER_SEEKABLE ===\n");
-			g_player_flag_seekable = 1;
-			break;
-		case DeviceInput::GST_PLAYER_EOS:
-			g_player_flag_eos = 1;
-			printf("=== GST_PLAYER_EOS ===\n");
-			break;
-		case DeviceInput::GST_PLAYER_ERROR:
-			printf("=== GST_PLAYER_ERROR ===\n");
-			break;
-		case DeviceInput::GST_PLAYER_DURATION:
-			g_player_flag_duration = 1;
-			printf("=== GST_PLAYER_DURATION ===\n");
-			break;
 		}
 	}
 };
@@ -539,71 +522,405 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-int gst_player(char *path)
+void gst_callback(void *userdata, RK_MediaEvent_e enEvent)
 {
-	bool ret;
-	int timer = 0;
-	int64_t duration = 0;
-	int64_t position = 0;
+	char *data = (char *)userdata;
+	char buff[100] = {0};
 
-	printf("<%s> File Path:%s\n", __func__, path);
-	ret = DeviceIo::getInstance()->gstPlayerCreate(path);
-	if (ret) {
-		printf("<%s> Create Player failed!\n", __func__);
+	if (data)
+		memcpy(buff, data, strlen(data));
+
+	switch (enEvent) {
+		case RK_MediaEvent_URLInvalid:
+			printf("+++++ <%s>: URL Invalid event +++++\n", buff);
+			break;
+		case RK_MediaEvent_BufferStart:
+			printf("+++++ <%s>: Buffer Start event +++++\n", buff);
+			break;
+		case RK_MediaEvent_BufferEnd:
+			printf("+++++ <%s>: Buffer End event +++++\n", buff);
+			break;
+		case RK_MediaEvent_Play:
+			printf("+++++ <%s>: Stream Play event +++++\n", buff);
+			if (strstr(buff, "Player-0"))
+				g_player0_flag_playing = 1;
+			else if (strstr(buff, "Player-1"))
+				g_player1_flag_playing = 1;
+			break;
+		case RK_MediaEvent_Pause:
+			printf("+++++ <%s>: Stream Pause event +++++\n", buff);
+			if (strstr(buff, "Player-0"))
+				g_player0_flag_playing = 0;
+			else if (strstr(buff, "Player-1"))
+				g_player1_flag_playing = 0;
+			break;
+		case RK_MediaEvent_Stop:
+			printf("+++++ <%s>: Stream Stop event +++++\n", buff);
+			if (strstr(buff, "Player-0"))
+				g_player0_flag_playing = 0;
+			else if (strstr(buff, "Player-1"))
+				g_player1_flag_playing = 0;
+			break;
+		case RK_MediaEvent_End:
+			printf("+++++ <%s>: Stream End event +++++\n", buff);
+			if (strstr(buff, "Player-0"))
+				g_player0_flag_eos = 1;
+			else if (strstr(buff, "Player-1"))
+				g_player1_flag_eos = 1;
+
+			break;
+		case RK_MediaEvent_Ready:
+			printf("+++++ <%s>: Stream Ready event +++++\n", buff);
+			break;
+		case RK_MediaEvent_Error:
+			printf("+++++ <%s>: Stream Error event +++++\n", buff);
+			break;
+		case RK_MediaEvent_Duration:
+			printf("+++++ <%s>: Stream Duration event +++++\n", buff);
+			break;
+		case RK_MediaEvent_SeekEnable:
+			printf("+++++ <%s>: Stream SeekEnable event +++++\n", buff);
+			if (strstr(buff, "Player-0"))
+				g_player0_flag_seekable = 1;
+			else if (strstr(buff, "Player-0"))
+				g_player1_flag_seekable = 1;
+
+			break;
+		default:
+			break;
+	}
+}
+
+int gst_multi_player_test(char *uri0, char *uri1)
+{
+	int ret = 0;
+	int pHandle0;
+	int pHandle1;
+	char data0[100];
+	char data1[100];
+	int position0 = 0;
+	int position1 = 0;
+	int duration0 = 0;
+	int duration1 = 0;
+
+	/* Init global stream flag. */
+	g_player0_flag_playing = 0;
+	g_player0_flag_eos = 0;
+	g_player0_flag_seekable = 0;
+	g_player1_flag_playing = 0;
+	g_player1_flag_eos = 0;
+	g_player1_flag_seekable = 0;
+
+	/* Set player private data */
+	memset(data0, 0, sizeof(data0));
+	memset(data1, 0, sizeof(data1));
+	memcpy(data0, "Player-0", strlen("Player-0"));
+	memcpy(data1, "Player-1", strlen("Player-1"));
+
+	/* Create player */
+	ret = RK_mediaplayer_create(&pHandle0);
+	if (ret < 0) {
+		printf("create mideaplayer-0 failed!\n");
 		return -1;
-	} else
-		printf("<%s> Create Player sucess!\n", __func__);
-
-	ret = DeviceIo::getInstance()->gstPlayerStart();
-	if (ret) {
-		printf("<%s> Player start failed!\n", __func__);
+	}
+	ret = RK_mediaplayer_create(&pHandle1);
+	if (ret < 0) {
+		printf("create mideaplayer-1 failed!\n");
+		RK_mediaplayer_destroy(pHandle0);
 		return -1;
-	} else
-		printf("<%s> Player start sucess!\n", __func__);
-
-	while(!g_player_flag_eos) {
-		if (timer == 10) {
-			if (!g_player_flag_seekable)
-				printf("<%s> Seek func is not enable yet.\n", __func__);
-			else {
-				printf("<%s> Already played for 10 seconds, seek to 20 seconds\n", __func__);
-				ret = DeviceIo::getInstance()->gstPlayerSeek(20);
-				if (ret)
-					printf("<%s> Seek error\n", __func__);
-			}
-		} else if (timer == 20) {
-			printf("<%s> Test pause.\n", __func__);
-			ret = DeviceIo::getInstance()->gstPlayerPause();
-			if (ret)
-				printf("<%s> Pause error\n", __func__);
-		} else if (timer == 25) {
-			printf("<%s> Test resume.\n", __func__);
-			ret = DeviceIo::getInstance()->gstPlayerResume();
-			if (ret)
-				printf("<%s> Resume error\n", __func__);
-		}
-
-		if (!duration && g_player_flag_duration) {
-			duration = DeviceIo::getInstance()->gstPlayerGetDuration();
-			if (duration < 0) {
-				printf("<%s> Get duration failed!\n", __func__);
-				duration = 0;
-			} else
-				printf("<%s> Duration = %dms\n", __func__, (int)(duration / 1000000));
-		}
-
-		position = DeviceIo::getInstance()->gstPlayerGetPosition();
-		if (position > 0)
-			printf("<%s> Position:%dms\n", __func__, (int)(position / 1000000));
-		else
-			printf("<%s> Get position failed!\n", __func__);
-
-		sleep(1);
-		timer++;
 	}
 
-	DeviceIo::getInstance()->gstPlayerClose();
-	printf("<%s> END\n", __func__);
+	/* Set callback for player */
+	ret = RK_mediaplayer_register_callback(pHandle0, (void *) data0, gst_callback);
+	if (ret < 0) {
+		printf("Registe mideaplayer-0 callback failed!\n");
+		RK_mediaplayer_destroy(pHandle0);
+		RK_mediaplayer_destroy(pHandle1);
+	}
+
+	ret = RK_mediaplayer_register_callback(pHandle1, (void *) data1, gst_callback);
+	if (ret < 0) {
+		printf("Registe mideaplayer-1 callback failed!\n");
+		RK_mediaplayer_destroy(pHandle0);
+		RK_mediaplayer_destroy(pHandle1);
+	}
+
+	ret = RK_mediaplayer_play(pHandle0, uri0);
+	if (ret < 0) {
+		printf("play %s failed!\n", uri0);
+		RK_mediaplayer_destroy(pHandle0);
+		RK_mediaplayer_destroy(pHandle1);
+		return -1;
+	}
+
+	ret = RK_mediaplayer_play(pHandle1, uri1);
+	if (ret < 0) {
+		printf("play %s failed!\n", uri1);
+		RK_mediaplayer_destroy(pHandle0);
+		RK_mediaplayer_destroy(pHandle1);
+		return -1;
+	}
+
+	while (!g_player0_flag_eos || !g_player1_flag_eos) {
+		if (!g_player0_flag_playing && !g_player1_flag_playing) {
+			usleep(100000); // 100ms
+			continue;
+		}
+
+		/* Get position operation test */
+		if (!g_player0_flag_eos) {
+			ret = RK_mediaplayer_get_position(pHandle0);
+			if (ret > 0)
+				position0 = ret;
+			else
+				printf("Get position from %s failed!\n", uri0);
+		}
+		if (!g_player1_flag_eos) {
+			ret = RK_mediaplayer_get_position(pHandle1);
+			if (ret > 0)
+				position1 = ret;
+			else
+				printf("Get position from %s failed!\n", uri1);
+		}
+
+		/* Get position operation test */
+		if (!g_player0_flag_eos && !duration0) {
+			ret = RK_mediaplayer_get_duration(pHandle0);
+			if (ret > 0)
+				duration0 = ret;
+			else
+				printf("Get duration from %s failed! ret = %d\n", uri0, ret);
+		}
+		/* Get position operation test */
+		if (!g_player1_flag_eos && !duration1) {
+			ret = RK_mediaplayer_get_duration(pHandle1);
+			if (ret > 0)
+				duration1 = ret;
+			else
+				printf("Get duration from %s failed! ret = %d\n", uri1, ret);
+		}
+
+		if (!g_player0_flag_eos && position0 && duration0)
+			printf("MediaPlayer-0:%dms/%dms", position0, duration0);
+		if (!g_player1_flag_eos && position1 && duration1)
+			printf("; MediaPlayer-1:%dms/%dms \r", position1, duration1);
+		else
+			printf("\r");
+
+		fflush(stdout);
+		usleep(100000);
+	}
+
+	printf(">>>>> All stream reached the end.\n");
+	RK_mediaplayer_destroy(pHandle0);
+	RK_mediaplayer_destroy(pHandle1);
 	return 0;
 }
 
+int gst_single_player_test(char *uri0)
+{
+	int ret = 0;
+	int pHandle0;
+	char data0[100];
+	int position0 = 0;
+	int duration0 = 0;
+	int player0_is_paused = 0;
+	int op_seek = 0;
+	int op_pause = 0;
+
+	/* Init global stream flag. */
+	g_player0_flag_playing = 0;
+	g_player0_flag_eos = 0;
+	g_player0_flag_seekable = 0;
+
+	/* Set player private data */
+	memset(data0, 0, sizeof(data0));
+	memcpy(data0, "Player-0", strlen("Player-0"));
+
+	/* Create player */
+	ret = RK_mediaplayer_create(&pHandle0);
+	if (ret < 0) {
+		printf("create mideaplayer-0 failed!\n");
+		return -1;
+	}
+
+	/* Set callback for player */
+	ret = RK_mediaplayer_register_callback(pHandle0, (void *) data0, gst_callback);
+	if (ret < 0) {
+		printf("Registe mideaplayer-0 callback failed!\n");
+		RK_mediaplayer_destroy(pHandle0);
+	}
+
+	ret = RK_mediaplayer_play(pHandle0, uri0);
+	if (ret < 0) {
+		printf("play %s failed!\n", uri0);
+		RK_mediaplayer_destroy(pHandle0);
+		return -1;
+	}
+
+	while (!g_player0_flag_eos) {
+		if (!g_player0_flag_playing) {
+			usleep(100000); // 100ms
+			continue;
+		}
+
+		/* Get position operation test */
+		ret = RK_mediaplayer_get_position(pHandle0);
+		if (ret > 0)
+			position0 = ret;
+		else
+			printf("Get position from %s failed!\n", uri0);
+
+		/* Get position operation test */
+		if (!duration0) {
+			ret = RK_mediaplayer_get_duration(pHandle0);
+			if (ret > 0)
+				duration0 = ret;
+			else
+				printf("Get duration from %s failed! ret = %d\n", uri0, ret);
+		}
+
+		if (position0 && duration0) {
+			printf("MediaPlayer-0:%dms/%dms\r", position0, duration0);
+			fflush(stdout);
+		}
+
+		/* Seek operation test */
+		if (!op_seek && position0 && duration0 && (position0 >= (duration0 / 3))) {
+			printf(">>>>> Seek mideaplayer-0 from %dms to %dms.\n",
+				   duration0 / 3, duration0 / 2);
+			ret = RK_mediaplayer_seek(pHandle0, duration0 / 2);
+			if (ret < 0)
+				printf("Seek operation failed!\n");
+
+			op_seek = 1;
+		}
+
+		/* Pause operation test */
+		if (!op_pause && position0 && duration0 && (position0 >= (2 * duration0 / 3))) {
+			ret = RK_mediaplayer_pause(pHandle0);
+			if (ret)
+				printf(">>>>> Pause mideaplayer-0 FAILED!\n");
+			else {
+				printf(">>>>> Pause mideaplayer-0 SUCESS!\n");
+				player0_is_paused = 1;
+			}
+
+			printf("Paused for 3s ...\n");
+			sleep(3);
+
+			if (player0_is_paused) {
+				ret = RK_mediaplayer_resume(pHandle0);
+				if (ret)
+					printf(">>>>> Resume mideaplayer-0 FAILED\n");
+				else
+					printf(">>>>> Resume mideaplayer-0 SUCESS!\n");
+			}
+
+			op_pause = 1;
+		}
+
+		usleep(100000);
+	}
+
+	printf(">>>>> All stream reached the end.\n");
+	RK_mediaplayer_destroy(pHandle0);
+
+	return 0;
+}
+
+int gst_single_player_with_multi_urls(char *uri0, char *uri1)
+{
+	int ret = 0;
+	int pHandle0;
+	char data0[100];
+	int position0 = 0;
+	int duration0 = 0;
+	int player0_is_paused = 0;
+	int op_reset = 0;
+
+	/* Init global stream flag. */
+	g_player0_flag_playing = 0;
+	g_player0_flag_eos = 0;
+	g_player0_flag_seekable = 0;
+
+	/* Set player private data */
+	memset(data0, 0, sizeof(data0));
+	memcpy(data0, "Player-0", strlen("Player-0"));
+
+	/* Create player */
+	ret = RK_mediaplayer_create(&pHandle0);
+	if (ret < 0) {
+		printf("create mideaplayer-0 failed!\n");
+		return -1;
+	}
+
+	/* Set callback for player */
+	ret = RK_mediaplayer_register_callback(pHandle0, (void *) data0, gst_callback);
+	if (ret < 0) {
+		printf("Registe mideaplayer-0 callback failed!\n");
+		RK_mediaplayer_destroy(pHandle0);
+	}
+
+	ret = RK_mediaplayer_play(pHandle0, uri0);
+	if (ret < 0) {
+		printf("play %s failed!\n", uri0);
+		RK_mediaplayer_destroy(pHandle0);
+		return -1;
+	}
+
+	while (!g_player0_flag_eos) {
+		if (!g_player0_flag_playing) {
+			usleep(100000); // 100ms
+			continue;
+		}
+
+		/* Get position operation test */
+		ret = RK_mediaplayer_get_position(pHandle0);
+		if (ret > 0)
+			position0 = ret;
+		else
+			printf("Get position from %s failed!\n", uri0);
+
+		/* Get position operation test */
+		if (!duration0) {
+			ret = RK_mediaplayer_get_duration(pHandle0);
+			if (ret > 0)
+				duration0 = ret;
+			else
+				printf("Get duration from %s failed! ret = %d\n", uri0, ret);
+		}
+
+		if (position0 && duration0) {
+			printf("MediaPlayer-0:%dms/%dms\r", position0, duration0);
+			fflush(stdout);
+		}
+
+		/* Stop operation test */
+		if (!op_reset && position0 && duration0 && (position0 >= (duration0 / 3))) {
+			ret = RK_mediaplayer_stop(pHandle0);
+			if (ret)
+				printf(">>>>> Stop mideaplayer-0 FAILED!\n");
+			else
+				printf(">>>>> Stop mideaplayer-0 SUCESS!\n");
+
+			printf(">>>>> Reset mideaplayer-0 uri from %s to %s.\n", uri0, uri1);
+			ret = RK_mediaplayer_play(pHandle0, uri1);
+			if (ret < 0) {
+				printf("play %s failed!\n", uri0);
+				RK_mediaplayer_destroy(pHandle0);
+				return -1;
+			}
+			duration0 = 0;
+			position0 = 0;
+			op_reset = 1;
+		}
+
+		usleep(100000);
+	}
+
+	printf(">>>>> All stream reached the end.\n");
+	RK_mediaplayer_destroy(pHandle0);
+
+	return 0;
+}

@@ -34,7 +34,7 @@
 #include "power.h"
 #include "bluetooth/avrcpctrl.h"
 #include "NetLinkWrapper.h"
-#include "gst_player/gst_player.h"
+
 using namespace std;
 
 
@@ -737,46 +737,6 @@ bool DeviceIo::setEQParameter(std::string EQBinDir) {
     Shell::system(cmd.c_str());
     Shell::system("sync");
     return true;
-}
-
-int DeviceIo::gstPlayerCreate(char *uri)
-{
-    return gst_player_create(uri);
-}
-
-int DeviceIo::gstPlayerStart()
-{
-    return gst_player_start();
-}
-
-int DeviceIo::gstPlayerSeek(int sec)
-{
-    return gst_player_seek(sec);
-}
-
-int64_t DeviceIo::gstPlayerGetPosition()
-{
-    return (int64_t)gst_player_get_position();
-}
-
-int64_t DeviceIo::gstPlayerGetDuration()
-{
-    return (int64_t)gst_player_get_druation();
-}
-
-int DeviceIo::gstPlayerPause()
-{
-    return gst_player_pause();
-}
-
-int DeviceIo::gstPlayerResume()
-{
-    return gst_player_resume();
-}
-
-int DeviceIo::gstPlayerClose()
-{
-    return gst_player_close();
 }
 
 } // namespace framework

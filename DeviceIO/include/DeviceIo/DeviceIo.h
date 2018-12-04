@@ -567,59 +567,6 @@ public:
      */
     bool setEQParameter(std::string EQBinDir);
 
-    /**
-     * @brief Create a player and set the player resource address.
-     * @Parameter: uri->resource address.
-     *
-     * @return 0 if succeed.
-     */
-    int gstPlayerCreate(char *uri);
-    /**
-     * @brief Close a player.
-     *
-     * @return 0 if succeed.
-     */
-    int gstPlayerClose();
-    /**
-     * @brief Let the player start playing music.
-     *
-     * @return 0 if succeed.
-     */
-    int gstPlayerStart();
-    /**
-     * @brief Random seek.
-     * @Parameter: sec->which second to jump to.
-     *
-     * @return 0 if succeed.
-     */
-    int gstPlayerSeek(int sec);
-    /**
-     * @brief Get stream current position.
-     *
-     * @return: If > 0, it means that the position of
-     *          the stream is successfully obtained.
-     */
-    int64_t gstPlayerGetPosition();
-    /**
-     * @brief Get stream duration.
-     *
-     * @return: If > 0, it means that the duration of
-     *          the stream is successfully obtained.
-     */
-    int64_t gstPlayerGetDuration();
-    /**
-     * @brief Pause the stream.
-     *
-     * @return 0 if succeed.
-     */
-    int gstPlayerPause();
-    /**
-     * @brief Resume the stream.
-     *
-     * @return 0 if succeed.
-     */
-    int gstPlayerResume();
-
 private:
     static DeviceIo* m_instance;
     static DeviceInNotify* m_notify;
