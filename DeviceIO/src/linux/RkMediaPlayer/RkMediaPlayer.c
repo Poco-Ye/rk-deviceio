@@ -13,6 +13,7 @@ typedef struct _RkMediaPlayer {
 	gboolean terminate;    /* Should we terminate execution? */
 	gboolean seek_enabled; /* Is seeking enabled for this media? */
 	gboolean is_buffering; /* Is the player in buffer? */
+	gboolean is_live;      /* live stream*/
 	pthread_t thread_id;   /* Thread id */
 	RK_media_event_callback callback; /* Call back function */
 	void *userdata;        /* Callback arg */
@@ -35,7 +36,6 @@ static void handle_message (GstMessage *msg, RkMediaPlayer *c_player)
 			if (c_player->callback)
 				(*c_player->callback)(c_player->userdata, RK_MediaEvent_Error);
 
-			c_player->terminate = TRUE;
 			break;
 		case GST_MESSAGE_EOS:
 			g_print ("End-Of-Stream reached.\n");
@@ -43,7 +43,6 @@ static void handle_message (GstMessage *msg, RkMediaPlayer *c_player)
 			if (c_player->callback)
 				(*c_player->callback)(c_player->userdata, RK_MediaEvent_End);
 
-			c_player->terminate = TRUE;
 			break;
 		case GST_MESSAGE_DURATION:
 			/* Send MediaEvent by callback */
@@ -54,15 +53,20 @@ static void handle_message (GstMessage *msg, RkMediaPlayer *c_player)
 		case GST_MESSAGE_BUFFERING:
 		{
 			gint percent = 0;
+			/* If the stream is live, we do not care about buffering. */
+			if (c_player->is_live)
+				break;
 			gst_message_parse_buffering (msg, &percent);
 			/* Send MediaEvent by callback */
 			if (c_player->callback) {
 				if ((percent < 100) && (!c_player->is_buffering)) {
 					(*c_player->callback)(c_player->userdata, RK_MediaEvent_BufferStart);
 					c_player->is_buffering = TRUE;
+					gst_element_set_state (c_player->playbin, GST_STATE_PAUSED);
 				} else if (percent >= 100) {
 					(*c_player->callback)(c_player->userdata, RK_MediaEvent_BufferEnd);
 					c_player->is_buffering = FALSE;
+					gst_element_set_state (c_player->playbin, GST_STATE_PLAYING);
 				}
 			}
 			break;
@@ -117,6 +121,12 @@ static void handle_message (GstMessage *msg, RkMediaPlayer *c_player)
 			}
 			break;
 		}
+		case GST_MESSAGE_CLOCK_LOST: {
+			/* Get a new clock */
+			gst_element_set_state (c_player->playbin, GST_STATE_PAUSED);
+			gst_element_set_state (c_player->playbin, GST_STATE_PLAYING);
+			break;
+		}
 		default:
 			/* We should not reach here */
 			g_printerr ("Unexpected message received.\n");
@@ -168,7 +178,8 @@ int RK_mediaplayer_create(int *pHandle)
 	c_player->thread_id = 0;
 
 	/* Initialize GStreamer */
-	gst_init (NULL, NULL);
+	if (!gst_is_initialized())
+		gst_init (NULL, NULL);
 
 	/* Create the elements */
 	c_player->playbin = gst_element_factory_make ("playbin", "playbin");
@@ -217,18 +228,27 @@ int RK_mediaplayer_play(int iHandle, const char *uri)
 	if (!c_player || !c_player->playbin || !uri)
 		return -EINVAL;
 
+	/* Stop playing */
+	ret = gst_element_set_state (c_player->playbin, GST_STATE_NULL);
+	if (ret == GST_STATE_CHANGE_FAILURE) {
+		g_printerr ("Unable to set the pipeline to the null state.\n");
+		return -1;
+	}
+
 	/* Set the URI to play */
 	g_object_set (c_player->playbin, "uri", uri, NULL);
 	/* Start playing */
 	ret = gst_element_set_state (c_player->playbin, GST_STATE_PLAYING);
 	if (ret == GST_STATE_CHANGE_FAILURE) {
 		g_printerr ("Unable to set the pipeline to the playing state.\n");
-		gst_object_unref (c_player->playbin);
-		c_player->playbin = NULL;
 		if (c_player->callback)
 			(*c_player->callback)(c_player->userdata, RK_MediaEvent_URLInvalid);
 
 		return -1;
+	} else if (ret == GST_STATE_CHANGE_NO_PREROLL) {
+		c_player->is_live = TRUE;
+	} else {
+		c_player->is_live = FALSE;
 	}
 
 	if (c_player->thread_id == 0) {
