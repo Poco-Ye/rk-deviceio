@@ -428,7 +428,7 @@ static int bt_close_source(void)
 {
 	int ret = 0;
 
-	APP_DEBUG("ble_close_source close\n");
+	APP_DEBUG("bt_close_source close\n");
 
 	if (!bt_source_is_open())
 		return 0;

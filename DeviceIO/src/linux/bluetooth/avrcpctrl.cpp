@@ -230,7 +230,7 @@ static void print_iter(const char *label, const char *name,
 		bt_shell_printf("%s%s: %s\n", label, name,
 					valbool == TRUE ? "yes" : "no");
 		value = valbool ? 1 : 0;
-		if (!strncmp(name, "Connected", 9)) {
+		if (!strncmp(name, "Connected", 9)) {//ServicesResolved
 			if (value) {
 				rkbt_inquiry_scan(0);
 				report_avrcp_event(DeviceInput::BT_CONNECT, &value, sizeof(value));
@@ -1128,7 +1128,6 @@ GOptionEntry options[] = {
 	{ NULL },
 };
 
-
 static void a2dp_sink_clean(void)
 {
 	default_ctrl = NULL;
@@ -1143,7 +1142,7 @@ void *init_avrcp(void *)
 	GError *error = NULL;
 
 	a2dp_sink_clean();
-	
+
 	dbus_conn = g_dbus_setup_bus(DBUS_BUS_SYSTEM, NULL, NULL);
 	printf("init_avrcp start \n");
 

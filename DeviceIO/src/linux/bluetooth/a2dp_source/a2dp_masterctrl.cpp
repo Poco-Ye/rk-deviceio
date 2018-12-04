@@ -2457,7 +2457,7 @@ static void a2dp_source_clean(void)
 	dbus_conn = NULL;
 	agent_manager = NULL;
 	auto_register_agent = NULL;
-	
+
 	default_ctrl = NULL;
 	ctrl_list = NULL;
 	default_dev = NULL;
@@ -2511,12 +2511,13 @@ int init_a2dp_master_ctrl()
 }
 
 int release_a2dp_master_ctrl() {
+	printf("release_a2dp_master_ctrl start ...\n");
 	g_main_loop_quit(btsrc_main_loop);
-    g_dbus_client_unref(btsrc_client);
-    dbus_connection_unref(dbus_conn);
-    g_main_loop_unref(btsrc_main_loop);
+	g_dbus_client_unref(btsrc_client);
+	dbus_connection_unref(dbus_conn);
+	g_main_loop_unref(btsrc_main_loop);
 	a2dp_source_clean();
-    printf("release_a2dp_master_ctrl ok\n");
+	printf("release_a2dp_master_ctrl ok\n");
 }
 
 static int a2dp_master_get_rssi(GDBusProxy *proxy)

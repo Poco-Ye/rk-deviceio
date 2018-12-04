@@ -73,6 +73,7 @@ static char reconnect_path[66];
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
 static volatile bool g_dis_adv_close_ble = false;
+#define min(x, y) ((x) < (y) ? (x) : (y))
 
 #define GATT_MAX_CHR 10
 typedef struct BLE_CONTENT_T
@@ -558,9 +559,13 @@ static DBusMessage *chr_read_value(DBusConnection *conn, DBusMessage *msg,
 		ble_content_internal->cb_ble_request_data(DEVICECONTEXT_CHAR_UUID);
 
 	chr_read(chr, &iter);
-	strncpy(str, chr->value, chr->vlen);
+	memcpy(str, chr->value, chr->vlen);
     str[chr->vlen] = '\0';
     printf("chr_read_value[%d]: %s\n", chr->vlen, str);
+	printf("	dump 8 byte: ");
+	for (int i = 0; i < min(chr->vlen, 8); i++)
+		printf("0x%02x ", (chr->value)[i]);
+	printf("\n");
 
 	return reply;
 }
@@ -825,7 +830,11 @@ int gatt_write_data(char *uuid, void *data, int len)
 	int i;
 	struct characteristic *chr;
 
-	printf("gatt_write uuid: %s, data: %p len: [%d]\n", uuid, data, len);
+	printf("gatt_write uuid: %s, len: [%d], data[%p]: %s\n", uuid, len, data, data);
+	printf("	dump 8 byte: ");
+	for (i = 0; i < min(len, 8); i++)
+		printf("0x%02x ", ((char *)data)[i]);
+	printf("\n");
 
 	if (!gchr[0])
 		while(1);
@@ -850,14 +859,14 @@ int gatt_write_data(char *uuid, void *data, int len)
 void ble_enable_adv(void)
 {
 	char buff[1024] = {0};
-	g_dis_adv_close_ble = false;
+	//g_dis_adv_close_ble = false;
 	execute(CMD_EN, buff);
 }
 
 void ble_disable_adv(void)
 {
 	char buff[1024] = {0};
-	g_dis_adv_close_ble = true;
+	//g_dis_adv_close_ble = true;
 	execute(CMD_DISEN, buff);
 }
 
@@ -1074,12 +1083,11 @@ static void print_iter(const char *label, const char *name,
 		dbus_message_iter_get_basic(iter, &valbool);
 		bt_shell_printf("%s%s: %s\n", label, name,
 					valbool == TRUE ? "yes" : "no");
-		//if (!strcmp(name, "ServicesResolved")) {
-		if (!strcmp(name, "Connected")) {
+		if (!strncmp(name, "ServicesResolved", 16)) {
+		//if (!strcmp(name, "Connected")) {
 			if (valbool != TRUE) {
 				printf("=== BLE DISCONNECTED ===\n");
-				if (!g_dis_adv_close_ble)
-					gatt_set_on_adv();
+				gatt_set_on_adv();
 			} else {
 				printf("=== BLE CONNECTED ===\n");
 			}
@@ -1439,7 +1447,7 @@ int gatt_init(ble_content_t *ble_content)
 	ctrl_list = NULL;
 	default_dev = NULL;
 	default_attr = NULL;
-	printf("exit gatt_init ok \n");	
+	printf("exit gatt_init ok \n");
 
 	return 0;
 }
