@@ -107,9 +107,12 @@ bool check_ap_interface_status(string ap) {
 }
 
 bool WifiUtil::start_wpa_supplicant() {
-	static pthread_t start_wifi_monitor_threadId = -1;
+	static pthread_t start_wifi_monitor_threadId = 0;
 
-	if (Shell::pidof("wpa_supplicant") && (start_wifi_monitor_threadId != -1)) {
+	printf("start_wpa_supplicant wpa_pid: %d, monitor_id: %d\n",
+			Shell::pidof("wpa_supplicant"), start_wifi_monitor_threadId);
+
+	if (Shell::pidof("wpa_supplicant") && (start_wifi_monitor_threadId != 0)) {
 		int kill_ret = pthread_kill(start_wifi_monitor_threadId, 0);
 		if (kill_ret == ESRCH) {
 			printf("start_wifi_monitor_threadId not found\n");
@@ -680,7 +683,7 @@ retry:
     }
     // parse wifiInfo list into json.
     ret = parseIntoJson(wifiInfoList);
-    log_info("list size: %d, ret.size: %d\n",wifiInfoList.size(), ret.size());
+    log_info("getWifiListJson list size: %d, ret.size: %d, ret.str: %s\n",wifiInfoList.size(), ret.size(), ret.c_str());
     return ret;
 }
 

@@ -655,6 +655,12 @@ bool DeviceIo::a2dpSourceAutoConnect(char *address, unsigned short msec)
 
     /* Open bluetooth source */
     DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_OPEN, NULL, 0);
+
+	if (DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_STATUS, NULL, 0)) {
+		printf("=== BT SOURCE is connected!!! ===\n");
+		return 1;
+	}
+
     /* Scan bluetooth devices */
     scan_param.mseconds = msec;
     scan_param.item_cnt = 100;

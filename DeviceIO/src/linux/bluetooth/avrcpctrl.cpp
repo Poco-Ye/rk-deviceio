@@ -1128,9 +1128,22 @@ GOptionEntry options[] = {
 	{ NULL },
 };
 
+
+static void a2dp_sink_clean(void)
+{
+	default_ctrl = NULL;
+	ctrl_list = NULL;
+	default_dev = NULL;
+	default_attr = NULL;
+	dbus_conn = NULL;
+}
+
 void *init_avrcp(void *)
 {
 	GError *error = NULL;
+
+	a2dp_sink_clean();
+	
 	dbus_conn = g_dbus_setup_bus(DBUS_BUS_SYSTEM, NULL, NULL);
 	printf("init_avrcp start \n");
 
@@ -1172,6 +1185,8 @@ int release_avrcp_ctrl(void)
     g_dbus_client_unref(client);    
     dbus_connection_unref(dbus_conn);
     g_main_loop_unref(main_loop);
+	a2dp_sink_clean();
+	return 0;
 }
 
 void play_reply(DBusMessage *message, void *user_data)

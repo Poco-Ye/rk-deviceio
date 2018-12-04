@@ -1225,7 +1225,7 @@ static void proxy_added_cb(GDBusProxy *proxy, void *user_data)
 		struct adapter *adapter;
 		adapter = find_ctrl(ctrl_list, g_dbus_proxy_get_path(proxy));
 		if (!adapter)
-		adapter = adapter_new(proxy);
+			adapter = adapter_new(proxy);
 		adapter->proxy = proxy;
 	}
 
@@ -1402,6 +1402,11 @@ int gatt_init(ble_content_t *ble_content)
 	GDBusClient *client;
 	guint signal;
 
+	default_ctrl = NULL;
+	ctrl_list = NULL;
+	default_dev = NULL;
+	default_attr = NULL;
+
 	signal = setup_signalfd();
 	if (signal == 0)
 		return -errno;
@@ -1416,7 +1421,7 @@ int gatt_init(ble_content_t *ble_content)
 	printf("gatt-service unique name: %s\n",
 				dbus_bus_get_unique_name(connection));
 
-	g_dis_adv_close_ble = true;
+	g_dis_adv_close_ble = false;
 	create_wifi_services();
 
 	client = g_dbus_client_new(connection, "org.bluez", "/");
@@ -1430,6 +1435,10 @@ int gatt_init(ble_content_t *ble_content)
 	g_source_remove(signal);
 	g_slist_free_full(services, g_free);
 	dbus_connection_unref(connection);
+	default_ctrl = NULL;
+	ctrl_list = NULL;
+	default_dev = NULL;
+	default_attr = NULL;
 	printf("exit gatt_init ok \n");	
 
 	return 0;

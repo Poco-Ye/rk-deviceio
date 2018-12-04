@@ -2452,11 +2452,29 @@ static void disconn_reply(DBusMessage *message, void *user_data)
     return bt_shell_noninteractive_quit(EXIT_SUCCESS);
 }
 
+static void a2dp_source_clean(void)
+{
+	dbus_conn = NULL;
+	agent_manager = NULL;
+	auto_register_agent = NULL;
+	
+	default_ctrl = NULL;
+	ctrl_list = NULL;
+	default_dev = NULL;
+	default_attr = NULL;
+
+	btsrc_client = NULL;
+	btsrc_main_loop = NULL;
+	btsrc_scan_list = NULL;
+	btsrc_scan_cnt = 0;
+}
+
 void *init_a2dp_master(void *)
 {
     GError *error = NULL;
 
     printf("init_a2dp_master start \n");
+	a2dp_source_clean();
 
     if (agent_option)
         auto_register_agent = g_strdup(agent_option);
@@ -2497,6 +2515,7 @@ int release_a2dp_master_ctrl() {
     g_dbus_client_unref(btsrc_client);
     dbus_connection_unref(dbus_conn);
     g_main_loop_unref(btsrc_main_loop);
+	a2dp_source_clean();
     printf("release_a2dp_master_ctrl ok\n");
 }
 

@@ -115,7 +115,7 @@ typedef struct {
     BtControlType type;
 } bt_control_t;
 
-static bt_control_t bt_control = {
+static volatile bt_control_t bt_control = {
 	0,
 	0,
 	0,
@@ -565,11 +565,11 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 			if (bt_sink_is_open() && ble_is_open()) {
 				ble_enable_adv();
 				return 0;
-			} if (!bt_sink_is_open() && !ble_is_open()) {
+			} else if (!bt_sink_is_open() && !ble_is_open()) {
 				_bt_open_server();
-			} if (bt_sink_is_open() && !ble_is_open()) {
+			} else if (bt_sink_is_open() && !ble_is_open()) {
 				//NULL
-			} if (!bt_sink_is_open() && ble_is_open()) {
+			} else if (!bt_sink_is_open() && ble_is_open()) {
 				ble_enable_adv();
 				return 0;
 			}
@@ -588,7 +588,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 
 		bt_control.is_ble_open = true;
 		bt_control.type = BtControlType::BT_BLE_MODE;
-
+		printf("=== BtControl::BT_BLE_OPEN ok ===\n");
 		break;
 
     case BtControl::BT_SOURCE_OPEN:
@@ -596,10 +596,6 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		/* setup 1: is source open */
 		if (bt_source_is_open())
 			return 0;
-
-		bt_control.is_a2dp_source_open = 0;
-		bt_control.is_ble_open = 0;
-		bt_control.type = BtControlType::BT_NONE;
 
 		if (bt_sink_is_open()) {
 			bt_control.is_a2dp_sink_open = 0;
@@ -612,6 +608,10 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 
 		_bt_close_server();
 		_bt_open_server();
+
+		bt_control.is_a2dp_source_open = 0;
+		bt_control.is_ble_open = 0;
+		bt_control.type = BtControlType::BT_NONE;
 
 		if (bt_interface(BtControl::BT_SOURCE_OPEN, NULL) < 0) {
 			bt_control.is_a2dp_source_open = 0;

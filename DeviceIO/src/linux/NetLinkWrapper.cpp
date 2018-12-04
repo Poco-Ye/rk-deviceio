@@ -203,7 +203,8 @@ retry:
 				printf("%s: wifi total list is null\n", __func__);
 				if (scan_retry-- > 0)
 					goto retry;
-			}
+			} else
+				printf("%s: wifi total len: %d, context: %s.\n", __func__, scanr_len, wifi_list_buf);
 		}
 
 		printf("%s: wifi use: %d, len: %d\n", __func__, scanr_len_use, scanr_len);
@@ -226,7 +227,7 @@ retry:
 
 		//chr_write(chr, devicesn, (len > BLE_SEND_MAX_LEN) ? BLE_SEND_MAX_LEN : len);
 		ble_cfg.len = (devcontext_len > BLE_SEND_MAX_LEN) ? BLE_SEND_MAX_LEN : devcontext_len;
-		memcpy(ble_cfg.data, devcontext_len + devcontext_len_use, ble_cfg.len);
+		memcpy(ble_cfg.data, devcontext_list_buf + devcontext_len_use, ble_cfg.len);
 		memcpy(ble_cfg.uuid, DEVICECONTEXT_CHAR_UUID, UUID_MAX_LEN);
 		DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_WRITE, &ble_cfg);
 		devcontext_len -= ble_cfg.len;
