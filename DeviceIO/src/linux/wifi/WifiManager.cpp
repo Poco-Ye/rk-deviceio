@@ -41,6 +41,7 @@ static std::string exec(const std::string& cmd) {
 
 	memset(buf, 0, sizeof(buf));
 	ret = (char*) malloc(sizeof(char) * size);
+	memset(ret, 0, sizeof(char) * size);
 	while (NULL != fgets(buf, sizeof(buf)-1, fp)) {
 		if (size <= (strlen(ret) + strlen(buf))) {
 			size += SIZE_UNITE;
@@ -58,6 +59,21 @@ static std::string exec(const std::string& cmd) {
 	return str;
 }
 
+bool WifiManager::isWifiConnected() {
+	std::string state;
+	state = exec("wpa_cli -iwlan0 status | grep wpa_state | awk -F '=' '{printf $2}'");
+
+	if (0 == state.compare("fail"))
+		return false;
+
+	if (0 == state.compare(0, 9, "COMPLETED", 0, 9)) {
+		saveConfiguration();
+		return true;
+	}
+
+	return false;
+}
+
 bool WifiManager::isWifiEnabled() {
 	std::string pid;
 	pid = exec("pidof wpa_supplicant");
@@ -68,15 +84,18 @@ bool WifiManager::isWifiEnabled() {
 }
 
 int WifiManager::setWifiEnabled(const bool enable) {
-	if (enable && !isWifiEnabled()) {
+	if (enable) {
+		system("ifconfig wlan0 down");
+		system("ifconfig wlan0 up");
 		system("ifconfig wlan0 0.0.0.0");
-		system("wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf");
-		system("dhcpcd -k wlan0");
+		system("killall wpa_supplicant");
 		sleep(1);
-		system("dhcpcd wlan0 -t 0&");
-	} else if (!enable && isWifiEnabled()) {
-		system("killall udhcpc");
-		system("killall dhcpcd");
+		system("wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf");
+		//system("dhcpcd -k wlan0");
+		//sleep(1);
+		//system("dhcpcd wlan0 -t 0&");
+	} else {
+		system("ifconfig wlan0 down");
 		system("killall wpa_supplicant");
 	}
 
@@ -136,9 +155,10 @@ static std::list<ScanResult*> strToScanResult(std::list<std::string> strList) {
 		size_t i;
 		std::string tmpStr;
 		for (index = 0, i = 0; i < strItem.size(); i++) {
-			if (strItem.at(i) != '\t' && i != (strItem.size() - 1)){
+			if (strItem.at(i) != '\t')
 				tmpStr += strItem.at(i);
-			} else {
+
+			if (strItem.at(i) == '\t' || i == (strItem.size() - 1)){
 				switch (index) {
 				case 0: //bssid
 					item->setBssid(tmpStr);
@@ -297,6 +317,13 @@ int WifiManager::udhcpc() {
 	cmdRet = exec(cmd);
 	if (0 == cmdRet.compare("fail"))
 		return -2;
+
+	return 0;
+}
+
+int WifiManager::saveConfiguration() {
+	system("wpa_cli enable_network all");
+	system("wpa_cli save_config");
 
 	return 0;
 }

@@ -33,7 +33,7 @@
 #include "shell.h"
 #include "power.h"
 #include "bluetooth/avrcpctrl.h"
-#include "NetLinkWrapper.h"
+#include "DeviceIo/NetLinkWrapper.h"
 
 using namespace std;
 

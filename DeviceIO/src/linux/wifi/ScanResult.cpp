@@ -56,8 +56,10 @@ int ScanResult::getFrequency() {
 
 std::string ScanResult::toString() {
 	std::string ret;
-	ret = "{\"bssid\":\"" + this->bssid + "\", \"frequency\":" + std::to_string(this->frequency)
-		+ ", \"level\":" + std::to_string(this->level) + ", \"flags\":\"" + this->flags + "\""
+	ret = "{\"bssid\":\"" + this->bssid + "\""
+		+ ", \"frequency\":\"" + std::to_string(this->frequency) + "\""
+		+ ", \"signalLevel\":\"" + std::to_string(this->level) + "\""
+		+ ", \"flags\":\"" + this->flags + "\""
 		+ ", \"ssid\":\"" + this->ssid + "\"}";
 
 	return ret;

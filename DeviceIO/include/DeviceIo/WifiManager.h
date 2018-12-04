@@ -18,6 +18,7 @@ public:
 	enum Encryp {WPA, WEP, NONE};
 	static WifiManager* getInstance();
 	int init(Properties* properties);
+	bool isWifiConnected();
 	bool isWifiEnabled();
 	int setWifiEnabled(const bool enable);
 	int enableWifiAp(const std::string& ssid, const std::string& psk = "", const std::string& ip = "10.201.126.1");
@@ -41,6 +42,7 @@ private:
 	int selectNetwork(const int id);
 	int enableNetwork(const int id);
 	int udhcpc();
+	int saveConfiguration();
 private:
 	static WifiManager* m_instance;
 	Properties* m_properties;

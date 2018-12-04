@@ -4,6 +4,7 @@ file(GLOB_RECURSE Gdbus_SRC "${DeviceIo_SOURCE_DIR}/src/linux/bluetooth/gdbus/*.
 file(GLOB_RECURSE DeviceIo_Properties "${DeviceIo_SOURCE_DIR}/src/linux/propity/*.cpp")
 file(GLOB_RECURSE DeviceIo_wifi "${DeviceIo_SOURCE_DIR}/src/linux/wifi/*.cpp")
 file(GLOB_RECURSE Bt_SRC "${DeviceIo_SOURCE_DIR}/src/linux/bluetooth/gatt_config.c")
+file(GLOB_RECURSE DeviceIo_netlink "${DeviceIo_SOURCE_DIR}/src/linux/netlink/*.cpp")
 
 if(BLUEZ5_UTILS)
 add_definitions(-DBLUEZ5_UTILS)
@@ -17,6 +18,7 @@ add_library(DeviceIo SHARED
 		${Bt_SRC}
 		${DeviceIo_Properties}
 		${DeviceIo_wifi}
+		${DeviceIo_netlink}
 		)
 
 #link_directories (

@@ -127,6 +127,11 @@ int _wifi_rtl_start_hostapd(const char* ap, const char* ssid, const char* psk, c
 	memset(cmdline, 0, sizeof(cmdline));
 	sprintf(cmdline, "hostapd %s &", HOSTAPD_CONF_DIR);
 	console_run(cmdline);
+
+	int time = 100;
+	while (time-- > 0 && access("/var/run/hostapd", F_OK)) {
+		usleep(100 * 1000);
+	}
 	return 0;
 }
 
@@ -171,6 +176,11 @@ int wifi_rtl_stop_hostapd() {
 	} else {
 		console_run("killall dnsmasq");
 		console_run("ifconfig wlan1 down");
+	}
+
+	int time = 100;
+	while (time-- > 0 && !access("/var/run/hostapd", F_OK)) {
+		usleep(10 * 1000);
 	}
 
 	return 0;

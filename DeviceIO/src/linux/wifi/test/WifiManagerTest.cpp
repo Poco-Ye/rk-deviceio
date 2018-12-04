@@ -7,7 +7,7 @@
 #include "DeviceIo/WifiInfo.h"
 #include "DeviceIo/WifiManager.h"
 
-void help(void) {
+static void help(void) {
 	printf("Usage: WifiManagerTest INTERFACE [ARGS...]\n\n");
 	printf("  isWifiEnabled             return whether wifi enabled\n");
 	printf("  setWifiEnabled true/false set wifi enabled or not\n");
@@ -22,7 +22,7 @@ void help(void) {
 	printf("  getConnectionInfo         get connection info\n");
 }
 
-bool isWifiEnabled() {
+static bool isWifiEnabled() {
 	bool enable;
 	DeviceIOFramework::WifiManager* wifiManager = DeviceIOFramework::WifiManager::getInstance();
 	enable = wifiManager->isWifiEnabled();
@@ -33,7 +33,7 @@ bool isWifiEnabled() {
 	return enable;
 }
 
-int setWifiEnabled(bool enable) {
+static int setWifiEnabled(bool enable) {
 	DeviceIOFramework::WifiManager* wifiManager = DeviceIOFramework::WifiManager::getInstance();
 	int ret = wifiManager->setWifiEnabled(enable);
 
@@ -44,7 +44,7 @@ int setWifiEnabled(bool enable) {
 	return ret;
 }
 
-int enableWifiAp(const std::string& ssid) {
+static int enableWifiAp(const std::string& ssid) {
 	DeviceIOFramework::WifiManager* wifiManager = DeviceIOFramework::WifiManager::getInstance();
 	int ret = wifiManager->enableWifiAp(ssid);
 	if (0 == ret)
@@ -54,7 +54,7 @@ int enableWifiAp(const std::string& ssid) {
 	return ret;
 }
 
-int disableWifiAp() {
+static int disableWifiAp() {
 	DeviceIOFramework::WifiManager* wifiManager = DeviceIOFramework::WifiManager::getInstance();
 	int ret = wifiManager->disableWifiAp();
 
@@ -65,7 +65,7 @@ int disableWifiAp() {
 	return ret;
 }
 
-int startScan() {
+static int startScan() {
 	DeviceIOFramework::WifiManager* wifiManager = DeviceIOFramework::WifiManager::getInstance();
 	int ret = wifiManager->startScan();
 
@@ -76,7 +76,7 @@ int startScan() {
 	return ret;
 }
 
-std::list<DeviceIOFramework::ScanResult*> getScanResults() {
+static std::list<DeviceIOFramework::ScanResult*> getScanResults() {
 	DeviceIOFramework::WifiManager* wifiManager = DeviceIOFramework::WifiManager::getInstance();
 	std::list<DeviceIOFramework::ScanResult*> scanResults = wifiManager->getScanResults();
 	std::list<DeviceIOFramework::ScanResult*>::iterator iterator;
@@ -89,7 +89,7 @@ std::list<DeviceIOFramework::ScanResult*> getScanResults() {
 	return scanResults;
 }
 
-int connect(const std::string& ssid,
+static int connect(const std::string& ssid,
 	const std::string& psk = "",
 	const DeviceIOFramework::WifiManager::Encryp encryp = DeviceIOFramework::WifiManager::WPA,
 	const int hide = 0) {
@@ -104,7 +104,7 @@ int connect(const std::string& ssid,
 	return 0;
 }
 
-int disconnect() {
+static int disconnect() {
 	int ret;
 	DeviceIOFramework::WifiManager* wifiManager = DeviceIOFramework::WifiManager::getInstance();
 	ret = wifiManager->disconnect();
@@ -116,7 +116,7 @@ int disconnect() {
 	return ret;
 }
 
-DeviceIOFramework::WifiInfo* getConnectionInfo() {
+static DeviceIOFramework::WifiInfo* getConnectionInfo() {
 	DeviceIOFramework::WifiManager* wifiManager = DeviceIOFramework::WifiManager::getInstance();
 	DeviceIOFramework::WifiInfo* info = wifiManager->getConnectionInfo();
 
