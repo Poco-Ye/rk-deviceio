@@ -290,8 +290,8 @@ int rk_wifi_control(WifiControl cmd, void *data, int len)
     {
 		std::string list = WifiUtil::getInstance()->getWifiListJson();
 		if (list.size()) {
-			len = list.size();
-			strncpy((char *)data, list.c_str(), len);
+			ret = list.size();
+			strncpy((char *)data, list.c_str(), ret);
 		}
 
 		break;

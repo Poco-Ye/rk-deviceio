@@ -2502,9 +2502,14 @@ void *init_a2dp_master(void *)
     g_main_loop_run(btsrc_main_loop);
 }
 
+static pthread_t a2dp_master_thread;
 int init_a2dp_master_ctrl()
 {
-    pthread_t a2dp_master_thread;
+	if (a2dp_master_thread > 0) {
+		pthread_cancel(a2dp_master_thread);
+		sleep(1);
+		printf("init_a2dp_master_ctrl pthread_cancel init_a2dp_master_ctrl !\n");
+	}
 
     pthread_create(&a2dp_master_thread, NULL, init_a2dp_master, NULL);
     return 1;
@@ -2517,6 +2522,10 @@ int release_a2dp_master_ctrl() {
 	dbus_connection_unref(dbus_conn);
 	g_main_loop_unref(btsrc_main_loop);
 	a2dp_source_clean();
+	if (a2dp_master_thread > 0) {
+		pthread_cancel(a2dp_master_thread);
+		printf("pthread_cancel init_a2dp_master_ctrl !\n");
+	}
 	printf("release_a2dp_master_ctrl ok\n");
 }
 

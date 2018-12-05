@@ -183,7 +183,7 @@ struct wifi_config wifi_cfg;
 #define BLE_CONFIG_WIFI_SUCCESS 1
 #define BLE_CONFIG_WIFI_FAILED	2
 #define UUID_MAX_LEN			36
-#define MSG_BUFF_LEN (10 * 1024) //max size for wifi list
+#define MSG_BUFF_LEN (20 * 1024) //max size for wifi list
 
 char wifi_list_buf[MSG_BUFF_LEN] = {0};
 char devcontext_list_buf[MSG_BUFF_LEN] = {0};
@@ -198,9 +198,10 @@ static void ble_request_data(char *uuid)
 		if (!scanr_len) {
 			scan_retry = 3;
 retry:
-			DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_SCAN, wifi_list_buf, scanr_len);
+			memset(wifi_list_buf, 0, MSG_BUFF_LEN);
+			scanr_len = DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_SCAN, wifi_list_buf, MSG_BUFF_LEN);
 			scanr_len_use = 0;
-			scanr_len = strlen(wifi_list_buf);
+			//scanr_len = strlen(wifi_list_buf);
 			if (!scanr_len) {
 				printf("%s: wifi total list is null\n", __func__);
 				if (scan_retry-- > 0)

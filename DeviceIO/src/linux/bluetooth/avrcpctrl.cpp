@@ -1169,10 +1169,16 @@ void *init_avrcp(void *)
 	g_main_loop_run(main_loop);
 }
 
+static pthread_t avrcp_thread = 0;
 int init_avrcp_ctrl(void)
 {
-	pthread_t avrcp_thread;
-	printf("call avrcp_thread init_avrcp ...\n");
+	printf("call avrcp_thread init_avrcp ppid: %d ...\n", avrcp_thread);
+
+	if (avrcp_thread > 0) {
+		pthread_cancel(avrcp_thread);
+		sleep(1);
+		printf("pthread_cancel init_avrcp_ctrl !\n");
+	}
 
 	pthread_create(&avrcp_thread, NULL, init_avrcp, NULL);
 	return 1;
@@ -1185,6 +1191,10 @@ int release_avrcp_ctrl(void)
     dbus_connection_unref(dbus_conn);
     g_main_loop_unref(main_loop);
 	a2dp_sink_clean();
+	if (avrcp_thread > 0) {
+		pthread_cancel(avrcp_thread);
+		printf("pthread_cancel init_avrcp_ctrl !\n");
+	}
 	return 0;
 }
 

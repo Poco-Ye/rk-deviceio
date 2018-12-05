@@ -90,6 +90,7 @@ typedef struct BLE_CONTENT_T
 } ble_content_t;
 
 ble_content_t *ble_content_internal;
+ble_content_t ble_content_internal_bak;
 static int gid = 0;
 
 char le_random_addr[6];
@@ -1083,14 +1084,16 @@ static void print_iter(const char *label, const char *name,
 		dbus_message_iter_get_basic(iter, &valbool);
 		bt_shell_printf("%s%s: %s\n", label, name,
 					valbool == TRUE ? "yes" : "no");
-		if (!strncmp(name, "ServicesResolved", 16)) {
-		//if (!strcmp(name, "Connected")) {
-			if (valbool != TRUE) {
+		if ((!strncmp(name, "ServicesResolved", 16)) &&
+			(valbool == TRUE)) {
+			printf("=== BLE CONNECTED ===\n");
+		}
+
+		if ((!strcmp(name, "Connected"))  &&
+			(valbool != TRUE)) {
 				printf("=== BLE DISCONNECTED ===\n");
+				sleep(1);
 				gatt_set_on_adv();
-			} else {
-				printf("=== BLE CONNECTED ===\n");
-			}
 		}     
 		break;
 	case DBUS_TYPE_UINT32:
@@ -1249,11 +1252,11 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 	struct adapter *ctrl;
 
 	interface = g_dbus_proxy_get_interface(proxy);
-	printf("xxxh : property_changed: %s\n", interface);
+	printf("Gatt: property_changed: %s\n", interface);
 
 	if (!strcmp(interface, "org.bluez.Device1")) {
-            if (default_ctrl != NULL)
-                printf("xxxh : default_ctrl is not null\n");
+        if (default_ctrl != NULL)
+			printf("Gatt : default_ctrl is not null\n");
 		if (default_ctrl && device_is_child(proxy,
 					default_ctrl->proxy) == TRUE) {
 			DBusMessageIter addr_iter;
@@ -1277,6 +1280,13 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 				} else if (!connected && default_dev == proxy) {
 					set_default_device(NULL, NULL);
 				}
+			}
+
+			if (g_dbus_proxy_get_property(proxy, "AddressType",
+										&addr_iter) == TRUE) {
+				const char *addressType;
+				dbus_message_iter_get_basic(&addr_iter, &addressType);				
+				printf("Gatt: addressType: %s\n", addressType);
 			}
 
 			print_iter(str, name, iter);
@@ -1395,13 +1405,19 @@ static guint setup_signalfd(void)
 
 	return source;
 }
+
+static pthread_t p_gatt_init;
 int gatt_init(ble_content_t *ble_content);
 int gatt_main(ble_content_t *ble_content)
 {
-	pthread_t pgatt_init;
-	printf("call gatt_init ...\n");
+	printf("call gatt_init ppid: %d ...\n", p_gatt_init);
 
-	pthread_create(&pgatt_init, NULL, gatt_init, ble_content);
+	if (p_gatt_init > 0) {
+		pthread_cancel(p_gatt_init);
+		sleep(1);
+	}
+
+	pthread_create(&p_gatt_init, NULL, gatt_init, ble_content);
 	return 1;
 }
 
@@ -1419,7 +1435,8 @@ int gatt_init(ble_content_t *ble_content)
 	if (signal == 0)
 		return -errno;
 
-	ble_content_internal = ble_content;
+	ble_content_internal_bak = *ble_content;
+	ble_content_internal = &ble_content_internal_bak;
 	connection = g_dbus_setup_bus(DBUS_BUS_SYSTEM, NULL, NULL);
 
 	main_loop = g_main_loop_new(NULL, FALSE);
@@ -1447,6 +1464,10 @@ int gatt_init(ble_content_t *ble_content)
 	ctrl_list = NULL;
 	default_dev = NULL;
 	default_attr = NULL;
+	if (p_gatt_init > 0) {
+		pthread_cancel(p_gatt_init);
+		printf("pthread_cancel gatt_init !\n");
+	}	
 	printf("exit gatt_init ok \n");
 
 	return 0;
