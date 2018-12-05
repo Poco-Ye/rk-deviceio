@@ -81,8 +81,8 @@ static int initSocket(const unsigned int port) {
 	//fcntl(sock, F_SETFL, flags | O_NONBLOCK);
 
 	ret = setsockopt(fd_socket, SOL_SOCKET, SO_REUSEADDR, (void *)&val, sizeof(int));
-	if (ret == -1) {
-		return -1;
+	if (ret < 0) {
+		return -2;
 	}
 
 	/*  initialize server address */
@@ -93,16 +93,16 @@ static int initSocket(const unsigned int port) {
 
 	/* bind with the local file */
 	ret = bind(fd_socket, (struct sockaddr *)&server_addr, sizeof(server_addr));
-	if (ret) {
+	if (ret < 0) {
 		close(fd_socket);
-		return -1;
+		return -3;
 	}
 
 	/* listen */
 	ret = listen(fd_socket, 1);
-	if (ret) {
+	if (ret < 0) {
 		close(fd_socket);
-		return -1;
+		return -4;
 	}
 
 	return fd_socket;

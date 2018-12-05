@@ -32,6 +32,7 @@
 #include <sys/wait.h>
 
 #include "TcpServer.h"
+#include "UdpServer.h"
 #include "../Logger.h"
 #include "DeviceIo/DeviceIo.h"
 #include "DeviceIo/WifiManager.h"
@@ -422,8 +423,11 @@ bool NetLinkWrapper::start_network_config() {
 	DeviceIOFramework::WifiManager* wifiManager = DeviceIOFramework::WifiManager::getInstance();
 	wifiManager->enableWifiAp(ssid);
 
-	DeviceIOFramework::TcpServer* server = DeviceIOFramework::TcpServer::getInstance();
-	server->startTcpServer();
+	DeviceIOFramework::TcpServer* tcpServer = DeviceIOFramework::TcpServer::getInstance();
+	tcpServer->startTcpServer();
+
+	DeviceIOFramework::UdpServer* udpServer = DeviceIOFramework::UdpServer::getInstance();
+	udpServer->startUdpServer();
 #endif
 
 	bt_adv_set();
