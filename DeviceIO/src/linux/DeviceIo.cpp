@@ -594,11 +594,12 @@ std::string DeviceIo::getVersion() {
     return "";
 }
 
-int DeviceIo::sethostname(const char *name, size_t len) {
+int DeviceIo::setHostName(const char *name, size_t len) {
+	printf("%s:%d",name, len);
     sethostname(name, len);
 }
 
-int DeviceIo::gethostname(char *name, size_t len) {
+int DeviceIo::getHostName(char *name, size_t len) {
     gethostname(name, len);
 }
 

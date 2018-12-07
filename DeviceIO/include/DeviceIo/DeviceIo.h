@@ -475,17 +475,17 @@ public:
     std::string getVersion();
 
     /**
-     * @brief sethostname for wifi and bt, must set hostname before wifi/bt start
+     * @brief setHostName for wifi and bt, must set hostname before wifi/bt start
      *
      * @return
      */
-    int sethostname(const char *name, size_t len);
+    int setHostName(const char *name, size_t len);
     /**
-     * @brief gethostname
+     * @brief getHostName
      *
      * @return
      */
-    int gethostname(char *name, size_t len);
+    int getHostName(char *name, size_t len);
 
     /**
      * @brief set mute state

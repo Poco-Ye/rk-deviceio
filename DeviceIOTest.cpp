@@ -127,6 +127,7 @@ public:
 				if (key_code != 0)
 					printf("KEY_RAW_INPUT_EVENT: key %d released\n", key_code);
 			}
+			break;
 		}
 		case DeviceInput::KEY_VOLUME_DOWN: {
 			int vol = *((int *)data);
@@ -394,7 +395,7 @@ int main(int argc, char *argv[])
 		sprintf(hostname, "%s%s", HOST_NAME_PREFIX, "1234");
 	else
 		sprintf(hostname, "%s%s", HOST_NAME_PREFIX, sn + strlen(sn) - 4);
-	DeviceIo::getInstance()->sethostname(hostname, strlen(hostname));
+	DeviceIo::getInstance()->setHostName(hostname, strlen(hostname));
 
 	std::string chipid = DeviceIo::getInstance()->getChipID();
 	std::cout << "Chip ID : " << chipid.c_str() << std::endl;
