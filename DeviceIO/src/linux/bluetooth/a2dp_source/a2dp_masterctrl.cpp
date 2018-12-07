@@ -64,6 +64,8 @@ static int btsrc_scan_cnt;
 #define BTSRC_CONNECT_FAILED 3
 static int btsrc_connect_status;
 
+static volatile bool A2DP_SRC_FLAG = true;
+
 static const char *agent_arguments[] = {
     "on",
     "off",
@@ -559,6 +561,9 @@ static void proxy_added(GDBusProxy *proxy, void *user_data)
 {
     const char *interface;
 
+	if (!A2DP_SRC_FLAG)
+		return;
+
     interface = g_dbus_proxy_get_interface(proxy);
 
     if (!strcmp(interface, "org.bluez.Device1")) {
@@ -644,6 +649,8 @@ static void adapter_removed(GDBusProxy *proxy)
 static void proxy_removed(GDBusProxy *proxy, void *user_data)
 {
     const char *interface;
+	if (!A2DP_SRC_FLAG)
+		return;
 
     interface = g_dbus_proxy_get_interface(proxy);
 
@@ -698,6 +705,8 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 {
     const char *interface;
     struct adapter *ctrl;
+	if (!A2DP_SRC_FLAG)
+		return;
 
     interface = g_dbus_proxy_get_interface(proxy);
 
@@ -2395,7 +2404,7 @@ static void connect_reply(DBusMessage *message, void *user_data)
 {
     GDBusProxy *proxy = (GDBusProxy *)user_data;
     DBusError error;
-	static int count = 3;
+	static int conn_count = 2;
     DBusMessageIter iter;
     char *address;
 
@@ -2408,18 +2417,18 @@ static void connect_reply(DBusMessage *message, void *user_data)
 		g_dbus_proxy_get_property(proxy, "Address", &iter);
 		dbus_message_iter_get_basic(&iter, &address);
 
-		count--;
-		if (count > 0) {
+		conn_count--;
+		if (conn_count > 0) {
 			if (reconnect_timer) {
 				g_source_remove(reconnect_timer);
 				reconnect_timer = 0;
 			}
-			reconnect_timer = g_timeout_add_seconds(2,
+			reconnect_timer = g_timeout_add_seconds(3,
 						a2dp_master_connect, address);
 			return;
 		}
 
-		count = 3;
+		conn_count = 2;
         btsrc_connect_status = BTSRC_CONNECT_FAILED;
         return bt_shell_noninteractive_quit(EXIT_FAILURE);
     }
@@ -2495,20 +2504,27 @@ void *init_a2dp_master(void *)
     g_dbus_client_set_connect_watch(btsrc_client, connect_handler, NULL);
     g_dbus_client_set_disconnect_watch(btsrc_client, disconnect_handler, NULL);
     g_dbus_client_set_signal_watch(btsrc_client, message_handler, NULL);
-
+	A2DP_SRC_FLAG = true;
+	sleep(1);
     g_dbus_client_set_proxy_handlers(btsrc_client, proxy_added, proxy_removed,
                           property_changed, NULL);
-    printf("init ok\n");
+    printf("a2dp_source init ok\n");
+	sleep(2);
     g_main_loop_run(btsrc_main_loop);
+	//g_dbus_client_unref(btsrc_client);
+	dbus_connection_unref(dbus_conn);
+	g_main_loop_unref(btsrc_main_loop);
+	a2dp_source_clean();
+	printf("a2dp_source exit ok\n");
+	pthread_exit(0);
 }
 
-static pthread_t a2dp_master_thread;
+static pthread_t a2dp_master_thread = 0;
 int init_a2dp_master_ctrl()
 {
-	if (a2dp_master_thread > 0) {
-		pthread_cancel(a2dp_master_thread);
-		sleep(1);
-		printf("init_a2dp_master_ctrl pthread_cancel init_a2dp_master_ctrl !\n");
+	if (a2dp_master_thread) {
+		A2DP_SRC_FLAG = true;
+		return 1;
 	}
 
     pthread_create(&a2dp_master_thread, NULL, init_a2dp_master, NULL);
@@ -2517,16 +2533,7 @@ int init_a2dp_master_ctrl()
 
 int release_a2dp_master_ctrl() {
 	printf("release_a2dp_master_ctrl start ...\n");
-	g_main_loop_quit(btsrc_main_loop);
-	g_dbus_client_unref(btsrc_client);
-	dbus_connection_unref(dbus_conn);
-	g_main_loop_unref(btsrc_main_loop);
-	a2dp_source_clean();
-	if (a2dp_master_thread > 0) {
-		pthread_cancel(a2dp_master_thread);
-		printf("pthread_cancel init_a2dp_master_ctrl !\n");
-	}
-	printf("release_a2dp_master_ctrl ok\n");
+	A2DP_SRC_FLAG = false;
 }
 
 static int a2dp_master_get_rssi(GDBusProxy *proxy)
@@ -2611,6 +2618,8 @@ int a2dp_master_scan(void *arg, int len)
         return -1;
     }
 
+	cmd_scan("off");
+	sleep(1);
     cmd_scan("on");
     printf("Waiting for Scan(%d ms)...\n", param->mseconds);
     usleep(param->mseconds * 1000);
@@ -2621,6 +2630,7 @@ int a2dp_master_scan(void *arg, int len)
     btsrc_scan_list = NULL;
     btsrc_scan_cnt = 0;
 
+	printf("== parse scan device ===\n");
     start = param->device_list;
     while (start) {
         proxy = find_device_by_address(start->address);
@@ -2644,8 +2654,9 @@ int a2dp_master_scan(void *arg, int len)
         start = start->next;
     }
 
-    cmd_scan("off");
-    return 0;
+	printf("=== scan off ===\n");
+	cmd_scan("off");
+	return 0;
 }
 
 int a2dp_master_connect(char *t_address)
@@ -2675,12 +2686,12 @@ int a2dp_master_connect(char *t_address)
     }
 
     printf("Attempting to connect to %s\n", address);
-    btsrc_connect_status = BTSRC_CONNECT_DOING;
-    while(btsrc_connect_status == BTSRC_CONNECT_DOING) {
-        usleep(100000); //100ms
-    }
-    if (btsrc_connect_status == BTSRC_CONNECT_FAILED)
-        return -1;
+	//btsrc_connect_status = BTSRC_CONNECT_DOING;
+	//while(btsrc_connect_status == BTSRC_CONNECT_DOING) {
+	//     usleep(100000); //100ms
+	//}
+	//if (btsrc_connect_status == BTSRC_CONNECT_FAILED)
+	//return -1;
 
     return 0;
 }

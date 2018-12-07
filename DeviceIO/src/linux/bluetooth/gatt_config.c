@@ -92,11 +92,15 @@ typedef struct BLE_CONTENT_T
 ble_content_t *ble_content_internal;
 ble_content_t ble_content_internal_bak;
 static int gid = 0;
+static int characteristic_id;
+static int service_id;
 
 char le_random_addr[6];
 char CMD_RA[256] = "hcitool -i hci0 cmd 0x08 0x0005";
 #define CMD_PARA "hcitool -i hci0 cmd 0x08 0x0006 A0 00 A0 00 00 01 00 00 00 00 00 00 00 07 00"
-
+GDBusClient *client;
+guint signals;
+static volatile bool BLE_FLAG = true;
 
 #define SERVICES_UUID            "23 20 56 7c 05 cf 6e b4 c3 41 77 28 51 82 7e 1b"
 //#define CMD_PARA                 "hcitool -i hci0 cmd 0x08 0x0006 A0 00 A0 00 00 02 00 00 00 00 00 00 00 07 00"
@@ -449,15 +453,15 @@ static gboolean service_exist_includes(const GDBusPropertyTable *property,
 static const GDBusPropertyTable service_properties[] = {
 	{ "Primary", "b", service_get_primary },
 	{ "UUID", "s", service_get_uuid },
-	{ "Includes", "ao", service_get_includes, NULL,
-					service_exist_includes },
+	//{ "Includes", "ao", service_get_includes, NULL,
+	//				service_exist_includes },
 	{ }
 };
 
 static void chr_iface_destroy(gpointer user_data)
 {
 	struct characteristic *chr = user_data;
-
+	printf("== chr_iface_destroy ==\n");
 	g_free(chr->uuid);
 	g_free(chr->service);
 	g_free(chr->value);
@@ -705,15 +709,11 @@ static gboolean unregister_ble(void)
 	int i;
 
 	for (i = 0; i < ble_content_internal->char_cnt; i++) {
-		printf("char_uuid[%d]: %s, gchr[i]->path: %s.\n", i, ble_content_internal->char_uuid[i], gchr[i]->path);
-		g_dbus_unregister_interface(connection, gchr[i]->path,
-							GATT_DESCRIPTOR_IFACE);
-		g_dbus_unregister_interface(connection, gchr[i]->path,
-							GATT_CHR_IFACE);
+		printf("unregister_blechar_uuid[%d]: %s, gchr[i]->path: %s.\n", i, ble_content_internal->char_uuid[i], gchr[i]->path);
+		g_dbus_unregister_interface(connection, gchr[i]->path, GATT_CHR_IFACE);
 	}
-
-	g_dbus_unregister_interface(connection, gservice_path,
-						GATT_SERVICE_IFACE);
+	printf("unregister_ble gservice_path: %s.\n", gservice_path);
+	g_dbus_unregister_interface(connection, gservice_path, GATT_SERVICE_IFACE);
 }
 
 static gboolean register_characteristic(const char *chr_uuid,
@@ -733,8 +733,8 @@ static gboolean register_characteristic(const char *chr_uuid,
 	chr->vlen = vlen;
 	chr->props = props;
 	chr->service = g_strdup(service_path);
-	chr->path = g_strdup_printf("%s/characteristic%d", service_path, id++);
-
+	chr->path = g_strdup_printf("%s/characteristic%d", service_path, characteristic_id++);
+	printf("register_characteristic chr->uuid: %s, chr->path: %s\n", chr->uuid, chr->path);
 	if (!g_dbus_register_interface(connection, chr->path, GATT_CHR_IFACE,
 					chr_methods, NULL, chr_properties,
 					chr, chr_iface_destroy)) {
@@ -745,11 +745,6 @@ static gboolean register_characteristic(const char *chr_uuid,
 
 	gchr[gid++] = chr;
 
-	if (strcmp(chr_uuid, ble_content_internal->char_uuid) == 0) {
-		printf("save temp characteristic\n");
-		ble_char_chr = chr;
-	}
-
 	if (!desc_uuid)
 		return TRUE;
 
@@ -757,7 +752,7 @@ static gboolean register_characteristic(const char *chr_uuid,
 	desc->uuid = g_strdup(desc_uuid);
 	desc->chr = chr;
 	desc->props = desc_props;
-	desc->path = g_strdup_printf("%s/descriptor%d", chr->path, id++);
+	desc->path = g_strdup_printf("%s/descriptor%d", chr->path, characteristic_id++);
 
 	if (!g_dbus_register_interface(connection, desc->path,
 					GATT_DESCRIPTOR_IFACE,
@@ -779,7 +774,7 @@ static char *register_service(const char *uuid)
 	static int id = 1;
 	char *path;
 
-	path = g_strdup_printf("/service%d", id++);
+	path = g_strdup_printf("/service%d", service_id++);
 	if (!g_dbus_register_interface(connection, path, GATT_SERVICE_IFACE,
 				NULL, NULL, service_properties,
 				g_strdup(uuid), g_free)) {
@@ -860,7 +855,9 @@ int gatt_write_data(char *uuid, void *data, int len)
 void ble_enable_adv(void)
 {
 	char buff[1024] = {0};
-	//g_dis_adv_close_ble = false;
+	system("hciconfig hci0 piscan");
+	system("hciconfig hci0 piscan");	
+	gatt_set_on_adv();
 	execute(CMD_EN, buff);
 }
 
@@ -985,8 +982,6 @@ static GDBusProxy *default_attr;
 
 #undef bt_shell_printf
 #define bt_shell_printf printf
-
-
 
 static void print_fixed_iter(const char *label, const char *name,
 						DBusMessageIter *iter)
@@ -1148,9 +1143,6 @@ static void print_iter(const char *label, const char *name,
 	}
 }
 
-
-
-
 static struct adapter *find_ctrl(GList *source, const char *path)
 {
         GList *list;
@@ -1231,8 +1223,12 @@ static void proxy_added_cb(GDBusProxy *proxy, void *user_data)
 
 	iface = g_dbus_proxy_get_interface(proxy);
 
+	printf("GATT: proxy_added_cb: %s, BLE_FLAG: %d \n", iface, BLE_FLAG);
+
+	if (!BLE_FLAG)
+		return;
+
 	if (!strcmp(iface, "org.bluez.Adapter1")) {
-		printf("new org.bluez.Adapter1\n");
 		struct adapter *adapter;
 		adapter = find_ctrl(ctrl_list, g_dbus_proxy_get_path(proxy));
 		if (!adapter)
@@ -1252,7 +1248,10 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 	struct adapter *ctrl;
 
 	interface = g_dbus_proxy_get_interface(proxy);
-	printf("Gatt: property_changed: %s\n", interface);
+	printf("Gatt: property_changed: %s, BLE_FLAG: %d\n", interface, BLE_FLAG);
+
+	if (!BLE_FLAG)
+		return;
 
 	if (!strcmp(interface, "org.bluez.Device1")) {
         if (default_ctrl != NULL)
@@ -1261,6 +1260,15 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 					default_ctrl->proxy) == TRUE) {
 			DBusMessageIter addr_iter;
 			char *str;
+
+			if (g_dbus_proxy_get_property(proxy, "AddressType",
+										&addr_iter) == TRUE) {
+				const char *addressType;
+				dbus_message_iter_get_basic(&addr_iter, &addressType);
+				printf("Gatt: addressType: %s\n", addressType);
+				if (strcmp(addressType, "public") == 0)
+					return 0;
+			}
 
 			if (g_dbus_proxy_get_property(proxy, "Address",
 							&addr_iter) == TRUE) {
@@ -1280,13 +1288,6 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 				} else if (!connected && default_dev == proxy) {
 					set_default_device(NULL, NULL);
 				}
-			}
-
-			if (g_dbus_proxy_get_property(proxy, "AddressType",
-										&addr_iter) == TRUE) {
-				const char *addressType;
-				dbus_message_iter_get_basic(&addr_iter, &addressType);				
-				printf("Gatt: addressType: %s\n", addressType);
 			}
 
 			print_iter(str, name, iter);
@@ -1406,15 +1407,16 @@ static guint setup_signalfd(void)
 	return source;
 }
 
-static pthread_t p_gatt_init;
+static pthread_t p_gatt_init = 0;
 int gatt_init(ble_content_t *ble_content);
 int gatt_main(ble_content_t *ble_content)
 {
-	printf("call gatt_init ppid: %d ...\n", p_gatt_init);
-
-	if (p_gatt_init > 0) {
-		pthread_cancel(p_gatt_init);
-		sleep(1);
+	printf("=== gatt_init p_gatt_init: 0x%x===\n", p_gatt_init);
+	if (p_gatt_init) {
+		ble_enable_adv();
+		system("hciconfig hci0 piscan");
+		BLE_FLAG = true;
+		return 1;
 	}
 
 	pthread_create(&p_gatt_init, NULL, gatt_init, ble_content);
@@ -1423,16 +1425,16 @@ int gatt_main(ble_content_t *ble_content)
 
 int gatt_init(ble_content_t *ble_content)
 {
-	GDBusClient *client;
-	guint signal;
-
 	default_ctrl = NULL;
 	ctrl_list = NULL;
 	default_dev = NULL;
 	default_attr = NULL;
+	characteristic_id = 1;
+	service_id = 1;
+	gid = 0;
 
-	signal = setup_signalfd();
-	if (signal == 0)
+	signals = setup_signalfd();
+	if (signals == 0)
 		return -errno;
 
 	ble_content_internal_bak = *ble_content;
@@ -1446,29 +1448,31 @@ int gatt_init(ble_content_t *ble_content)
 	printf("gatt-service unique name: %s\n",
 				dbus_bus_get_unique_name(connection));
 
-	g_dis_adv_close_ble = false;
 	create_wifi_services();
 
 	client = g_dbus_client_new(connection, "org.bluez", "/");
 
+	printf("Gatt: gatt_init BLE_FLAG: %d\n", BLE_FLAG);
+	BLE_FLAG = true;
 	g_dbus_client_set_proxy_handlers(client, proxy_added_cb, NULL, property_changed,
 									NULL);
 
 	g_main_loop_run(main_loop);
 	printf("exit gatt_init ...\n");
-	g_dbus_client_unref(client);
-	g_source_remove(signal);
+	//g_dbus_client_unref(client);	
+	unregister_ble();
+	//sleep(2);
+	g_source_remove(signals);
 	g_slist_free_full(services, g_free);
 	dbus_connection_unref(connection);
 	default_ctrl = NULL;
 	ctrl_list = NULL;
 	default_dev = NULL;
 	default_attr = NULL;
-	if (p_gatt_init > 0) {
-		pthread_cancel(p_gatt_init);
-		printf("pthread_cancel gatt_init !\n");
-	}	
 	printf("exit gatt_init ok \n");
+
+	pthread_exit(0);
+	printf("exit gatt_init end \n");
 
 	return 0;
 }
@@ -1476,7 +1480,6 @@ int gatt_init(ble_content_t *ble_content)
 void release_ble_gatt(void)
 {
 	printf("release_ble_gatt gatt_init ...\n");
-	//unregister_ble();
-	g_main_loop_quit(main_loop);
-
+	//g_main_loop_quit(main_loop);
+	BLE_FLAG = false;
 }

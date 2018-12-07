@@ -159,6 +159,8 @@ static void _bt_close_server()
 	execute("killall bluetoothctl", ret_buff);
 	execute("killall bluetoothd", ret_buff);
 	execute("killall rtk_hciattach", ret_buff);
+	//execute("killall dbus-daemon", ret_buff);
+	//execute("rm /var/run/messagebus.pid", ret_buff);	
 	msleep(800);
 }
 
@@ -168,8 +170,21 @@ static void _bt_open_server()
 	char hostname_buf[HOSTNAME_MAX_LEN];
 	char cmd_buf[66];
 
+	memset(ret_buff, 0, 1024);
+	execute("pidof bluetoothd", ret_buff);
+	if (ret_buff[0])
+		return;
+
 	printf("=== _bt_open_server ===\n");
 	_bt_close_server();
+	/*
+	console_run("./etc/init.d/S30dbus start");
+	sleep(1);
+	memset(ret_buff, 0, 1024);
+	execute("pidof dbus-daemon", ret_buff);
+	while (!ret_buff[0])
+		msleep(10);
+	*/
 	execute("echo 0 > /sys/class/rfkill/rfkill0/state && sleep 1", ret_buff);
 	execute("echo 1 > /sys/class/rfkill/rfkill0/state && usleep 200000", ret_buff);
 
@@ -211,7 +226,8 @@ static void _bt_open_server()
 	execute("hciconfig hci0 down", ret_buff);
 	msleep(10);
 	execute("hciconfig hci0 up", ret_buff);
-	msleep(10);
+	execute("hciconfig hci0 up", ret_buff);	
+	msleep(200);
 }
 
 static int bt_ble_open(ble_content_t *ble_content)
@@ -248,6 +264,8 @@ sdp:
 		msleep(10);	
 	execute("hciconfig hci0 class 0x480400", ret_buff);
 	msleep(100);
+	execute("hciconfig hci0 class 0x480400", ret_buff);
+	msleep(100);	
 }
 
 static void bt_start_a2dp_sink()
@@ -272,6 +290,8 @@ sdp:
 	while (!ret_buff[0])
 		msleep(10);
 
+	execute("hciconfig hci0 class 0x240404", ret_buff);
+	msleep(100);
 	execute("hciconfig hci0 class 0x240404", ret_buff);
 	msleep(200);
 	printf("bt_start_a2dp_sink exit\n");
@@ -385,17 +405,8 @@ static int ble_close_server(void)
 
 	APP_DEBUG("ble server close\n");
 
-	if (!ble_is_open())
-		return 0;
-
-	if (bt_control.is_ble_sink_coexist) {
-		ble_disable_adv();
-		return 0;
-	}
-
+	ble_disable_adv();
 	release_ble_gatt();
-	usleep(666666);
-	_bt_close_server();
 
 	bt_control.type = BtControlType::BT_NONE;
 	bt_control.is_ble_open = 0;
@@ -407,16 +418,15 @@ static int bt_close_sink(void)
 {
 	int ret = 0;
 
-	APP_DEBUG("ble server close\n");
-
-	if (!bt_sink_is_open())
-		return 0;
-
-	if ((bt_control.is_ble_sink_coexist) && ble_is_open())
-		return 0;
+	APP_DEBUG("bt_close_sink\n");
 
 	release_avrcp_ctrl();
-	_bt_close_server();
+
+	if (bt_control.type == BtControlType::BT_BLE_MODE)
+		return;
+
+	console_run("killall bluealsa");
+	console_run("killall bluealsa-aplay");
 
 	bt_control.type = BtControlType::BT_NONE;
 	bt_control.is_a2dp_sink_open = 0;
@@ -430,11 +440,14 @@ static int bt_close_source(void)
 
 	APP_DEBUG("bt_close_source close\n");
 
-	if (!bt_source_is_open())
-		return 0;
-
 	release_a2dp_master_ctrl();
-	_bt_close_server();
+
+	if (bt_control.type == BtControlType::BT_BLE_MODE)
+		return;
+
+	console_run("killall bluealsa");
+	console_run("killall bluealsa-aplay");
+
 	bt_control.type = BtControlType::BT_NONE;
 	bt_control.is_a2dp_source_open = 0;
 
@@ -521,29 +534,20 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 
     switch (cmd) {
 	case BtControl::BT_SINK_OPEN:
+		bt_control.type = BtControlType::BT_SINK;
+		if (bt_sink_is_open())
+			return 1;
+
 		if (bt_source_is_open()) {
 			APP_ERROR("bt sink isn't coexist with source!!!\n");
 			bt_close_source();
 		}
 
-		printf("=== BtControl::BT_SINK_OPEN ===\n");
-		/* setup 1: is sink open */
-		if (bt_sink_is_open())
-			return 0;
-
-		printf("=== bt sink coexist: %d ===\n", bt_control.is_ble_sink_coexist);
-		/* setup 3: is coexist */
-		if (bt_control.is_ble_sink_coexist) {
-			if (!ble_is_open()) {
-				_bt_open_server();
-			}
-		} else {
-			if (ble_is_open()) {
-				APP_DEBUG("Close ble wifi config server.\n");
-				if (ble_close_server() < 0)
-					return -1;
-			}
+		if ((!bt_control.is_ble_sink_coexist) && ble_is_open()) {
+			ble_close_server();
 		}
+
+		_bt_open_server();
 
 		if (bt_interface(BtControl::BT_SINK_OPEN, NULL) < 0) {
 			bt_control.is_a2dp_sink_open = 0;
@@ -556,30 +560,17 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		break;
 
     case BtControl::BT_BLE_OPEN:
+		bt_control.type = BtControlType::BT_BLE_MODE;
 		if (bt_source_is_open()) {
 			bt_close_source();
 		}
 
-		/* setup 3: is coexist */
-		if (bt_control.is_ble_sink_coexist) {
-			if (bt_sink_is_open() && ble_is_open()) {
-				ble_enable_adv();
-				return 0;
-			} else if (!bt_sink_is_open() && !ble_is_open()) {
-				_bt_open_server();
-			} else if (bt_sink_is_open() && !ble_is_open()) {
-				//NULL
-			} else if (!bt_sink_is_open() && ble_is_open()) {
-				ble_enable_adv();
-				return 0;
-			}
-		} else {
-			if (bt_sink_is_open()) {
-				APP_DEBUG("Close bt sink server.\n");
-				if (bt_close_sink() < 0)
-					return -1;
-			}
+		if ((!bt_control.is_ble_sink_coexist) && bt_sink_is_open()) {
+			bt_close_sink();
 		}
+
+		//a2dp_sink_colse_coexist();
+		_bt_open_server();
 
 		if (bt_interface(BtControl::BT_BLE_OPEN, data) < 0) {
 			bt_control.is_ble_open = 0;
@@ -593,23 +584,26 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 
     case BtControl::BT_SOURCE_OPEN:
 		printf("=== BtControl::BT_SINK_OPEN ===\n");
-		/* setup 1: is source open */
-		if (bt_source_is_open())
-			return 0;
 
+		if (bt_source_is_open()) {
+			return 1;
+		}
+
+		bt_control.type = BtControlType::BT_SOURCE;
 		if (bt_sink_is_open()) {
-			bt_control.is_a2dp_sink_open = 0;
-			release_avrcp_ctrl();
-		}
-		if (ble_is_open()) {
-			bt_control.is_ble_open = 0;			
-			release_ble_gatt();
+			APP_ERROR("bt sink isn't coexist with source!!!\n");
+			bt_close_sink();
 		}
 
-		_bt_close_server();
+		sleep(3);
+
+		if (ble_is_open()) {
+			ble_close_server();
+		}
+
 		_bt_open_server();
 
-		bt_control.is_a2dp_source_open = 0;
+		bt_control.is_a2dp_sink_open = 0;
 		bt_control.is_ble_open = 0;
 		bt_control.type = BtControlType::BT_NONE;
 

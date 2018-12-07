@@ -654,8 +654,10 @@ bool DeviceIo::a2dpSourceAutoConnect(char *address, unsigned short msec)
     bool target_vaild = false;
 
     /* Open bluetooth source */
+	printf("=== BT_SOURCE_OPEN ===\n");
     DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_OPEN, NULL, 0);
 
+	printf("=== BT_SOURCE_STATUS ===\n");
 	if (DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_STATUS, NULL, 0)) {
 		printf("=== BT SOURCE is connected!!! ===\n");
 		return 1;
@@ -665,6 +667,7 @@ bool DeviceIo::a2dpSourceAutoConnect(char *address, unsigned short msec)
     scan_param.mseconds = msec;
     scan_param.item_cnt = 100;
     scan_param.device_list = NULL;
+	printf("=== BT_SOURCE_SCAN ===\n");
     ret = DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_SCAN,
                                              &scan_param, sizeof(scan_param));
     if (ret) {
@@ -701,6 +704,17 @@ bool DeviceIo::a2dpSourceAutoConnect(char *address, unsigned short msec)
         printf("INFO: Cannot find audioSink devices.\n");
         return false;
     }
+
+	if (max_rssi < -60) {
+		printf("=== BT SOURCE RSSI is is too weak !!! ===\n");
+		return false;
+	}
+
+	printf("=== BT_SOURCE_STATUS ===\n");
+	if (DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_STATUS, NULL, 0)) {
+		printf("=== BT SOURCE is connected!!! ===\n");
+		return 1;
+	}
 
     //target_address[18] = '\0';
     ret = DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_CONNECT,
