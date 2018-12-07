@@ -653,6 +653,7 @@ bool DeviceIo::a2dpSourceAutoConnect(char *address, unsigned short msec)
     int ret = 0;
     char target_address[17] = {0};
     bool target_vaild = false;
+	int scan_cnt;
 
     /* Open bluetooth source */
 	printf("=== BT_SOURCE_OPEN ===\n");
@@ -668,13 +669,20 @@ bool DeviceIo::a2dpSourceAutoConnect(char *address, unsigned short msec)
     scan_param.mseconds = msec;
     scan_param.item_cnt = 100;
     scan_param.device_list = NULL;
+	scan_cnt = 3;
+scan_retry:
 	printf("=== BT_SOURCE_SCAN ===\n");
     ret = DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_SCAN,
                                              &scan_param, sizeof(scan_param));
-    if (ret) {
-        printf("ERROR: Scan error!\n");
-        return false;
-    }
+    if ((ret) && (scan_cnt--)) {
+		sleep(1);
+		goto scan_retry;
+	}
+
+	if (ret) {
+		printf("ERROR: Scan error!\n");
+		return false;
+	}
 
     /*
      * Find the audioSink device from the device list,

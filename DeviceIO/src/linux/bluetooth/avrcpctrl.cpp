@@ -1156,12 +1156,6 @@ static void generic_callback(const DBusError *error, void *user_data)
 
 static gboolean check_default_ctrl(void)
 {
-	int retry = 20;
-
-    while ((!default_ctrl) && (--retry)) {
-		usleep(100000);
-    }
-
 	if (!default_ctrl) {
 		printf("No default controller available\n");
 		return FALSE;

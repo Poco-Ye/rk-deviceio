@@ -351,6 +351,10 @@ static void bt_sink_close(void *data) {
 	printf("---------------BT_SINK_CLOSE----------------\n");
 	DeviceIo::getInstance()->controlBt(BtControl::BT_SINK_CLOSE);
 }
+static void bt_source_close(void *data) {
+	printf("---------------BT_SINK_CLOSE----------------\n");
+	DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_CLOSE);
+}
 
 static test_command_t process_command_table[] = {
 	{"suspend", suspend_test},
@@ -364,6 +368,7 @@ static test_command_t process_command_table[] = {
 	{"ble_wifi", ble_wifi_test},
 	{"ble_wifi_close", ble_wifi_close},
 	{"bt_sink_close", bt_sink_close},
+	{"bt_source_close", bt_source_close},
 };
 
 static void show_help() {
@@ -508,7 +513,7 @@ int main(int argc, char *argv[])
 			}
 			int i;
 			//匹配数字
-			if (szBuf[0] >= '0' && szBuf[0] <= '100') {
+			if (szBuf[0] >= '0' && szBuf[0] <= '9') {
 				i = atoi(szBuf);
 				if (i >=0 && i < sizeof(process_command_table) / sizeof(process_command_table[0]))
 					process_command_table[i].action(NULL);
