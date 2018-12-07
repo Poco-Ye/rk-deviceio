@@ -37,6 +37,7 @@ target_link_libraries (DeviceIo ${GLIB2_LIBRARIES})
 target_link_libraries (DeviceIo ${DBUS_LIBRARIES})
 target_link_libraries (DeviceIo ${GSTREAMER_LIBRARIES})
 target_link_libraries (DeviceIo libwpa_client.so)
+target_link_libraries (DeviceIo libbluetooth.so)
 
 target_link_libraries(DeviceIo)
 
