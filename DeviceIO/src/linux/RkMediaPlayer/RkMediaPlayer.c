@@ -10,6 +10,7 @@
 typedef struct _RkMediaPlayer {
 	GstElement *playbin;   /* Our one and only element */
 	gboolean playing;      /* Are we in the PLAYING state? */
+	gboolean stoped;      /* Are we in the STOPED state? */
 	gboolean terminate;    /* Should we terminate execution? */
 	gboolean seek_enabled; /* Is seeking enabled for this media? */
 	gboolean is_buffering; /* Is the player in buffer? */
@@ -54,7 +55,7 @@ static void handle_message (GstMessage *msg, RkMediaPlayer *c_player)
 		{
 			gint percent = 0;
 			/* If the stream is live, we do not care about buffering. */
-			if (c_player->is_live)
+			if (c_player->is_live || c_player->stoped)
 				break;
 			gst_message_parse_buffering (msg, &percent);
 			/* Send MediaEvent by callback */
@@ -225,6 +226,8 @@ int RK_mediaplayer_play(int iHandle, const char *uri)
 	int err = 0;
 	pthread_attr_t attr;
 
+	g_printerr ("#### %s, %x\n",__func__, iHandle);
+
 	if (!c_player || !c_player->playbin || !uri)
 		return -EINVAL;
 
@@ -250,6 +253,7 @@ int RK_mediaplayer_play(int iHandle, const char *uri)
 	} else {
 		c_player->is_live = FALSE;
 	}
+	c_player->stoped = FALSE;
 
 	if (c_player->thread_id == 0) {
 		/* Set thread joineable. */
@@ -273,6 +277,8 @@ int RK_mediaplayer_pause(int iHandle)
 	GstStateChangeReturn ret;
 	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
 
+	g_printerr ("#### %s, %x\n",__func__, iHandle);
+
 	if (!c_player || !c_player->playbin)
 		return -EINVAL;
 
@@ -289,6 +295,8 @@ int RK_mediaplayer_resume(int iHandle)
 {
 	GstStateChangeReturn ret;
 	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
+
+	g_printerr ("#### %s, %x\n",__func__, iHandle);
 
 	if (!c_player || !c_player->playbin)
 		return -EINVAL;
@@ -363,11 +371,14 @@ int RK_mediaplayer_seek(int iHandle, int iMs)
 
 int RK_mediaplayer_stop(int iHandle)
 {
+	g_printerr ("#### %s, %x\n",__func__, iHandle);
 	GstStateChangeReturn ret;
 	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
 
 	if (!c_player || !c_player->playbin)
 		return -EINVAL;
+
+	c_player->stoped = TRUE;
 
 	ret = gst_element_set_state (c_player->playbin, GST_STATE_NULL);
 	if (ret == GST_STATE_CHANGE_FAILURE) {
