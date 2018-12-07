@@ -342,6 +342,15 @@ static void ble_wifi_test(void *data) {
 	printf("--------------- ble wifi ----------------\n");
 	DeviceIo::getInstance()->startNetworkRecovery();
 }
+static void ble_wifi_close(void *data) {
+	printf("---------------ble_wifi_close----------------\n");
+	DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_COLSE);
+}
+
+static void bt_sink_close(void *data) {
+	printf("---------------BT_SINK_CLOSE----------------\n");
+	DeviceIo::getInstance()->controlBt(BtControl::BT_SINK_CLOSE);
+}
 
 static test_command_t process_command_table[] = {
 	{"suspend", suspend_test},
@@ -353,6 +362,8 @@ static test_command_t process_command_table[] = {
 	{"bt_source", bt_source_test},
 	{"ble_wifi_manual", ble_wifi_manual_test},
 	{"ble_wifi", ble_wifi_test},
+	{"ble_wifi_close", ble_wifi_close},
+	{"bt_sink_close", bt_sink_close},
 };
 
 static void show_help() {
@@ -497,7 +508,7 @@ int main(int argc, char *argv[])
 			}
 			int i;
 			//匹配数字
-			if (szBuf[0] >= '0' && szBuf[0] <= '9') {
+			if (szBuf[0] >= '0' && szBuf[0] <= '100') {
 				i = atoi(szBuf);
 				if (i >=0 && i < sizeof(process_command_table) / sizeof(process_command_table[0]))
 					process_command_table[i].action(NULL);

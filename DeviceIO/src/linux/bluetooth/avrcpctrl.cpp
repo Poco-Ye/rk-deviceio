@@ -84,6 +84,7 @@ GDBusClient *client;
 GMainLoop *main_loop = NULL;
 static int first_ctrl = 1;
 void a2dp_sink_cmd_power(bool powered);
+static volatile bool A2DP_SINK_FLAG = true;
 
 bool system_command(const char* cmd)
 {
@@ -297,7 +298,7 @@ static void print_iter(const char *label, const char *name,
 }
 
 static gboolean reconn_device(void *user_data);
-gboolean reconn_last(void);
+bool reconn_last(void);
 
 static gboolean device_is_child(GDBusProxy *device, GDBusProxy *master)
 {
@@ -621,7 +622,7 @@ static void reconn_last_device_reply(DBusMessage * message, void *user_data)
 {
 
 	DBusError error;
-	static int count = 3;
+	static int count = 1;
 
 	dbus_error_init(&error);
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
@@ -638,14 +639,32 @@ static void reconn_last_device_reply(DBusMessage * message, void *user_data)
 }
 
 
-gboolean disconn_device(void)
+bool disconn_device(void)
 {
 	GDBusProxy *proxy = last_connected_device_proxy;
-	DBusMessageIter iter;
+	DBusMessageIter iter, addr_iter;
+	dbus_bool_t connected;
 
 	if (!proxy) {
 		error("Invalid proxy, stop disconnecting");
 		return FALSE;
+	}
+
+	pr_info("disconnect g_dbus_proxy_get_path [0x%p]: %s\n", proxy, g_dbus_proxy_get_path(proxy));
+
+	if (g_dbus_proxy_get_property(proxy, "Address",
+				 &addr_iter) == TRUE) {
+		const char *address;
+	
+		dbus_message_iter_get_basic(&addr_iter,
+					 &address);
+		pr_info("disconn_device addrs %s ", address);
+	}
+
+	if (g_dbus_proxy_get_property(proxy, "Connected", &iter)) {
+		dbus_message_iter_get_basic(&iter, &connected);
+		if (!connected)
+			return 1;
 	}
 
 	if (g_list_length(device_list) <= 0) {
@@ -666,10 +685,10 @@ gboolean disconn_device(void)
 	return FALSE;
 }
 
-gboolean reconn_last(void)
+bool reconn_last(void)
 {
 	GDBusProxy *proxy = last_connected_device_proxy;
-	DBusMessageIter iter;
+	DBusMessageIter iter, addr_iter, addrType_iter;
 
 	if (reconnect_timer) {
 		g_source_remove(reconnect_timer);
@@ -682,12 +701,31 @@ gboolean reconn_last(void)
 	}
 
 	if (g_list_length(device_list) > 0) {
-		error("Device already connected");
-		return FALSE;
+		error("Device device_list: %d.\n", g_list_length(device_list));
+		//return FALSE;
 
 	}
 
 	pr_info("reconn_last target device: %s", g_dbus_proxy_get_path(proxy));
+	if (g_dbus_proxy_get_property(proxy, "Address",
+				 &addr_iter) == TRUE) {
+		const char *address;
+
+		dbus_message_iter_get_basic(&addr_iter,
+					 &address);
+		pr_info("disconn_device addrs %s ", address);
+	}
+
+	if (g_dbus_proxy_get_property(proxy, "AddressType",
+			  &addrType_iter) == TRUE) {
+		const char *addrType;
+
+		dbus_message_iter_get_basic(&addrType_iter,
+				  &addrType);
+		pr_info("addrType %s ", addrType);
+		if (strcmp(addrType, "random") == 0)
+			return 0;
+	}
 
 	if (g_dbus_proxy_method_call(proxy,
 				     "Connect",
@@ -754,12 +792,21 @@ static void device_added(GDBusProxy *proxy)
 	const char *path = g_dbus_proxy_get_path(proxy);
 	dbus_bool_t connected;
 	static int first = 1;
-	DBusMessageIter iter;
+	DBusMessageIter iter, addrType_iter;
 	struct adapter *adapter = find_parent(proxy);
 
 	if (!adapter) {
 		/* TODO: Error */
 		return;
+	}
+
+	if (g_dbus_proxy_get_property(proxy, "AddressType",
+								&addrType_iter) == TRUE) {
+		const char *addressType;
+		dbus_message_iter_get_basic(&addrType_iter, &addressType);
+		printf("BT_SINK: addressType: %s\n", addressType);
+		if (strcmp(addressType, "random") == 0)
+			return 0;
 	}
 
 	adapter->devices = g_list_append(adapter->devices, proxy);
@@ -769,9 +816,10 @@ static void device_added(GDBusProxy *proxy)
 
 		printf("%s, path: %s, connected: %d, adapter_is_powered: %d.\n", __func__,
 				path, connected, adapter_is_powered(default_ctrl->proxy));
-	
+
 		if (connected) {
 			device_list = g_list_append(device_list, proxy);
+			printf("=== add set last_connected_device_proxy 0x%p \n", proxy);
 			last_connected_device_proxy = proxy;
 			device_connected_post(proxy);
 			return;
@@ -784,7 +832,7 @@ static void device_added(GDBusProxy *proxy)
 
 		if (last_device_path && !strcmp(path, last_device_path) && first) {
 			pr_info("Reconnecting to last connected device");
-			first = 0;
+			first = 1;
 			reconnect_timer = g_timeout_add_seconds(RECONN_INTERVAL,
 						reconn_device, (void *)proxy);
 		}
@@ -796,6 +844,8 @@ void proxy_added(GDBusProxy *proxy, void *user_data)
 	printf("proxy_added \n");
 	const char *interface;
 	interface = g_dbus_proxy_get_interface(proxy);
+	if (!A2DP_SINK_FLAG)
+		return;
 
 	printf("proxy_added interface:%s \n", interface);
 	 
@@ -853,10 +903,12 @@ void item_removed(GDBusProxy *proxy)
 
  void proxy_removed(GDBusProxy *proxy, void *user_data)
 {
-   printf("proxy_removed \n");
 	const char *interface;
 
+	printf("BT_SINK proxy_removed \n");
 	interface = g_dbus_proxy_get_interface(proxy);
+	if (!A2DP_SINK_FLAG)
+		return;
 
 	if (!strcmp(interface, BLUEZ_MEDIA_PLAYER_INTERFACE))
 		player_removed(proxy);
@@ -989,13 +1041,25 @@ void property_changed(GDBusProxy *proxy, const char *name,
 	const char *interface;
 
 	interface = g_dbus_proxy_get_interface(proxy);
-	printf("property_changed %s\n", interface);
+	printf("BT SINK: property_changed %s\n", interface);
+
+	if (!A2DP_SINK_FLAG)
+		return;
 
 	if (!strcmp(interface, "org.bluez.Device1")) {
 		if (default_ctrl && device_is_child(proxy,
 				 default_ctrl->proxy) == TRUE) {
-			DBusMessageIter addr_iter;
+			DBusMessageIter addr_iter, addrType_iter;
 			char *str;
+
+			if (g_dbus_proxy_get_property(proxy, "AddressType",
+										&addrType_iter) == TRUE) {
+				const char *addressType;
+				dbus_message_iter_get_basic(&addrType_iter, &addressType);
+				printf("BT_SINK: addressType: %s\n", addressType);
+				if (strcmp(addressType, "random") == 0)
+					return 0;
+			}
 
 			if (g_dbus_proxy_get_property(proxy, "Address",
 						 &addr_iter) == TRUE) {
@@ -1011,6 +1075,11 @@ void property_changed(GDBusProxy *proxy, const char *name,
 				dbus_bool_t connected;
 
 				dbus_message_iter_get_basic(iter, &connected);
+
+				if (connected) {
+					printf("=== add set last_connected_device_proxy 0x%p \n", proxy);
+					last_connected_device_proxy = proxy;
+				}
 
 				if (connected && default_dev == NULL)
 					set_default_device(proxy, NULL);
@@ -1144,8 +1213,10 @@ void *init_avrcp(void *)
 	a2dp_sink_clean();
 
 	dbus_conn = g_dbus_setup_bus(DBUS_BUS_SYSTEM, NULL, NULL);
-	printf("init_avrcp start \n");
-
+	g_dbus_attach_object_manager(dbus_conn);
+	printf("init_avrcp start A2DP_SINK_FLAG: %d\n", A2DP_SINK_FLAG);
+	printf("init_avrcp unique name: %s\n",
+				dbus_bus_get_unique_name(dbus_conn));
 
 	if (NULL== dbus_conn) {
 		printf("dbus init fail!");
@@ -1153,6 +1224,8 @@ void *init_avrcp(void *)
 	}
 
 	client = g_dbus_client_new(dbus_conn, "org.bluez", "/org/bluez");
+	//client = g_dbus_client_new(dbus_conn, "org.bluez", "/");
+
 	if (NULL == client) {
 		printf("client inti fail");
 		dbus_connection_unref(dbus_conn);
@@ -1160,41 +1233,54 @@ void *init_avrcp(void *)
 	}
 	main_loop = g_main_loop_new(NULL, FALSE);
 
+	A2DP_SINK_FLAG = true;
+
 	g_dbus_client_set_connect_watch(client, connect_handler, NULL);
 	g_dbus_client_set_disconnect_watch(client, disconnect_handler, NULL);
-
 	g_dbus_client_set_proxy_handlers(client, proxy_added, proxy_removed,
 	                      property_changed, NULL);
-	printf("init ok\n");
+	printf("avrcp init ok\n");
 	g_main_loop_run(main_loop);
+
+	//g_dbus_client_unref(client);
+	dbus_connection_unref(dbus_conn);
+	g_main_loop_unref(main_loop);
+	a2dp_sink_clean();
+
+	printf("avrcp exit ok\n");
+	pthread_exit(0);
 }
 
 static pthread_t avrcp_thread = 0;
 int init_avrcp_ctrl(void)
 {
 	printf("call avrcp_thread init_avrcp ppid: %d ...\n", avrcp_thread);
-
-	if (avrcp_thread > 0) {
-		pthread_cancel(avrcp_thread);
-		sleep(1);
-		printf("pthread_cancel init_avrcp_ctrl !\n");
+	if (avrcp_thread) {
+		A2DP_SINK_FLAG = true;
+		system("hciconfig hci0 piscan");
+		system("hciconfig hci0 piscan");
+		reconn_last();
+		return 1;
 	}
 
 	pthread_create(&avrcp_thread, NULL, init_avrcp, NULL);
 	return 1;
 }
 
+int a2dp_sink_colse_coexist()
+{
+	A2DP_SINK_FLAG = false;
+}
+
 int release_avrcp_ctrl(void)
 {
-	g_main_loop_quit(main_loop);
-    g_dbus_client_unref(client);    
-    dbus_connection_unref(dbus_conn);
-    g_main_loop_unref(main_loop);
-	a2dp_sink_clean();
-	if (avrcp_thread > 0) {
-		pthread_cancel(avrcp_thread);
-		printf("pthread_cancel init_avrcp_ctrl !\n");
-	}
+	//g_main_loop_quit(main_loop);
+	printf("=== release_avrcp_ctrl ===");
+	disconn_device();
+	sleep(3);
+	A2DP_SINK_FLAG = false;
+	system("hciconfig hci0 noscan");
+	system("hciconfig hci0 noscan");
 	return 0;
 }
 
