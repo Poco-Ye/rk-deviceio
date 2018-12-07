@@ -440,6 +440,8 @@ static int bt_close_source(void)
 
 	APP_DEBUG("bt_close_source close\n");
 
+	a2dp_master_disconnect(NULL);
+	sleep(3);
 	release_a2dp_master_ctrl();
 
 	if (bt_control.type == BtControlType::BT_BLE_MODE)

@@ -64,7 +64,7 @@ static int btsrc_scan_cnt;
 #define BTSRC_CONNECT_FAILED 3
 static int btsrc_connect_status;
 
-static volatile bool A2DP_SRC_FLAG = true;
+static volatile int A2DP_SRC_FLAG = 1;
 
 static const char *agent_arguments[] = {
     "on",
@@ -525,11 +525,14 @@ static struct adapter *find_ctrl(GList *source, const char *path);
 static struct adapter *adapter_new(GDBusProxy *proxy)
 {
     struct adapter *adapter = (struct adapter *)g_malloc0(sizeof(struct adapter));
+	printf("=== %s ===\n", __func__);
 
     ctrl_list = g_list_append(ctrl_list, adapter);
 
     if (!default_ctrl)
         default_ctrl = adapter;
+
+	printf("=== %s default_ctrl: 0x%x ===\n", __func__, default_ctrl);
 
     return adapter;
 }
@@ -537,6 +540,7 @@ static struct adapter *adapter_new(GDBusProxy *proxy)
 static void adapter_added(GDBusProxy *proxy)
 {
     struct adapter *adapter;
+	printf("=== %s ===\n", __func__);
     adapter = find_ctrl(ctrl_list, g_dbus_proxy_get_path(proxy));
     if (!adapter)
         adapter = adapter_new(proxy);
@@ -561,10 +565,13 @@ static void proxy_added(GDBusProxy *proxy, void *user_data)
 {
     const char *interface;
 
-	if (!A2DP_SRC_FLAG)
-		return;
+	interface = g_dbus_proxy_get_interface(proxy);
+	printf("BT_SOURCE: proxy_added: %s, A2DP_SRC_FLAG: %d\n", interface, A2DP_SRC_FLAG);
 
-    interface = g_dbus_proxy_get_interface(proxy);
+	if (!A2DP_SRC_FLAG) {
+		printf("proxy_removed bt src is close !\n");
+		return;
+	}
 
     if (!strcmp(interface, "org.bluez.Device1")) {
         device_added(proxy);
@@ -649,10 +656,14 @@ static void adapter_removed(GDBusProxy *proxy)
 static void proxy_removed(GDBusProxy *proxy, void *user_data)
 {
     const char *interface;
-	if (!A2DP_SRC_FLAG)
-		return;
 
     interface = g_dbus_proxy_get_interface(proxy);
+	printf("BT_SOURCE: proxy_removed: %s, A2DP_SRC_FLAG: %d\n", interface, A2DP_SRC_FLAG);
+
+	if (!A2DP_SRC_FLAG){
+		printf("proxy_removed bt src is close !\n");
+		return;
+	}
 
     if (!strcmp(interface, "org.bluez.Device1")) {
         device_removed(proxy);
@@ -705,10 +716,14 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 {
     const char *interface;
     struct adapter *ctrl;
-	if (!A2DP_SRC_FLAG)
-		return;
 
     interface = g_dbus_proxy_get_interface(proxy);
+	printf("BT_SOURCE: property_changed: %s, A2DP_SRC_FLAG: %d\n", interface, A2DP_SRC_FLAG);
+
+	if (!A2DP_SRC_FLAG) {
+		printf("property_changed bt src is close !\n");
+		return;
+	}
 
     if (!strcmp(interface, "org.bluez.Device1")) {
         if (default_ctrl && device_is_child(proxy, default_ctrl->proxy) == TRUE) {
@@ -777,12 +792,6 @@ static GDBusProxy *find_proxy_by_address(GList *source, const char *address)
 
 static gboolean check_default_ctrl(void)
 {
-	int retry = 20;
-
-    while ((!default_ctrl) && (--retry)) {
-		usleep(100000);
-    }
-
 	if (!default_ctrl) {
 		printf("No default controller available\n");
 		return FALSE;
@@ -2482,8 +2491,9 @@ void *init_a2dp_master(void *)
 {
     GError *error = NULL;
 
-    printf("init_a2dp_master start \n");
+	printf("init_a2dp_master start A2DP_SRC_FLAG: %d\n", A2DP_SRC_FLAG);
 	a2dp_source_clean();
+	A2DP_SRC_FLAG = 1;
 
     if (agent_option)
         auto_register_agent = g_strdup(agent_option);
@@ -2504,13 +2514,10 @@ void *init_a2dp_master(void *)
     g_dbus_client_set_connect_watch(btsrc_client, connect_handler, NULL);
     g_dbus_client_set_disconnect_watch(btsrc_client, disconnect_handler, NULL);
     g_dbus_client_set_signal_watch(btsrc_client, message_handler, NULL);
-	A2DP_SRC_FLAG = true;
-	sleep(1);
     g_dbus_client_set_proxy_handlers(btsrc_client, proxy_added, proxy_removed,
                           property_changed, NULL);
-    printf("a2dp_source init ok\n");
-	sleep(2);
-    g_main_loop_run(btsrc_main_loop);
+	printf("a2dp_source init ok\n");
+	g_main_loop_run(btsrc_main_loop);
 	//g_dbus_client_unref(btsrc_client);
 	dbus_connection_unref(dbus_conn);
 	g_main_loop_unref(btsrc_main_loop);
@@ -2522,8 +2529,10 @@ void *init_a2dp_master(void *)
 static pthread_t a2dp_master_thread = 0;
 int init_a2dp_master_ctrl()
 {
+	printf("init_a2dp_master_ctrl start pid: 0x%x, A2DP_SRC_FLAG: %d\n", a2dp_master_thread, A2DP_SRC_FLAG);
+
 	if (a2dp_master_thread) {
-		A2DP_SRC_FLAG = true;
+		A2DP_SRC_FLAG = 1;
 		return 1;
 	}
 
@@ -2533,7 +2542,7 @@ int init_a2dp_master_ctrl()
 
 int release_a2dp_master_ctrl() {
 	printf("release_a2dp_master_ctrl start ...\n");
-	A2DP_SRC_FLAG = false;
+	A2DP_SRC_FLAG = 0;
 }
 
 static int a2dp_master_get_rssi(GDBusProxy *proxy)
@@ -2700,12 +2709,17 @@ int a2dp_master_disconnect(char *address)
 {
     GDBusProxy *proxy;
 
-    proxy = find_device_by_address(address);
-    if (!proxy)
-        return -1;
+	if (!default_dev) {
+		printf("bt source no connect\n");
+		return 0;
+	}
 
-    if (g_dbus_proxy_method_call(proxy, "Disconnect", NULL, disconn_reply,
-                            proxy, NULL) == FALSE) {
+    //proxy = find_device_by_address(address);
+    //if (!proxy)
+    //    return -1;
+
+    if (g_dbus_proxy_method_call(default_dev, "Disconnect", NULL, disconn_reply,
+                            default_dev, NULL) == FALSE) {
         printf("Failed to disconnect\n");
         return -1;
     }
