@@ -1,6 +1,7 @@
 #include <iostream>
 #include <stdio.h>
 #include "DeviceIo/WifiManager.h"
+#include "DeviceIo/Rk_softap.h"
 #include "../TcpServer.h"
 
 static void help(void) {
@@ -20,8 +21,16 @@ static bool isRunning(DeviceIOFramework::TcpServer* server)
 	return isRun;
 }
 
+static int state_callback(RK_softAP_State_e state)
+{
+	printf("State called back %d.\n", state);
+
+	return 0;
+}
+
 static int startTcpServer(DeviceIOFramework::TcpServer* server, const unsigned int port = 8443)
 {
+#if 0
 	int ret = server->startTcpServer(port);
 	if (ret != 0) {
 		printf("Tcp server start fail! port:%u\n; error:%d.", port, ret);
@@ -29,6 +38,29 @@ static int startTcpServer(DeviceIOFramework::TcpServer* server, const unsigned i
 		printf("Tcp server start success! port:%u\n", port);
 	}
 	return ret;
+#else
+	// register state callback first
+	RK_softap_register_callback(state_callback);
+	// start softap
+	RK_softap_start("Rockchip-Echo-SoftAp");
+
+	int len;
+	char data[512];
+	RK_softAP_State_e state;
+
+	// loop to get state for test
+	/*for (;;) {
+		memset(data, 0, sizeof(data));
+		RK_softap_getState(&state);
+		RK_softap_get_exdata(data, &len);
+		printf("Current state %d.\n", state);
+		printf("userdata len:%d; data:%s\n", len, data);
+		sleep(1);
+	}
+	RK_softap_stop();*/
+
+	return 0;
+#endif
 }
 
 static int stopTcpServer(DeviceIOFramework::TcpServer* server)

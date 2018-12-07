@@ -42,6 +42,9 @@ namespace DeviceIOFramework {
 
 static std::string m_broadcastMsg = "";
 static bool m_isConnecting = false;
+static FW_softap_state_callback m_cb = NULL;
+static int m_fd_broadcast = -1;
+static sockaddr_in m_addrto;
 
 UdpServer* UdpServer::m_instance;
 UdpServer* UdpServer::getInstance() {
@@ -60,6 +63,7 @@ UdpServer::UdpServer() {
 	m_wifiManager = WifiManager::getInstance();
 	m_thread_broadcast = -1;
 	m_thread = -1;
+	m_fd_broadcast = -1;
 }
 
 bool UdpServer::isRunning() {
@@ -107,12 +111,21 @@ void* checkWifi(void *arg) {
 	}
 
 	m_broadcastMsg = (ret ? MSG_WIFI_CONNECTED : MSG_WIFI_FAILED);
+	sendto(m_fd_broadcast, m_broadcastMsg.c_str(), strlen(m_broadcastMsg.c_str()) + 1, 0,
+                        (struct sockaddr*)&m_addrto, sizeof(m_addrto));
 	m_isConnecting = false;
 	printf("Wifi connect result %d\n", ret ? 1 : 0);
-	//if (ret) {
+	if (ret) {
 	//	sleep(5);
 	//	wifiManager->disableWifiAp();
-	//}
+		if (m_cb != NULL) {
+			m_cb(FW_softAP_State_SUCCESS, NULL);
+		}
+	} else {
+		if (m_cb != NULL) {
+			m_cb(FW_softAP_State_FAIL, NULL);
+		}
+	}
 }
 
 static void handleRequest(const char* buff) {
@@ -141,6 +154,10 @@ static void handleRequest(const char* buff) {
 			}
 			if (!m_isConnecting && !ssid.empty()) {
 				m_broadcastMsg = MSG_WIFI_CONNECTING;
+				sendto(m_fd_broadcast, m_broadcastMsg.c_str(), strlen(m_broadcastMsg.c_str()) + 1, 0,
+						(struct sockaddr*)&m_addrto, sizeof(m_addrto));
+				if (m_cb != NULL)
+					m_cb(FW_softAP_State_CONNECTTING, userdata.c_str());
 				WifiManager* wifiManager = WifiManager::getInstance();
 				if (0 == wifiManager->connect(ssid, passwd)) {
 					m_isConnecting = true;
@@ -214,6 +231,8 @@ void* UdpServer::threadBroadcast(void* arg) {
 		printf("create udp broadcast socket of port %d failed. error:%d\n", port, sock);
 		goto end;
 	}
+	m_fd_broadcast = sock;
+	m_addrto = addrto;
 
 	ret = setsockopt(sock, SOL_SOCKET, SO_BROADCAST, (char *)&opt, sizeof(opt));
 	if (ret < 0) {
@@ -235,6 +254,7 @@ void* UdpServer::threadBroadcast(void* arg) {
 end:
 	if (sock >= 0)
 		close(sock);
+	m_fd_broadcast = -1;
 	m_instance->m_thread_broadcast = -1;
 
 	return NULL;
@@ -249,6 +269,10 @@ int UdpServer::startBroadcastThread(const unsigned int port) {
 		m_thread_broadcast = -1;
 	}
 	return ret;
+}
+
+int UdpServer::registerCallback(FW_softap_state_callback cb) {
+	m_cb = cb;
 }
 
 int UdpServer::stopBroadcastThread() {
