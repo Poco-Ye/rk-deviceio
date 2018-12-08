@@ -98,8 +98,8 @@ static int service_id;
 char le_random_addr[6];
 char CMD_RA[256] = "hcitool -i hci0 cmd 0x08 0x0005";
 #define CMD_PARA "hcitool -i hci0 cmd 0x08 0x0006 A0 00 A0 00 00 01 00 00 00 00 00 00 00 07 00"
-GDBusClient *client;
-guint signals;
+static GDBusClient *client;
+static guint signals;
 static volatile bool BLE_FLAG = true;
 
 #define SERVICES_UUID            "23 20 56 7c 05 cf 6e b4 c3 41 77 28 51 82 7e 1b"
@@ -1445,12 +1445,11 @@ int gatt_init(ble_content_t *ble_content)
 
 	g_dbus_attach_object_manager(connection);
 
-	printf("gatt-service unique name: %s\n",
-				dbus_bus_get_unique_name(connection));
-
 	create_wifi_services();
 
-	client = g_dbus_client_new(connection, "org.bluez", "/");
+	client = g_dbus_client_new(connection, "org.bluez", "/org/bluez");
+	printf("gatt_init unique name: %s [0x%p:0x%p]\n",
+				dbus_bus_get_unique_name(connection), connection, client);
 
 	printf("Gatt: gatt_init BLE_FLAG: %d\n", BLE_FLAG);
 	BLE_FLAG = true;
