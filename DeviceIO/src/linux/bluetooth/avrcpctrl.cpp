@@ -646,7 +646,7 @@ bool disconn_device(void)
 	dbus_bool_t connected;
 
 	if (!proxy) {
-		error("Invalid proxy, stop disconnecting");
+		error("Invalid proxy, stop disconnecting\n");
 		return FALSE;
 	}
 
@@ -841,7 +841,7 @@ static void device_added(GDBusProxy *proxy)
 
 void proxy_added(GDBusProxy *proxy, void *user_data)
 {
-	printf("proxy_added \n");
+	printf("BT SINK proxy_added A2DP_SINK_FLAG: %d\n", A2DP_SINK_FLAG);
 	const char *interface;
 	interface = g_dbus_proxy_get_interface(proxy);
 	if (!A2DP_SINK_FLAG)
@@ -905,7 +905,7 @@ void item_removed(GDBusProxy *proxy)
 {
 	const char *interface;
 
-	printf("BT_SINK proxy_removed \n");
+	printf("BT SINK proxy_removed A2DP_SINK_FLAG: %d\n", A2DP_SINK_FLAG);
 	interface = g_dbus_proxy_get_interface(proxy);
 	if (!A2DP_SINK_FLAG)
 		return;
@@ -1041,7 +1041,7 @@ void property_changed(GDBusProxy *proxy, const char *name,
 	const char *interface;
 
 	interface = g_dbus_proxy_get_interface(proxy);
-	printf("BT SINK: property_changed %s\n", interface);
+	printf("BT SINK: property_changed %s, A2DP_SINK_FLAG: %d\n", interface, A2DP_SINK_FLAG);
 
 	if (!A2DP_SINK_FLAG)
 		return;
@@ -1248,7 +1248,7 @@ void *init_avrcp(void *)
 static pthread_t avrcp_thread = 0;
 int init_avrcp_ctrl(void)
 {
-	printf("call avrcp_thread init_avrcp ppid: %d ...\n", avrcp_thread);
+	printf("call avrcp_thread init_avrcp ppid: 0x%x ...\n", avrcp_thread);
 	if (avrcp_thread) {
 		A2DP_SINK_FLAG = true;
 		system("hciconfig hci0 piscan");
@@ -1269,7 +1269,7 @@ int a2dp_sink_colse_coexist()
 int release_avrcp_ctrl(void)
 {
 	//g_main_loop_quit(main_loop);
-	printf("=== release_avrcp_ctrl ===");
+	printf("=== release_avrcp_ctrl ===\n");
 	disconn_device();
 	sleep(3);
 	A2DP_SINK_FLAG = false;
