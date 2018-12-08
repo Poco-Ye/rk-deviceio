@@ -252,11 +252,6 @@ static void bt_start_a2dp_source()
 	while (!ret_buff[0])
 		msleep(10);
 
-	console_run("bluealsa-aplay --profile-a2dp 00:00:00:00:00:00 &");
-	memset(ret_buff, 0, 1024);
-	execute("pidof bluealsa-aplay", ret_buff);
-	while (!ret_buff[0])
-		msleep(10);	
 	execute("hciconfig hci0 class 0x480400", ret_buff);
 	msleep(100);
 	execute("hciconfig hci0 class 0x480400", ret_buff);
@@ -271,6 +266,12 @@ static void bt_start_a2dp_sink()
 	console_run("bluealsa --profile=a2dp-sink &");
 	memset(ret_buff, 0, 1024);
 	execute("pidof bluealsa", ret_buff);
+	while (!ret_buff[0])
+		msleep(10);
+
+	console_run("bluealsa-aplay --profile-a2dp 00:00:00:00:00:00 &");
+	memset(ret_buff, 0, 1024);
+	execute("pidof bluealsa-aplay", ret_buff);
 	while (!ret_buff[0])
 		msleep(10);
 
@@ -387,6 +388,9 @@ static int ble_close_server(void)
 {
 	int ret = 0;
 
+	if (!ble_is_open())
+		return 1;
+
 	APP_DEBUG("ble server close\n");
 
 	ble_disable_adv();
@@ -401,6 +405,9 @@ static int ble_close_server(void)
 static int bt_close_sink(void)
 {
 	int ret = 0;
+
+	if (!bt_sink_is_open())
+		return 1;
 
 	APP_DEBUG("bt_close_sink\n");
 
@@ -421,6 +428,9 @@ static int bt_close_sink(void)
 static int bt_close_source(void)
 {
 	int ret = 0;
+
+	if (!bt_source_is_open())
+		return 1;
 
 	APP_DEBUG("bt_close_source close\n");
 
