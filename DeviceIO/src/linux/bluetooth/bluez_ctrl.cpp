@@ -245,12 +245,7 @@ static void bt_start_a2dp_source()
 
 	memset(ret_buff, 0, 1024);
 
-sdp:
 	msleep(500);
-	execute("sdptool add A2SRC", ret_buff);
-	if (!strcmp("Audio source service registered", ret_buff))
-		goto sdp;
-
 	console_run("bluealsa --profile=a2dp-source &");
 	memset(ret_buff, 0, 1024);
 	execute("pidof bluealsa", ret_buff);
@@ -272,21 +267,10 @@ static void bt_start_a2dp_sink()
 {
 	char ret_buff[1024];
 
-sdp:
 	msleep(500);
-	execute("sdptool add A2SNK", ret_buff);
-	if (!strcmp("Audio sink service registered", ret_buff))
-		goto sdp;
-
 	console_run("bluealsa --profile=a2dp-sink &");
 	memset(ret_buff, 0, 1024);
 	execute("pidof bluealsa", ret_buff);
-	while (!ret_buff[0])
-		msleep(10);
-
-	console_run("bluealsa-aplay --profile-a2dp 00:00:00:00:00:00 &");
-	memset(ret_buff, 0, 1024);
-	execute("pidof bluealsa-aplay", ret_buff);
 	while (!ret_buff[0])
 		msleep(10);
 

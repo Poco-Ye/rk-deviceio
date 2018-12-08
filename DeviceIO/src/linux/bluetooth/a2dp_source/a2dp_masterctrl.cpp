@@ -2509,6 +2509,9 @@ void *init_a2dp_master(void *)
         dbus_connection_unref(dbus_conn);
         return NULL;
     }
+	printf("a2dp_master unique name: %s [0x%p:0x%p]\n",
+				dbus_bus_get_unique_name(dbus_conn), dbus_conn, btsrc_client);
+
     btsrc_main_loop = g_main_loop_new(NULL, FALSE);
 
     g_dbus_client_set_connect_watch(btsrc_client, connect_handler, NULL);

@@ -75,13 +75,13 @@ static guint reconnect_timer;
 #define BLUEZ_MEDIA_FOLDER_INTERFACE "org.bluez.MediaFolder1"
 #define BLUEZ_MEDIA_ITEM_INTERFACE "org.bluez.MediaItem1"
 
-DBusConnection *dbus_conn;
-GDBusProxy *default_player;
-GSList *players = NULL;
-GSList *folders = NULL;
-GSList *items = NULL;
-GDBusClient *client;
-GMainLoop *main_loop = NULL;
+static DBusConnection *dbus_conn;
+static GDBusProxy *default_player;
+static GSList *players = NULL;
+static GSList *folders = NULL;
+static GSList *items = NULL;
+static GDBusClient *client;
+static GMainLoop *main_loop = NULL;
 static int first_ctrl = 1;
 void a2dp_sink_cmd_power(bool powered);
 static volatile bool A2DP_SINK_FLAG = true;
@@ -1209,8 +1209,6 @@ void *init_avrcp(void *)
 	dbus_conn = g_dbus_setup_bus(DBUS_BUS_SYSTEM, NULL, NULL);
 	g_dbus_attach_object_manager(dbus_conn);
 	printf("init_avrcp start A2DP_SINK_FLAG: %d\n", A2DP_SINK_FLAG);
-	printf("init_avrcp unique name: %s\n",
-				dbus_bus_get_unique_name(dbus_conn));
 
 	if (NULL== dbus_conn) {
 		printf("dbus init fail!");
@@ -1219,6 +1217,8 @@ void *init_avrcp(void *)
 
 	client = g_dbus_client_new(dbus_conn, "org.bluez", "/org/bluez");
 	//client = g_dbus_client_new(dbus_conn, "org.bluez", "/");
+	printf("init_avrcp unique name: %s [0x%p:0x%p]\n",
+				dbus_bus_get_unique_name(dbus_conn), dbus_conn, client);
 
 	if (NULL == client) {
 		printf("client inti fail");
