@@ -47,6 +47,11 @@ int gatt_write_data(char *uuid, void *data, int len);
 void release_ble_gatt(void);
 void ble_enable_adv(void);
 void ble_disable_adv(void);
+int gatt_open(void);
+int gatt_close(void);
+int bt_open(ble_content_t *ble_content);
+int gatt_init(ble_content_t *ble_content);
+//void bt_adv_set(ble_content_t *ble_content);
 
 #ifdef __cplusplus
 }

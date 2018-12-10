@@ -41,6 +41,7 @@
 
 #include "DeviceIo/DeviceIo.h"
 using DeviceIOFramework::ble_config;
+using DeviceIOFramework::bt_adv_set;
 
 #define msleep(x) usleep(x * 1000)
 
@@ -108,14 +109,17 @@ enum class BtControlType {
 
 typedef struct {
     pthread_t tid;
+	int is_bt_open;
     int is_ble_open;
     int is_a2dp_sink_open;
     int is_a2dp_source_open;
 	bool is_ble_sink_coexist;
     BtControlType type;
+	BtControlType last_type;
 } bt_control_t;
 
 static volatile bt_control_t bt_control = {
+	0,
 	0,
 	0,
 	0,
@@ -234,7 +238,7 @@ static int bt_ble_open(ble_content_t *ble_content)
 {
 	int ret;
 
-	ret = gatt_main(ble_content);
+	gatt_open();
 
 	return ret;
 }
@@ -244,6 +248,9 @@ static void bt_start_a2dp_source()
 	char ret_buff[1024];
 
 	memset(ret_buff, 0, 1024);
+
+	console_run("killall bluealsa");
+	console_run("killall bluealsa-aplay");
 
 	msleep(500);
 	console_run("bluealsa --profile=a2dp-source &");
@@ -261,6 +268,9 @@ static void bt_start_a2dp_source()
 static void bt_start_a2dp_sink()
 {
 	char ret_buff[1024];
+
+	console_run("killall bluealsa");
+	console_run("killall bluealsa-aplay");
 
 	msleep(500);
 	console_run("bluealsa --profile=a2dp-sink &");
@@ -309,11 +319,12 @@ static int get_ps_pid(const char Name[])
 static bool bt_sink_is_open(void)
 {
 	if (bt_control.is_a2dp_sink_open) {
-		if (get_ps_pid("bluetoothd")) {
+		APP_DEBUG("bt_sink has been opened.\n");
+		if (get_ps_pid("bluetoothd") && get_ps_pid("bluealsa") && get_ps_pid("bluealsa-aplay")) {
 			APP_DEBUG("Bluetooth has been opened.\n");
 			return 1;
 		} else {
-			APP_ERROR("Bluetooth has been opened but bluetoothd server exit.\n");
+			APP_ERROR("bt_sink has been opened but bluetoothd server exit.\n");
 		}
 	}
 
@@ -323,11 +334,12 @@ static bool bt_sink_is_open(void)
 static bool bt_source_is_open(void)
 {
 	if (bt_control.is_a2dp_source_open) {
-		if (get_ps_pid("bluetoothd")) {
+		APP_DEBUG("bt_source has been opened.\n");
+		if (get_ps_pid("bluetoothd") && get_ps_pid("bluealsa")) {
 			APP_DEBUG("Bluetooth has been opened.\n");
 			return 1;
 		} else {
-			APP_ERROR("Bluetooth has been opened but bluetoothd server exit.\n");
+			APP_ERROR("bt_source has been opened but bluetoothd server exit.\n");
 		}
 	}
 
@@ -394,7 +406,7 @@ static int ble_close_server(void)
 	APP_DEBUG("ble server close\n");
 
 	ble_disable_adv();
-	release_ble_gatt();
+	gatt_close();
 
 	bt_control.type = BtControlType::BT_NONE;
 	bt_control.is_ble_open = 0;
@@ -413,12 +425,6 @@ static int bt_close_sink(void)
 
 	release_avrcp_ctrl();
 
-	if (bt_control.type == BtControlType::BT_BLE_MODE)
-		return;
-
-	console_run("killall bluealsa");
-	console_run("killall bluealsa-aplay");
-
 	bt_control.type = BtControlType::BT_NONE;
 	bt_control.is_a2dp_sink_open = 0;
 
@@ -434,15 +440,9 @@ static int bt_close_source(void)
 
 	APP_DEBUG("bt_close_source close\n");
 
-	a2dp_master_disconnect(NULL);
-	sleep(3);
+	if (a2dp_master_disconnect(NULL))
+		sleep(3);
 	release_a2dp_master_ctrl();
-
-	if (bt_control.type == BtControlType::BT_BLE_MODE)
-		return;
-
-	console_run("killall bluealsa");
-	console_run("killall bluealsa-aplay");
 
 	bt_control.type = BtControlType::BT_NONE;
 	bt_control.is_a2dp_source_open = 0;
@@ -450,14 +450,16 @@ static int bt_close_source(void)
 	return ret;
 }
 
-
 static int bt_a2dp_sink_open(void)
 {
 	int ret = 0;
 
 	APP_DEBUG("bt_a2dp_sink_server_open\n");
 
-	bt_start_a2dp_sink();
+	if ((bt_control.last_type == BtControlType::BT_SOURCE) ||
+		(bt_control.last_type == BtControlType::BT_NONE))
+		bt_start_a2dp_sink();
+
 	printf("call init_avrcp_ctrl ...\n");
 	ret = init_avrcp_ctrl();
 
@@ -468,11 +470,16 @@ static int bt_a2dp_sink_open(void)
 static int bt_a2dp_src_server_open(void)
 {
 	APP_DEBUG("%s\n", __func__);
+	
+	if ((bt_control.last_type == BtControlType::BT_SINK) ||
+		(bt_control.last_type == BtControlType::BT_NONE))
+		bt_start_a2dp_source();
 
-	bt_start_a2dp_source();
-	msleep(800);
+	msleep(500);
+
 	init_a2dp_master_ctrl();
 	bt_control.is_a2dp_source_open = 1;
+
 	return 0;
 }
 
@@ -529,6 +536,14 @@ int rk_bt_control(BtControl cmd, void *data, int len)
     int ret = 0;
 
     switch (cmd) {
+	case BtControl::BT_OPEN:
+		_bt_open_server();
+		bt_adv_set((ble_content_t *)data);
+		bt_open((ble_content_t *)data);
+		bt_control.is_bt_open = 1;
+		bt_control.type = BtControlType::BT_NONE;
+		bt_control.last_type = BtControlType::BT_NONE;
+		break;
 	case BtControl::BT_SINK_OPEN:
 		bt_control.type = BtControlType::BT_SINK;
 		if (bt_sink_is_open())
@@ -539,12 +554,6 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 			bt_close_source();
 		}
 
-		if ((!bt_control.is_ble_sink_coexist) && ble_is_open()) {
-			ble_close_server();
-		}
-
-		_bt_open_server();
-
 		if (bt_interface(BtControl::BT_SINK_OPEN, NULL) < 0) {
 			bt_control.is_a2dp_sink_open = 0;
 			bt_control.type = BtControlType::BT_NONE;
@@ -552,21 +561,11 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 
 		bt_control.is_a2dp_sink_open = 1;
 		bt_control.type = BtControlType::BT_SINK;
-
+		bt_control.last_type = BtControlType::BT_SINK;
 		break;
 
     case BtControl::BT_BLE_OPEN:
 		bt_control.type = BtControlType::BT_BLE_MODE;
-		if (bt_source_is_open()) {
-			bt_close_source();
-		}
-
-		if ((!bt_control.is_ble_sink_coexist) && bt_sink_is_open()) {
-			bt_close_sink();
-		}
-
-		//a2dp_sink_colse_coexist();
-		_bt_open_server();
 
 		if (bt_interface(BtControl::BT_BLE_OPEN, data) < 0) {
 			bt_control.is_ble_open = 0;
@@ -579,29 +578,19 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		break;
 
     case BtControl::BT_SOURCE_OPEN:
-		printf("=== BtControl::BT_SINK_OPEN ===\n");
+		printf("=== BtControl::BT_SOURCE_OPEN ===\n");
+		bt_control.type = BtControlType::BT_SOURCE;
 
 		if (bt_source_is_open()) {
 			return 1;
 		}
 
-		bt_control.type = BtControlType::BT_SOURCE;
 		if (bt_sink_is_open()) {
 			APP_ERROR("bt sink isn't coexist with source!!!\n");
 			bt_close_sink();
 		}
 
-		sleep(3);
-
-		if (ble_is_open()) {
-			ble_close_server();
-		}
-
-		_bt_open_server();
-
-		bt_control.is_a2dp_sink_open = 0;
-		bt_control.is_ble_open = 0;
-		bt_control.type = BtControlType::BT_NONE;
+		sleep(1);
 
 		if (bt_interface(BtControl::BT_SOURCE_OPEN, NULL) < 0) {
 			bt_control.is_a2dp_source_open = 0;
@@ -610,6 +599,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 
 		bt_control.is_a2dp_source_open = true;
 		bt_control.type = BtControlType::BT_SOURCE;
+		bt_control.last_type = BtControlType::BT_SOURCE;
 
 		break;
 

@@ -219,8 +219,12 @@ enum class DeviceInput {
     GST_PLAYER_ERROR, // Error occurs.
     GST_PLAYER_DURATION, //The stream duration changed.
 	//BT EVENT
-	BT_ENV_CONNECT,
-	BT_ENV_DISCONNECT,
+	BT_SINK_ENV_CONNECT,
+	BT_SINK_ENV_DISCONNECT,
+	BT_SRC_ENV_CONNECT,
+	BT_SRC_ENV_DISCONNECT,
+	BT_BLE_ENV_CONNECT,
+	BT_BLE_ENV_DISCONNECT,
 
     //BT spp event
     SPP_CLIENT_CONNECT,
@@ -281,6 +285,12 @@ enum class DeviceRTC {
 	DEVICE_RTC_NULL_COMMAND
 };
 
+enum class BT_Device_Class {
+	BT_SINK_DEVICE,
+	BT_SOURCE_DEVICE,
+	BT_BLE_DEVICE,
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -304,7 +314,7 @@ struct ble_config {
 }
 #endif
 
-
+void bt_adv_set(ble_content_t *ble_content);
 
 class INetLinkWrapperCallback {
 public:

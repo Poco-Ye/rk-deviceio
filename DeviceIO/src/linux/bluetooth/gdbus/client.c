@@ -1252,7 +1252,8 @@ done:
 static void get_managed_objects(GDBusClient *client)
 {
 	DBusMessage *msg;
-
+	printf("%s:%d c: 0x%p cd: %d s: %s, r: %s\n",
+		__func__, __LINE__, client, client->connected, client->service_name, client->root_path);
 	if (!client->connected)
 		return;
 

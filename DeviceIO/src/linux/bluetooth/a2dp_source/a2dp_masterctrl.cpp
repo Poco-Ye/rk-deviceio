@@ -25,6 +25,7 @@
 
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
+using DeviceIOFramework::BT_Device_Class;
 
 /* String display constants */
 #define COLORED_NEW COLOR_GREEN "NEW" COLOR_OFF
@@ -34,7 +35,7 @@ using DeviceIOFramework::DeviceInput;
 #define PROMPT_ON   COLOR_BLUE "[bluetooth]" COLOR_OFF "# "
 #define PROMPT_OFF  "Waiting to connect to bluetoothd..."
 
-static DBusConnection *dbus_conn;
+DBusConnection *dbus_conn;
 static GDBusProxy *agent_manager;
 static char *auto_register_agent = NULL;
 
@@ -44,12 +45,14 @@ struct adapter {
     GList *devices;
 };
 
-static struct adapter *default_ctrl;
+struct adapter *default_ctrl;
 static GDBusProxy *default_dev;
-static GDBusProxy *default_attr;
-static GList *ctrl_list;
+static GDBusProxy *default_src_dev = NULL;
 
-static GDBusClient *btsrc_client;
+static GDBusProxy *default_attr;
+GList *ctrl_list;
+
+GDBusClient *btsrc_client;
 static GMainLoop *btsrc_main_loop;
 /* For scan cmd */
 static BtDeviceInfo **btsrc_scan_list;
@@ -62,9 +65,35 @@ static int btsrc_scan_cnt;
 #define BTSRC_CONNECT_DOING  1
 #define BTSRC_CONNECT_SUCESS 2
 #define BTSRC_CONNECT_FAILED 3
-static int btsrc_connect_status;
 
-static volatile int A2DP_SRC_FLAG = 1;
+volatile bool A2DP_SINK_FLAG;
+volatile bool A2DP_SRC_FLAG;
+volatile bool BLE_FLAG;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void register_app(GDBusProxy *proxy);
+int gatt_set_on_adv(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+extern void a2dp_sink_proxy_removed(GDBusProxy *proxy, void *user_data);
+extern void a2dp_sink_proxy_added(GDBusProxy *proxy, void *user_data);
+extern void a2dp_sink_property_changed(GDBusProxy *proxy, const char *name, DBusMessageIter *iter, void *user_data);
+extern void adapter_changed(GDBusProxy *proxy, DBusMessageIter *iter, void *user_data);
+extern void device_changed(GDBusProxy *proxy, DBusMessageIter *iter, void *user_data);
+
+using DeviceIOFramework::DeviceIo;
+using DeviceIOFramework::DeviceInput;
+
+static void report_avrcp_event(DeviceInput event, void *data, int len) {
+    if (DeviceIo::getInstance()->getNotify())
+        DeviceIo::getInstance()->getNotify()->callback(event, data, len);
+}
 
 static const char *agent_arguments[] = {
     "on",
@@ -197,7 +226,7 @@ static void print_device(GDBusProxy *proxy, const char *description)
     */
 }
 
-static void print_fixed_iter(const char *label, const char *name,
+void print_fixed_iter(const char *label, const char *name,
                         DBusMessageIter *iter)
 {
     dbus_bool_t *valbool;
@@ -263,7 +292,7 @@ static void print_fixed_iter(const char *label, const char *name,
     };
 }
 
-static void print_iter(const char *label, const char *name,
+void print_iter(const char *label, const char *name,
                         DBusMessageIter *iter)
 {
     dbus_bool_t valbool;
@@ -288,6 +317,12 @@ static void print_iter(const char *label, const char *name,
     case DBUS_TYPE_OBJECT_PATH:
         dbus_message_iter_get_basic(iter, &valstr);
         printf("%s%s: %s\n", label, name, valstr);
+		if (!strncmp(name, "Status", 6)) {
+			if (strstr(valstr, "playing"))
+				report_avrcp_event(DeviceInput::BT_START_PLAY, NULL, 0);
+			if (strstr(valstr, "paused"))
+				report_avrcp_event(DeviceInput::BT_PAUSE_PLAY, NULL, 0);
+		}	
         break;
     case DBUS_TYPE_BOOLEAN:
         dbus_message_iter_get_basic(iter, &valbool);
@@ -346,7 +381,7 @@ static void print_iter(const char *label, const char *name,
     }
 }
 
-static void print_property(GDBusProxy *proxy, const char *name)
+void print_property(GDBusProxy *proxy, const char *name)
 {
     DBusMessageIter iter;
 
@@ -452,45 +487,119 @@ static struct adapter *find_parent(GDBusProxy *device)
     return NULL;
 }
 
-static void set_default_device(GDBusProxy *proxy, const char *attribute)
+#define SERVER_CLASS_TELEPHONY	(1U << (22))
+#define SERVER_CLASS_AUDIO		(1U << (21))
+#define DEVICE_CLASS_SHIFT		8
+#define DEVICE_CLASS_MASK		0x3f
+#define DEVICE_CLASS_PHONE		2
+#define DEVICE_CLASS_AUDIO		4
+
+enum BT_Device_Class dist_dev_class(GDBusProxy *proxy)
 {
-    char *desc = NULL;
+    DBusMessageIter addrType_iter, class_iter, addr_iter, Alias_iter;
+	char *addressType = NULL;
+	char *address = NULL;
+	char *Alias = NULL;
+	dbus_uint32_t valu32;
+
+	if (g_dbus_proxy_get_property(proxy, "AddressType", &addrType_iter) == TRUE) {
+		dbus_message_iter_get_basic(&addrType_iter, &addressType);
+		printf("%s addressType:%s\n", __func__, addressType);	
+
+		if (g_dbus_proxy_get_property(proxy, "Alias", &Alias_iter) == TRUE) {
+			dbus_message_iter_get_basic(&Alias_iter, &Alias);
+			printf("%s Alias: %s\n", __func__, Alias);
+		}
+
+		if (g_dbus_proxy_get_property(proxy, "Address", &addr_iter) == TRUE) {
+			dbus_message_iter_get_basic(&addr_iter, &address);
+			printf("%s address: %s\n", __func__, address);
+		}
+
+		if (strcmp(addressType, "random") == 0)
+			return BT_Device_Class::BT_BLE_DEVICE;
+
+		if (strcmp(addressType, "public") == 0) {
+			if (g_dbus_proxy_get_property(proxy, "Class", &class_iter) == TRUE) {
+				dbus_message_iter_get_basic(&class_iter, &valu32);
+				printf("%s class: 0x%x\n", __func__, valu32);
+
+				if ((valu32 & SERVER_CLASS_TELEPHONY) &&
+					(((valu32 >> DEVICE_CLASS_SHIFT) &
+					DEVICE_CLASS_MASK) == DEVICE_CLASS_PHONE)) {
+					printf("%s The device is source\n", __func__);
+					return BT_Device_Class::BT_SOURCE_DEVICE;
+				}
+				if ((valu32 & SERVER_CLASS_AUDIO) &&
+					(((valu32 >> DEVICE_CLASS_SHIFT) &
+					DEVICE_CLASS_MASK) == DEVICE_CLASS_AUDIO)) {
+					printf("%s The device is sink\n", __func__);
+					return BT_Device_Class::BT_SINK_DEVICE;
+				}
+			}
+
+		}			
+	}
+}
+
+static void set_source_device(GDBusProxy *proxy)
+{
     DBusMessageIter iter;
-    const char *path;
     DBusMessageIter addr_iter;
     char *address = NULL;
 
-    default_dev = proxy;
+    default_src_dev = proxy;
 
     if (proxy == NULL) {
-        default_attr = NULL;
+        default_src_dev = NULL;
         a2dp_master_save_status(NULL);
-        report_btsrc_event(DeviceInput::BT_DISCONNECT, NULL, 0);
-        goto done;
+        report_btsrc_event(DeviceInput::BT_SRC_ENV_DISCONNECT, NULL, 0);
+		return;
     }
 
     if (!g_dbus_proxy_get_property(proxy, "Alias", &iter)) {
-        if (!g_dbus_proxy_get_property(proxy, "Address", &iter))
-            goto done;
+        if (!g_dbus_proxy_get_property(proxy, "Address", &iter)) {
+			printf("%s NO VAILD\n", __func__);
+		}
     }
 
-    if (g_dbus_proxy_get_property(proxy, "Address", &addr_iter) == TRUE) {
-        dbus_message_iter_get_basic(&addr_iter, &address);
-        printf("%s Address:%s\n", __func__, address);
-        a2dp_master_save_status(address);
-        report_btsrc_event(DeviceInput::BT_CONNECT, NULL, 0);
-    }
+	if (g_dbus_proxy_get_property(proxy, "address", &addr_iter) == TRUE) {
+		dbus_message_iter_get_basic(&addr_iter, &address);
+		printf("%s address: %s\n", __func__, address);
+	}
 
-    path = g_dbus_proxy_get_path(proxy);
+	report_btsrc_event(DeviceInput::BT_SRC_ENV_CONNECT, NULL, 0);
+	a2dp_master_save_status(address);
+}
 
-    dbus_message_iter_get_basic(&iter, &desc);
-    desc = g_strdup_printf(COLOR_BLUE "[%s%s%s]" COLOR_OFF "# ", desc,
-                attribute ? ":" : "",
-                attribute ? attribute + strlen(path) : "");
+static void set_default_device(GDBusProxy *proxy, const char *attribute)
+{
+	char *desc = NULL;
+	DBusMessageIter iter;
+	const char *path;
+
+	default_dev = proxy;
+
+	if (proxy == NULL) {
+		default_attr = NULL;
+		goto done;
+	}
+
+	if (!g_dbus_proxy_get_property(proxy, "Alias", &iter)) {
+		if (!g_dbus_proxy_get_property(proxy, "Address", &iter))
+			goto done;
+	}
+
+	path = g_dbus_proxy_get_path(proxy);
+
+	dbus_message_iter_get_basic(&iter, &desc);
+	desc = g_strdup_printf(COLOR_BLUE "[%s%s%s]" COLOR_OFF "# ", desc,
+				attribute ? ":" : "",
+				attribute ? attribute + strlen(path) : "");
 
 done:
-    bt_shell_set_prompt(desc ? desc : PROMPT_ON);
-    g_free(desc);
+	bt_shell_set_prompt(desc ? desc : PROMPT_ON);
+	g_free(desc);
 }
 
 static void device_added(GDBusProxy *proxy)
@@ -515,8 +624,20 @@ static void device_added(GDBusProxy *proxy)
 
         dbus_message_iter_get_basic(&iter, &connected);
 
-        if (connected)
+        if (connected) {
             set_default_device(proxy, NULL);
+
+			//A2DP SRC
+			if (dist_dev_class(proxy) == BT_Device_Class::BT_SINK_DEVICE)
+				set_source_device(proxy);
+
+			//gatt
+			if (connected) {
+				if (dist_dev_class(proxy) ==
+					BT_Device_Class::BT_BLE_DEVICE)
+					report_btsrc_event(DeviceInput::BT_BLE_ENV_CONNECT, NULL, 0);
+			}
+        }
     }
 }
 
@@ -566,12 +687,7 @@ static void proxy_added(GDBusProxy *proxy, void *user_data)
     const char *interface;
 
 	interface = g_dbus_proxy_get_interface(proxy);
-	printf("BT_SOURCE: proxy_added: %s, A2DP_SRC_FLAG: %d\n", interface, A2DP_SRC_FLAG);
-
-	if (!A2DP_SRC_FLAG) {
-		printf("proxy_removed bt src is close !\n");
-		return;
-	}
+	printf("BT Enter: proxy_added: %s\n", interface);
 
     if (!strcmp(interface, "org.bluez.Device1")) {
         device_added(proxy);
@@ -594,10 +710,20 @@ static void proxy_added(GDBusProxy *proxy, void *user_data)
     } else if (!strcmp(interface, "org.bluez.GattDescriptor1")) {
         gatt_add_descriptor(proxy);
     } else if (!strcmp(interface, "org.bluez.GattManager1")) {
-        gatt_add_manager(proxy);
+        //gatt_add_manager(proxy);
+		register_app(proxy);
     } else if (!strcmp(interface, "org.bluez.LEAdvertisingManager1")) {
         ad_manager_added(proxy);
     }
+
+    if (!strcmp(interface, "org.bluez.Device1")) {
+		if (dist_dev_class(proxy) == BT_Device_Class::BT_SOURCE_DEVICE)
+			a2dp_sink_proxy_added(proxy, user_data);
+    } else if (!strcmp(interface, "org.bluez.Adapter1")) {
+		a2dp_sink_proxy_added(proxy, user_data);
+    }
+	
+	printf("BT Exit: proxy_added: %s\n", interface);
 }
 
 static void set_default_attribute(GDBusProxy *proxy)
@@ -658,12 +784,7 @@ static void proxy_removed(GDBusProxy *proxy, void *user_data)
     const char *interface;
 
     interface = g_dbus_proxy_get_interface(proxy);
-	printf("BT_SOURCE: proxy_removed: %s, A2DP_SRC_FLAG: %d\n", interface, A2DP_SRC_FLAG);
-
-	if (!A2DP_SRC_FLAG){
-		printf("proxy_removed bt src is close !\n");
-		return;
-	}
+	printf("BT Enter: proxy_removed: %s\n", interface);
 
     if (!strcmp(interface, "org.bluez.Device1")) {
         device_removed(proxy);
@@ -695,6 +816,9 @@ static void proxy_removed(GDBusProxy *proxy, void *user_data)
     } else if (!strcmp(interface, "org.bluez.LEAdvertisingManager1")) {
         ad_unregister(dbus_conn, NULL);
     }
+
+	a2dp_sink_proxy_removed(proxy, user_data);
+	printf("BT Exit: proxy_removed: %s\n", interface);
 }
 
 static struct adapter *find_ctrl(GList *source, const char *path)
@@ -712,32 +836,126 @@ static struct adapter *find_ctrl(GList *source, const char *path)
 }
 
 static void property_changed(GDBusProxy *proxy, const char *name,
-                    DBusMessageIter *iter, void *user_data)
+					DBusMessageIter *iter, void *user_data)
 {
-    const char *interface;
-    struct adapter *ctrl;
+	const char *interface;
+	struct adapter *ctrl;
 
-    interface = g_dbus_proxy_get_interface(proxy);
-	printf("BT_SOURCE: property_changed: %s, A2DP_SRC_FLAG: %d\n", interface, A2DP_SRC_FLAG);
+	interface = g_dbus_proxy_get_interface(proxy);
+	printf("BT Enter: property_changed: %s\n", interface);
 
-	if (!A2DP_SRC_FLAG) {
-		printf("property_changed bt src is close !\n");
-		return;
+	if (!strcmp(interface, "org.bluez.Device1")) {
+		if (default_ctrl && device_is_child(proxy,
+					default_ctrl->proxy) == TRUE) {
+			DBusMessageIter addr_iter;
+			char *str;
+
+			if (g_dbus_proxy_get_property(proxy, "Address",
+							&addr_iter) == TRUE) {
+				const char *address;
+
+				dbus_message_iter_get_basic(&addr_iter,
+								&address);
+				str = g_strdup_printf("[" COLORED_CHG
+						"] Device %s ", address);
+			} else
+				str = g_strdup("");
+
+			if (strcmp(name, "Connected") == 0) {
+				dbus_bool_t connected;
+
+				dbus_message_iter_get_basic(iter, &connected);
+
+				if (connected && default_dev == NULL)
+					set_default_device(proxy, NULL);
+				else if (!connected && default_dev == proxy)
+					set_default_device(NULL, NULL);
+
+				enum class BT_Device_Class bdc;
+				bdc = dist_dev_class(proxy);
+
+				//gatt
+				if (connected) {
+					if (bdc == BT_Device_Class::BT_BLE_DEVICE)
+						report_btsrc_event(DeviceInput::BT_BLE_ENV_CONNECT, NULL, 0);
+				} else if (!connected) {
+					if (bdc == BT_Device_Class::BT_BLE_DEVICE)	{
+						report_btsrc_event(DeviceInput::BT_BLE_ENV_DISCONNECT, NULL, 0);
+						sleep(1);
+						gatt_set_on_adv();
+					}
+				}
+
+				//bt_source
+				if (connected && default_src_dev == NULL) {
+					if (bdc == BT_Device_Class::BT_SINK_DEVICE)
+						set_source_device(proxy);
+				} else if (!connected && default_src_dev == proxy) {
+					if (bdc == BT_Device_Class::BT_SINK_DEVICE)
+						set_source_device(NULL);
+				}
+
+				//bt_sink
+				if (bdc == BT_Device_Class::BT_SOURCE_DEVICE)
+					device_changed(proxy, iter, user_data);
+			}
+
+			print_iter(str, name, iter);
+			g_free(str);
+		}
+	} else if (!strcmp(interface, "org.bluez.Adapter1")) {
+		DBusMessageIter addr_iter;
+		char *str;
+
+		if (g_dbus_proxy_get_property(proxy, "Address",
+						&addr_iter) == TRUE) {
+			const char *address;
+
+			dbus_message_iter_get_basic(&addr_iter, &address);
+			str = g_strdup_printf("[" COLORED_CHG
+						"] Controller %s ", address);
+		} else
+			str = g_strdup("");
+
+		if (!strcmp(name, "Powered"))
+			adapter_changed(proxy, iter, user_data);
+
+		print_iter(str, name, iter);
+		g_free(str);
+	} else if (!strcmp(interface, "org.bluez.LEAdvertisingManager1")) {
+		DBusMessageIter addr_iter;
+		char *str;
+
+		ctrl = find_ctrl(ctrl_list, g_dbus_proxy_get_path(proxy));
+		if (!ctrl)
+			return;
+
+		if (g_dbus_proxy_get_property(ctrl->proxy, "Address",
+						&addr_iter) == TRUE) {
+			const char *address;
+
+			dbus_message_iter_get_basic(&addr_iter, &address);
+			str = g_strdup_printf("[" COLORED_CHG
+						"] Controller %s ",
+						address);
+		} else
+			str = g_strdup("");
+
+		print_iter(str, name, iter);
+		g_free(str);
+	} else if (proxy == default_attr) {
+		char *str;
+
+		str = g_strdup_printf("[" COLORED_CHG "] Attribute %s ",
+						g_dbus_proxy_get_path(proxy));
+
+		print_iter(str, name, iter);
+		g_free(str);
 	}
 
-    if (!strcmp(interface, "org.bluez.Device1")) {
-        if (default_ctrl && device_is_child(proxy, default_ctrl->proxy) == TRUE) {
-            if (strcmp(name, "Connected") == 0) {
-                dbus_bool_t connected;
+	a2dp_sink_property_changed(proxy, name, iter, user_data);
 
-                dbus_message_iter_get_basic(iter, &connected);
-                if (connected && default_dev == NULL)
-                    set_default_device(proxy, NULL);
-                else if (!connected && default_dev == proxy)
-                    set_default_device(NULL, NULL);
-            }
-        }
-    }
+	printf("BT Exit: property_changed: %s\n", interface);
 }
 
 static void message_handler(DBusConnection *connection,
@@ -2438,13 +2656,13 @@ static void connect_reply(DBusMessage *message, void *user_data)
 		}
 
 		conn_count = 2;
-        btsrc_connect_status = BTSRC_CONNECT_FAILED;
         return bt_shell_noninteractive_quit(EXIT_FAILURE);
     }
 
     printf("Connection successful\n");
-    btsrc_connect_status = BTSRC_CONNECT_SUCESS;
-    set_default_device(proxy, NULL);
+	if (dist_dev_class(proxy) == BT_Device_Class::BT_SINK_DEVICE)
+		set_source_device(proxy);
+	set_default_device(proxy, NULL);
 
     return bt_shell_noninteractive_quit(EXIT_SUCCESS);
 }
@@ -2467,6 +2685,9 @@ static void disconn_reply(DBusMessage *message, void *user_data)
     if (proxy == default_dev)
         set_default_device(NULL, NULL);
 
+	if (proxy == default_src_dev)
+		set_source_device(NULL);
+
     return bt_shell_noninteractive_quit(EXIT_SUCCESS);
 }
 
@@ -2488,12 +2709,17 @@ static void a2dp_source_clean(void)
 }
 
 void *init_a2dp_master(void *)
+{}
+
+void bluetooth_open(ble_content_t *ble_content)
 {
     GError *error = NULL;
 
 	printf("init_a2dp_master start A2DP_SRC_FLAG: %d\n", A2DP_SRC_FLAG);
 	a2dp_source_clean();
-	A2DP_SRC_FLAG = 1;
+	A2DP_SRC_FLAG = 0;
+	A2DP_SINK_FLAG = 0;
+	BLE_FLAG = 0;
 
     if (agent_option)
         auto_register_agent = g_strdup(agent_option);
@@ -2514,6 +2740,8 @@ void *init_a2dp_master(void *)
 
     btsrc_main_loop = g_main_loop_new(NULL, FALSE);
 
+	gatt_init(ble_content);
+
     g_dbus_client_set_connect_watch(btsrc_client, connect_handler, NULL);
     g_dbus_client_set_disconnect_watch(btsrc_client, disconnect_handler, NULL);
     g_dbus_client_set_signal_watch(btsrc_client, message_handler, NULL);
@@ -2521,7 +2749,7 @@ void *init_a2dp_master(void *)
                           property_changed, NULL);
 	printf("a2dp_source init ok\n");
 	g_main_loop_run(btsrc_main_loop);
-	//g_dbus_client_unref(btsrc_client);
+	g_dbus_client_unref(btsrc_client);
 	dbus_connection_unref(dbus_conn);
 	g_main_loop_unref(btsrc_main_loop);
 	a2dp_source_clean();
@@ -2529,18 +2757,24 @@ void *init_a2dp_master(void *)
 	pthread_exit(0);
 }
 
-static pthread_t a2dp_master_thread = 0;
+static pthread_t bt_thread = 0;
+int bt_open(ble_content_t *ble_content)
+{
+	printf("init_a2dp_master_ctrl start pid: 0x%x, A2DP_SRC_FLAG: %d\n", bt_thread, A2DP_SRC_FLAG);
+
+	if (bt_thread)
+		return 1;
+
+    pthread_create(&bt_thread, NULL, bluetooth_open, ble_content);
+    return 1;
+}
+
 int init_a2dp_master_ctrl()
 {
-	printf("init_a2dp_master_ctrl start pid: 0x%x, A2DP_SRC_FLAG: %d\n", a2dp_master_thread, A2DP_SRC_FLAG);
+	printf("init_a2dp_master_ctrl A2DP_SRC_FLAG: %d\n", A2DP_SRC_FLAG);
 
-	if (a2dp_master_thread) {
-		A2DP_SRC_FLAG = 1;
-		return 1;
-	}
-
-    pthread_create(&a2dp_master_thread, NULL, init_a2dp_master, NULL);
-    return 1;
+	A2DP_SRC_FLAG = 1;
+	return 1;
 }
 
 int release_a2dp_master_ctrl() {
@@ -2698,12 +2932,6 @@ int a2dp_master_connect(char *t_address)
     }
 
     printf("Attempting to connect to %s\n", address);
-	//btsrc_connect_status = BTSRC_CONNECT_DOING;
-	//while(btsrc_connect_status == BTSRC_CONNECT_DOING) {
-	//     usleep(100000); //100ms
-	//}
-	//if (btsrc_connect_status == BTSRC_CONNECT_FAILED)
-	//return -1;
 
     return 0;
 }
@@ -2724,12 +2952,12 @@ int a2dp_master_disconnect(char *address)
     if (g_dbus_proxy_method_call(default_dev, "Disconnect", NULL, disconn_reply,
                             default_dev, NULL) == FALSE) {
         printf("Failed to disconnect\n");
-        return -1;
+        return 0;
     }
 
     printf("Attempting to disconnect from %s\n", proxy_address(proxy));
 
-    return 0;
+    return 1;
 }
 
 /*
@@ -2746,11 +2974,11 @@ int a2dp_master_status(char *addr_buf)
     DBusMessageIter iter;
     char *address;
 
-    if (!default_dev)
+    if (!default_src_dev)
         return 0;
 
     if (addr_buf) {
-        if (g_dbus_proxy_get_property(default_dev, "Address", &iter) == FALSE) {
+        if (g_dbus_proxy_get_property(default_src_dev, "Address", &iter) == FALSE) {
             printf("WARING: Bluetooth connected, but can't get address!\n");
             return 0;
         }
@@ -2818,7 +3046,7 @@ static int a2dp_master_save_status(char *address)
         sprintf(buff, "status:disconnect;");
 
     while(snd_cnt--) {
-        sendto(sockfd, buff, strlen(buff), 0, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
+        sendto(sockfd, buff, strlen(buff), MSG_DONTWAIT, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
         usleep(1000); //5ms
     }
 

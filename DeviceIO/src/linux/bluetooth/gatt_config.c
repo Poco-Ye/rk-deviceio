@@ -98,9 +98,6 @@ static int service_id;
 char le_random_addr[6];
 char CMD_RA[256] = "hcitool -i hci0 cmd 0x08 0x0005";
 #define CMD_PARA "hcitool -i hci0 cmd 0x08 0x0006 A0 00 A0 00 00 01 00 00 00 00 00 00 00 07 00"
-static GDBusClient *client;
-static guint signals;
-static volatile bool BLE_FLAG = true;
 
 #define SERVICES_UUID            "23 20 56 7c 05 cf 6e b4 c3 41 77 28 51 82 7e 1b"
 //#define CMD_PARA                 "hcitool -i hci0 cmd 0x08 0x0006 A0 00 A0 00 00 02 00 00 00 00 00 00 00 07 00"
@@ -108,9 +105,19 @@ static volatile bool BLE_FLAG = true;
 #define CMD_EN                   "hcitool -i hci0 cmd 0x08 0x000a 1"                 
 #define CMD_DISEN                "hcitool -i hci0 cmd 0x08 0x000a 0"
 
-static GMainLoop *main_loop;
+struct adapter {
+	GDBusProxy *proxy;
+	GDBusProxy *ad_proxy;
+	GList *devices;
+};
+
 static GSList *services;
-static DBusConnection *connection;
+extern volatile bool BLE_FLAG;
+extern struct adapter *default_ctrl;
+extern DBusConnection *dbus_conn;
+static GList *ctrl_list;
+static GDBusProxy *default_dev;
+static GDBusProxy *default_attr;
 
 struct characteristic *temp_chr;
 struct characteristic *ble_char_chr;
@@ -200,7 +207,7 @@ static void desc_write(struct descriptor *desc, const uint8_t *value, int len)
 	desc->value = g_memdup(value, len);
 	desc->vlen = len;
 
-	g_dbus_emit_property_changed(connection, desc->path,
+	g_dbus_emit_property_changed(dbus_conn, desc->path,
 					GATT_DESCRIPTOR_IFACE, "Value");
 }
 
@@ -338,7 +345,7 @@ static void chr_write(struct characteristic *chr, const uint8_t *value, int len)
 	chr->value = g_memdup(value, len);
 	chr->vlen = len;
 
-	g_dbus_emit_property_changed(connection, chr->path, GATT_CHR_IFACE,
+	g_dbus_emit_property_changed(dbus_conn, chr->path, GATT_CHR_IFACE,
 								"Value");
 }
 
@@ -531,7 +538,7 @@ void execute(const char cmdline[], char recv_buff[])
     pclose(stream);
 }
 
-#define BLE_SEND_MAX_LEN (134) //(20) //(512)
+#define BLE_SEND_MAX_LEN (134)
 static DBusMessage *chr_read_value(DBusConnection *conn, DBusMessage *msg,
 							void *user_data)
 {
@@ -584,8 +591,6 @@ static DBusMessage *chr_write_value(DBusConnection *conn, DBusMessage *msg,
 	const uint8_t *value;
 	int len;
 	const char *device;
-	//char str[120];
-	//memset(str, 0, 120);
 
 	dbus_message_iter_init(msg, &iter);
 
@@ -601,13 +606,7 @@ static DBusMessage *chr_write_value(DBusConnection *conn, DBusMessage *msg,
 	if(len == 0 || chr->value == NULL) {
 		printf("chr_write_value is null\n");
 		return dbus_message_new_method_return(msg);
-	}               
-
-	/*
-	memcpy(str, chr->value, len);
-	str[len] = '\0';
-	printf("chr_write_value  %p, %d\n", str, len);
-	*/
+	}
 
 	ble_content_internal->cb_ble_recv_fun(chr->uuid, chr->value, len);
 
@@ -710,10 +709,10 @@ static gboolean unregister_ble(void)
 
 	for (i = 0; i < ble_content_internal->char_cnt; i++) {
 		printf("unregister_blechar_uuid[%d]: %s, gchr[i]->path: %s.\n", i, ble_content_internal->char_uuid[i], gchr[i]->path);
-		g_dbus_unregister_interface(connection, gchr[i]->path, GATT_CHR_IFACE);
+		g_dbus_unregister_interface(dbus_conn, gchr[i]->path, GATT_CHR_IFACE);
 	}
 	printf("unregister_ble gservice_path: %s.\n", gservice_path);
-	g_dbus_unregister_interface(connection, gservice_path, GATT_SERVICE_IFACE);
+	g_dbus_unregister_interface(dbus_conn, gservice_path, GATT_SERVICE_IFACE);
 }
 
 static gboolean register_characteristic(const char *chr_uuid,
@@ -735,7 +734,7 @@ static gboolean register_characteristic(const char *chr_uuid,
 	chr->service = g_strdup(service_path);
 	chr->path = g_strdup_printf("%s/characteristic%d", service_path, characteristic_id++);
 	printf("register_characteristic chr->uuid: %s, chr->path: %s\n", chr->uuid, chr->path);
-	if (!g_dbus_register_interface(connection, chr->path, GATT_CHR_IFACE,
+	if (!g_dbus_register_interface(dbus_conn, chr->path, GATT_CHR_IFACE,
 					chr_methods, NULL, chr_properties,
 					chr, chr_iface_destroy)) {
 		printf("Couldn't register characteristic interface\n");
@@ -754,12 +753,12 @@ static gboolean register_characteristic(const char *chr_uuid,
 	desc->props = desc_props;
 	desc->path = g_strdup_printf("%s/descriptor%d", chr->path, characteristic_id++);
 
-	if (!g_dbus_register_interface(connection, desc->path,
+	if (!g_dbus_register_interface(dbus_conn, desc->path,
 					GATT_DESCRIPTOR_IFACE,
 					desc_methods, NULL, desc_properties,
 					desc, desc_iface_destroy)) {
 		printf("Couldn't register descriptor interface\n");
-		g_dbus_unregister_interface(connection, chr->path,
+		g_dbus_unregister_interface(dbus_conn, chr->path,
 							GATT_CHR_IFACE);
 
 		desc_iface_destroy(desc);
@@ -775,7 +774,7 @@ static char *register_service(const char *uuid)
 	char *path;
 
 	path = g_strdup_printf("/service%d", service_id++);
-	if (!g_dbus_register_interface(connection, path, GATT_SERVICE_IFACE,
+	if (!g_dbus_register_interface(dbus_conn, path, GATT_SERVICE_IFACE,
 				NULL, NULL, service_properties,
 				g_strdup(uuid), g_free)) {
 		printf("Couldn't register service interface\n");
@@ -810,7 +809,7 @@ static void create_wifi_services(void)
 		/* Add Alert Level Characteristic to Immediate Alert Service */
 		if (!mcharacteristic) {
 			printf("Couldn't register characteristic.\n");
-			g_dbus_unregister_interface(connection, service_path,
+			g_dbus_unregister_interface(dbus_conn, service_path,
 								GATT_SERVICE_IFACE);
 			g_free(service_path);
 			return;
@@ -856,7 +855,7 @@ void ble_enable_adv(void)
 {
 	char buff[1024] = {0};
 	system("hciconfig hci0 piscan");
-	system("hciconfig hci0 piscan");	
+	system("hciconfig hci0 piscan");
 	gatt_set_on_adv();
 	execute(CMD_EN, buff);
 }
@@ -940,7 +939,7 @@ static void register_app_reply(DBusMessage *reply, void *user_data)
 		printf("RegisterApplication: OK\n");
 
 	//send_advertise();
-	gatt_set_on_adv();
+	//gatt_set_on_adv();
 
 	dbus_error_free(&derr);
 }
@@ -959,7 +958,7 @@ static void register_app_setup(DBusMessageIter *iter, void *user_data)
 	dbus_message_iter_close_container(iter, &dict);
 }
 
-static void register_app(GDBusProxy *proxy)
+void register_app(GDBusProxy *proxy)
 {
 	if (!g_dbus_proxy_method_call(proxy, "RegisterApplication",
 					register_app_setup, register_app_reply,
@@ -969,458 +968,20 @@ static void register_app(GDBusProxy *proxy)
 	}
 }
 
-struct adapter {
-	GDBusProxy *proxy;
-	GDBusProxy *ad_proxy;
-	GList *devices;
-};
-
-static struct adapter *default_ctrl;
-static GList *ctrl_list;
-static GDBusProxy *default_dev;
-static GDBusProxy *default_attr;
-
-#undef bt_shell_printf
-#define bt_shell_printf printf
-
-static void print_fixed_iter(const char *label, const char *name,
-						DBusMessageIter *iter)
+int gatt_open(void)
 {
-	dbus_bool_t *valbool;
-	dbus_uint32_t *valu32;
-	dbus_uint16_t *valu16;
-	dbus_int16_t *vals16;
-	unsigned char *byte;
-	int len;
+	printf("=== gatt_open ===\n");
+	ble_enable_adv();
+	system("hciconfig hci0 piscan");
+	BLE_FLAG = true;
 
-	switch (dbus_message_iter_get_arg_type(iter)) {
-	case DBUS_TYPE_BOOLEAN:
-		dbus_message_iter_get_fixed_array(iter, &valbool, &len);
-
-		if (len <= 0)
-			return;
-
-		bt_shell_printf("%s%s:\n", label, name);
-		//bt_shell_hexdump((void *)valbool, len * sizeof(*valbool));
-
-		break;
-	case DBUS_TYPE_UINT32:
-		dbus_message_iter_get_fixed_array(iter, &valu32, &len);
-
-		if (len <= 0)
-			return;
-
-		bt_shell_printf("%s%s:\n", label, name);
-		//bt_shell_hexdump((void *)valu32, len * sizeof(*valu32));
-
-		break;
-	case DBUS_TYPE_UINT16:
-		dbus_message_iter_get_fixed_array(iter, &valu16, &len);
-
-		if (len <= 0)
-			return;
-
-		bt_shell_printf("%s%s:\n", label, name);
-		//bt_shell_hexdump((void *)valu16, len * sizeof(*valu16));
-
-		break;
-	case DBUS_TYPE_INT16:
-		dbus_message_iter_get_fixed_array(iter, &vals16, &len);
-
-		if (len <= 0)
-			return;
-
-		bt_shell_printf("%s%s:\n", label, name);
-		//bt_shell_hexdump((void *)vals16, len * sizeof(*vals16));
-
-		break;
-	case DBUS_TYPE_BYTE:
-		dbus_message_iter_get_fixed_array(iter, &byte, &len);
-
-		if (len <= 0)
-			return;
-
-		bt_shell_printf("%s%s:\n", label, name);
-		//bt_shell_hexdump((void *)byte, len * sizeof(*byte));
-
-		break;
-	default:
-		return;
-	};
-}
-
-static void print_iter(const char *label, const char *name,
-						DBusMessageIter *iter)
-{
-	dbus_bool_t valbool;
-	dbus_uint32_t valu32;
-	dbus_uint16_t valu16;
-	dbus_int16_t vals16;
-	unsigned char byte;
-	const char *valstr;
-	DBusMessageIter subiter;
-	char *entry;
-
-	if (iter == NULL) {
-		bt_shell_printf("%s%s is nil\n", label, name);
-		return;
-	}
-
-	switch (dbus_message_iter_get_arg_type(iter)) {
-	case DBUS_TYPE_INVALID:
-		bt_shell_printf("%s%s is invalid\n", label, name);
-		break;
-	case DBUS_TYPE_STRING:
-	case DBUS_TYPE_OBJECT_PATH:
-		dbus_message_iter_get_basic(iter, &valstr);
-		bt_shell_printf("%s%s: %s\n", label, name, valstr);
-		break;
-	case DBUS_TYPE_BOOLEAN:
-		dbus_message_iter_get_basic(iter, &valbool);
-		bt_shell_printf("%s%s: %s\n", label, name,
-					valbool == TRUE ? "yes" : "no");
-		if ((!strncmp(name, "ServicesResolved", 16)) &&
-			(valbool == TRUE)) {
-			printf("=== BLE CONNECTED ===\n");
-		}
-
-		if ((!strcmp(name, "Connected"))  &&
-			(valbool != TRUE)) {
-				printf("=== BLE DISCONNECTED ===\n");
-				sleep(1);
-				gatt_set_on_adv();
-		}     
-		break;
-	case DBUS_TYPE_UINT32:
-		dbus_message_iter_get_basic(iter, &valu32);
-		bt_shell_printf("%s%s: 0x%08x\n", label, name, valu32);
-		break;
-	case DBUS_TYPE_UINT16:
-		dbus_message_iter_get_basic(iter, &valu16);
-		bt_shell_printf("%s%s: 0x%04x\n", label, name, valu16);
-		break;
-	case DBUS_TYPE_INT16:
-		dbus_message_iter_get_basic(iter, &vals16);
-		bt_shell_printf("%s%s: %d\n", label, name, vals16);
-		break;
-	case DBUS_TYPE_BYTE:
-		dbus_message_iter_get_basic(iter, &byte);
-		bt_shell_printf("%s%s: 0x%02x\n", label, name, byte);
-		break;
-	case DBUS_TYPE_VARIANT:
-		dbus_message_iter_recurse(iter, &subiter);
-		print_iter(label, name, &subiter);
-		break;
-	case DBUS_TYPE_ARRAY:
-		dbus_message_iter_recurse(iter, &subiter);
-
-		if (dbus_type_is_fixed(
-				dbus_message_iter_get_arg_type(&subiter))) {
-			print_fixed_iter(label, name, &subiter);
-			break;
-		}
-
-		while (dbus_message_iter_get_arg_type(&subiter) !=
-							DBUS_TYPE_INVALID) {
-			print_iter(label, name, &subiter);
-			dbus_message_iter_next(&subiter);
-		}
-		break;
-	case DBUS_TYPE_DICT_ENTRY:
-		dbus_message_iter_recurse(iter, &subiter);
-		entry = g_strconcat(name, " Key", NULL);
-		print_iter(label, entry, &subiter);
-		g_free(entry);
-
-		entry = g_strconcat(name, " Value", NULL);
-		dbus_message_iter_next(&subiter);
-		print_iter(label, entry, &subiter);
-		g_free(entry);
-		break;
-	default:
-		bt_shell_printf("%s%s has unsupported type\n", label, name);
-		break;
-	}
-}
-
-static struct adapter *find_ctrl(GList *source, const char *path)
-{
-        GList *list;
-
-        for (list = g_list_first(source); list; list = g_list_next(list)) {
-                struct adapter *adapter = list->data;
-
-                if (!strcasecmp(g_dbus_proxy_get_path(adapter->proxy), path))
-                        return adapter;
-        }
-
-        return NULL;
-}
-
-static void set_default_device(GDBusProxy *proxy, const char *attribute)
-{
-	char *desc = NULL;
-	DBusMessageIter iter;
-	const char *path;
-
-	default_dev = proxy;
-
-	if (proxy == NULL) {
-		default_attr = NULL;
-		goto done;
-	}
-
-	if (!g_dbus_proxy_get_property(proxy, "Alias", &iter)) {
-		if (!g_dbus_proxy_get_property(proxy, "Address", &iter))
-			goto done;
-	}
-
-	path = g_dbus_proxy_get_path(proxy);
-
-	dbus_message_iter_get_basic(&iter, &desc);
-	desc = g_strdup_printf("[%s%s%s]# ", desc,
-				attribute ? ":" : "",
-				attribute ? attribute + strlen(path) : "");
-
-done:
-	g_free(desc);
-}
-
-static gboolean device_is_child(GDBusProxy *device, GDBusProxy *master)
-{
-	DBusMessageIter iter;
-	const char *adapter, *path;
-
-	if (!master)
-		return FALSE;
-
-	if (g_dbus_proxy_get_property(device, "Adapter", &iter) == FALSE)
-		return FALSE;
-
-	dbus_message_iter_get_basic(&iter, &adapter);
-	path = g_dbus_proxy_get_path(master);
-
-	if (!strcmp(path, adapter))
-		return TRUE;
-
-	return FALSE;
-}
-static struct adapter *adapter_new(GDBusProxy *proxy)
-{
-	struct adapter *adapter = g_malloc0(sizeof(struct adapter));
-
-	ctrl_list = g_list_append(ctrl_list, adapter);
-
-	if (!default_ctrl)
-		default_ctrl = adapter;
-
-	return adapter;
-}
-
-static void proxy_added_cb(GDBusProxy *proxy, void *user_data)
-{
-	const char *iface;
-
-	iface = g_dbus_proxy_get_interface(proxy);
-
-	printf("GATT: proxy_added_cb: %s, BLE_FLAG: %d \n", iface, BLE_FLAG);
-
-	if (!BLE_FLAG)
-		return;
-
-	if (!strcmp(iface, "org.bluez.Adapter1")) {
-		struct adapter *adapter;
-		adapter = find_ctrl(ctrl_list, g_dbus_proxy_get_path(proxy));
-		if (!adapter)
-			adapter = adapter_new(proxy);
-		adapter->proxy = proxy;
-	}
-
-	if (g_strcmp0(iface, GATT_MGR_IFACE))
-		return;
-
-	register_app(proxy);
-}
-static void property_changed(GDBusProxy *proxy, const char *name,
-					DBusMessageIter *iter, void *user_data)
-{
-	const char *interface;
-	struct adapter *ctrl;
-
-	interface = g_dbus_proxy_get_interface(proxy);
-	printf("Gatt: property_changed: %s, BLE_FLAG: %d\n", interface, BLE_FLAG);
-
-	if (!BLE_FLAG)
-		return;
-
-	if (!strcmp(interface, "org.bluez.Device1")) {
-        if (default_ctrl != NULL)
-			printf("Gatt : default_ctrl is not null\n");
-		if (default_ctrl && device_is_child(proxy,
-					default_ctrl->proxy) == TRUE) {
-			DBusMessageIter addr_iter;
-			char *str;
-
-			if (g_dbus_proxy_get_property(proxy, "AddressType",
-										&addr_iter) == TRUE) {
-				const char *addressType;
-				dbus_message_iter_get_basic(&addr_iter, &addressType);
-				printf("Gatt: addressType: %s\n", addressType);
-				if (strcmp(addressType, "public") == 0)
-					return 0;
-			}
-
-			if (g_dbus_proxy_get_property(proxy, "Address",
-							&addr_iter) == TRUE) {
-				const char *address;
-				dbus_message_iter_get_basic(&addr_iter,&address);
-				str = g_strdup_printf("[CHG] Device: %s ", address);                     
-			} else
-				str = g_strdup("");
-                        
-			if (strcmp(name, "Connected") == 0) {
-				dbus_bool_t connected;
-
-				dbus_message_iter_get_basic(iter, &connected);
-
-				if (connected && default_dev == NULL) {
-					set_default_device(proxy, NULL);
-				} else if (!connected && default_dev == proxy) {
-					set_default_device(NULL, NULL);
-				}
-			}
-
-			print_iter(str, name, iter);
-			g_free(str);
-		}
-	} else if (!strcmp(interface, "org.bluez.Adapter1")) {
-		DBusMessageIter addr_iter;
-		char *str;
-
-		if (g_dbus_proxy_get_property(proxy, "Address",
-						&addr_iter) == TRUE) {
-			const char *address;
-
-			dbus_message_iter_get_basic(&addr_iter, &address);
-			str = g_strdup_printf("[CHG] Controller %s ", address);
-		} else
-			str = g_strdup("");
-
-		print_iter(str, name, iter);
-		g_free(str);
-	} else if (!strcmp(interface, "org.bluez.LEAdvertisingManager1")) {
-		DBusMessageIter addr_iter;
-		char *str;
-
-		ctrl = find_ctrl(ctrl_list, g_dbus_proxy_get_path(proxy));
-		if (!ctrl)
-			return;
-
-		if (g_dbus_proxy_get_property(ctrl->proxy, "Address",
-						&addr_iter) == TRUE) {
-			const char *address;
-
-			dbus_message_iter_get_basic(&addr_iter, &address);
-			str = g_strdup_printf("[CHG] Controller %s ", address);
-		} else
-			str = g_strdup("");
-
-		print_iter(str, name, iter);
-		g_free(str);
-	} else if (proxy == default_attr) {
-		char *str;
-
-		str = g_strdup_printf("[CHG] Attribute %s ",
-						g_dbus_proxy_get_path(proxy));
-
-		print_iter(str, name, iter);
-		g_free(str);
-	}
-}
-
-static gboolean signal_handler(GIOChannel *channel, GIOCondition cond,
-							gpointer user_data)
-{
-	static bool __terminated = false;
-	struct signalfd_siginfo si;
-	ssize_t result;
-	int fd;
-
-	if (cond & (G_IO_NVAL | G_IO_ERR | G_IO_HUP))
-		return FALSE;
-
-	fd = g_io_channel_unix_get_fd(channel);
-
-	result = read(fd, &si, sizeof(si));
-	if (result != sizeof(si))
-		return FALSE;
-
-	switch (si.ssi_signo) {
-	case SIGINT:
-	case SIGTERM:
-		if (!__terminated) {
-			printf("Terminating\n");
-			g_main_loop_quit(main_loop);
-		}
-
-		__terminated = true;
-		break;
-	}
-
-	return TRUE;
-}
-
-static guint setup_signalfd(void)
-{
-	GIOChannel *channel;
-	guint source;
-	sigset_t mask;
-	int fd;
-
-	sigemptyset(&mask);
-	sigaddset(&mask, SIGINT);
-	sigaddset(&mask, SIGTERM);
-
-	if (sigprocmask(SIG_BLOCK, &mask, NULL) < 0) {
-		perror("Failed to set signal mask");
-		return 0;
-	}
-
-	fd = signalfd(-1, &mask, 0);
-	if (fd < 0) {
-		perror("Failed to create signal descriptor");
-		return 0;
-	}
-
-	channel = g_io_channel_unix_new(fd);
-
-	g_io_channel_set_close_on_unref(channel, TRUE);
-	g_io_channel_set_encoding(channel, NULL, NULL);
-	g_io_channel_set_buffered(channel, FALSE);
-
-	source = g_io_add_watch(channel,
-				G_IO_IN | G_IO_HUP | G_IO_ERR | G_IO_NVAL,
-				signal_handler, NULL);
-
-	g_io_channel_unref(channel);
-
-	return source;
-}
-
-static pthread_t p_gatt_init = 0;
-int gatt_init(ble_content_t *ble_content);
-int gatt_main(ble_content_t *ble_content)
-{
-	printf("=== gatt_init p_gatt_init: 0x%x===\n", p_gatt_init);
-	if (p_gatt_init) {
-		ble_enable_adv();
-		system("hciconfig hci0 piscan");
-		BLE_FLAG = true;
-		return 1;
-	}
-
-	pthread_create(&p_gatt_init, NULL, gatt_init, ble_content);
 	return 1;
+}
+
+void gatt_close(void)
+{
+	printf("release_ble_gatt gatt_init ...\n");
+	BLE_FLAG = false;
 }
 
 int gatt_init(ble_content_t *ble_content)
@@ -1433,52 +994,7 @@ int gatt_init(ble_content_t *ble_content)
 	service_id = 1;
 	gid = 0;
 
-	signals = setup_signalfd();
-	if (signals == 0)
-		return -errno;
-
 	ble_content_internal_bak = *ble_content;
 	ble_content_internal = &ble_content_internal_bak;
-	connection = g_dbus_setup_bus(DBUS_BUS_SYSTEM, NULL, NULL);
-
-	main_loop = g_main_loop_new(NULL, FALSE);
-
-	g_dbus_attach_object_manager(connection);
-
 	create_wifi_services();
-
-	client = g_dbus_client_new(connection, "org.bluez", "/org/bluez");
-	printf("gatt_init unique name: %s [0x%p:0x%p]\n",
-				dbus_bus_get_unique_name(connection), connection, client);
-
-	printf("Gatt: gatt_init BLE_FLAG: %d\n", BLE_FLAG);
-	BLE_FLAG = true;
-	g_dbus_client_set_proxy_handlers(client, proxy_added_cb, NULL, property_changed,
-									NULL);
-
-	g_main_loop_run(main_loop);
-	printf("exit gatt_init ...\n");
-	//g_dbus_client_unref(client);	
-	unregister_ble();
-	//sleep(2);
-	g_source_remove(signals);
-	g_slist_free_full(services, g_free);
-	dbus_connection_unref(connection);
-	default_ctrl = NULL;
-	ctrl_list = NULL;
-	default_dev = NULL;
-	default_attr = NULL;
-	printf("exit gatt_init ok \n");
-
-	pthread_exit(0);
-	printf("exit gatt_init end \n");
-
-	return 0;
-}
-
-void release_ble_gatt(void)
-{
-	printf("release_ble_gatt gatt_init ...\n");
-	//g_main_loop_quit(main_loop);
-	BLE_FLAG = false;
 }
