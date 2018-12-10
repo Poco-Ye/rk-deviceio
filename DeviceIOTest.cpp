@@ -30,6 +30,7 @@
 #include <DeviceIo/WifiInfo.h>
 #include <DeviceIo/WifiManager.h>
 #include <DeviceIo/RkMediaPlayer.h>
+#include <DeviceIo/BtsrcParameter.h>
 
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
@@ -40,6 +41,8 @@ using DeviceIOFramework::DeviceRTC;
 using DeviceIOFramework::DevicePowerSupply;
 using DeviceIOFramework::NetLinkNetworkStatus;
 using DeviceIOFramework::wifi_config;
+
+//ble_content_t ble_content;
 
 static int g_player0_flag_eos = 0;
 static int g_player0_flag_seekable = 0;
@@ -140,7 +143,7 @@ public:
 			DeviceIo::getInstance()->setVolume(vol_cur + vol);
 			break;
 		}
-	case DeviceInput::KEY_MIC_MUTE: {
+		case DeviceInput::KEY_MIC_MUTE: {
 			printf("key mic mute\n");
 			static bool micmute = false;
 			if (!micmute) {
@@ -153,7 +156,7 @@ public:
 			micmute = !micmute;
 			break;
 		}
-	case DeviceInput::KEY_ENTER_AP: {
+		case DeviceInput::KEY_ENTER_AP: {
 			printf("key enter ap to config network\n");
 			switch (DeviceIo::getInstance()->getNetworkStatus()) {
 				case DeviceIOFramework::NETLINK_NETWORK_CONFIG_STARTED:
@@ -189,24 +192,40 @@ public:
 			DeviceIo::getInstance()->factoryReset();
 			break;
 		}
-			case DeviceInput::BT_CONNECT: {
-				printf("=== BT_CONNECT ===\n");
-				break;
-			}
-			case DeviceInput::BT_DISCONNECT: {
-				printf("=== BT_DISCONNECT ===\n");
-				break;
-			}
-			case DeviceInput::BT_START_PLAY: {
-				printf("=== BT_START_PLAY ===\n");
-				break;
-			}
-			case DeviceInput::BT_PAUSE_PLAY: {
-				printf("=== BT_PAUSE_PLAY ===\n");
-				break;
-			}
-			case DeviceInput::BT_STOP_PLAY: {
-				printf("=== BT_STOP_PLAY ===\n");
+		case DeviceInput::BT_SRC_ENV_CONNECT: {
+			printf("=== BT_SRC_ENV_CONNECT ===\n");
+			break;
+		}
+		case DeviceInput::BT_SRC_ENV_DISCONNECT: {
+			printf("=== BT_SRC_ENV_DISCONNECT ===\n");
+			break;
+		}
+		case DeviceInput::BT_SINK_ENV_CONNECT: {
+			printf("=== BT_SINK_ENV_CONNECT ===\n");
+			break;
+		}
+		case DeviceInput::BT_SINK_ENV_DISCONNECT: {
+			printf("=== BT_SINK_ENV_DISCONNECT ===\n");
+			break;
+		}
+		case DeviceInput::BT_BLE_ENV_CONNECT: {
+			printf("=== BT_BLE_ENV_CONNECT ===\n");
+			break;
+		}
+		case DeviceInput::BT_BLE_ENV_DISCONNECT: {
+			printf("=== BT_BLE_ENV_DISCONNECT ===\n");
+			break;
+		}
+		case DeviceInput::BT_START_PLAY: {
+			printf("=== BT_START_PLAY ===\n");
+			break;
+		}
+		case DeviceInput::BT_PAUSE_PLAY: {
+			printf("=== BT_PAUSE_PLAY ===\n");
+			break;
+		}
+		case DeviceInput::BT_STOP_PLAY: {
+			printf("=== BT_STOP_PLAY ===\n");
 			break;
 		}
 		}
@@ -355,6 +374,12 @@ static void bt_source_close(void *data) {
 	DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_CLOSE);
 }
 
+ble_content_t ble_content;
+static void bt_init_open(void *data) {
+	printf("---------------BT_OPEN----------------\n");
+	DeviceIo::getInstance()->controlBt(BtControl::BT_OPEN, &ble_content);
+}
+
 static test_command_t process_command_table[] = {
 	{"suspend", suspend_test},
 	{"factoryReset", factoryReset_test},
@@ -368,6 +393,7 @@ static test_command_t process_command_table[] = {
 	{"ble_wifi_close", ble_wifi_close},
 	{"bt_sink_close", bt_sink_close},
 	{"bt_source_close", bt_source_close},
+	{"bt_open", bt_init_open},	
 };
 
 static void show_help() {
