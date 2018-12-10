@@ -713,7 +713,7 @@ scan_retry:
         return false;
     }
 
-	if (max_rssi < -60) {
+	if (max_rssi < -80) {
 		printf("=== BT SOURCE RSSI is is too weak !!! ===\n");
 		return false;
 	}

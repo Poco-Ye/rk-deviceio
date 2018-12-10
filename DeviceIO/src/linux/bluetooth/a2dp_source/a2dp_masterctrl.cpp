@@ -721,6 +721,11 @@ static void proxy_added(GDBusProxy *proxy, void *user_data)
         ad_manager_added(proxy);
     }
 
+	if ((!strcmp(interface, "org.bluez.MediaPlayer1")) ||
+		(!strcmp(interface, "org.bluez.MediaFolder1")) ||
+		(!strcmp(interface, "org.bluez.MediaItem1")))
+		a2dp_sink_proxy_added(proxy, user_data);
+
     if (!strcmp(interface, "org.bluez.Device1")) {
 		if (dist_dev_class(proxy) == BT_Device_Class::BT_SOURCE_DEVICE)
 			a2dp_sink_proxy_added(proxy, user_data);

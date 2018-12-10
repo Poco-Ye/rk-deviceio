@@ -816,21 +816,21 @@ void a2dp_sink_property_changed(GDBusProxy *proxy, const char *name,
 
 bool check_default_player(void)
 {
-    if (!default_player) {
-        if (NULL != players) {
-            GSList *l;
-            l = players;
-            GDBusProxy *proxy = (GDBusProxy *)l->data;
-            default_player = proxy;
-            printf("set default player\n");
-            return TRUE;
-        }
-     //printf("No default player available\n");
-     return FALSE;
-    }
-    //printf(" player ok\n");
+	if (!default_player) {
+		if (NULL != players) {
+			GSList *l;
+			l = players;
+			GDBusProxy *proxy = (GDBusProxy *)l->data;
+			default_player = proxy;
+			printf("set default player\n");
+			return TRUE;
+		}
+		printf("No default player available\n");
+		return FALSE;
+	}
+	printf(" player ok\n");
 
-    return TRUE;
+	return TRUE;
 }
 
 gboolean option_version = FALSE;
