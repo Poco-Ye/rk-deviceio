@@ -109,9 +109,9 @@ enum class BtControl {
     BT_BLE_IS_OPENED,
 	BT_BLE_WRITE,
 	BT_BLE_READ,
+	BT_VISIBILITY,
 
     GET_BT_MAC,
-    BT_SINK_POWER,
 };
 
 /* wifi control cmd */

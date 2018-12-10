@@ -86,6 +86,7 @@ extern void a2dp_sink_proxy_added(GDBusProxy *proxy, void *user_data);
 extern void a2dp_sink_property_changed(GDBusProxy *proxy, const char *name, DBusMessageIter *iter, void *user_data);
 extern void adapter_changed(GDBusProxy *proxy, DBusMessageIter *iter, void *user_data);
 extern void device_changed(GDBusProxy *proxy, DBusMessageIter *iter, void *user_data);
+extern int init_avrcp_ctrl(void);
 
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
@@ -553,6 +554,7 @@ static void set_source_device(GDBusProxy *proxy)
     if (proxy == NULL) {
         default_src_dev = NULL;
         a2dp_master_save_status(NULL);
+		printf("[D: %s]: BT_SRC_DEVICE DISCONNECTED", __func__);
         report_btsrc_event(DeviceInput::BT_SRC_ENV_DISCONNECT, NULL, 0);
 		return;
     }
@@ -568,6 +570,7 @@ static void set_source_device(GDBusProxy *proxy)
 		printf("%s address: %s\n", __func__, address);
 	}
 
+	printf("[D: %s]: BT_SRC_DEVICE CONNECTED", __func__);
 	report_btsrc_event(DeviceInput::BT_SRC_ENV_CONNECT, NULL, 0);
 	a2dp_master_save_status(address);
 }
@@ -634,8 +637,10 @@ static void device_added(GDBusProxy *proxy)
 			//gatt
 			if (connected) {
 				if (dist_dev_class(proxy) ==
-					BT_Device_Class::BT_BLE_DEVICE)
+					BT_Device_Class::BT_BLE_DEVICE) {
+					printf("[D: %s]: BLE DEVICE CONNECTED", __func__);
 					report_btsrc_event(DeviceInput::BT_BLE_ENV_CONNECT, NULL, 0);
+				}
 			}
         }
     }
@@ -876,11 +881,14 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 
 				//gatt
 				if (connected) {
-					if (bdc == BT_Device_Class::BT_BLE_DEVICE)
+					if (bdc == BT_Device_Class::BT_BLE_DEVICE) {
+						printf("[D: %s]: BLE DEVICE CONNECTED", __func__);
 						report_btsrc_event(DeviceInput::BT_BLE_ENV_CONNECT, NULL, 0);
+					}
 				} else if (!connected) {
 					if (bdc == BT_Device_Class::BT_BLE_DEVICE)	{
 						report_btsrc_event(DeviceInput::BT_BLE_ENV_DISCONNECT, NULL, 0);
+						printf("[D: %s]: BLE DEVICE DISCONNECTED", __func__);
 						sleep(1);
 						gatt_set_on_adv();
 					}
@@ -888,11 +896,13 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 
 				//bt_source
 				if (connected && default_src_dev == NULL) {
-					if (bdc == BT_Device_Class::BT_SINK_DEVICE)
+					if (bdc == BT_Device_Class::BT_SINK_DEVICE) {
 						set_source_device(proxy);
+					}
 				} else if (!connected && default_src_dev == proxy) {
-					if (bdc == BT_Device_Class::BT_SINK_DEVICE)
+					if (bdc == BT_Device_Class::BT_SINK_DEVICE) {
 						set_source_device(NULL);
+					}
 				}
 
 				//bt_sink
@@ -2706,6 +2716,11 @@ static void a2dp_source_clean(void)
 	btsrc_main_loop = NULL;
 	btsrc_scan_list = NULL;
 	btsrc_scan_cnt = 0;
+
+	A2DP_SRC_FLAG = 0;
+	A2DP_SINK_FLAG = 0;
+	BLE_FLAG = 0;
+	default_src_dev = NULL;
 }
 
 void *init_a2dp_master(void *)
@@ -2717,9 +2732,6 @@ void bluetooth_open(ble_content_t *ble_content)
 
 	printf("init_a2dp_master start A2DP_SRC_FLAG: %d\n", A2DP_SRC_FLAG);
 	a2dp_source_clean();
-	A2DP_SRC_FLAG = 0;
-	A2DP_SINK_FLAG = 0;
-	BLE_FLAG = 0;
 
     if (agent_option)
         auto_register_agent = g_strdup(agent_option);
@@ -2739,7 +2751,7 @@ void bluetooth_open(ble_content_t *ble_content)
 				dbus_bus_get_unique_name(dbus_conn), dbus_conn, btsrc_client);
 
     btsrc_main_loop = g_main_loop_new(NULL, FALSE);
-
+	init_avrcp_ctrl();
 	gatt_init(ble_content);
 
     g_dbus_client_set_connect_watch(btsrc_client, connect_handler, NULL);

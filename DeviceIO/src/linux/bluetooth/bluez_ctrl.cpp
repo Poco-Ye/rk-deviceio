@@ -461,7 +461,7 @@ static int bt_a2dp_sink_open(void)
 		bt_start_a2dp_sink();
 
 	printf("call init_avrcp_ctrl ...\n");
-	ret = init_avrcp_ctrl();
+	ret = a2dp_sink_open();
 
 	return ret;
 }
@@ -545,6 +545,9 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		bt_control.last_type = BtControlType::BT_NONE;
 		break;
 	case BtControl::BT_SINK_OPEN:
+		if (!bt_control.is_bt_open)
+			return -1;
+
 		bt_control.type = BtControlType::BT_SINK;
 		if (bt_sink_is_open())
 			return 1;
@@ -565,7 +568,10 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		break;
 
     case BtControl::BT_BLE_OPEN:
-		bt_control.type = BtControlType::BT_BLE_MODE;
+		if (!bt_control.is_bt_open)
+			return -1;
+
+		bt_control.type = BtControlType::BT_BLE_MODE;
 
 		if (bt_interface(BtControl::BT_BLE_OPEN, data) < 0) {
 			bt_control.is_ble_open = 0;
@@ -578,6 +584,9 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		break;
 
     case BtControl::BT_SOURCE_OPEN:
+		if (!bt_control.is_bt_open)
+			return -1;
+
 		printf("=== BtControl::BT_SOURCE_OPEN ===\n");
 		bt_control.type = BtControlType::BT_SOURCE;
 
@@ -706,12 +715,10 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		gatt_write_data(ble_cfg->uuid, ble_cfg->data, ble_cfg->len);
 
 		break;
-
-	case BtControl::BT_SINK_POWER:
-		a2dp_sink_cmd_power(1);
-
+	case BtControl::BT_VISIBILITY:
+		bool scan = (*(bool *)data);
+		rkbt_inquiry_scan(scan);
 		break;
-
     default:
         APP_DEBUG("%s, cmd <%d> is not implemented.\n", __func__,
                   static_cast<BtControl_rep_type>(cmd));
