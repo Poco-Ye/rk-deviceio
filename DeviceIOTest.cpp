@@ -336,20 +336,12 @@ static void bt_sink_test(void *data) {
 	printf("---------------bt sink ----------------\n");
 	DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_CLOSE);
 	DeviceIo::getInstance()->controlBt(BtControl::BT_SINK_OPEN);
-	sleep(6);
-	DeviceIo::getInstance()->controlBt(BtControl::BT_SINK_POWER);
 }
 
 static void bt_auto_source_test(void *data) {
 	char address[17] = {0};
 	printf("--------------- ble wifi ----------------\n");
 	DeviceIo::getInstance()->a2dpSourceAutoConnect(address, 10000);
-}
-
-static void bt_source_test(void *data) {
-	printf("---------------bt sink ----------------\n");
-	DeviceIo::getInstance()->controlBt(BtControl::BT_SINK_CLOSE);
-	a2dp_source_main();
 }
 
 static void ble_wifi_manual_test(void *data) {
@@ -388,13 +380,10 @@ static test_command_t process_command_table[] = {
 	{"leds", leds_test},
 	{"bt_sink", bt_sink_test},
 	{"bt_auto_source", bt_auto_source_test},
-	{"bt_source", bt_source_test},
-	{"ble_wifi_manual", ble_wifi_manual_test},
 	{"ble_wifi", ble_wifi_test},
-	{"ble_wifi_close", ble_wifi_close},
 	{"bt_sink_close", bt_sink_close},
 	{"bt_source_close", bt_source_close},
-	{"bt_open", bt_init_open},	
+	{"bt_open", bt_init_open},
 };
 
 static void show_help() {

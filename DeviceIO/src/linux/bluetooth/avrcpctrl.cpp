@@ -108,9 +108,9 @@ bool system_command(const char* cmd)
     return ret_value;
 }
 
-void rkbt_inquiry_scan(bool tf)
+void rkbt_inquiry_scan(bool scan)
 {
-	if (tf)
+	if (scan)
 		system_command("hciconfig hci0 piscan");
 	else
 		system_command("hciconfig hci0 noscan");
@@ -488,6 +488,8 @@ bool reconn_last(void)
 		reconnect_timer = 0;
 	}
 
+	printf("%s: lcdp: 0x%p, last_device_path: %s.\n", last_connected_device_proxy, last_device_path);
+
 	if ((!last_connected_device_proxy) && last_device_path) {
 		/* Check if the device exists */
 		last_connected_device_proxy = proxy_lookup_client(
@@ -746,11 +748,13 @@ void device_changed(GDBusProxy *proxy, DBusMessageIter *iter,
 		last_connected_device_proxy = proxy;
 		device_connected_post(proxy);
 		report_avrcp_event(DeviceInput::BT_SINK_ENV_CONNECT, NULL, 0);
+		printf("[D: %s]: BT_SNK_DEVICE CONNECTED", __func__);
 		system("hciconfig hci0 noscan");
 		system("hciconfig hci0 noscan");
 	} else {
 		/* Device has been stored when being connected */
 		device_list = g_list_remove(device_list, proxy);
+		printf("[D: %s]: BT_SNK_DEVICE DISCONNECTED", __func__);
 		report_avrcp_event(DeviceInput::BT_SINK_ENV_DISCONNECT, NULL, 0);
 		system("hciconfig hci0 piscan");
 		system("hciconfig hci0 piscan");
@@ -837,17 +841,18 @@ GOptionEntry options[] = {
 	{ NULL },
 };
 
-static void a2dp_sink_clean(void)
-{
-	default_ctrl = NULL;
-	ctrl_list = NULL;
-	dbus_conn = NULL;
-}
-
-static pthread_t avrcp_thread = 0;
 int init_avrcp_ctrl(void)
 {
-	printf("call avrcp_thread init_avrcp ppid: 0x%x ...\n", avrcp_thread);
+	proxy_list = NULL;
+	last_device_path = NULL;
+	last_connected_device_proxy = NULL;
+	device_list = NULL;
+	reconnect_timer = 0;
+}
+
+int a2dp_sink_open(void)
+{
+	printf("call avrcp_thread init_avrcp\n");
 	A2DP_SINK_FLAG = true;
 	system("hciconfig hci0 piscan");
 	system("hciconfig hci0 piscan");

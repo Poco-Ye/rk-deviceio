@@ -83,9 +83,10 @@ void volumeup_avrcp();
 
 void volumedown_avrcp();
 bool check_default_player(void);
-void a2dp_sink_cmd_power(bool powered);
 int a2dp_sink_colse_coexist();
 bool reconn_last(void);
 bool disconn_device(void);
+int a2dp_sink_open(void);
+void rkbt_inquiry_scan(bool scan);
 
 #endif 
