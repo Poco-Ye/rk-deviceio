@@ -434,6 +434,7 @@ bool NetLinkWrapper::start_network_config() {
 	DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_OPEN);
 	printf("==start notify_network_config_status ===\n");
 	getInstance()->notify_network_config_status(ENetworkConfigStarted);
+	m_ping_interval = 1;
 }
 
 void NetLinkWrapper::stop_network_config() {

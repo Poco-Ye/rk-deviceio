@@ -565,12 +565,12 @@ static void set_source_device(GDBusProxy *proxy)
 		}
     }
 
-	if (g_dbus_proxy_get_property(proxy, "address", &addr_iter) == TRUE) {
+	if (g_dbus_proxy_get_property(proxy, "Address", &addr_iter) == TRUE) {
 		dbus_message_iter_get_basic(&addr_iter, &address);
 		printf("%s address: %s\n", __func__, address);
 	}
 
-	printf("[D: %s]: BT_SRC_DEVICE CONNECTED", __func__);
+	printf("[D: %s]: BT_SRC_DEVICE CONNECTED\n", __func__);
 	report_btsrc_event(DeviceInput::BT_SRC_ENV_CONNECT, NULL, 0);
 	a2dp_master_save_status(address);
 }
