@@ -395,7 +395,7 @@ static void reconn_device_reply(DBusMessage * message, void *user_data)
 {
 
 	DBusError error;
-	static int count = 3;
+	static int count = 1;
 
 	dbus_error_init(&error);
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
@@ -405,10 +405,14 @@ static void reconn_device_reply(DBusMessage * message, void *user_data)
 			count--;
 			reconnect_timer = g_timeout_add_seconds(RECONN_INTERVAL,
 					reconn_device, user_data);
+			dbus_error_free(&error);
+			return;
 		}
 
+		report_avrcp_event(DeviceInput::BT_SINK_ENV_CONNECT_FAIL, NULL, 0);
 		dbus_error_free(&error);
 	}
+	count = 1;
 }
 
 static void reconn_last_device_reply(DBusMessage * message, void *user_data)
@@ -425,12 +429,15 @@ static void reconn_last_device_reply(DBusMessage * message, void *user_data)
 			count--;
 			reconnect_timer = g_timeout_add_seconds(RECONN_INTERVAL,
 					reconn_last, user_data);
+			dbus_error_free(&error);
+			return;
 		}
 
+		report_avrcp_event(DeviceInput::BT_SINK_ENV_CONNECT_FAIL, NULL, 0);
 		dbus_error_free(&error);
 	}
+	count = 1;
 }
-
 
 bool disconn_device(void)
 {
@@ -754,7 +761,7 @@ void device_changed(GDBusProxy *proxy, DBusMessageIter *iter,
 	} else {
 		/* Device has been stored when being connected */
 		device_list = g_list_remove(device_list, proxy);
-		printf("[D: %s]: BT_SNK_DEVICE DISCONNECTED", __func__);
+		printf("[D: %s]: BT_SNK_DEVICE DISCONNECTED\n", __func__);
 		report_avrcp_event(DeviceInput::BT_SINK_ENV_DISCONNECT, NULL, 0);
 		system("hciconfig hci0 piscan");
 		system("hciconfig hci0 piscan");

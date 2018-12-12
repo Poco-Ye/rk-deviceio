@@ -186,7 +186,7 @@ static void btsrc_scan_save_device(GDBusProxy *proxy, const char *description)
         dbus_message_iter_get_basic(&iter, &name);
     else
         name = "<unknown>";
-
+	printf("---DEVICES: Address: %s, Name: %s\n", address, name);
     if (btsrc_scan_list) {
         device_info = (BtDeviceInfo *) malloc(sizeof(BtDeviceInfo));
         if (device_info) {
@@ -2670,6 +2670,8 @@ static void connect_reply(DBusMessage *message, void *user_data)
 			return;
 		}
 
+		if (dist_dev_class(proxy) == BT_Device_Class::BT_SINK_DEVICE)
+			report_btsrc_event(DeviceInput::BT_SRC_ENV_CONNECT_FAIL, NULL, 0);
 		conn_count = 2;
         return bt_shell_noninteractive_quit(EXIT_FAILURE);
     }
@@ -2850,13 +2852,17 @@ static int a2dp_master_get_playrole(GDBusProxy *proxy)
                 n = sizeof(str) - 1;
             }
 
-            if (strstr(str, "Audio Source")) {
-                ret = BTSRC_SCAN_PROFILE_SOURCE;
-                break;
-            } else if (strstr(str, "Audio Sink")) {
-                ret = BTSRC_SCAN_PROFILE_SINK;
-                break;
-            }
+			if (strstr(str, "Audio Sink")) {
+				if (dist_dev_class(proxy) == BT_Device_Class::BT_SINK_DEVICE) {
+					ret = BTSRC_SCAN_PROFILE_SINK;
+					break;
+				}
+			} else if (strstr(str, "Audio Source")) {
+				if (dist_dev_class(proxy) == BT_Device_Class::BT_SOURCE_DEVICE) {
+			        ret = BTSRC_SCAN_PROFILE_SOURCE;
+					break;
+				}
+			}
         }
 
         dbus_message_iter_next(&value);
@@ -2913,6 +2919,9 @@ int a2dp_master_scan(void *arg, int len)
             memcpy(start->playrole, "AudioSink", strlen("AudioSink"));
         else if (ret == BTSRC_SCAN_PROFILE_SOURCE)
             memcpy(start->playrole, "AudioSource", strlen("AudioSource"));
+		else
+			memcpy(start->playrole, "Unknow", strlen("Unknow"));
+		printf("=== Addr: %s, playrole: %s ===\n", start->address, start->playrole);
 
         start = start->next;
     }

@@ -703,7 +703,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
         break;
 
     case BtControl::BT_AVRCP_BWD:
-        if (bt_control_cmd_send(BtControl::BT_AVRCP_FWD) < 0) {
+        if (bt_control_cmd_send(BtControl::BT_AVRCP_BWD) < 0) {
             APP_ERROR("Bt socket send next track cmd failed\n");
             ret = -1;
         }
