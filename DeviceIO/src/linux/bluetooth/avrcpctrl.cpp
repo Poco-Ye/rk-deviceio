@@ -26,11 +26,6 @@ using DeviceIOFramework::TimerNotify;
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
 
-static void report_avrcp_event(DeviceInput event, void *data, int len) {
-	if (DeviceIo::getInstance()->getNotify())
-		DeviceIo::getInstance()->getNotify()->callback(event, data, len);
-}
-
 #define COLOR_OFF	"\x1B[0m"
 #define COLOR_RED	"\x1B[0;91m"
 #define COLOR_GREEN	"\x1B[0;92m"
@@ -38,7 +33,6 @@ static void report_avrcp_event(DeviceInput event, void *data, int len) {
 #define COLOR_BLUE	"\x1B[0;94m"
 #define COLOR_BOLDGRAY	"\x1B[1;30m"
 #define COLOR_BOLDWHITE	"\x1B[1;37m"
-
 
 /* String display constants */
 #define COLORED_NEW	COLOR_GREEN "NEW" COLOR_OFF
@@ -86,6 +80,31 @@ extern volatile bool A2DP_SINK_FLAG;
 extern GDBusClient *btsrc_client;
 
 extern void print_iter(const char *label, const char *name, DBusMessageIter *iter);
+
+static RK_bta2dp_callback g_btsink_cb;
+static int g_btsink_auto_reconnect = 1; /* Default for auto reconnect */
+
+static void report_avrcp_event(DeviceInput event, void *data, int len) {
+	if (DeviceIo::getInstance()->getNotify())
+		DeviceIo::getInstance()->getNotify()->callback(event, data, len);
+
+	if (g_btsink_cb) {
+		switch(event) {
+			case DeviceInput::BT_SINK_ENV_CONNECT:
+				(*g_btsink_cb)(RK_BTA2DP_State_CONNECT);
+				break;
+			case DeviceInput::BT_SINK_ENV_DISCONNECT:
+				(*g_btsink_cb)(RK_BTA2DP_State_DISCONNECT);
+				break;
+			case DeviceInput::BT_START_PLAY:
+				(*g_btsink_cb)(RK_BTA2DP_State_PLAY);
+				break;
+			case DeviceInput::BT_PAUSE_PLAY:
+				(*g_btsink_cb)(RK_BTA2DP_State_PAUSE);
+				break;
+		}
+	}
+}
 
 bool system_command(const char* cmd)
 {
@@ -219,7 +238,7 @@ void player_added(GDBusProxy *proxy)
 	players = g_slist_append(players, proxy);
 
 	if (default_player == NULL) {
-	    printf("set default player");
+	    printf("set default player\n");
 		default_player = proxy;
 	}
 
@@ -490,12 +509,16 @@ bool reconn_last(void)
 	GDBusProxy *proxy = last_connected_device_proxy;
 	DBusMessageIter iter, addr_iter, addrType_iter;
 
+	/* Enable auto reconnect? */
+	if (!g_btsink_auto_reconnect)
+		return false;
 	if (reconnect_timer) {
 		g_source_remove(reconnect_timer);
 		reconnect_timer = 0;
 	}
 
-	printf("%s: lcdp: 0x%p, last_device_path: %s.\n", last_connected_device_proxy, last_device_path);
+	printf("%s: lcdp: 0x%p, last_device_path: %s.\n",
+		__func__, last_connected_device_proxy, last_device_path);
 
 	if ((!last_connected_device_proxy) && last_device_path) {
 		/* Check if the device exists */
@@ -554,6 +577,10 @@ static gboolean reconn_device(void *user_data)
 {
 	GDBusProxy *proxy = (GDBusProxy *)user_data;
 	DBusMessageIter iter;
+
+	/* Enable auto reconnect? */
+	if (!g_btsink_auto_reconnect)
+		return false;
 
 	if (reconnect_timer) {
 		g_source_remove(reconnect_timer);
@@ -855,6 +882,7 @@ int init_avrcp_ctrl(void)
 	last_connected_device_proxy = NULL;
 	device_list = NULL;
 	reconnect_timer = 0;
+	g_btsink_auto_reconnect = 1;
 }
 
 int a2dp_sink_open(void)
@@ -1168,4 +1196,47 @@ int getstatus_avrcp(void)
 		return AVRCP_PLAY_STATUS_ERROR;
 
 	return AVRCP_PLAY_STATUS_ERROR;
+}
+
+void a2dp_sink_register_cb(RK_bta2dp_callback cb)
+{
+	g_btsink_cb = cb;
+}
+
+void a2dp_sink_clear_cb()
+{
+	g_btsink_cb = NULL;
+}
+
+void a2dp_sink_set_auto_reconnect(int enable)
+{
+	g_btsink_auto_reconnect = (enable ? 1 : 0);
+}
+
+int a2dp_sink_status(RK_BTA2DP_State_e *pState)
+{
+	int avrcp_status;
+
+	if (!pState)
+		return -1;
+
+	avrcp_status = getstatus_avrcp();
+	switch (avrcp_status) {
+		case AVRCP_PLAY_STATUS_STOPPED:
+			*pState = RK_BTA2DP_State_STOP;
+			break;
+		case AVRCP_PLAY_STATUS_REV_SEEK:
+		case AVRCP_PLAY_STATUS_FWD_SEEK:
+		case AVRCP_PLAY_STATUS_PLAYING:
+			*pState = RK_BTA2DP_State_PLAY;
+			break;
+		case AVRCP_PLAY_STATUS_PAUSED:
+			*pState = RK_BTA2DP_State_PAUSE;
+			break;
+		default:
+			*pState = RK_BTA2DP_State_IDLE;
+			break;
+	}
+
+	return 0;
 }

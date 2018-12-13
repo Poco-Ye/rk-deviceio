@@ -70,6 +70,9 @@ volatile bool A2DP_SINK_FLAG;
 volatile bool A2DP_SRC_FLAG;
 volatile bool BLE_FLAG;
 
+static RK_btmaster_callback g_btmaster_cb;
+static void *g_btmaster_userdata;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -556,6 +559,8 @@ static void set_source_device(GDBusProxy *proxy)
 		a2dp_master_save_status(NULL);
 		printf("[D: %s]: BT_SRC_DEVICE DISCONNECTED", __func__);
 		report_btsrc_event(DeviceInput::BT_SRC_ENV_DISCONNECT, NULL, 0);
+		if (g_btmaster_cb)
+			(*g_btmaster_cb)(g_btmaster_userdata, RK_BtMasterEvent_Disconnected);
 		return;
 	}
 
@@ -572,6 +577,8 @@ static void set_source_device(GDBusProxy *proxy)
 
 	printf("[D: %s]: BT_SRC_DEVICE CONNECTED\n", __func__);
 	report_btsrc_event(DeviceInput::BT_SRC_ENV_CONNECT, NULL, 0);
+	if (g_btmaster_cb)
+		(*g_btmaster_cb)(g_btmaster_userdata, RK_BtMasterEvent_Connected);
 	a2dp_master_save_status(address);
 }
 
@@ -2670,6 +2677,9 @@ static void connect_reply(DBusMessage *message, void *user_data)
 			return;
 		}
 
+		if (g_btmaster_cb)
+			(*g_btmaster_cb)(g_btmaster_userdata, RK_BtMasterEvent_Connect_Failed);
+
 		if (dist_dev_class(proxy) == BT_Device_Class::BT_SINK_DEVICE)
 			report_btsrc_event(DeviceInput::BT_SRC_ENV_CONNECT_FAIL, NULL, 0);
 		conn_count = 2;
@@ -2938,22 +2948,31 @@ int a2dp_master_connect(char *t_address)
 
 	if (!t_address || (strlen(t_address) < 17)) {
 		printf("ERROR: %s(len:%d) address error!\n", address, strlen(t_address));
+		if (g_btmaster_cb)
+			(*g_btmaster_cb)(g_btmaster_userdata, RK_BtMasterEvent_Connect_Failed);
 		return -1;
 	}
 	memcpy(address, t_address, 17);
 
-	if (check_default_ctrl() == FALSE)
+	if (check_default_ctrl() == FALSE) {
+		if (g_btmaster_cb)
+			(*g_btmaster_cb)(g_btmaster_userdata, RK_BtMasterEvent_Connect_Failed);
 		return -1;
+	}
 
 	proxy = find_proxy_by_address(default_ctrl->devices, address);
 	if (!proxy) {
 		printf("Device %s not available\n", address);
+		if (g_btmaster_cb)
+			(*g_btmaster_cb)(g_btmaster_userdata, RK_BtMasterEvent_Connect_Failed);
 		return -1;
 	}
 
 	if (g_dbus_proxy_method_call(proxy, "Connect", NULL, connect_reply,
 							proxy, NULL) == FALSE) {
 		printf("Failed to connect\n");
+		if (g_btmaster_cb)
+			(*g_btmaster_cb)(g_btmaster_userdata, RK_BtMasterEvent_Connect_Failed);
 		return -1;
 	}
 
@@ -2995,10 +3014,11 @@ int a2dp_master_disconnect(char *address)
  *    0-> not connected;
  *    1-> is connected;
  */
-int a2dp_master_status(char *addr_buf)
+int a2dp_master_status(char *addr_buf, char *name_buf)
 {
 	DBusMessageIter iter;
 	char *address;
+	char *name;
 
 	if (!default_src_dev)
 		return 0;
@@ -3012,6 +3032,17 @@ int a2dp_master_status(char *addr_buf)
 		dbus_message_iter_get_basic(&iter, &address);
 		memset(addr_buf, 0, sizeof(*addr_buf));
 		memcpy(addr_buf, address, strlen(address));
+	}
+
+	if (name_buf) {
+		if (g_dbus_proxy_get_property(default_src_dev, "Alias", &iter) == FALSE) {
+			printf("WARING: Bluetooth connected, but can't get device name!\n");
+			return 0;
+		}
+
+		dbus_message_iter_get_basic(&iter, &name);
+		memset(name_buf, 0, sizeof(*name_buf));
+		memcpy(name_buf, name, (strlen(name) > sizeof(*name_buf)) ? sizeof(*name_buf) : strlen(name));
 	}
 
 	return 1;
@@ -3079,3 +3110,18 @@ static int a2dp_master_save_status(char *address)
 	close(sockfd);
 	return 0;
 }
+
+void a2dp_master_register_cb(void *userdata, RK_btmaster_callback cb)
+{
+    g_btmaster_cb = cb;
+    g_btmaster_userdata = userdata;
+    return 0;
+}
+
+void a2dp_master_clear_cb()
+{
+    g_btmaster_cb = NULL;
+    g_btmaster_userdata = NULL;
+    return 0;
+}
+
