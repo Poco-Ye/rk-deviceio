@@ -47,33 +47,33 @@ using DeviceIOFramework::bt_adv_set;
 
 static void execute(const char cmdline[], char recv_buff[])
 {
-    printf("consule_run: %s %d \n", cmdline, sizeof(recv_buff));
+	printf("consule_run: %s %d \n", cmdline, sizeof(recv_buff));
 
-    FILE *stream = NULL;
-    char buff[1024];
+	FILE *stream = NULL;
+	char buff[1024];
 
-    memset(recv_buff, 0, sizeof(recv_buff));
+	memset(recv_buff, 0, sizeof(recv_buff));
 
-    if((stream = popen(cmdline,"r"))!=NULL){
-        while(fgets(buff,1024,stream)){
-            strcat(recv_buff,buff);
-        }
-    }
+	if((stream = popen(cmdline,"r"))!=NULL){
+		while(fgets(buff,1024,stream)){
+			strcat(recv_buff,buff);
+		}
+	}
 	printf("consule_run results: %s \n", recv_buff);
 
-    pclose(stream);
+	pclose(stream);
 }
 
 static const bool console_run(const char *cmdline)
 {
-    printf("cmdline = %s\n", cmdline);
-    int ret;
-    ret = system(cmdline);
-    if (ret < 0) {
-        printf("Running cmdline failed: %s\n", cmdline);
-        return false;
-    }
-    return true;
+	printf("cmdline = %s\n", cmdline);
+	int ret;
+	ret = system(cmdline);
+	if (ret < 0) {
+		printf("Running cmdline failed: %s\n", cmdline);
+		return false;
+	}
+	return true;
 }
 
 using DeviceIOFramework::BtControl;
@@ -99,22 +99,22 @@ static char sock_path[] = "/data/bsa/config/socket_dueros";
 #define BT_IS_BLE_SINK_COEXIST 1
 
 enum class BtControlType {
-    BT_NONE = 0,
-    BT_SINK,
-    BT_SOURCE,
-    BT_BLE_MODE,
-    BLE_SINK_BLE_MODE,
-    BLE_WIFI_INTRODUCER
+	BT_NONE = 0,
+	BT_SINK,
+	BT_SOURCE,
+	BT_BLE_MODE,
+	BLE_SINK_BLE_MODE,
+	BLE_WIFI_INTRODUCER
 };
 
 typedef struct {
-    pthread_t tid;
+	pthread_t tid;
 	int is_bt_open;
-    int is_ble_open;
-    int is_a2dp_sink_open;
-    int is_a2dp_source_open;
+	int is_ble_open;
+	int is_a2dp_sink_open;
+	int is_a2dp_source_open;
 	bool is_ble_sink_coexist;
-    BtControlType type;
+	BtControlType type;
 	BtControlType last_type;
 } bt_control_t;
 
@@ -294,26 +294,26 @@ static void bt_start_a2dp_sink()
 
 static int get_ps_pid(const char Name[])
 {
-    int len;
-    char name[20] = {0};
-    len = strlen(Name);
-    strncpy(name,Name,len);
-    name[len] ='\0';
-    char cmdresult[256] = {0};
-    char cmd[20] = {0};
-    FILE *pFile = NULL;
-    int  pid = 0;
+	int len;
+	char name[20] = {0};
+	len = strlen(Name);
+	strncpy(name,Name,len);
+	name[len] ='\0';
+	char cmdresult[256] = {0};
+	char cmd[20] = {0};
+	FILE *pFile = NULL;
+	int  pid = 0;
 
-    sprintf(cmd, "pidof %s", name);
-    pFile = popen(cmd, "r");
-    if (pFile != NULL)  {
-        while (fgets(cmdresult, sizeof(cmdresult), pFile)) {
-            pid = atoi(cmdresult);
-            break;
-        }
-    }
-    pclose(pFile);
-    return pid;
+	sprintf(cmd, "pidof %s", name);
+	pFile = popen(cmd, "r");
+	if (pFile != NULL)  {
+		while (fgets(cmdresult, sizeof(cmdresult), pFile)) {
+			pid = atoi(cmdresult);
+			break;
+		}
+	}
+	pclose(pFile);
+	return pid;
 }
 
 static bool bt_sink_is_open(void)
@@ -348,7 +348,7 @@ static bool bt_source_is_open(void)
 
 static bool ble_is_open()
 {
-    bool ret = 0;
+	bool ret = 0;
 
 	if (bt_control.is_ble_open) {
 		if (get_ps_pid("bluetoothd")) {
@@ -364,14 +364,14 @@ static bool ble_is_open()
 
 static int bt_control_cmd_send(enum BtControl bt_ctrl_cmd)
 {
-    char cmd[10];
-    memset(cmd, 0, 10);
-    sprintf(cmd, "%d", bt_ctrl_cmd);
+	char cmd[10];
+	memset(cmd, 0, 10);
+	sprintf(cmd, "%d", bt_ctrl_cmd);
 
-    if (bt_control.type != BtControlType::BT_SINK) {
-        APP_DEBUG("Not bluetooth play mode, don`t send bluetooth control commands\n");
-        return 0;
-    }
+	if (bt_control.type != BtControlType::BT_SINK) {
+		APP_DEBUG("Not bluetooth play mode, don`t send bluetooth control commands\n");
+		return 0;
+	}
 
 	APP_DEBUG("bt_control_cmd_send, cmd: %s, len: %d\n", cmd, strlen(cmd));
 	switch (bt_ctrl_cmd) {
@@ -485,7 +485,7 @@ static int bt_a2dp_src_server_open(void)
 
 static int bt_interface(BtControl type, void *data)
 {
-    int ret = 0;
+	int ret = 0;
 
 	if (type == BtControl::BT_SINK_OPEN) {
 		APP_DEBUG("Open a2dp sink.");
@@ -510,32 +510,32 @@ static int bt_interface(BtControl type, void *data)
 		}
 	}
 
-    return ret;
+	return ret;
 }
 
 static int get_bt_mac(char *bt_mac)
 {
-    char ret_buff[1024] = {0};
-    bool ret;
+	char ret_buff[1024] = {0};
+	bool ret;
 
-    ret = Shell::exec("hciconfig hci0 | grep Address | awk '{print $3}'",ret_buff);
-    if(!ret){
-        APP_ERROR("get bt address failed.\n");
-        return false;
-    }
-    strncpy(bt_mac, ret_buff, 17);
-    return 0;
+	ret = Shell::exec("hciconfig hci0 | grep Address | awk '{print $3}'",ret_buff);
+	if(!ret){
+		APP_ERROR("get bt address failed.\n");
+		return false;
+	}
+	strncpy(bt_mac, ret_buff, 17);
+	return 0;
 }
 
 int rk_bt_control(BtControl cmd, void *data, int len)
 {
-    using BtControl_rep_type = std::underlying_type<BtControl>::type;
+	using BtControl_rep_type = std::underlying_type<BtControl>::type;
 
-    APP_DEBUG("controlBt, cmd: %d\n", cmd);
+	APP_DEBUG("controlBt, cmd: %d\n", cmd);
 
-    int ret = 0;
+	int ret = 0;
 
-    switch (cmd) {
+	switch (cmd) {
 	case BtControl::BT_OPEN:
 		_bt_open_server();
 		bt_adv_set((ble_content_t *)data);
@@ -567,7 +567,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		bt_control.last_type = BtControlType::BT_SINK;
 		break;
 
-    case BtControl::BT_BLE_OPEN:
+	case BtControl::BT_BLE_OPEN:
 		if (!bt_control.is_bt_open)
 			return -1;
 
@@ -583,7 +583,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		printf("=== BtControl::BT_BLE_OPEN ok ===\n");
 		break;
 
-    case BtControl::BT_SOURCE_OPEN:
+	case BtControl::BT_SOURCE_OPEN:
 		if (!bt_control.is_bt_open)
 			return -1;
 
@@ -612,25 +612,25 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 
 		break;
 
-    case BtControl::BT_SOURCE_SCAN:
+	case BtControl::BT_SOURCE_SCAN:
 		ret = a2dp_master_scan(data, len);
 		break;
 
-    case BtControl::BT_SOURCE_CONNECT:
+	case BtControl::BT_SOURCE_CONNECT:
 		ret = a2dp_master_connect((char *)data);
 		break;
 
-    case BtControl::BT_SOURCE_DISCONNECT:
-        ret = a2dp_master_disconnect((char *)data);
-        break;
+	case BtControl::BT_SOURCE_DISCONNECT:
+		ret = a2dp_master_disconnect((char *)data);
+		break;
 
-    case BtControl::BT_SOURCE_STATUS:
-        ret = a2dp_master_status((char *)data);
-        break;
+	case BtControl::BT_SOURCE_STATUS:
+		ret = a2dp_master_status((char *)data);
+		break;
 
-    case BtControl::BT_SOURCE_REMOVE:
-        ret = a2dp_master_remove((char *)data);
-        break;
+	case BtControl::BT_SOURCE_REMOVE:
+		ret = a2dp_master_remove((char *)data);
+		break;
 
 	case BtControl::BT_SINK_CLOSE:
 		bt_close_sink();
@@ -660,55 +660,55 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		if (get_bt_mac((char *)data) <= 0)
 			ret = -1;
 
-        break;
+		break;
 
-    case BtControl::BT_VOLUME_UP:
-        if (bt_control_cmd_send(BtControl::BT_VOLUME_UP) < 0) {
-            APP_ERROR("Bt socket send volume up cmd failed\n");
-            ret = -1;
-        }
+	case BtControl::BT_VOLUME_UP:
+		if (bt_control_cmd_send(BtControl::BT_VOLUME_UP) < 0) {
+			APP_ERROR("Bt socket send volume up cmd failed\n");
+			ret = -1;
+		}
 
-        break;
+		break;
 
-    case BtControl::BT_VOLUME_DOWN:
-        if (bt_control_cmd_send(BtControl::BT_VOLUME_UP) < 0) {
-            APP_ERROR("Bt socket send volume down cmd failed\n");
-            ret = -1;
-        }
+	case BtControl::BT_VOLUME_DOWN:
+		if (bt_control_cmd_send(BtControl::BT_VOLUME_UP) < 0) {
+			APP_ERROR("Bt socket send volume down cmd failed\n");
+			ret = -1;
+		}
 
-        break;
+		break;
 
 	case BtControl::BT_PLAY:
-    case BtControl::BT_RESUME_PLAY:
-        if (bt_control_cmd_send(BtControl::BT_RESUME_PLAY) < 0) {
-            APP_ERROR("Bt socket send play cmd failed\n");
-            ret = -1;
-        }
+	case BtControl::BT_RESUME_PLAY:
+		if (bt_control_cmd_send(BtControl::BT_RESUME_PLAY) < 0) {
+			APP_ERROR("Bt socket send play cmd failed\n");
+			ret = -1;
+		}
 
-        break;
-    case BtControl::BT_PAUSE_PLAY:
-        if (bt_control_cmd_send(BtControl::BT_PAUSE_PLAY) < 0) {
-            APP_ERROR("Bt socket send pause cmd failed\n");
-            ret = -1;
-        }
+		break;
+	case BtControl::BT_PAUSE_PLAY:
+		if (bt_control_cmd_send(BtControl::BT_PAUSE_PLAY) < 0) {
+			APP_ERROR("Bt socket send pause cmd failed\n");
+			ret = -1;
+		}
 
-        break;
+		break;
 
-    case BtControl::BT_AVRCP_FWD:
-        if (bt_control_cmd_send(BtControl::BT_AVRCP_FWD) < 0) {
-            APP_ERROR("Bt socket send previous track cmd failed\n");
-            ret = -1;
-        }
+	case BtControl::BT_AVRCP_FWD:
+		if (bt_control_cmd_send(BtControl::BT_AVRCP_FWD) < 0) {
+			APP_ERROR("Bt socket send previous track cmd failed\n");
+			ret = -1;
+		}
 
-        break;
+		break;
 
-    case BtControl::BT_AVRCP_BWD:
-        if (bt_control_cmd_send(BtControl::BT_AVRCP_BWD) < 0) {
-            APP_ERROR("Bt socket send next track cmd failed\n");
-            ret = -1;
-        }
+	case BtControl::BT_AVRCP_BWD:
+		if (bt_control_cmd_send(BtControl::BT_AVRCP_BWD) < 0) {
+			APP_ERROR("Bt socket send next track cmd failed\n");
+			ret = -1;
+		}
 
-        break;
+		break;
 
 	case BtControl::BT_BLE_WRITE:
 		struct ble_config *ble_cfg = data;
@@ -719,10 +719,10 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		bool scan = (*(bool *)data);
 		rkbt_inquiry_scan(scan);
 		break;
-    default:
-        APP_DEBUG("%s, cmd <%d> is not implemented.\n", __func__,
-                  static_cast<BtControl_rep_type>(cmd));
-    }
+	default:
+		APP_DEBUG("%s, cmd <%d> is not implemented.\n", __func__,
+				  static_cast<BtControl_rep_type>(cmd));
+	}
 
-    return ret;
+	return ret;
 }

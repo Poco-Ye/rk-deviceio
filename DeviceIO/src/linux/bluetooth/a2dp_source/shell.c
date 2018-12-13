@@ -25,33 +25,33 @@
 
 void bt_shell_hexdump(void *buf, size_t len)
 {
-    return;
+	return;
 }
 
 void bt_shell_usage()
 {
-    return;
+	return;
 }
 
 void bt_shell_prompt_input(const char *label, const char *msg,
-            bt_shell_prompt_input_func func, void *user_data)
+			bt_shell_prompt_input_func func, void *user_data)
 {
-    return;
+	return;
 }
 
 int bt_shell_release_prompt(const char *input)
 {
-    return 0;
+	return 0;
 }
 
 void bt_shell_init(int argc, char **argv, const struct bt_shell_opt *opt)
 {
-    return;
+	return;
 }
 
 int bt_shell_run(void)
 {
-    return 0;
+	return 0;
 }
 
 void bt_shell_cleanup(void)
@@ -60,7 +60,7 @@ void bt_shell_cleanup(void)
 
 void bt_shell_quit(int status)
 {
-    return;
+	return;
 }
 
 void bt_shell_noninteractive_quit(int status)
@@ -69,35 +69,35 @@ void bt_shell_noninteractive_quit(int status)
 
 bool bt_shell_set_menu(const struct bt_shell_menu *menu)
 {
-    return true;
+	return true;
 }
 
 bool bt_shell_add_submenu(const struct bt_shell_menu *menu)
 {
-    return true;
+	return true;
 }
 
 void bt_shell_set_prompt(const char *string)
 {
-    return;
+	return;
 }
 
 bool bt_shell_attach(int fd)
 {
-    return true;
+	return true;
 }
 
 bool bt_shell_detach(void)
 {
-    return true;
+	return true;
 }
 
 void bt_shell_set_env(const char *name, void *value)
 {
-    return;
+	return;
 }
 
 void *bt_shell_get_env(const char *name)
 {
-    return;
+	return;
 }

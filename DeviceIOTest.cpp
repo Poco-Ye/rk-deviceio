@@ -234,7 +234,7 @@ public:
 };
 int a2dp_source_main()
 {
-	char value[1024]; 
+	char value[1024];
 	bool ret;
 	char buff[4096];
 	BtScanParam scan_param;
@@ -397,7 +397,7 @@ static void show_help() {
 
 int main(int argc, char *argv[])
 {
-	char value[1024]; 
+	char value[1024];
 	bool ret;
 	char sn[128] = {0};
 	char hostname[64] = {0};
