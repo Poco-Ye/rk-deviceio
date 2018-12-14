@@ -86,7 +86,7 @@ typedef struct BLE_CONTENT_T
 	uint8_t char_uuid[GATT_MAX_CHR][38];
 	uint8_t char_cnt;
 	int (*cb_ble_recv_fun)(char *uuid, char *data, int len);
-	void (*cb_ble_request_data)(char *uuid);	
+	void (*cb_ble_request_data)(char *uuid);
 } ble_content_t;
 
 ble_content_t *ble_content_internal;
@@ -102,7 +102,7 @@ char CMD_RA[256] = "hcitool -i hci0 cmd 0x08 0x0005";
 #define SERVICES_UUID            "23 20 56 7c 05 cf 6e b4 c3 41 77 28 51 82 7e 1b"
 //#define CMD_PARA                 "hcitool -i hci0 cmd 0x08 0x0006 A0 00 A0 00 00 02 00 00 00 00 00 00 00 07 00"
 #define CMD_PARA                 "hcitool -i hci0 cmd 0x08 0x0006 A0 00 A0 00 00 01 00 00 00 00 00 00 00 07 00"
-#define CMD_EN                   "hcitool -i hci0 cmd 0x08 0x000a 1"                 
+#define CMD_EN                   "hcitool -i hci0 cmd 0x08 0x000a 1"
 #define CMD_DISEN                "hcitool -i hci0 cmd 0x08 0x000a 0"
 
 struct adapter {
@@ -511,7 +511,7 @@ static int parse_options(DBusMessageIter *iter, const char **device)
 			if (var != DBUS_TYPE_OBJECT_PATH)
 				return -EINVAL;
 			dbus_message_iter_get_basic(&value, device);
-			printf("Device: %s\n", *device);                        
+			printf("Device: %s\n", *device);
 		}
 
 		dbus_message_iter_next(&dict);
@@ -522,20 +522,20 @@ static int parse_options(DBusMessageIter *iter, const char **device)
 
 void execute(const char cmdline[], char recv_buff[])
 {
-    printf("consule_run: %s\n",cmdline);
+	printf("consule_run: %s\n",cmdline);
 
-    FILE *stream = NULL;
-    char buff[1024];
+	FILE *stream = NULL;
+	char buff[1024];
 
-    memset(recv_buff, 0, sizeof(recv_buff));
+	memset(recv_buff, 0, sizeof(recv_buff));
 
-    if((stream = popen(cmdline,"r"))!=NULL){
-        while(fgets(buff,1024,stream)){
-            strcat(recv_buff,buff);
-        }
-    }
+	if((stream = popen(cmdline,"r"))!=NULL){
+		while(fgets(buff,1024,stream)){
+			strcat(recv_buff,buff);
+		}
+	}
 
-    pclose(stream);
+	pclose(stream);
 }
 
 #define BLE_SEND_MAX_LEN (134)
@@ -546,8 +546,8 @@ static DBusMessage *chr_read_value(DBusConnection *conn, DBusMessage *msg,
 	DBusMessage *reply;
 	DBusMessageIter iter;
 	const char *device;
-    static char *slist = NULL;
-    static char *devicesn = NULL;
+	static char *slist = NULL;
+	static char *devicesn = NULL;
 	char str[512];
 
 	if (!dbus_message_iter_init(msg, &iter))
@@ -572,8 +572,8 @@ static DBusMessage *chr_read_value(DBusConnection *conn, DBusMessage *msg,
 
 	chr_read(chr, &iter);
 	memcpy(str, chr->value, chr->vlen);
-    str[chr->vlen] = '\0';
-    printf("chr_read_value[%d]: %s\n", chr->vlen, str);
+	str[chr->vlen] = '\0';
+	printf("chr_read_value[%d]: %s\n", chr->vlen, str);
 	printf("	dump 8 byte: ");
 	for (int i = 0; i < min(chr->vlen, 8); i++)
 		printf("0x%02x ", (chr->value)[i]);
@@ -901,7 +901,7 @@ int gatt_set_on_adv(void)
 	//LE SET PARAMETERS
 	execute(CMD_PARA, buff);
 
-    // LE Set Advertising Data Command
+	// LE Set Advertising Data Command
 	memset(temp, 0, 32);
 	for(i = 0; i < ble_content_internal->advDataLen; i++) {
 		sprintf(temp,"%02x", ble_content_internal->advData[i]);
@@ -909,7 +909,7 @@ int gatt_set_on_adv(void)
 		strcat(CMD_ADV_DATA, temp);
 	}
 	printf("CMD_ADV_DATA: %s\n", CMD_ADV_DATA);
-    execute(CMD_ADV_DATA, buff);
+	execute(CMD_ADV_DATA, buff);
 
 	memset(temp, 0, 32);
 	for (i = 0; i < ble_content_internal->respDataLen; i++) {
@@ -917,17 +917,17 @@ int gatt_set_on_adv(void)
 		strcat(CMD_ADV_RESP_DATA, " ");
 		strcat(CMD_ADV_RESP_DATA, temp);
 	}
-    usleep(500000);
-	printf("CMD_ADV_RESP_DATA: %s\n", CMD_ADV_RESP_DATA);	
-    execute(CMD_ADV_RESP_DATA, buff);
+	usleep(500000);
+	printf("CMD_ADV_RESP_DATA: %s\n", CMD_ADV_RESP_DATA);
+	execute(CMD_ADV_RESP_DATA, buff);
 
-    // LE Set Advertise Enable Command
-    execute(CMD_EN, buff);
+	// LE Set Advertise Enable Command
+	execute(CMD_EN, buff);
 }
 
 static void register_app_reply(DBusMessage *reply, void *user_data)
 {
-    printf("register_app_reply\n");
+	printf("register_app_reply\n");
 	DBusError derr;
 
 	dbus_error_init(&derr);

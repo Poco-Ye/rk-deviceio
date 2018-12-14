@@ -27,8 +27,8 @@ using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
 
 static void report_avrcp_event(DeviceInput event, void *data, int len) {
-    if (DeviceIo::getInstance()->getNotify())
-        DeviceIo::getInstance()->getNotify()->callback(event, data, len);
+	if (DeviceIo::getInstance()->getNotify())
+		DeviceIo::getInstance()->getNotify()->callback(event, data, len);
 }
 
 #define COLOR_OFF	"\x1B[0m"
@@ -89,23 +89,23 @@ extern void print_iter(const char *label, const char *name, DBusMessageIter *ite
 
 bool system_command(const char* cmd)
 {
-    pid_t status = 0;
-    bool ret_value = false;
+	pid_t status = 0;
+	bool ret_value = false;
 
-    status = system(cmd);
+	status = system(cmd);
 
-    if (-1 == status) {
-    } else {
-        if (WIFEXITED(status)) {
-            if (0 == WEXITSTATUS(status)) {
-                ret_value = true;
-            } else {
-            }
-        } else {
-        }
-    }
+	if (-1 == status) {
+	} else {
+		if (WIFEXITED(status)) {
+			if (0 == WEXITSTATUS(status)) {
+				ret_value = true;
+			} else {
+			}
+		} else {
+		}
+	}
 
-    return ret_value;
+	return ret_value;
 }
 
 void rkbt_inquiry_scan(bool scan)
@@ -166,7 +166,7 @@ void connect_handler(DBusConnection *connection, void *user_data)
 {
 	printf("%s \n", __func__);
 }
- 
+
 void disconnect_handler(DBusConnection *connection, void *user_data)
 {
 	printf("%s \n", __func__);
@@ -203,25 +203,25 @@ char *proxy_description(GDBusProxy *proxy, const char *title,
 void print_player(GDBusProxy *proxy, const char *description)
 {
 	char *str;
-    char strplay[256];
+	char strplay[256];
 	str = proxy_description(proxy, "Player", description);
 
-    memset(strplay, 0x00, 256);
+	memset(strplay, 0x00, 256);
 	sprintf(strplay,"%s%s\n", str, (default_player == proxy ? "[default]" : ""));
-    printf(strplay);
-    
+	printf(strplay);
+
 	g_free(str);
 }
 
 void player_added(GDBusProxy *proxy)
 {
-    printf("player_added \n");
+	printf("player_added \n");
 	players = g_slist_append(players, proxy);
 
 	if (default_player == NULL) {
 	    printf("set default player");
 		default_player = proxy;
-    }
+	}
 
 	print_player(proxy, COLORED_NEW);
 }
@@ -244,7 +244,7 @@ void item_added(GDBusProxy *proxy)
 
 	print_item(proxy, COLORED_NEW);
 }
- 
+
 void folder_added(GDBusProxy *proxy)
 {
 	folders = g_slist_append(folders, proxy);
@@ -455,7 +455,7 @@ bool disconn_device(void)
 	if (g_dbus_proxy_get_property(proxy, "Address",
 				 &addr_iter) == TRUE) {
 		const char *address;
-	
+
 		dbus_message_iter_get_basic(&addr_iter,
 					 &address);
 		pr_info("disconn_device addrs %s ", address);
@@ -607,8 +607,8 @@ void a2dp_sink_device_added(GDBusProxy *proxy)
 
 	proxy_list = g_list_append(proxy_list, proxy);
 
-    if (g_dbus_proxy_get_property(proxy, "Connected", &iter)) {
-        dbus_bool_t connected;
+	if (g_dbus_proxy_get_property(proxy, "Connected", &iter)) {
+		dbus_bool_t connected;
 
 		dbus_message_iter_get_basic(&iter, &connected);
 
@@ -710,7 +710,7 @@ void item_removed(GDBusProxy *proxy)
 }
 
 void player_property_changed(GDBusProxy *proxy, const char *name,
-                     DBusMessageIter *iter)
+					 DBusMessageIter *iter)
 {
 	char *str;
 
@@ -721,7 +721,7 @@ void player_property_changed(GDBusProxy *proxy, const char *name,
 	g_free(str);
 }
 void folder_property_changed(GDBusProxy *proxy, const char *name,
-                     DBusMessageIter *iter)
+					 DBusMessageIter *iter)
 {
 	char *str;
 
@@ -806,7 +806,7 @@ void adapter_changed(GDBusProxy *proxy, DBusMessageIter *iter,
 }
 
 void a2dp_sink_property_changed(GDBusProxy *proxy, const char *name,
-                     DBusMessageIter *iter, void *user_data)
+					 DBusMessageIter *iter, void *user_data)
 {
 	const char *interface;
 
@@ -886,29 +886,30 @@ int release_avrcp_ctrl(void)
 
 void play_reply(DBusMessage *message, void *user_data)
 {
-    DBusError error;
+	DBusError error;
 
-    dbus_error_init(&error);
+	dbus_error_init(&error);
 
-    if (dbus_set_error_from_message(&error, message) == TRUE) {
-      printf("Failed to play\n");
-      dbus_error_free(&error);
-      return;
-    }
+	if (dbus_set_error_from_message(&error, message) == TRUE) {
+	  printf("Failed to play\n");
+	  dbus_error_free(&error);
+	  return;
+	}
 
-    printf("Play successful\n");
+	printf("Play successful\n");
 }
 
-int play_avrcp(void)
+int play_avrcp(void)
+
 {
 	if (!check_default_player())
-        return -1;
-    if (g_dbus_proxy_method_call(default_player, "Play", NULL, play_reply,
-                  NULL, NULL) == FALSE) {
-        printf("Failed to play\n");
-        return -1;
-    }
-    printf("Attempting to play\n");
+		return -1;
+	if (g_dbus_proxy_method_call(default_player, "Play", NULL, play_reply,
+				  NULL, NULL) == FALSE) {
+		printf("Failed to play\n");
+		return -1;
+	}
+	printf("Attempting to play\n");
 	return 0;
 }
 
@@ -1012,14 +1013,14 @@ void stop_reply(DBusMessage *message, void *user_data)
 
 int stop_avrcp()
 {
-    if (!check_default_player())
-            return -1;
-    if (g_dbus_proxy_method_call(default_player, "Stop", NULL, stop_reply,
-                            NULL, NULL) == FALSE) {
-        printf("Failed to stop\n");
-        return -1;
-    }
-    printf("Attempting to stop\n");
+	if (!check_default_player())
+			return -1;
+	if (g_dbus_proxy_method_call(default_player, "Stop", NULL, stop_reply,
+							NULL, NULL) == FALSE) {
+		printf("Failed to stop\n");
+		return -1;
+	}
+	printf("Attempting to stop\n");
 
 	return 0;
 }

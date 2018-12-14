@@ -29,7 +29,7 @@ extern "C" {
 #endif
 
 void agent_register(DBusConnection *conn, GDBusProxy *manager,
-                        const char *capability);
+						const char *capability);
 void agent_unregister(DBusConnection *conn, GDBusProxy *manager);
 void agent_default(DBusConnection *conn, GDBusProxy *manager);
 
