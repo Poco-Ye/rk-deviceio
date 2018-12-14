@@ -1,5 +1,8 @@
 #ifndef AVRCPCTRL_H
 #define AVRCPCTRL_H
+
+#include "DeviceIo/RkBtSink.h"
+
 //play status
 #define AVRCP_PLAY_STATUS_STOPPED	0x00 // 停止
 #define AVRCP_PLAY_STATUS_PLAYING	0x01 //正在播放
@@ -88,5 +91,9 @@ bool reconn_last(void);
 bool disconn_device(void);
 int a2dp_sink_open(void);
 void rkbt_inquiry_scan(bool scan);
+void a2dp_sink_register_cb(RK_bta2dp_callback cb);
+void a2dp_sink_clear_cb();
+void a2dp_sink_set_auto_reconnect(int enable);
+int a2dp_sink_status(RK_BTA2DP_State_e *pState);
 
 #endif

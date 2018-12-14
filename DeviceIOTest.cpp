@@ -31,6 +31,8 @@
 #include <DeviceIo/WifiManager.h>
 #include <DeviceIo/RkMediaPlayer.h>
 #include <DeviceIo/BtsrcParameter.h>
+#include <DeviceIo/RkBtMaster.h>
+#include <DeviceIo/RkBtSink.h>
 
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
@@ -373,6 +375,159 @@ static void bt_init_open(void *data) {
 	DeviceIo::getInstance()->controlBt(BtControl::BT_OPEN, &ble_content);
 }
 
+void bt_master_callback(void *userdata, const RK_BtMasterEvent_e enEvent)
+{
+	char address[17], name[100];
+
+	switch(enEvent)
+	{
+		case RK_BtMasterEvent_Connect_Failed:
+			printf("++++++++++++ BT MASTER EVENT: connect failed ++++++++++\n");
+			RK_btmaster_getDeviceName(name, 100);
+			RK_btmaster_getDeviceAddr(address, 17);
+			printf("DeviceName:%s. Address:%s\n", name, address);
+			break;
+		case RK_BtMasterEvent_Connected:
+			printf("++++++++++++ BT MASTER EVENT: connect sucess ++++++++++\n");
+			break;
+		case RK_BtMasterEvent_Disconnected:
+			printf("++++++++++++ BT MASTER EVENT: disconnect ++++++++++\n");
+			break;
+	}
+}
+
+void bt_api2_master_start(void *data)
+{
+	RK_btmaster_connect_start(NULL, bt_master_callback);
+}
+
+void bt_api2_master_stop(void *data)
+{
+	RK_btmaster_stop();
+}
+
+int bt_sink_callback(RK_BTA2DP_State_e state)
+{
+	switch(state) {
+		case RK_BTA2DP_State_IDLE:
+			printf("++++++++++++ BT SINK EVENT: idle ++++++++++\n");
+			break;
+		case RK_BTA2DP_State_CONNECT:
+			printf("++++++++++++ BT SINK EVENT: connect sucess ++++++++++\n");
+			break;
+		case RK_BTA2DP_State_PLAY:
+			printf("++++++++++++ BT SINK EVENT: playing ++++++++++\n");
+			break;
+		case RK_BTA2DP_State_PAUSE:
+			printf("++++++++++++ BT SINK EVENT: paused ++++++++++\n");
+			break;
+		case RK_BTA2DP_State_STOP:
+			printf("++++++++++++ BT SINK EVENT: stoped ++++++++++\n");
+			break;
+		case RK_BTA2DP_State_DISCONNECT:
+			printf("++++++++++++ BT SINK EVENT: disconnected ++++++++++\n");
+			break;
+	}
+}
+
+void bt_api2_sink_open(void *data)
+{
+	RK_bta2dp_register_callback(bt_sink_callback);
+	RK_bta2dp_open("RK3308-Platform");
+}
+
+void bt_api2_sink_visibility00(void *data)
+{
+	RK_bta2dp_setVisibility(0, 0);
+}
+
+void bt_api2_sink_visibility01(void *data)
+{
+	RK_bta2dp_setVisibility(0, 1);
+}
+
+void bt_api2_sink_visibility10(void *data)
+{
+	RK_bta2dp_setVisibility(1, 0);
+}
+
+void bt_api2_sink_visibility11(void *data)
+{
+	RK_bta2dp_setVisibility(1, 1);
+}
+
+void bt_api2_sink_status(void *data)
+{
+	RK_BTA2DP_State_e pState;
+
+	RK_bta2dp_getState(&pState);
+	switch(pState) {
+		case RK_BTA2DP_State_IDLE:
+			printf("++++++++++++ BT MASTER EVENT: idle ++++++++++\n");
+			break;
+		case RK_BTA2DP_State_CONNECT:
+			printf("++++++++++++ BT MASTER EVENT: connect sucess ++++++++++\n");
+			break;
+		case RK_BTA2DP_State_PLAY:
+			printf("++++++++++++ BT MASTER EVENT: playing ++++++++++\n");
+			break;
+		case RK_BTA2DP_State_PAUSE:
+			printf("++++++++++++ BT MASTER EVENT: paused ++++++++++\n");
+			break;
+		case RK_BTA2DP_State_STOP:
+			printf("++++++++++++ BT MASTER EVENT: stoped ++++++++++\n");
+			break;
+		case RK_BTA2DP_State_DISCONNECT:
+			printf("++++++++++++ BT MASTER EVENT: disconnected ++++++++++\n");
+			break;
+	}
+}
+
+void bt_api2_sink_play(void *data)
+{
+	RK_bta2dp_play();
+}
+
+void bt_api2_sink_pause(void *data)
+{
+	RK_bta2dp_pause();
+}
+
+void bt_api2_sink_next(void *data)
+{
+	RK_bta2dp_next();
+}
+
+void bt_api2_sink_previous(void *data)
+{
+	RK_bta2dp_prev();
+}
+
+void bt_api2_sink_stop(void *data)
+{
+	RK_bta2dp_stop();
+}
+
+void bt_api2_sink_reconnect_en0(void *data)
+{
+	RK_bta2dp_set_auto_reconnect(0);
+}
+
+void bt_api2_sink_reconnect_en1(void *data)
+{
+	RK_bta2dp_set_auto_reconnect(1);
+}
+
+void bt_api2_sink_disconnect(void *data)
+{
+	RK_bta2dp_disconnect();
+}
+
+void bt_api2_sink_close(void *data)
+{
+	RK_bta2dp_close();
+}
+
 static test_command_t process_command_table[] = {
 	{"suspend", suspend_test},
 	{"factoryReset", factoryReset_test},
@@ -384,6 +539,23 @@ static test_command_t process_command_table[] = {
 	{"bt_sink_close", bt_sink_close},
 	{"bt_source_close", bt_source_close},
 	{"bt_open", bt_init_open},
+	{"bt_api2_master_start", bt_api2_master_start},
+	{"bt_api2_master_stop", bt_api2_master_stop},
+	{"bt_api2_sink_open", bt_api2_sink_open},
+	{"bt_api2_sink_visibility00", bt_api2_sink_visibility00},
+	{"bt_api2_sink_visibility01", bt_api2_sink_visibility01},
+	{"bt_api2_sink_visibility10", bt_api2_sink_visibility10},
+	{"bt_api2_sink_visibility11", bt_api2_sink_visibility11},
+	{"bt_api2_sink_status", bt_api2_sink_status},
+	{"bt_api2_sink_play", bt_api2_sink_play},
+	{"bt_api2_sink_pause", bt_api2_sink_pause},
+	{"bt_api2_sink_next", bt_api2_sink_next},
+	{"bt_api2_sink_previous", bt_api2_sink_previous},
+	{"bt_api2_sink_stop", bt_api2_sink_stop},
+	{"bt_api2_sink_reconnect_en0", bt_api2_sink_reconnect_en0},
+	{"bt_api2_sink_reconnect_en1", bt_api2_sink_reconnect_en1},
+	{"bt_api2_sink_disconnect", bt_api2_sink_disconnect},
+	{"bt_api2_sink_close", bt_api2_sink_close},
 };
 
 static void show_help() {

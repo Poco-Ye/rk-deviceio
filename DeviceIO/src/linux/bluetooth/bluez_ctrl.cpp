@@ -38,8 +38,11 @@
 
 #include "avrcpctrl.h"
 #include "a2dp_source/a2dp_masterctrl.h"
-
+#include "a2dp_source/shell.h"
 #include "DeviceIo/DeviceIo.h"
+#include "DeviceIo/RkBtMaster.h"
+#include "DeviceIo/RkBtSink.h"
+
 using DeviceIOFramework::ble_config;
 using DeviceIOFramework::bt_adv_set;
 
@@ -164,22 +167,22 @@ static void _bt_close_server()
 	execute("killall bluetoothd", ret_buff);
 	execute("killall rtk_hciattach", ret_buff);
 	//execute("killall dbus-daemon", ret_buff);
-	//execute("rm /var/run/messagebus.pid", ret_buff);	
+	//execute("rm /var/run/messagebus.pid", ret_buff);
 	msleep(800);
 }
 
-static void _bt_open_server()
+static void _bt_open_server(char *bt_name)
 {
 	char ret_buff[1024];
 	char hostname_buf[HOSTNAME_MAX_LEN];
-	char cmd_buf[66];
+	char cmd_buf[64 + HOSTNAME_MAX_LEN]; /* 64 for "hciconfig hci0 name" */
 
 	memset(ret_buff, 0, 1024);
 	execute("pidof bluetoothd", ret_buff);
 	if (ret_buff[0])
 		return;
 
-	printf("=== _bt_open_server ===\n");
+	printf("=== _bt_open_server(%s) ===\n", bt_name);
 	_bt_close_server();
 	/*
 	console_run("./etc/init.d/S30dbus start");
@@ -204,7 +207,7 @@ static void _bt_open_server()
 	execute("pidof rtk_hciattach", ret_buff);
 	while (!ret_buff[0])
 		msleep(10);
-	
+
 	execute("hciconfig hci0 up", ret_buff);
 	console_run("/usr/libexec/bluetooth/bluetoothd -C -n -d -E &");
 	sleep(2);
@@ -222,15 +225,20 @@ static void _bt_open_server()
 	execute("hciconfig hci0 piscan", ret_buff);
 	msleep(10);
 
-	bt_gethostname(hostname_buf);
-	sprintf(cmd_buf, "hciconfig hci0 name \'%s\'", hostname_buf);
+	/* Use a user-specified name or a device default name? */
+	if (bt_name)
+		sprintf(cmd_buf, "hciconfig hci0 name \'%s\'", bt_name);
+	else {
+		bt_gethostname(hostname_buf);
+		sprintf(cmd_buf, "hciconfig hci0 name \'%s\'", hostname_buf);
+	}
 	execute(cmd_buf, ret_buff);
 
 	msleep(10);
 	execute("hciconfig hci0 down", ret_buff);
 	msleep(10);
 	execute("hciconfig hci0 up", ret_buff);
-	execute("hciconfig hci0 up", ret_buff);	
+	execute("hciconfig hci0 up", ret_buff);
 	msleep(200);
 }
 
@@ -262,7 +270,7 @@ static void bt_start_a2dp_source()
 	execute("hciconfig hci0 class 0x480400", ret_buff);
 	msleep(100);
 	execute("hciconfig hci0 class 0x480400", ret_buff);
-	msleep(100);	
+	msleep(100);
 }
 
 static void bt_start_a2dp_sink()
@@ -382,7 +390,7 @@ static int bt_control_cmd_send(enum BtControl bt_ctrl_cmd)
 	case (BtControl::BT_PAUSE_PLAY):
 		pause_avrcp();
 		break;
-	case (BtControl::BT_AVRCP_STOP):
+	case (BtControl::BT_AVRCP_STOP):
 		stop_avrcp();
 		break;
 	case (BtControl::BT_AVRCP_BWD):
@@ -470,7 +478,7 @@ static int bt_a2dp_sink_open(void)
 static int bt_a2dp_src_server_open(void)
 {
 	APP_DEBUG("%s\n", __func__);
-	
+
 	if ((bt_control.last_type == BtControlType::BT_SINK) ||
 		(bt_control.last_type == BtControlType::BT_NONE))
 		bt_start_a2dp_source();
@@ -530,14 +538,13 @@ static int get_bt_mac(char *bt_mac)
 int rk_bt_control(BtControl cmd, void *data, int len)
 {
 	using BtControl_rep_type = std::underlying_type<BtControl>::type;
+	int ret = 0;
 
 	APP_DEBUG("controlBt, cmd: %d\n", cmd);
 
-	int ret = 0;
-
 	switch (cmd) {
 	case BtControl::BT_OPEN:
-		_bt_open_server();
+		_bt_open_server(NULL);
 		bt_adv_set((ble_content_t *)data);
 		bt_open((ble_content_t *)data);
 		bt_control.is_bt_open = 1;
@@ -571,11 +578,13 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		if (!bt_control.is_bt_open)
 			return -1;
 
-		bt_control.type = BtControlType::BT_BLE_MODE;
+
+		bt_control.type = BtControlType::BT_BLE_MODE;
 
 		if (bt_interface(BtControl::BT_BLE_OPEN, data) < 0) {
 			bt_control.is_ble_open = 0;
 			bt_control.type = BtControlType::BT_NONE;
+			return -1;
 		}
 
 		bt_control.is_ble_open = true;
@@ -604,6 +613,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		if (bt_interface(BtControl::BT_SOURCE_OPEN, NULL) < 0) {
 			bt_control.is_a2dp_source_open = 0;
 			bt_control.type = BtControlType::BT_NONE;
+			return -1;
 		}
 
 		bt_control.is_a2dp_source_open = true;
@@ -625,7 +635,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		break;
 
 	case BtControl::BT_SOURCE_STATUS:
-		ret = a2dp_master_status((char *)data);
+		ret = a2dp_master_status((char *)data, NULL);
 		break;
 
 	case BtControl::BT_SOURCE_REMOVE:
@@ -725,4 +735,324 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 	}
 
 	return ret;
+}
+
+/*****************************************************************
+ *            Rockchip bluetooth master api                      *
+ *****************************************************************/
+static RK_btmaster_callback g_btmaster_user_cb;
+static void *g_btmaster_user_data;
+static pthread_t g_btmaster_thread;
+
+static void _btmaster_send_event(RK_BtMasterEvent_e event)
+{
+	if (g_btmaster_user_cb)
+		(*g_btmaster_user_cb)(g_btmaster_user_data, event);
+}
+
+static void _btmaster_autoscan_and_connect()
+{
+	BtScanParam scan_param;
+	BtDeviceInfo *start, *tmp;
+	int max_rssi = -100;
+	int ret = 0;
+	char target_address[17] = {0};
+	bool target_vaild = false;
+	int scan_cnt;
+
+	/* Scan bluetooth devices */
+	scan_param.mseconds = 10000; /* 10s for default */
+	scan_param.item_cnt = 100;
+	scan_param.device_list = NULL;
+	scan_cnt = 3;
+
+scan_retry:
+	printf("=== BT_SOURCE_SCAN ===\n");
+	ret = a2dp_master_scan((void *)&scan_param, sizeof(scan_param));
+	if (ret && (scan_cnt--)) {
+		sleep(1);
+		goto scan_retry;
+	} else if (ret) {
+		printf("ERROR: Scan error!\n");
+		_btmaster_send_event(RK_BtMasterEvent_Connect_Failed);
+		g_btmaster_thread = 0;
+		return;
+	}
+
+	/*
+	 * Find the audioSink device from the device list,
+	 * which has the largest rssi value.
+	 */
+	max_rssi = -100;
+	tmp = NULL;
+	start = scan_param.device_list;
+	while (start) {
+		if (start->rssi_valid && (start->rssi > max_rssi) &&
+			(!strcmp(start->playrole, "AudioSink"))) {
+			printf("Name:%s\n", start->name);
+			printf("\tAddress:%s\n", start->address);
+			printf("\tRSSI:%d\n", start->rssi);
+			printf("\tPlayrole:%s\n", start->playrole);
+			max_rssi = start->rssi;
+
+			memcpy(target_address, start->address, 17);
+			target_vaild = true;
+		}
+		tmp = start;
+		start = start->next;
+		/* Free DeviceInfo */
+		free(tmp);
+	}
+
+	if (!target_vaild) {
+		printf("=== Cannot find audioSink devices. ===\n");
+		_btmaster_send_event(RK_BtMasterEvent_Connect_Failed);
+		g_btmaster_thread = 0;
+		return;
+	} else if (max_rssi < -80) {
+		printf("=== BT SOURCE RSSI is is too weak !!! ===\n");
+		_btmaster_send_event(RK_BtMasterEvent_Connect_Failed);
+		g_btmaster_thread = 0;
+		return;
+	}
+	/* Connect target device */
+	if (!a2dp_master_status(NULL, NULL))
+		a2dp_master_connect(target_address);
+
+	g_btmaster_thread = 0;
+	return;
+}
+/*
+ * Turn on Bluetooth and scan SINK devices.
+ * Features:
+ *     1. turn on Bluetooth
+ *     2. enter the master mode
+ *     3. Scan surrounding SINK type devices
+ *     4. If the SINK device is found, the device with the strongest
+ *        signal is automatically connected.
+ * Return:
+ *     0: The function is executed successfully and needs to listen
+ *        for Bluetooth connection events.
+ *    -1: Function execution failed.
+ */
+int RK_btmaster_connect_start(void *userdata, RK_btmaster_callback cb)
+{
+	ble_content_t ble_content;
+	int ret;
+
+	if (g_btmaster_thread) {
+		printf("The last operation is still in progress\n");
+		return -1;
+	}
+
+	/* Init bluetooth */
+	if (!bt_control.is_bt_open) {
+		_bt_open_server(NULL);
+		bt_adv_set(&ble_content);
+		bt_open(&ble_content);
+		bt_control.is_bt_open = 1;
+		bt_control.type = BtControlType::BT_NONE;
+		bt_control.last_type = BtControlType::BT_NONE;
+		sleep(1);
+	}
+
+	/* Register callback and userdata */
+	a2dp_master_register_cb(userdata, cb);
+	g_btmaster_user_data = userdata;
+	g_btmaster_user_cb = cb;
+
+	/* Set bluetooth to master mode */
+	printf("=== BtControl::BT_SOURCE_OPEN ===\n");
+	bt_control.type = BtControlType::BT_SOURCE;
+	if (!bt_source_is_open()) {
+		if (bt_sink_is_open()) {
+			APP_ERROR("bt sink isn't coexist with source!!!\n");
+			bt_close_sink();
+		}
+
+		if (bt_interface(BtControl::BT_SOURCE_OPEN, NULL) < 0) {
+			bt_control.is_a2dp_source_open = 0;
+			bt_control.type = BtControlType::BT_NONE;
+			return -1;
+		}
+
+		bt_control.is_a2dp_source_open = true;
+		bt_control.type = BtControlType::BT_SOURCE;
+		bt_control.last_type = BtControlType::BT_SOURCE;
+	}
+	/* Already connected? */
+	if (a2dp_master_status(NULL, NULL)) {
+		printf("=== BT SOURCE is connected!!! ===\n");
+		return 0;
+	}
+	/* Create thread to do connect task. */
+	ret = pthread_create(&g_btmaster_thread, NULL,
+						 _btmaster_autoscan_and_connect, NULL);
+	if (ret) {
+		printf("_btmaster_autoscan_and_connect thread create failed!\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+int RK_btmaster_stop(void)
+{
+	bt_close_source();
+	a2dp_master_clear_cb();
+	return 0;
+}
+
+int RK_btmaster_getDeviceName(char *name, int len)
+{
+	if (!name || (len <= 0))
+		return -1;
+
+	if (a2dp_master_status(NULL, name))
+		return 0;
+
+	return -1;
+}
+
+int RK_btmaster_getDeviceAddr(char *addr, int len)
+{
+	if (!addr || (len < 17))
+		return -1;
+
+	if (a2dp_master_status(addr, NULL))
+		return 0;
+
+	return -1;
+}
+
+/*****************************************************************
+ *            Rockchip bluetooth sink api                        *
+ *****************************************************************/
+int RK_bta2dp_register_callback(RK_bta2dp_callback cb)
+{
+	a2dp_sink_register_cb(cb);
+	return 0;
+}
+
+int RK_bta2dp_open(char* name)
+{
+	ble_content_t ble_content;
+	char set_hostname_cmd[HOSTNAME_MAX_LEN + 64] = {'\0'};
+
+	/* Init bluetooth */
+	if (!bt_control.is_bt_open) {
+		_bt_open_server(name);
+		memset(&ble_content, 0, sizeof(ble_content));
+		bt_adv_set(&ble_content);
+		bt_open(&ble_content);
+		bt_control.is_bt_open = 1;
+		bt_control.type = BtControlType::BT_NONE;
+		bt_control.last_type = BtControlType::BT_NONE;
+		sleep(1);
+	} else if (name) {
+		/* Set bluetooth device name */
+		sprintf(set_hostname_cmd, "hciconfig hci0 name \'%s\'", name);
+		Shell::system(set_hostname_cmd);
+		msleep(10);
+		/* Restart the device to make the new name take effect */
+		Shell::system("hciconfig hci0 down");
+		msleep(10);
+		Shell::system("hciconfig hci0 up");
+	}
+	/* Set bluetooth control current type */
+	bt_control.type = BtControlType::BT_SINK;
+	/* Already in sink mode? */
+	if (bt_sink_is_open())
+		return 0;
+
+	if (bt_source_is_open()) {
+		APP_ERROR("bt sink isn't coexist with source!!!\n");
+		bt_close_source();
+	}
+
+	if (bt_interface(BtControl::BT_SINK_OPEN, NULL) < 0) {
+		bt_control.is_a2dp_sink_open = 0;
+		bt_control.type = BtControlType::BT_NONE;
+		return -1;
+	}
+
+	bt_control.is_a2dp_sink_open = 1;
+	bt_control.last_type = BtControlType::BT_SINK;
+
+	return 0;
+}
+
+int RK_bta2dp_setVisibility(const int visiable, const int connectal)
+{
+	Shell::system("hciconfig hci0 noscan");
+	usleep(2000);//2ms
+	if (visiable)
+		Shell::system("hciconfig hci0 iscan");
+	if (connectal)
+		Shell::system("hciconfig hci0 pscan");
+
+	return 0;
+}
+
+int RK_bta2dp_close(void)
+{
+	a2dp_sink_clear_cb();
+	bt_close_sink();
+}
+
+int RK_bta2dp_getState(RK_BTA2DP_State_e *pState)
+{
+	return a2dp_sink_status(pState);
+}
+
+int RK_bta2dp_play(void)
+{
+	if (bt_control_cmd_send(BtControl::BT_RESUME_PLAY) < 0)
+		return -1;
+
+	return 0;
+}
+
+int RK_bta2dp_pause(void)
+{
+	if (bt_control_cmd_send(BtControl::BT_PAUSE_PLAY) < 0)
+		return -1;
+
+	return 0;
+}
+
+int RK_bta2dp_prev(void)
+{
+	if (bt_control_cmd_send(BtControl::BT_AVRCP_FWD) < 0)
+		return -1;
+
+	return 0;
+}
+
+int RK_bta2dp_next(void)
+{
+	if (bt_control_cmd_send(BtControl::BT_AVRCP_BWD) < 0)
+		return -1;
+
+	return 0;
+}
+
+int RK_bta2dp_stop(void)
+{
+	if (bt_control_cmd_send(BtControl::BT_AVRCP_STOP) < 0)
+		return -1;
+
+	return 0;
+}
+
+int RK_bta2dp_set_auto_reconnect(int enable)
+{
+	a2dp_sink_set_auto_reconnect(enable);
+	return 0;
+}
+
+int RK_bta2dp_disconnect()
+{
+	disconn_device();
+	return 0;
 }
