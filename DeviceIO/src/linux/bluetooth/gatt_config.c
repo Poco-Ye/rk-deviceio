@@ -46,6 +46,7 @@
 #include "gdbus/gdbus.h"
 
 #include "error.h"
+#include "DeviceIo/BtsrcParameter.h"
 
 #define GATT_MGR_IFACE			"org.bluez.GattManager1"
 #define GATT_SERVICE_IFACE		"org.bluez.GattService1"
@@ -75,19 +76,30 @@ typedef unsigned short uint16_t;
 static volatile bool g_dis_adv_close_ble = false;
 #define min(x, y) ((x) < (y) ? (x) : (y))
 
-#define GATT_MAX_CHR 10
-typedef struct BLE_CONTENT_T
-{
-	uint8_t advData[32];
-	uint8_t advDataLen;
-	uint8_t respData[32];
-	uint8_t respDataLen;
-	uint8_t server_uuid[38];
-	uint8_t char_uuid[GATT_MAX_CHR][38];
-	uint8_t char_cnt;
-	int (*cb_ble_recv_fun)(char *uuid, char *data, int len);
-	void (*cb_ble_request_data)(char *uuid);
-} ble_content_t;
+#define AD_FLAGS						0x1
+#define AD_COMPLETE_128_SERVICE_UUID	0x7
+#define AD_COMPLETE_LOCAL_NAME			0x9
+
+typedef struct {
+	uint8_t data[16];
+} uuid128_t;
+
+struct AdvDataContent {
+	uint8_t adv_length;
+	uint8_t flag_length;
+	uint8_t flag;
+	uint8_t flag_value;
+	uint8_t service_uuid_length;
+	uint8_t service_uuid_flag;
+	uuid128_t service_uuid_value;
+};
+
+struct AdvRespDataContent {
+	uint8_t adv_resp_length;
+	uint8_t local_name_length;
+	uint8_t local_name_flag;
+	uint8_t local_name_value[];
+};
 
 ble_content_t *ble_content_internal;
 ble_content_t ble_content_internal_bak;
@@ -142,6 +154,8 @@ struct descriptor {
 	int vlen;
 	const char **props;
 };
+
+int gatt_set_on_adv(void);
 
 /*
  * Supported properties are defined at doc/gatt-api.txt. See "Flags"
@@ -546,8 +560,6 @@ static DBusMessage *chr_read_value(DBusConnection *conn, DBusMessage *msg,
 	DBusMessage *reply;
 	DBusMessageIter iter;
 	const char *device;
-	static char *slist = NULL;
-	static char *devicesn = NULL;
 	char str[512];
 
 	if (!dbus_message_iter_init(msg, &iter))
@@ -713,6 +725,8 @@ static gboolean unregister_ble(void)
 	}
 	printf("unregister_ble gservice_path: %s.\n", gservice_path);
 	g_dbus_unregister_interface(dbus_conn, gservice_path, GATT_SERVICE_IFACE);
+
+	return TRUE;
 }
 
 static gboolean register_characteristic(const char *chr_uuid,
@@ -825,7 +839,7 @@ int gatt_write_data(char *uuid, void *data, int len)
 	int i;
 	struct characteristic *chr;
 
-	printf("gatt_write uuid: %s, len: [%d], data[%p]: %s\n", uuid, len, data, data);
+	printf("gatt_write uuid: %s, len: [%d], data[%p]: %s\n", uuid, len, data, (char *)data);
 	printf("	dump 8 byte: ");
 	for (i = 0; i < min(len, 8); i++)
 		printf("0x%02x ", ((char *)data)[i]);
@@ -923,6 +937,8 @@ int gatt_set_on_adv(void)
 
 	// LE Set Advertise Enable Command
 	execute(CMD_EN, buff);
+
+	return 1;
 }
 
 static void register_app_reply(DBusMessage *reply, void *user_data)
@@ -984,7 +1000,120 @@ void gatt_close(void)
 	BLE_FLAG = false;
 }
 
-int gatt_init(ble_content_t *ble_content)
+#define HOSTNAME_MAX_LEN	250	/* 255 - 3 (FQDN) - 2 (DNS enc) */
+static void bt_gethostname(char *hostname_buf)
+{
+	char hostname[HOSTNAME_MAX_LEN + 1];
+	size_t buf_len;
+
+	buf_len = sizeof(hostname);
+	if (gethostname(hostname, buf_len) != 0)
+		printf("gethostname error !!!!!!!!\n");
+	hostname[buf_len - 1] = '\0';
+
+	/* Deny sending of these local hostnames */
+	if (hostname[0] == '\0' || hostname[0] == '.' || strcmp(hostname, "(none)") == 0)
+		printf("gethostname format error !!!\n");
+	else
+		printf("gethostname: %s, len: %d \n", hostname, strlen(hostname));
+
+	strcpy(hostname_buf, hostname);
+}
+
+static int bt_string_to_uuid128(uuid128_t *uuid, const char *string)
+{
+	uint32_t data0, data4;
+	uint16_t data1, data2, data3, data5;
+	uuid128_t u128;
+	uint8_t *val = (uint8_t *) &u128;
+	uint8_t tmp[16];
+
+	if (sscanf(string, "%08x-%04hx-%04hx-%04hx-%08x%04hx",
+				&data0, &data1, &data2,
+				&data3, &data4, &data5) != 6)
+		return -EINVAL;
+
+	data0 = htonl(data0);
+	data1 = htons(data1);
+	data2 = htons(data2);
+	data3 = htons(data3);
+	data4 = htonl(data4);
+	data5 = htons(data5);
+
+	memcpy(&val[0], &data0, 4);
+	memcpy(&val[4], &data1, 2);
+	memcpy(&val[6], &data2, 2);
+	memcpy(&val[8], &data3, 2);
+	memcpy(&val[10], &data4, 4);
+	memcpy(&val[14], &data5, 2);
+
+	memcpy(tmp, val, 16);
+	printf("UUID: ");
+	for (int i = 0; i < 16; i++) {
+		val[15 - i] = tmp[i];
+		printf("0x%x ", tmp[i]);
+	}
+	printf("\n");
+
+	//bt_uuid128_create(uuid, u128);
+	memset(uuid, 0, sizeof(uuid128_t));
+	memcpy(uuid, &u128, sizeof(uuid128_t));
+
+	return 0;
+}
+
+static void ble_adv_set(Bt_Content_t *bt_content, ble_content_t *ble_content)
+{
+	char hostname[HOSTNAME_MAX_LEN + 1];
+	int i, name_len;
+	struct AdvDataContent advdata;
+	struct AdvRespDataContent advdataresp;
+	uuid128_t uuid;
+
+	advdata.adv_length = 0x15;
+	advdata.flag_length = 2;
+	advdata.flag = AD_FLAGS;
+	advdata.flag_value = 0x1a;
+	advdata.service_uuid_length = 0x10 + 1;
+	advdata.service_uuid_flag = AD_COMPLETE_128_SERVICE_UUID;
+	bt_string_to_uuid128(&(advdata.service_uuid_value), bt_content->ble_content.server_uuid);
+	memcpy(ble_content->server_uuid, bt_content->ble_content.server_uuid, strlen(bt_content->ble_content.server_uuid));
+
+	ble_content->advDataLen = sizeof(struct AdvDataContent);
+	memcpy(ble_content->advData, (uint8_t *)(&advdata), sizeof(struct AdvDataContent));
+
+	//============================================================================
+	if (bt_content->ble_content.ble_name) {
+		name_len = strlen(bt_content->ble_content.ble_name);
+		advdataresp.local_name_length = name_len + 1;
+	} else {
+		bt_gethostname(hostname);
+		name_len = strlen(hostname);
+		advdataresp.local_name_length = name_len + 1;
+	}
+	advdataresp.local_name_flag = AD_COMPLETE_LOCAL_NAME;
+	advdataresp.adv_resp_length = advdataresp.local_name_length + 1;
+
+	for (i = 0; i < name_len; i++) {
+		if (bt_content->ble_content.ble_name)
+			advdataresp.local_name_value[i] = bt_content->ble_content.ble_name[i];
+		else
+			advdataresp.local_name_value[i] = hostname[i];
+	}
+
+	ble_content->respDataLen = advdataresp.adv_resp_length + 1;
+	memcpy(ble_content->respData, (uint8_t *)(&advdataresp), ble_content->respDataLen);
+
+	/* set chr uuid */
+	for (i = 0; i < bt_content->ble_content.chr_cnt; i++)
+		strcpy(ble_content->char_uuid[i], bt_content->ble_content.chr_uuid[i]);
+
+	ble_content->char_cnt = bt_content->ble_content.chr_cnt;
+	ble_content->cb_ble_recv_fun = bt_content->ble_content.cb_ble_recv_fun;
+	ble_content->cb_ble_request_data = bt_content->ble_content.cb_ble_request_data;
+}
+
+int gatt_init(Bt_Content_t *bt_content)
 {
 	default_ctrl = NULL;
 	ctrl_list = NULL;
@@ -994,7 +1123,11 @@ int gatt_init(ble_content_t *ble_content)
 	service_id = 1;
 	gid = 0;
 
-	ble_content_internal_bak = *ble_content;
+	ble_adv_set(bt_content, &ble_content_internal_bak);
+	printf("gatt_init server_uuid: %s\n", ble_content_internal_bak.server_uuid);
+
 	ble_content_internal = &ble_content_internal_bak;
 	create_wifi_services();
+
+	return 1;
 }

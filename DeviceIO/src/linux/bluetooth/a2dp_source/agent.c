@@ -46,6 +46,9 @@ static gboolean agent_registered = FALSE;
 static const char *agent_capability = NULL;
 static DBusMessage *pending_message = NULL;
 
+#undef bt_shell_printf
+#define bt_shell_printf printf
+
 static void agent_release_prompt(void)
 {
 	if (!pending_message)

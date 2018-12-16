@@ -293,6 +293,7 @@ enum class BT_Device_Class {
 	BT_SINK_DEVICE,
 	BT_SOURCE_DEVICE,
 	BT_BLE_DEVICE,
+	BT_IDLE,
 };
 
 #ifdef __cplusplus
@@ -318,7 +319,7 @@ struct ble_config {
 }
 #endif
 
-void bt_adv_set(ble_content_t *ble_content);
+void bt_adv_set(Bt_Content_t *p_bt_content);
 
 class INetLinkWrapperCallback {
 public:
