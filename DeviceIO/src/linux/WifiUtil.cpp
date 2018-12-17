@@ -41,8 +41,7 @@ using std::ifstream;
 typedef std::list<std::string> LIST_STRING;
 typedef std::list<WifiInfo*> LIST_WIFIINFO;
 static int network_id;
-struct wifi_config *gwifi_cfg;
-
+rk_wifi_config *gwifi_cfg;
 
 static const char *WIFI_CONFIG_FORMAT = "ctrl_interface=/var/run/wpa_supplicant\n"
                                 "ap_scan=1\n\nnetwork={\nssid=\"%s\"\n"

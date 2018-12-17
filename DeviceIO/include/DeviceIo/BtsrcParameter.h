@@ -38,20 +38,46 @@ typedef struct BLE_CONTENT_T
 	uint8_t server_uuid[38];
 	uint8_t char_uuid[GATT_MAX_CHR][38];
 	uint8_t char_cnt;
-	int (*cb_ble_recv_fun)(char *uuid, char *data, int len);
+	int (*cb_ble_recv_fun)(char *uuid, unsigned char *data, int len);
 	void (*cb_ble_request_data)(char *uuid);
 } ble_content_t;
 
-int gatt_main(ble_content_t *ble_content);
+typedef struct {
+	const char *server_uuid;
+	char *chr_uuid[12];
+	uint8_t chr_cnt;
+	const char *ble_name;
+	/* recevice data */
+	void (*cb_ble_recv_fun)(char *uuid, char *data, int len);
+	/* full data */
+	void (*cb_ble_request_data)(char *uuid);
+} Ble_Gatt_Content_t;
+
+typedef struct {
+	Ble_Gatt_Content_t ble_content;
+	const char *bt_name;
+} Bt_Content_t;
+
+int gatt_main(Bt_Content_t *ble_content);
 int gatt_write_data(char *uuid, void *data, int len);
 void release_ble_gatt(void);
 void ble_enable_adv(void);
 void ble_disable_adv(void);
 int gatt_open(void);
-int gatt_close(void);
-int bt_open(ble_content_t *ble_content);
-int gatt_init(ble_content_t *ble_content);
+void gatt_close(void);
+int bt_open(Bt_Content_t *ble_content);
+int gatt_init(Bt_Content_t *ble_content);
 //void bt_adv_set(ble_content_t *ble_content);
+
+typedef struct {
+	char ssid[60];
+	int ssid_len;
+	char psk[60];
+	int psk_len;
+	char key_mgmt[22];
+	int key_len;
+	void (*wifi_status_callback)(int status);
+} rk_wifi_config;
 
 #ifdef __cplusplus
 }

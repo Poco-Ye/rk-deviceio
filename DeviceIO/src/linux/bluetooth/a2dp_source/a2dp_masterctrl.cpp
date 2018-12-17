@@ -178,7 +178,7 @@ static void btsrc_scan_save_device(GDBusProxy *proxy, const char *description)
 	DBusMessageIter iter;
 	const char *address, *name;
 	BtDeviceInfo *device_info = NULL;
-	int cplen = 0;
+	size_t cplen = 0;
 
 	if (g_dbus_proxy_get_property(proxy, "Address", &iter) == FALSE)
 		return;
@@ -544,6 +544,8 @@ enum BT_Device_Class dist_dev_class(GDBusProxy *proxy)
 
 		}
 	}
+
+	return BT_Device_Class::BT_IDLE;
 }
 
 static void set_source_device(GDBusProxy *proxy)
@@ -638,8 +640,8 @@ static void device_added(GDBusProxy *proxy)
 			set_default_device(proxy, NULL);
 
 			//A2DP SRC
-			if (dist_dev_class(proxy) == BT_Device_Class::BT_SINK_DEVICE)
-				set_source_device(proxy);
+			//if ((A2DP_SRC_FLAG) && (dist_dev_class(proxy) == BT_Device_Class::BT_SINK_DEVICE))
+			//	set_source_device(proxy);
 
 			//gatt
 			if (connected) {
@@ -665,7 +667,7 @@ static struct adapter *adapter_new(GDBusProxy *proxy)
 	if (!default_ctrl)
 		default_ctrl = adapter;
 
-	printf("=== %s default_ctrl: 0x%x ===\n", __func__, default_ctrl);
+	printf("=== %s default_ctrl: %p ===\n", __func__, default_ctrl);
 
 	return adapter;
 }
@@ -699,7 +701,7 @@ static void proxy_added(GDBusProxy *proxy, void *user_data)
 	const char *interface;
 
 	interface = g_dbus_proxy_get_interface(proxy);
-	printf("BT Enter: proxy_added: %s\n", interface);
+	printf("BT Enter: proxy_added: %s [SNK: %d, SRC: %d]\n", interface, A2DP_SINK_FLAG, A2DP_SRC_FLAG);
 
 	if (!strcmp(interface, "org.bluez.Device1")) {
 		device_added(proxy);
@@ -728,15 +730,19 @@ static void proxy_added(GDBusProxy *proxy, void *user_data)
 		ad_manager_added(proxy);
 	}
 
-	if ((!strcmp(interface, "org.bluez.MediaPlayer1")) ||
-		(!strcmp(interface, "org.bluez.MediaFolder1")) ||
-		(!strcmp(interface, "org.bluez.MediaItem1")))
-		a2dp_sink_proxy_added(proxy, user_data);
-
-	if (!strcmp(interface, "org.bluez.Device1")) {
-		if (dist_dev_class(proxy) == BT_Device_Class::BT_SOURCE_DEVICE)
+	if (A2DP_SINK_FLAG) {
+		if ((!strcmp(interface, "org.bluez.MediaPlayer1")) ||
+			(!strcmp(interface, "org.bluez.MediaFolder1")) ||
+			(!strcmp(interface, "org.bluez.MediaItem1")))
 			a2dp_sink_proxy_added(proxy, user_data);
-	} else if (!strcmp(interface, "org.bluez.Adapter1")) {
+
+		if (!strcmp(interface, "org.bluez.Device1")) {
+			if ((dist_dev_class(proxy) == BT_Device_Class::BT_SOURCE_DEVICE))
+				a2dp_sink_proxy_added(proxy, user_data);
+		}
+	}
+
+	if (!strcmp(interface, "org.bluez.Adapter1")) {
 		a2dp_sink_proxy_added(proxy, user_data);
 	}
 
@@ -801,7 +807,7 @@ static void proxy_removed(GDBusProxy *proxy, void *user_data)
 	const char *interface;
 
 	interface = g_dbus_proxy_get_interface(proxy);
-	printf("BT Enter: proxy_removed: %s\n", interface);
+	printf("BT Enter: proxy_removed: %s [SNK: %d, SRC: %d]\n", interface, A2DP_SINK_FLAG, A2DP_SRC_FLAG);
 
 	if (!strcmp(interface, "org.bluez.Device1")) {
 		device_removed(proxy);
@@ -834,7 +840,8 @@ static void proxy_removed(GDBusProxy *proxy, void *user_data)
 		ad_unregister(dbus_conn, NULL);
 	}
 
-	a2dp_sink_proxy_removed(proxy, user_data);
+	if (A2DP_SINK_FLAG)
+		a2dp_sink_proxy_removed(proxy, user_data);
 	printf("BT Exit: proxy_removed: %s\n", interface);
 }
 
@@ -859,7 +866,7 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 	struct adapter *ctrl;
 
 	interface = g_dbus_proxy_get_interface(proxy);
-	printf("BT Enter: property_changed: %s\n", interface);
+	printf("BT Enter: property_changed: %s [SNK: %d, SRC: %d]\n", interface, A2DP_SINK_FLAG, A2DP_SRC_FLAG);
 
 	if (!strcmp(interface, "org.bluez.Device1")) {
 		if (default_ctrl && device_is_child(proxy,
@@ -888,7 +895,7 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 				else if (!connected && default_dev == proxy)
 					set_default_device(NULL, NULL);
 
-				enum class BT_Device_Class bdc;
+				enum BT_Device_Class bdc;
 				bdc = dist_dev_class(proxy);
 
 				//gatt
@@ -907,18 +914,20 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 				}
 
 				//bt_source
-				if (connected && default_src_dev == NULL) {
-					if (bdc == BT_Device_Class::BT_SINK_DEVICE) {
-						set_source_device(proxy);
-					}
-				} else if (!connected && default_src_dev == proxy) {
-					if (bdc == BT_Device_Class::BT_SINK_DEVICE) {
-						set_source_device(NULL);
+				if (A2DP_SRC_FLAG) {
+					if (connected && default_src_dev == NULL) {
+						if (bdc == BT_Device_Class::BT_SINK_DEVICE) {
+							//set_source_device(proxy);
+						}
+					} else if (!connected && default_src_dev == proxy) {
+						if (bdc == BT_Device_Class::BT_SINK_DEVICE) {
+							set_source_device(NULL);
+						}
 					}
 				}
 
 				//bt_sink
-				if (bdc == BT_Device_Class::BT_SOURCE_DEVICE)
+				if ((A2DP_SINK_FLAG) && (bdc == BT_Device_Class::BT_SOURCE_DEVICE))
 					device_changed(proxy, iter, user_data);
 			}
 
@@ -975,7 +984,8 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 		g_free(str);
 	}
 
-	a2dp_sink_property_changed(proxy, name, iter, user_data);
+	if (A2DP_SINK_FLAG)
+		a2dp_sink_property_changed(proxy, name, iter, user_data);
 
 	printf("BT Exit: property_changed: %s\n", interface);
 }
@@ -2741,14 +2751,16 @@ static void a2dp_source_clean(void)
 }
 
 void *init_a2dp_master(void *)
-{}
-
-void bluetooth_open(ble_content_t *ble_content)
 {
-	GError *error = NULL;
+	return 0;
+}
 
+void bluetooth_open(Bt_Content_t *bt_content)
+{
 	printf("init_a2dp_master start A2DP_SRC_FLAG: %d\n", A2DP_SRC_FLAG);
 	a2dp_source_clean();
+	A2DP_SRC_FLAG = 1;
+	A2DP_SINK_FLAG = 1;
 
 	if (agent_option)
 		auto_register_agent = g_strdup(agent_option);
@@ -2769,7 +2781,7 @@ void bluetooth_open(ble_content_t *ble_content)
 
 	btsrc_main_loop = g_main_loop_new(NULL, FALSE);
 	init_avrcp_ctrl();
-	gatt_init(ble_content);
+	gatt_init(bt_content);
 
 	g_dbus_client_set_connect_watch(btsrc_client, connect_handler, NULL);
 	g_dbus_client_set_disconnect_watch(btsrc_client, disconnect_handler, NULL);
@@ -2787,28 +2799,30 @@ void bluetooth_open(ble_content_t *ble_content)
 }
 
 static pthread_t bt_thread = 0;
-int bt_open(ble_content_t *ble_content)
+int bt_open(Bt_Content_t *bt_content)
 {
 	printf("init_a2dp_master_ctrl start pid: 0x%x, A2DP_SRC_FLAG: %d\n", bt_thread, A2DP_SRC_FLAG);
 
 	if (bt_thread)
 		return 1;
 
-	pthread_create(&bt_thread, NULL, bluetooth_open, ble_content);
-	return 1;
+    pthread_create(&bt_thread, NULL, bluetooth_open, bt_content);
+    return 1;
 }
 
 int init_a2dp_master_ctrl()
 {
-	printf("init_a2dp_master_ctrl A2DP_SRC_FLAG: %d\n", A2DP_SRC_FLAG);
+	printf("init_a2dp_master_ctrl A2DP_SRC_FLAG: %lu\n", A2DP_SRC_FLAG);
 
 	A2DP_SRC_FLAG = 1;
+	A2DP_SINK_FLAG = 0;
 	return 1;
 }
 
 int release_a2dp_master_ctrl() {
 	printf("release_a2dp_master_ctrl start ...\n");
 	A2DP_SRC_FLAG = 0;
+	return 1;
 }
 
 static int a2dp_master_get_rssi(GDBusProxy *proxy)
@@ -2983,16 +2997,10 @@ int a2dp_master_connect(char *t_address)
 
 int a2dp_master_disconnect(char *address)
 {
-	GDBusProxy *proxy;
-
 	if (!default_dev) {
 		printf("bt source no connect\n");
 		return 0;
 	}
-
-	//proxy = find_device_by_address(address);
-	//if (!proxy)
-	//    return -1;
 
 	if (g_dbus_proxy_method_call(default_dev, "Disconnect", NULL, disconn_reply,
 							default_dev, NULL) == FALSE) {
@@ -3000,7 +3008,7 @@ int a2dp_master_disconnect(char *address)
 		return 0;
 	}
 
-	printf("Attempting to disconnect from %s\n", proxy_address(proxy));
+	printf("Attempting to disconnect from %s\n", proxy_address(default_dev));
 
 	return 1;
 }
@@ -3115,13 +3123,12 @@ void a2dp_master_register_cb(void *userdata, RK_btmaster_callback cb)
 {
     g_btmaster_cb = cb;
     g_btmaster_userdata = userdata;
-    return 0;
+    return;
 }
 
 void a2dp_master_clear_cb()
 {
     g_btmaster_cb = NULL;
     g_btmaster_userdata = NULL;
-    return 0;
+    return;
 }
-

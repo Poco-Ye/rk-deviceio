@@ -176,7 +176,6 @@ static char wifi_security[256];
 static char wifi_hide[256];
 static char check_data[256];
 static int priority = 0;
-extern ble_content_t ble_content;
 struct ble_config ble_cfg;
 struct wifi_config wifi_cfg;
 
@@ -184,10 +183,10 @@ struct wifi_config wifi_cfg;
 #define BLE_CONFIG_WIFI_SUCCESS 1
 #define BLE_CONFIG_WIFI_FAILED	2
 #define UUID_MAX_LEN			36
-#define MSG_BUFF_LEN (20 * 1024) //max size for wifi list
+#define WIFI_MSG_BUFF_LEN (20 * 1024) //max size for wifi list
 
-char wifi_list_buf[MSG_BUFF_LEN] = {0};
-char devcontext_list_buf[MSG_BUFF_LEN] = {0};
+char wifi_list_buf[WIFI_MSG_BUFF_LEN] = {0};
+char devcontext_list_buf[WIFI_MSG_BUFF_LEN] = {0};
 #define BLE_SEND_MAX_LEN (134) //(20) //(512)
 
 void ble_request_data(char *uuid)
@@ -199,8 +198,8 @@ void ble_request_data(char *uuid)
 		if (!scanr_len) {
 			scan_retry = 3;
 retry:
-			memset(wifi_list_buf, 0, MSG_BUFF_LEN);
-			scanr_len = DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_SCAN, wifi_list_buf, MSG_BUFF_LEN);
+			memset(wifi_list_buf, 0, WIFI_MSG_BUFF_LEN);
+			scanr_len = DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_SCAN, wifi_list_buf, WIFI_MSG_BUFF_LEN);
 			scanr_len_use = 0;
 			//scanr_len = strlen(wifi_list_buf);
 			if (!scanr_len) {
@@ -320,7 +319,33 @@ void ble_callback(char *uuid, void *data, int len)
 	}
 }
 
-void bt_adv_set(ble_content_t *ble_content)
+static Bt_Content_t bt_content;
+
+void bt_adv_set(Bt_Content_t *p_bt_content)
+{
+	p_bt_content = &bt_content;
+	p_bt_content->bt_name = "HISENSE_AUDIO";
+
+	p_bt_content->ble_content.ble_name = "HISENSE_BLE";
+	p_bt_content->ble_content.server_uuid = WIFI_SERVICES_UUID;
+	p_bt_content->ble_content.chr_uuid[0] = SECURITY_CHAR_UUID;
+	p_bt_content->ble_content.server_uuid = HIDE_CHAR_UUID;
+	p_bt_content->ble_content.chr_uuid[0] = SSID_CHAR_UUID;
+	p_bt_content->ble_content.server_uuid = PASSWORD_CHAR_UUID;
+	p_bt_content->ble_content.chr_uuid[0] = CHECKDATA_CHAR_UUID;
+	p_bt_content->ble_content.server_uuid = NOTIFY_CHAR_UUID;
+	p_bt_content->ble_content.chr_uuid[0] = NOTIFY_DESC_UUID;
+	p_bt_content->ble_content.server_uuid = WIFILIST_CHAR_UUID;
+	p_bt_content->ble_content.chr_uuid[0] = DEVICECONTEXT_CHAR_UUID;
+
+	p_bt_content->ble_content.chr_cnt = 9;
+	p_bt_content->ble_content.cb_ble_recv_fun = ble_callback;
+	p_bt_content->ble_content.cb_ble_request_data = ble_request_data;
+
+	wifi_cfg.wifi_status_callback = wifi_status_callback;
+}
+
+void bt_adv_set_old(ble_content_t *ble_content)
 {
 	char hostname[HOSTNAME_MAX_LEN + 1];
 	size_t buf_len;

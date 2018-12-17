@@ -31,8 +31,7 @@
 #include <DeviceIo/WifiManager.h>
 #include <DeviceIo/RkMediaPlayer.h>
 #include <DeviceIo/BtsrcParameter.h>
-#include <DeviceIo/RkBtMaster.h>
-#include <DeviceIo/RkBtSink.h>
+#include <DeviceIo/bt_hal.h>
 
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
@@ -231,81 +230,11 @@ public:
 			printf("=== BT_STOP_PLAY ===\n");
 			break;
 		}
+		default:
+			break;
 		}
 	}
 };
-int a2dp_source_main()
-{
-	char value[1024];
-	bool ret;
-	char buff[4096];
-	BtScanParam scan_param;
-	int id = 0;
-
-	std::cout << "Bt Open source... " << std::endl;
-	DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_OPEN, NULL, 0);
-
-	char cmd[128];
-	while(1) {
-		scanf("%s", cmd);
-		printf("CMD:%s\n", cmd);
-		if (strcmp(cmd, "connect") == 0) {
-			printf("CONNECT: Please input target device addr:\n");
-			scanf("%s", cmd);
-			printf("Connecting %s...\n", cmd);
-			DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_CONNECT, cmd, 0);
-		} else if (strcmp(cmd, "disconnect") == 0) {
-			printf("DISCONNECT: Please input target device addr:\n");
-			scanf("%s", cmd);
-			printf("Disconnecting %s...\n", cmd);
-			DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_DISCONNECT, cmd, 0);
-		} else if (strcmp(cmd, "exit") == 0) {
-			printf("EXIT\n");
-			std::cout << "Bt Close source... " << std::endl;
-			DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_CLOSE, NULL, 0);
-			break;
-		} else if (strcmp(cmd, "scan") == 0) {
-			printf("SCAN\n");
-			scan_param.mseconds = 10000;
-			scan_param.item_cnt = 100;
-			scan_param.device_list = NULL;
-
-			std::cout << "Bt Scan start... " << std::endl;
-			DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_SCAN, &scan_param, sizeof(scan_param));
-
-			/*
-			* Find the sink device from the device list,
-			* which has the largest rssi value.
-			*/
-			BtDeviceInfo *start = scan_param.device_list;
-			BtDeviceInfo *tmp = NULL;
-			while (start) {
-				printf("\n[%d]Name:%s\n", id++, start->name);
-				printf("\tAddress:%s\n", start->address);
-				printf("\tRSSI:%d\n", start->rssi_valid?start->rssi:1);
-				printf("\tPlayrole:%s\n", start->playrole);
-
-				tmp = start;
-				start = start->next;
-				/* Free DeviceInfo */
-				free(tmp);
-			}
-		} else if (strcmp(cmd, "remove") == 0) {
-			printf("REMOVE: Please input target device addr:\n");
-			scanf("%s", cmd);
-			printf("Removeing %s...\n", cmd);
-			DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_REMOVE, cmd, 0);
-		} else {
-			ret = DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_STATUS, value, 0);
-			if (ret)
-				printf("STATUS: connected! addr = %s\n", value);
-			else
-				printf("STATUS: disconnected!\n");
-		}
-	}
-
-	return 0;
-}
 
 static void wifi_status_callback(int status)
 {
@@ -369,165 +298,6 @@ static void bt_source_close(void *data) {
 	DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_CLOSE);
 }
 
-ble_content_t ble_content;
-static void bt_init_open(void *data) {
-	printf("---------------BT_OPEN----------------\n");
-	DeviceIo::getInstance()->controlBt(BtControl::BT_OPEN, &ble_content);
-}
-
-void bt_master_callback(void *userdata, const RK_BtMasterEvent_e enEvent)
-{
-	char address[17], name[100];
-
-	switch(enEvent)
-	{
-		case RK_BtMasterEvent_Connect_Failed:
-			printf("++++++++++++ BT MASTER EVENT: connect failed ++++++++++\n");
-			RK_btmaster_getDeviceName(name, 100);
-			RK_btmaster_getDeviceAddr(address, 17);
-			printf("DeviceName:%s. Address:%s\n", name, address);
-			break;
-		case RK_BtMasterEvent_Connected:
-			printf("++++++++++++ BT MASTER EVENT: connect sucess ++++++++++\n");
-			break;
-		case RK_BtMasterEvent_Disconnected:
-			printf("++++++++++++ BT MASTER EVENT: disconnect ++++++++++\n");
-			break;
-	}
-}
-
-void bt_api2_master_start(void *data)
-{
-	RK_btmaster_connect_start(NULL, bt_master_callback);
-}
-
-void bt_api2_master_stop(void *data)
-{
-	RK_btmaster_stop();
-}
-
-int bt_sink_callback(RK_BTA2DP_State_e state)
-{
-	switch(state) {
-		case RK_BTA2DP_State_IDLE:
-			printf("++++++++++++ BT SINK EVENT: idle ++++++++++\n");
-			break;
-		case RK_BTA2DP_State_CONNECT:
-			printf("++++++++++++ BT SINK EVENT: connect sucess ++++++++++\n");
-			break;
-		case RK_BTA2DP_State_PLAY:
-			printf("++++++++++++ BT SINK EVENT: playing ++++++++++\n");
-			break;
-		case RK_BTA2DP_State_PAUSE:
-			printf("++++++++++++ BT SINK EVENT: paused ++++++++++\n");
-			break;
-		case RK_BTA2DP_State_STOP:
-			printf("++++++++++++ BT SINK EVENT: stoped ++++++++++\n");
-			break;
-		case RK_BTA2DP_State_DISCONNECT:
-			printf("++++++++++++ BT SINK EVENT: disconnected ++++++++++\n");
-			break;
-	}
-}
-
-void bt_api2_sink_open(void *data)
-{
-	RK_bta2dp_register_callback(bt_sink_callback);
-	RK_bta2dp_open("RK3308-Platform");
-}
-
-void bt_api2_sink_visibility00(void *data)
-{
-	RK_bta2dp_setVisibility(0, 0);
-}
-
-void bt_api2_sink_visibility01(void *data)
-{
-	RK_bta2dp_setVisibility(0, 1);
-}
-
-void bt_api2_sink_visibility10(void *data)
-{
-	RK_bta2dp_setVisibility(1, 0);
-}
-
-void bt_api2_sink_visibility11(void *data)
-{
-	RK_bta2dp_setVisibility(1, 1);
-}
-
-void bt_api2_sink_status(void *data)
-{
-	RK_BTA2DP_State_e pState;
-
-	RK_bta2dp_getState(&pState);
-	switch(pState) {
-		case RK_BTA2DP_State_IDLE:
-			printf("++++++++++++ BT MASTER EVENT: idle ++++++++++\n");
-			break;
-		case RK_BTA2DP_State_CONNECT:
-			printf("++++++++++++ BT MASTER EVENT: connect sucess ++++++++++\n");
-			break;
-		case RK_BTA2DP_State_PLAY:
-			printf("++++++++++++ BT MASTER EVENT: playing ++++++++++\n");
-			break;
-		case RK_BTA2DP_State_PAUSE:
-			printf("++++++++++++ BT MASTER EVENT: paused ++++++++++\n");
-			break;
-		case RK_BTA2DP_State_STOP:
-			printf("++++++++++++ BT MASTER EVENT: stoped ++++++++++\n");
-			break;
-		case RK_BTA2DP_State_DISCONNECT:
-			printf("++++++++++++ BT MASTER EVENT: disconnected ++++++++++\n");
-			break;
-	}
-}
-
-void bt_api2_sink_play(void *data)
-{
-	RK_bta2dp_play();
-}
-
-void bt_api2_sink_pause(void *data)
-{
-	RK_bta2dp_pause();
-}
-
-void bt_api2_sink_next(void *data)
-{
-	RK_bta2dp_next();
-}
-
-void bt_api2_sink_previous(void *data)
-{
-	RK_bta2dp_prev();
-}
-
-void bt_api2_sink_stop(void *data)
-{
-	RK_bta2dp_stop();
-}
-
-void bt_api2_sink_reconnect_en0(void *data)
-{
-	RK_bta2dp_set_auto_reconnect(0);
-}
-
-void bt_api2_sink_reconnect_en1(void *data)
-{
-	RK_bta2dp_set_auto_reconnect(1);
-}
-
-void bt_api2_sink_disconnect(void *data)
-{
-	RK_bta2dp_disconnect();
-}
-
-void bt_api2_sink_close(void *data)
-{
-	RK_bta2dp_close();
-}
-
 static test_command_t process_command_table[] = {
 	{"suspend", suspend_test},
 	{"factoryReset", factoryReset_test},
@@ -556,6 +326,7 @@ static test_command_t process_command_table[] = {
 	{"bt_api2_sink_reconnect_en1", bt_api2_sink_reconnect_en1},
 	{"bt_api2_sink_disconnect", bt_api2_sink_disconnect},
 	{"bt_api2_sink_close", bt_api2_sink_close},
+	{"RK_blewifi_start", kg_ble_test},
 };
 
 static void show_help() {

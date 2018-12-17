@@ -9,6 +9,7 @@ add_definitions("-Wall -g")
 
 set(SRC_FILES
     DeviceIOTest.cpp
+    bt_test.cpp
 )
 
 add_executable(deviceio_test ${SRC_FILES})

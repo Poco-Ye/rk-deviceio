@@ -60,10 +60,11 @@ static GList *proxy_list;
 static const char *last_device_path = NULL;
 static char last_obj_path[] = "/org/bluez/hci0/dev_xx_xx_xx_xx_xx_xx";
 static GDBusProxy *last_connected_device_proxy = NULL;
+static GDBusProxy *last_temp_connected_device_proxy = NULL;
 static GList *device_list;
 static guint reconnect_timer;
 #define STORAGE_PATH "/data/cfg/lib/bluetooth"
-
+static void device_connected_post(GDBusProxy *proxy);
 
 #define BLUEZ_MEDIA_PLAYER_INTERFACE "org.bluez.MediaPlayer1"
 #define BLUEZ_MEDIA_FOLDER_INTERFACE "org.bluez.MediaFolder1"
@@ -101,6 +102,8 @@ static void report_avrcp_event(DeviceInput event, void *data, int len) {
 				break;
 			case DeviceInput::BT_PAUSE_PLAY:
 				(*g_btsink_cb)(RK_BTA2DP_State_PAUSE);
+				break;
+			default:
 				break;
 		}
 	}
@@ -144,8 +147,8 @@ struct adapter {
 extern struct adapter *default_ctrl;
 extern GList *ctrl_list;
 
-static gboolean reconn_device(void *user_data);
-bool reconn_last(void);
+static int reconn_device(void *user_data);
+int reconn_last(void *data);
 
 static gboolean device_is_child(GDBusProxy *device, GDBusProxy *master)
 {
@@ -234,7 +237,16 @@ void print_player(GDBusProxy *proxy, const char *description)
 
 void player_added(GDBusProxy *proxy)
 {
-	printf("player_added \n");
+    printf("player_added \n");
+
+	printf("=== add set last_connected_device_proxy 0x%p \n", proxy);
+	last_connected_device_proxy = last_temp_connected_device_proxy;
+	device_connected_post(last_connected_device_proxy);
+	report_avrcp_event(DeviceInput::BT_SINK_ENV_CONNECT, NULL, 0);
+	printf("[D: %s]: BT_SNK_DEVICE CONNECTED\n", __func__);
+	system("hciconfig hci0 noscan");
+	system("hciconfig hci0 noscan");
+
 	players = g_slist_append(players, proxy);
 
 	if (default_player == NULL) {
@@ -280,7 +292,7 @@ static GDBusProxy *proxy_lookup(GList *list, int *index, const char *path,
 		return NULL;
 
 	for (l = g_list_nth(list, index ? *index : 0); l; l = g_list_next(l)) {
-		GDBusProxy *proxy = l->data;
+		GDBusProxy *proxy = (GDBusProxy *)(l->data);
 		const char *proxy_iface = g_dbus_proxy_get_interface(proxy);
 		const char *proxy_path = g_dbus_proxy_get_path(proxy);
 
@@ -396,9 +408,7 @@ static void device_connected_post(GDBusProxy *proxy)
 
 static void disconn_device_reply(DBusMessage * message, void *user_data)
 {
-
 	DBusError error;
-	static int count = 3;
 
 	dbus_error_init(&error);
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
@@ -504,10 +514,10 @@ bool disconn_device(void)
 	return TRUE;
 }
 
-bool reconn_last(void)
+int reconn_last(void *data)
 {
 	GDBusProxy *proxy = last_connected_device_proxy;
-	DBusMessageIter iter, addr_iter, addrType_iter;
+	DBusMessageIter addr_iter, addrType_iter;
 
 	/* Enable auto reconnect? */
 	if (!g_btsink_auto_reconnect)
@@ -573,7 +583,7 @@ bool reconn_last(void)
 }
 
 
-static gboolean reconn_device(void *user_data)
+static int reconn_device(void *user_data)
 {
 	GDBusProxy *proxy = (GDBusProxy *)user_data;
 	DBusMessageIter iter;
@@ -628,23 +638,21 @@ static int adapter_is_powered(GDBusProxy *proxy)
 void a2dp_sink_device_added(GDBusProxy *proxy)
 {
 	const char *path = g_dbus_proxy_get_path(proxy);
-	dbus_bool_t connected;
+	dbus_bool_t connected = 0;
 	static int first = 1;
 	DBusMessageIter iter;
 
 	proxy_list = g_list_append(proxy_list, proxy);
 
 	if (g_dbus_proxy_get_property(proxy, "Connected", &iter)) {
-		dbus_bool_t connected;
-
 		dbus_message_iter_get_basic(&iter, &connected);
 
 		if (connected) {
 			device_list = g_list_append(device_list, proxy);
-			printf("=== add set last_connected_device_proxy 0x%p \n", proxy);
-			last_connected_device_proxy = proxy;
-			device_connected_post(proxy);
-			report_avrcp_event(DeviceInput::BT_SINK_ENV_CONNECT, NULL, 0);
+			printf("=== add set last_temp_connected_device_proxy 0x%p \n", proxy);
+			last_temp_connected_device_proxy = proxy;
+			//device_connected_post(proxy);
+			//report_avrcp_event(DeviceInput::BT_SINK_ENV_CONNECT, NULL, 0);
 			return;
 		}
 	}
@@ -656,7 +664,7 @@ void a2dp_sink_device_added(GDBusProxy *proxy)
 	if (!adapter_is_powered(default_ctrl->proxy))
 		return;
 
-	if (A2DP_SINK_FLAG) {
+	if (0/* A2DP_SINK_FLAG */) {
 		if (last_device_path && !strcmp(path, last_device_path) && first) {
 			pr_info("Reconnecting to last connected device");
 			first = 0;
@@ -686,7 +694,6 @@ void a2dp_sink_proxy_added(GDBusProxy *proxy, void *user_data)
 	} else if (!strcmp(interface, "org.bluez.Adapter1")) {
 		DBusMessageIter iter;
 		const char *str;
-		char *device_interface = "org.bluez.Device1";
 
 		if (!g_dbus_proxy_get_property(proxy, "Address", &iter)) {
 				pr_err("Failed to get adapter address");
@@ -712,6 +719,10 @@ void a2dp_sink_proxy_added(GDBusProxy *proxy, void *user_data)
 		default_player = NULL;
 
 	players = g_slist_remove(players, proxy);
+	printf("[D: %s]: BT_SNK_DEVICE DISCONNECTED\n", __func__);
+	report_avrcp_event(DeviceInput::BT_SINK_ENV_DISCONNECT, NULL, 0);
+	system("hciconfig hci0 piscan");
+	system("hciconfig hci0 piscan");
 }
 
 void item_removed(GDBusProxy *proxy)
@@ -779,19 +790,19 @@ void device_changed(GDBusProxy *proxy, DBusMessageIter *iter,
 		val ? "TRUE" : "FALSE");
 	if (val) {
 		device_list = g_list_append(device_list, proxy);
-		last_connected_device_proxy = proxy;
-		device_connected_post(proxy);
-		report_avrcp_event(DeviceInput::BT_SINK_ENV_CONNECT, NULL, 0);
-		printf("[D: %s]: BT_SNK_DEVICE CONNECTED", __func__);
-		system("hciconfig hci0 noscan");
-		system("hciconfig hci0 noscan");
+		last_temp_connected_device_proxy = proxy;
+		//device_connected_post(proxy);
+		//report_avrcp_event(DeviceInput::BT_SINK_ENV_CONNECT, NULL, 0);
+		//printf("[D: %s]: BT_SNK_DEVICE CONNECTED", __func__);
+		//system("hciconfig hci0 noscan");
+		//system("hciconfig hci0 noscan");
 	} else {
 		/* Device has been stored when being connected */
 		device_list = g_list_remove(device_list, proxy);
-		printf("[D: %s]: BT_SNK_DEVICE DISCONNECTED\n", __func__);
-		report_avrcp_event(DeviceInput::BT_SINK_ENV_DISCONNECT, NULL, 0);
-		system("hciconfig hci0 piscan");
-		system("hciconfig hci0 piscan");
+		//printf("[D: %s]: BT_SNK_DEVICE DISCONNECTED\n", __func__);
+		//report_avrcp_event(DeviceInput::BT_SINK_ENV_DISCONNECT, NULL, 0);
+		//system("hciconfig hci0 piscan");
+		//system("hciconfig hci0 piscan");
 	}
 }
 
@@ -799,14 +810,13 @@ void adapter_changed(GDBusProxy *proxy, DBusMessageIter *iter,
 			   void *user_data)
 {
 	dbus_bool_t val;
-	const char *object_path = g_dbus_proxy_get_path(proxy);
 
 	dbus_message_iter_get_basic(iter, &val);
 
 	pr_info("Adapter powered changed to %s", val ? "TRUE" : "FALSE");
 	if (val) {
 		GDBusProxy *device_proxy;
-		char *device_interface = "org.bluez.Device1";
+		const char *device_interface = "org.bluez.Device1";
 
 		if (reconnect_timer) {
 			g_source_remove(reconnect_timer);
@@ -883,21 +893,27 @@ int init_avrcp_ctrl(void)
 	device_list = NULL;
 	reconnect_timer = 0;
 	g_btsink_auto_reconnect = 1;
+
+	return 1;
 }
 
+extern volatile bool A2DP_SRC_FLAG;
 int a2dp_sink_open(void)
 {
 	printf("call avrcp_thread init_avrcp\n");
 	A2DP_SINK_FLAG = true;
+	A2DP_SRC_FLAG = 0;
 	system("hciconfig hci0 piscan");
 	system("hciconfig hci0 piscan");
-	reconn_last();
+	reconn_last(NULL);
+
 	return 1;
 }
 
 int a2dp_sink_colse_coexist()
 {
 	A2DP_SINK_FLAG = false;
+	return 0;
 }
 
 int release_avrcp_ctrl(void)
