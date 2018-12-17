@@ -15,7 +15,6 @@
  */
 
 #include "wifi.h"
-#include "socket_app.h"
 #include "Logger.h"
 #include "WifiUtil.h"
 #include "shell.h"
@@ -32,9 +31,6 @@
 using namespace std;
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
-using DeviceIOFramework::tSOCKET_APP;
-using DeviceIOFramework::socket_send;
-using DeviceIOFramework::socket_recieve;
 using DeviceIOFramework::wifi_config;
 
 #define dbg(fmt, ...) APP_DEBUG("[deviceio wifi debug ]" fmt, ##__VA_ARGS__)
