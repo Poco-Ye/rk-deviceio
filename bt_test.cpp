@@ -238,3 +238,67 @@ void kg_ble_test(void *data) {
 	RK_ble_recv_data_callback(RK_ble_recv_data_test);
 	RK_blewifi_start((char *)bt_content.bt_name);
 }
+
+/* SPP */
+void _btspp_callback(int type, char *data, int len)
+{
+	switch(type) {
+		case RK_BTSPP_Event_DATA:
+			printf("+++++++ RK_BTSPP_Event_DATA +++++\n");
+			printf("\tRECVED(%d):%s\n", len, data);
+			break;
+		case RK_BTSPP_Event_CONNECT:
+			printf("+++++++ RK_BTSPP_Event_CONNECT +++++\n");
+			break;
+		case RK_BTSPP_Event_DISCONNECT:
+			printf("+++++++ RK_BTSPP_Event_DISCONNECT +++++\n");
+			break;
+		default:
+			printf("+++++++ BTSPP NO TYPE SUPPORT! +++++\n");
+			break;
+	}
+}
+
+void bt_api2_spp_open(void *data)
+{
+	RK_btspp_open(_btspp_callback);
+}
+
+void bt_api2_spp_write(void *data)
+{
+	int ret = 0;
+	char buff[100] = {"This is a message from rk3308 board!"};
+
+	ret = RK_btspp_write(buff, strlen(buff));
+	if (ret != strlen(buff)) {
+		printf("%s failed, ret<%d> != strlen(buff)<%d>\n",
+				__func__, ret, strlen(buff));
+	}
+}
+
+void bt_api2_spp_close(void *data)
+{
+	RK_bta2dp_close();
+}
+
+void bt_api2_spp_status(void *data)
+{
+	RK_BTSPP_State status;
+
+	RK_btspp_getState(&status);
+	switch(status) {
+		case RK_BTSPP_State_IDLE:
+			printf("+++++++ RK_BTSPP_State_IDLE +++++\n");
+			break;
+		case RK_BTSPP_State_CONNECT:
+			printf("+++++++ RK_BTSPP_State_CONNECT +++++\n");
+			break;
+		case RK_BTSPP_State_DISCONNECT:
+			printf("+++++++ RK_BTSPP_State_DISCONNECT +++++\n");
+			break;
+		default:
+			printf("+++++++ BTSPP NO STATUS SUPPORT! +++++\n");
+			break;
+	}
+}
+
