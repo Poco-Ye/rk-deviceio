@@ -189,7 +189,7 @@ int bt_spp_set_channel(int channel)
 	if ((channel > 0) && (channel < 256))
 		g_spp_server_channel = channel;
 	else {
-		printf("%s WARING channel is not valid, use default channel:1.\n");
+		printf("%s WARING channel is not valid, use default channel:1.\n", __func__);
 		g_spp_server_channel = SPP_SERVER_CHANNEL;
 	}
 

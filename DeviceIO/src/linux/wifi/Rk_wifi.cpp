@@ -147,7 +147,7 @@ int RK_wifi_running_getConnectionInfo(RK_WIFI_INFO_Connection_s* pInfo)
 			}
 		}
 	}
-
+	fclose(fp);
 	return 0;
 }
 
@@ -273,6 +273,7 @@ char* RK_wifi_scan_r_sec(const unsigned int cols)
 	scan_r[strlen(scan_r) - 1] = '\0';
 	strcat(scan_r, "\n]");
 
+	fclose(fp);
 	return scan_r;
 }
 
