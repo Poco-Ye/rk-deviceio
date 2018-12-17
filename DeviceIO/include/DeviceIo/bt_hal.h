@@ -4,6 +4,7 @@
 #include <DeviceIo/RkBtMaster.h>
 #include <DeviceIo/RkBtSink.h>
 #include <DeviceIo/RkBle.h>
+#include <DeviceIo/RkBtSpp.h>
 
 int rk_bt_init(Bt_Content_t *p_bt_content);
 /******************************************/
@@ -34,5 +35,10 @@ void bt_api2_sink_status(void *data);
 void bt_api2_master_start(void *data);
 void bt_api2_master_stop(void *data);
 void bt_init_open(void *data);
+
+void bt_api2_spp_open(void *data);
+void bt_api2_spp_write(void *data);
+void bt_api2_spp_close(void *data);
+void bt_api2_spp_status(void *data);
 
 #endif /* __BT_HAL_P__ */

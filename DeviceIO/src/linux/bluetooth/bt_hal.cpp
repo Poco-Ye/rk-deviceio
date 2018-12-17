@@ -25,6 +25,7 @@
 #include "bluez_ctrl.h"
 #include "a2dp_source/a2dp_masterctrl.h"
 #include "a2dp_source/shell.h"
+#include "spp_server/spp_server.h"
 
 extern Bt_Content_t GBt_Content;
 extern volatile bt_control_t bt_control;
@@ -478,6 +479,41 @@ int RK_bta2dp_disconnect()
 	return 0;
 }
 
+/*****************************************************************
+ *            Rockchip bluetooth spp api                         *
+ *****************************************************************/
+int RK_btspp_open(RK_btspp_callback cb)
+{
+	int ret = 0;
+
+	ret = RK_bta2dp_open(NULL);
+	if (ret)
+		return ret;
+
+	ret = bt_spp_server_open(cb);
+	return ret;
+}
+
+int RK_btspp_close(void)
+{
+	bt_spp_server_close();
+	RK_bta2dp_close();
+}
+
+int RK_btspp_getState(RK_BTSPP_State *pState)
+{
+	if (pState)
+		*pState = bt_spp_get_status();
+
+	return 0;
+}
+
+int RK_btspp_write(char *data, int len)
+{
+	return bt_spp_write(data, len);
+}
+
+//====================================================//
 int rk_bt_init(Bt_Content_t *p_bt_content)
 {
 	if (p_bt_content->ble_content.server_uuid) {

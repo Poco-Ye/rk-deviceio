@@ -327,6 +327,10 @@ static test_command_t process_command_table[] = {
 	{"bt_api2_sink_disconnect", bt_api2_sink_disconnect},
 	{"bt_api2_sink_close", bt_api2_sink_close},
 	{"RK_blewifi_start", kg_ble_test},
+	{"bt_api2_spp_open", bt_api2_spp_open},
+	{"bt_api2_spp_write", bt_api2_spp_write},
+	{"bt_api2_spp_close", bt_api2_spp_close},
+	{"bt_api2_spp_status", bt_api2_spp_status},
 };
 
 static void show_help() {

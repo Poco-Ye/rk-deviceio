@@ -7,25 +7,21 @@
 #ifndef __SPP_SERVER_
 #define __SPP_SERVER_
 
+#include "DeviceIo/RkBtSpp.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-enum {
-    SPP_MSG_TYPE_CONNECT,
-    SPP_MSG_TYPE_DISCONNECT,
-    SPP_MSG_TYPE_DATA
-};
-
-typedef void (*BtSppCallback)(int type, char *data, int len);
-
-int bt_spp_server_open(BtSppCallback callback);
+int bt_spp_server_open(RK_btspp_callback callback);
 void bt_spp_server_close();
 int bt_spp_write(char *data, int len);
+int bt_spp_get_status();
+int bt_spp_set_channel(int channel);
+int bt_spp_get_channel();
 
 #ifdef __cplusplus
 }
 #endif
-
 
 #endif /* __SPP_SERVER_ */
