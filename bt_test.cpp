@@ -29,12 +29,12 @@ void bt_init_open(void *data)
 {
 	printf("---------------BT_OPEN----------------\n");
 	bt_content.bt_name = "KUGOU_AUDIO";
-	bt_content.ble_content.ble_name = "KUGOU_BLE";
+	bt_content.ble_content.ble_name = "KUGOU_BLE_123";
 	bt_content.ble_content.server_uuid = BLE_UUID_SERVICE;
 	bt_content.ble_content.chr_uuid[0] = BLE_UUID_WIFI_CHAR;
 	bt_content.ble_content.chr_cnt = 1;
 
-	rk_bt_init(&bt_content);
+	RK_bt_init(&bt_content);
 }
 
 /******************************************/

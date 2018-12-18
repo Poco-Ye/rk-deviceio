@@ -514,7 +514,7 @@ int RK_btspp_write(char *data, int len)
 }
 
 //====================================================//
-int rk_bt_init(Bt_Content_t *p_bt_content)
+int RK_bt_init(Bt_Content_t *p_bt_content)
 {
 	if (p_bt_content->ble_content.server_uuid) {
 		p_bt_content->ble_content.cb_ble_recv_fun = ble_callback;

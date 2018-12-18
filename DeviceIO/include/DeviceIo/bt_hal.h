@@ -6,7 +6,7 @@
 #include <DeviceIo/RkBle.h>
 #include <DeviceIo/RkBtSpp.h>
 
-int rk_bt_init(Bt_Content_t *p_bt_content);
+int RK_bt_init(Bt_Content_t *p_bt_content);
 /******************************************/
 /*                    BLE                 */
 /******************************************/
