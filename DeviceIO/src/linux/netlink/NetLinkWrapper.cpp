@@ -327,9 +327,9 @@ static bt_init_for_hisense(void)
 	Bt_Content_t *p_bt_content;
 
 	p_bt_content = &bt_content;
-	p_bt_content->bt_name = "HISENSE_AUDIO";
+	p_bt_content->bt_name = NULL;//"HISENSE_AUDIO";
 
-	p_bt_content->ble_content.ble_name = "HISENSE_BLE";
+	p_bt_content->ble_content.ble_name = NULL;//"HISENSE_BLE";
 	p_bt_content->ble_content.server_uuid = WIFI_SERVICES_UUID;
 	p_bt_content->ble_content.chr_uuid[0] = SECURITY_CHAR_UUID;
 	p_bt_content->ble_content.chr_uuid[1] = HIDE_CHAR_UUID;
@@ -458,10 +458,6 @@ bool NetLinkWrapper::start_network_config() {
 	udpServer->startUdpServer();
 #endif
 
-	//bt_adv_set();
-	bt_init_for_hisense();
-	DeviceIo::getInstance()->controlBt(BtControl::BT_OPEN, &bt_content);
-	sleep(1);
 	DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_OPEN);
 	printf("==start notify_network_config_status ===\n");
 	getInstance()->notify_network_config_status(ENetworkConfigStarted);
@@ -548,6 +544,10 @@ bool is_first_network_config(string path) {
 }
 
 void NetLinkWrapper::startNetworkRecovery() {
+	bt_init_for_hisense();
+	DeviceIo::getInstance()->controlBt(BtControl::BT_OPEN, &bt_content);
+	sleep(1);
+
 	DeviceIOFramework::WifiManager* wifiManager = DeviceIOFramework::WifiManager::getInstance();
 	wifiManager->disableWifiAp();
 	wifiManager->setWifiEnabled(true);

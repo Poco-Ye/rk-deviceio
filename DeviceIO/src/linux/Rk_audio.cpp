@@ -123,6 +123,8 @@ void RK_set_volume(int vol)
 		user_volume.is_mute = 0;
 	}
 
+	user_volume.volume = vol;
+
 	memset(value, 0, sizeof(value));
 	snprintf(value, sizeof(value), "%d%%", vol);
 

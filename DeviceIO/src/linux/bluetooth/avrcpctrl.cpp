@@ -87,7 +87,7 @@ extern void print_iter(const char *label, const char *name, DBusMessageIter *ite
 static RK_bta2dp_callback g_btsink_cb;
 static int g_btsink_auto_reconnect = 1; /* Default for auto reconnect */
 
-static void report_avrcp_event(DeviceInput event, void *data, int len) {
+void report_avrcp_event(DeviceInput event, void *data, int len) {
 	if (DeviceIo::getInstance()->getNotify())
 		DeviceIo::getInstance()->getNotify()->callback(event, data, len);
 

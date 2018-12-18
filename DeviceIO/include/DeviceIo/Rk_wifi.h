@@ -48,6 +48,7 @@ int RK_wifi_disconnect_network(void);
 int RK_wifi_restart_network(void);
 int RK_wifi_set_hostname(const char* name);
 int RK_wifi_get_hostname(char* name, int len);
+int RK_wifi_get_mac(char *wifi_mac);
 
 #ifdef __cplusplus
 }

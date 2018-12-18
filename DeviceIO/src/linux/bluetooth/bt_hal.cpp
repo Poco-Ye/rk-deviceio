@@ -369,7 +369,7 @@ int RK_bta2dp_open(char* name)
 		return -1;
 	}
 
-	if (name && strcmp(GBt_Content.bt_name, name)) {
+	if (name && GBt_Content.bt_name && strcmp(GBt_Content.bt_name, name)) {
 		/* Set bluetooth device name */
 		sprintf(set_hostname_cmd, "hciconfig hci0 name \'%s\'", name);
 		Shell::system(set_hostname_cmd);

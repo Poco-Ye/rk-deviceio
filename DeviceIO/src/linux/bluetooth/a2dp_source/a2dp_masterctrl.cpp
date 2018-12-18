@@ -94,10 +94,7 @@ extern int init_avrcp_ctrl(void);
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
 
-static void report_avrcp_event(DeviceInput event, void *data, int len) {
-	if (DeviceIo::getInstance()->getNotify())
-		DeviceIo::getInstance()->getNotify()->callback(event, data, len);
-}
+extern void report_avrcp_event(DeviceInput event, void *data, int len);
 
 static const char *agent_arguments[] = {
 	"on",
