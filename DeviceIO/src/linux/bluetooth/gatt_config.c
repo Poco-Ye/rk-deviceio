@@ -113,7 +113,7 @@ char CMD_RA[256] = "hcitool -i hci0 cmd 0x08 0x0005";
 
 #define SERVICES_UUID            "23 20 56 7c 05 cf 6e b4 c3 41 77 28 51 82 7e 1b"
 //#define CMD_PARA                 "hcitool -i hci0 cmd 0x08 0x0006 A0 00 A0 00 00 02 00 00 00 00 00 00 00 07 00"
-#define CMD_PARA                 "hcitool -i hci0 cmd 0x08 0x0006 A0 00 A0 00 00 01 00 00 00 00 00 00 00 07 00"
+//#define CMD_PARA                 "hcitool -i hci0 cmd 0x08 0x0006 A0 00 A0 00 00 01 00 00 00 00 00 00 00 07 00"
 #define CMD_EN                   "hcitool -i hci0 cmd 0x08 0x000a 1"
 #define CMD_DISEN                "hcitool -i hci0 cmd 0x08 0x000a 0"
 
@@ -889,31 +889,19 @@ int gatt_set_on_adv(void)
 	char temp[32];
 	int i;
 
-	//creat random address
-	char temp_addr[256];
-
 	if (!ble_content_internal->advDataLen)
 		return -1;
 
 	if (!ble_content_internal->respDataLen)
 		return -1;
 
-	srand(time(NULL) + getpid() + getpid() * 987654 + rand());
-	for(i = 0; i < 6;i++)
-		 le_random_addr[i] = rand() & 0xFF;
-
-	le_random_addr[0] &= 0x3f;		/* Clear two most significant bits */
-	le_random_addr[0] |= 0xc0;		/* Set second most significant bit */
-	for (i = 0; i < 6;i++) {
-		sprintf(temp_addr, "%02x", le_random_addr[i]);
-		strcat(CMD_RA, " ");
-		strcat(CMD_RA, temp_addr);
-	}
 	//LE Set Random Address Command
 	execute(CMD_RA, buff);
-
+	printf("CMD_RA buff: %s", buff);
+	sleep(1);
 	//LE SET PARAMETERS
 	execute(CMD_PARA, buff);
+	printf("CMD_PARA buff: %s", buff);
 
 	// LE Set Advertising Data Command
 	memset(temp, 0, 32);
@@ -1115,6 +1103,10 @@ static void ble_adv_set(Bt_Content_t *bt_content, ble_content_t *ble_content)
 
 int gatt_init(Bt_Content_t *bt_content)
 {
+	//creat random address
+	char temp_addr[256];
+	int i;
+
 	default_ctrl = NULL;
 	ctrl_list = NULL;
 	default_dev = NULL;
@@ -1127,6 +1119,19 @@ int gatt_init(Bt_Content_t *bt_content)
 	printf("gatt_init server_uuid: %s\n", ble_content_internal_bak.server_uuid);
 
 	ble_content_internal = &ble_content_internal_bak;
+
+	srand(time(NULL) + getpid() + getpid() * 987654 + rand());
+	for(i = 0; i < 6;i++)
+		 le_random_addr[i] = rand() & 0xFF;
+
+	le_random_addr[0] &= 0x3f;		/* Clear two most significant bits */
+	le_random_addr[0] |= 0xc0;		/* Set second most significant bit */
+	for (i = 0; i < 6;i++) {
+		sprintf(temp_addr, "%02x", le_random_addr[i]);
+		strcat(CMD_RA, " ");
+		strcat(CMD_RA, temp_addr);
+	}
+
 	create_wifi_services();
 
 	return 1;
