@@ -120,6 +120,7 @@ REPEAT:
 		}
 	}
 
+	g_spp_server_status = RK_BTSPP_State_IDLE;
 	close(g_server_sk);
 }
 
@@ -135,6 +136,7 @@ int bt_spp_server_open(RK_btspp_callback callback)
 
 	ret = pthread_create(&bt_spp_server_thread, NULL, init_bt_spp_server, NULL);
 	if (ret < 0) {
+		g_spp_server_status = RK_BTSPP_State_IDLE;
 		g_callback = NULL;
 		printf("%s failed!\n", __func__);
 		return -1;
