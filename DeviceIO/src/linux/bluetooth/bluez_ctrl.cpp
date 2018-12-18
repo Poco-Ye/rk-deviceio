@@ -141,9 +141,13 @@ kill:
 	}
 
 	execute("killall rtk_hciattach", ret_buff);
-	//execute("killall dbus-daemon", ret_buff);
-	//execute("rm /var/run/messagebus.pid", ret_buff);
 	msleep(800);
+	memset(ret_buff, 0, 1024);
+	execute("pidof rtk_hciattach", ret_buff);
+	while (ret_buff[0]) {
+		msleep(10);
+		goto kill;
+	}
 }
 
 static void _bt_open_server(const char *bt_name)
@@ -159,18 +163,11 @@ static void _bt_open_server(const char *bt_name)
 
 	printf("=== _bt_open_server(%s) ===\n", bt_name);
 	_bt_close_server();
-	/*
-	console_run("./etc/init.d/S30dbus start");
-	sleep(1);
-	memset(ret_buff, 0, 1024);
-	execute("pidof dbus-daemon", ret_buff);
-	while (!ret_buff[0])
-		msleep(10);
-	*/
-	execute("echo 0 > /sys/class/rfkill/rfkill0/state && sleep 1", ret_buff);
+
+	execute("echo 0 > /sys/class/rfkill/rfkill0/state && sleep 2", ret_buff);
 	execute("echo 1 > /sys/class/rfkill/rfkill0/state && usleep 200000", ret_buff);
 
-	console_run("insmod /usr/lib/modules/hci_uart.ko && sleep 1");
+	console_run("insmod /usr/lib/modules/hci_uart.ko && usleep 300000");
 	memset(ret_buff, 0, 1024);
 	execute("lsmod", ret_buff);
 	while (!strstr(ret_buff, "hci_uart"))

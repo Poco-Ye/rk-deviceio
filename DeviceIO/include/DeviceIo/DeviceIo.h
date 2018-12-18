@@ -319,7 +319,7 @@ struct ble_config {
 }
 #endif
 
-void bt_adv_set(Bt_Content_t *p_bt_content);
+//void bt_adv_set(Bt_Content_t *p_bt_content);
 
 class INetLinkWrapperCallback {
 public:

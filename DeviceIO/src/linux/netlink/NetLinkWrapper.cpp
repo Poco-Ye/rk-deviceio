@@ -321,22 +321,25 @@ void ble_callback(char *uuid, void *data, int len)
 
 static Bt_Content_t bt_content;
 
-void bt_adv_set(Bt_Content_t *p_bt_content)
+//void bt_adv_set(Bt_Content_t *p_bt_content)
+static bt_init_for_hisense(void)
 {
+	Bt_Content_t *p_bt_content;
+
 	p_bt_content = &bt_content;
 	p_bt_content->bt_name = "HISENSE_AUDIO";
 
 	p_bt_content->ble_content.ble_name = "HISENSE_BLE";
 	p_bt_content->ble_content.server_uuid = WIFI_SERVICES_UUID;
 	p_bt_content->ble_content.chr_uuid[0] = SECURITY_CHAR_UUID;
-	p_bt_content->ble_content.server_uuid = HIDE_CHAR_UUID;
-	p_bt_content->ble_content.chr_uuid[0] = SSID_CHAR_UUID;
-	p_bt_content->ble_content.server_uuid = PASSWORD_CHAR_UUID;
-	p_bt_content->ble_content.chr_uuid[0] = CHECKDATA_CHAR_UUID;
-	p_bt_content->ble_content.server_uuid = NOTIFY_CHAR_UUID;
-	p_bt_content->ble_content.chr_uuid[0] = NOTIFY_DESC_UUID;
-	p_bt_content->ble_content.server_uuid = WIFILIST_CHAR_UUID;
-	p_bt_content->ble_content.chr_uuid[0] = DEVICECONTEXT_CHAR_UUID;
+	p_bt_content->ble_content.chr_uuid[1] = HIDE_CHAR_UUID;
+	p_bt_content->ble_content.chr_uuid[2] = SSID_CHAR_UUID;
+	p_bt_content->ble_content.chr_uuid[3] = PASSWORD_CHAR_UUID;
+	p_bt_content->ble_content.chr_uuid[4] = CHECKDATA_CHAR_UUID;
+	p_bt_content->ble_content.chr_uuid[5] = NOTIFY_CHAR_UUID;
+	p_bt_content->ble_content.chr_uuid[6] = NOTIFY_DESC_UUID;
+	p_bt_content->ble_content.chr_uuid[7] = WIFILIST_CHAR_UUID;
+	p_bt_content->ble_content.chr_uuid[8] = DEVICECONTEXT_CHAR_UUID;
 
 	p_bt_content->ble_content.chr_cnt = 9;
 	p_bt_content->ble_content.cb_ble_recv_fun = ble_callback;
@@ -456,6 +459,9 @@ bool NetLinkWrapper::start_network_config() {
 #endif
 
 	//bt_adv_set();
+	bt_init_for_hisense();
+	DeviceIo::getInstance()->controlBt(BtControl::BT_OPEN, &bt_content);
+	sleep(1);
 	DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_OPEN);
 	printf("==start notify_network_config_status ===\n");
 	getInstance()->notify_network_config_status(ENetworkConfigStarted);

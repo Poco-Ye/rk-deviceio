@@ -9,7 +9,6 @@
 #include "DeviceIo/RkBtSink.h"
 
 using DeviceIOFramework::ble_config;
-using DeviceIOFramework::bt_adv_set;
 using DeviceIOFramework::BtControl;
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;

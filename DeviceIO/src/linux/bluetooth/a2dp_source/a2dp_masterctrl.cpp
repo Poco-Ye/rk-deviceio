@@ -559,7 +559,7 @@ static void set_source_device(GDBusProxy *proxy)
 	if (proxy == NULL) {
 		default_src_dev = NULL;
 		a2dp_master_save_status(NULL);
-		printf("[D: %s]: BT_SRC_DEVICE DISCONNECTED", __func__);
+		printf("[D: %s]: BT_SRC_DEVICE DISCONNECTED\n", __func__);
 		report_btsrc_event(DeviceInput::BT_SRC_ENV_DISCONNECT, NULL, 0);
 		if (g_btmaster_cb)
 			(*g_btmaster_cb)(g_btmaster_userdata, RK_BtMasterEvent_Disconnected);
@@ -901,13 +901,13 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 				//gatt
 				if (connected) {
 					if (bdc == BT_Device_Class::BT_BLE_DEVICE) {
-						printf("[D: %s]: BLE DEVICE CONNECTED", __func__);
+						printf("[D: %s]: BLE DEVICE CONNECTED\n", __func__);
 						report_btsrc_event(DeviceInput::BT_BLE_ENV_CONNECT, NULL, 0);
 					}
 				} else if (!connected) {
-					if (bdc == BT_Device_Class::BT_BLE_DEVICE)	{
+					if (bdc == BT_Device_Class::BT_BLE_DEVICE) {
 						report_btsrc_event(DeviceInput::BT_BLE_ENV_DISCONNECT, NULL, 0);
-						printf("[D: %s]: BLE DEVICE DISCONNECTED", __func__);
+						printf("[D: %s]: BLE DEVICE DISCONNECTED\n", __func__);
 						sleep(1);
 						gatt_set_on_adv();
 					}
