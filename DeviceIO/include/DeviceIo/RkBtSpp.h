@@ -29,3 +29,4 @@ int RK_btspp_write(char *data, int len);
 #endif
 
 #endif /* __BLUETOOTH_SPP_H__ */
+

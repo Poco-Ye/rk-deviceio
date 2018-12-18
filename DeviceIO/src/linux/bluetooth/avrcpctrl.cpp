@@ -80,6 +80,8 @@ static int first_ctrl = 1;
 extern volatile bool A2DP_SINK_FLAG;
 extern GDBusClient *btsrc_client;
 
+static int g_btsrc_connect_status = RK_BTA2DP_State_IDLE;
+
 extern void print_iter(const char *label, const char *name, DBusMessageIter *iter);
 
 static RK_bta2dp_callback g_btsink_cb;
@@ -89,23 +91,27 @@ static void report_avrcp_event(DeviceInput event, void *data, int len) {
 	if (DeviceIo::getInstance()->getNotify())
 		DeviceIo::getInstance()->getNotify()->callback(event, data, len);
 
-	if (g_btsink_cb) {
-		switch(event) {
-			case DeviceInput::BT_SINK_ENV_CONNECT:
+	switch(event) {
+		case DeviceInput::BT_SINK_ENV_CONNECT:
+			g_btsrc_connect_status = RK_BTA2DP_State_CONNECT;
+			if (g_btsink_cb)
 				(*g_btsink_cb)(RK_BTA2DP_State_CONNECT);
-				break;
-			case DeviceInput::BT_SINK_ENV_DISCONNECT:
+			break;
+		case DeviceInput::BT_SINK_ENV_DISCONNECT:
+			g_btsrc_connect_status = RK_BTA2DP_State_DISCONNECT;
+			if (g_btsink_cb)
 				(*g_btsink_cb)(RK_BTA2DP_State_DISCONNECT);
-				break;
-			case DeviceInput::BT_START_PLAY:
+			break;
+		case DeviceInput::BT_START_PLAY:
+			if (g_btsink_cb)
 				(*g_btsink_cb)(RK_BTA2DP_State_PLAY);
-				break;
-			case DeviceInput::BT_PAUSE_PLAY:
+			break;
+		case DeviceInput::BT_PAUSE_PLAY:
+			if (g_btsink_cb)
 				(*g_btsink_cb)(RK_BTA2DP_State_PAUSE);
-				break;
-			default:
-				break;
-		}
+			break;
+		default:
+			break;
 	}
 }
 
@@ -237,7 +243,7 @@ void print_player(GDBusProxy *proxy, const char *description)
 
 void player_added(GDBusProxy *proxy)
 {
-    printf("player_added \n");
+	printf("player_added \n");
 
 	printf("=== add set last_connected_device_proxy 0x%p \n", proxy);
 	last_connected_device_proxy = last_temp_connected_device_proxy;
@@ -901,6 +907,7 @@ extern volatile bool A2DP_SRC_FLAG;
 int a2dp_sink_open(void)
 {
 	printf("call avrcp_thread init_avrcp\n");
+	g_btsrc_connect_status = RK_BTA2DP_State_IDLE;
 	A2DP_SINK_FLAG = true;
 	A2DP_SRC_FLAG = 0;
 	system("hciconfig hci0 piscan");
@@ -1250,7 +1257,10 @@ int a2dp_sink_status(RK_BTA2DP_State_e *pState)
 			*pState = RK_BTA2DP_State_PAUSE;
 			break;
 		default:
-			*pState = RK_BTA2DP_State_IDLE;
+			if (g_btsrc_connect_status == RK_BTA2DP_State_CONNECT)
+				*pState = RK_BTA2DP_State_CONNECT;
+			else
+				*pState = RK_BTA2DP_State_IDLE;
 			break;
 	}
 

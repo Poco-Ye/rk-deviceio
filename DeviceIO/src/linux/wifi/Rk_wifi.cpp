@@ -460,5 +460,15 @@ int RK_wifi_restart_network(void)
 
 int RK_wifi_set_hostname(const char* name)
 {
+	sethostname(name, strlen(name));
 	return 0;
 }
+
+int RK_wifi_get_hostname(char* name, int len)
+{
+	if (name)
+		gethostname(name, len);
+
+	return 0;
+}
+

@@ -47,7 +47,7 @@ int RK_wifi_connect1(const char* ssid, const char* psk, const RK_WIFI_CONNECTION
 int RK_wifi_disconnect_network(void);
 int RK_wifi_restart_network(void);
 int RK_wifi_set_hostname(const char* name);
-
+int RK_wifi_get_hostname(char* name, int len);
 
 #ifdef __cplusplus
 }
