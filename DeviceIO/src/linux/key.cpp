@@ -59,6 +59,7 @@ struct key_manager {
 
 static struct key_manager key;
 
+static int m_mute_long = 0;
 static void report_key_event(DeviceInput event, void *data, int len) {
     if (DeviceIo::getInstance()->getNotify())
         DeviceIo::getInstance()->getNotify()->callback(event, data, len);
@@ -85,7 +86,7 @@ static void handle_keys_press(int state) {
     }
     case KEYS_BIT_MIC_MUTE: {
         dbg("press KEYS_BIT_MUTE\n");
-        report_key_event(DeviceInput::KEY_MIC_MUTE, NULL, 0);
+        //report_key_event(DeviceInput::KEY_MIC_MUTE, NULL, 0);
         break;
     }
     case KEYS_BIT_POWER: {
@@ -118,6 +119,7 @@ static void handle_keys_on_5s(int state) {
     if (state == (KEYS_BIT_MIC_MUTE)) {
         dbg("on 5s KEYS_BIT_MIC_MUTE\n");
         report_key_event(DeviceInput::KEY_ENTER_AP, NULL, 0);
+		m_mute_long = 1;
     }
 }
 static void handle_keys_after_1s(int state) {
@@ -215,10 +217,15 @@ static void check_keys(struct input_event* event) {
         break;
     }
     case KEY_MICMUTE: {
-        if (event->value)
+        if (event->value) {
             key.keys_state |= KEYS_BIT_MIC_MUTE;
-        else
+        } else {
+            if (!m_mute_long) {
+                report_key_event(DeviceInput::KEY_MIC_MUTE, NULL, 0);
+            }
             key.keys_state &= ~KEYS_BIT_MIC_MUTE;
+            m_mute_long = 0;
+        }
         break;
     }
     case KEY_POWER: {
