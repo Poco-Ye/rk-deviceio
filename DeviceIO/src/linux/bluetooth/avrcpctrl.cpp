@@ -91,6 +91,8 @@ void report_avrcp_event(DeviceInput event, void *data, int len) {
 	if (DeviceIo::getInstance()->getNotify())
 		DeviceIo::getInstance()->getNotify()->callback(event, data, len);
 
+	printf("[AVRCP DEBUG]: g_btsink_cb: %p, event: %d \n", g_btsink_cb, event);
+
 	switch(event) {
 		case DeviceInput::BT_SINK_ENV_CONNECT:
 			g_btsrc_connect_status = RK_BTA2DP_State_CONNECT;

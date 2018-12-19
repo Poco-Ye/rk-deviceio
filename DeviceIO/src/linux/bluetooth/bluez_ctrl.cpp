@@ -390,7 +390,11 @@ static int ble_close_server(void)
 	ble_disable_adv();
 	gatt_close();
 
-	bt_control.type = BtControlType::BT_NONE;
+	if (bt_control.last_type == BtControlType::BT_SINK)
+		bt_control.type = BtControlType::BT_SINK;
+	else
+		bt_control.type = BtControlType::BT_NONE;
+
 	bt_control.is_ble_open = 0;
 
 	return ret;
