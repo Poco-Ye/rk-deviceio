@@ -136,7 +136,7 @@ static void handle_message (GstMessage *msg, RkMediaPlayer *c_player)
 	gst_message_unref (msg);
 }
 
-void *listen_playbin_bus(void *arg)
+static void *listen_playbin_bus(void *arg)
 {
 	GstBus *bus;
 	GstMessage *msg;
