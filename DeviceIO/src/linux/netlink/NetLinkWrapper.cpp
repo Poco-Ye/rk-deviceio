@@ -223,12 +223,14 @@ retry:
 	}
 
 	if (!strcmp(DEVICECONTEXT_CHAR_UUID, uuid)) {
-		if (!devcontext_len)
+		if (!devcontext_len) {
 			DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_GET_DEVICE_CONTEXT, devcontext_list_buf, devcontext_len);
-
-		devcontext_len = strlen(devcontext_list_buf);
-		printf("%s: WIFI_GET_DEVICE_CONTEXT is	%s, len = %d\n", __func__, devcontext_list_buf, devcontext_len);
-
+			devcontext_len = strlen(devcontext_list_buf);
+			devcontext_len_use = 0;
+			printf("%s: WIFI_GET_DEVICE_CONTEXT is	%s, len = %d\n",
+				__func__, devcontext_list_buf, devcontext_len);
+		}
+		printf("%s: devcontext use: %d, len: %d\n", __func__, devcontext_len_use, devcontext_len);
 		//chr_write(chr, devicesn, (len > BLE_SEND_MAX_LEN) ? BLE_SEND_MAX_LEN : len);
 		ble_cfg.len = (devcontext_len > BLE_SEND_MAX_LEN) ? BLE_SEND_MAX_LEN : devcontext_len;
 		memcpy(ble_cfg.data, devcontext_list_buf + devcontext_len_use, ble_cfg.len);
@@ -237,7 +239,6 @@ retry:
 		devcontext_len -= ble_cfg.len;
 		devcontext_len_use += ble_cfg.len;
 	}
-
 }
 
 void *config_wifi_thread(void)
