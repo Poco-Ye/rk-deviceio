@@ -379,8 +379,7 @@ int RK_bta2dp_open(char* name)
 		msleep(10);
 		Shell::system("hciconfig hci0 up");
 	}
-	/* Set bluetooth control current type */
-	bt_control.type = BtControlType::BT_SINK;
+
 	/* Already in sink mode? */
 	if (bt_sink_is_open())
 		return 0;
@@ -397,6 +396,8 @@ int RK_bta2dp_open(char* name)
 	}
 
 	bt_control.is_a2dp_sink_open = 1;
+	/* Set bluetooth control current type */
+	bt_control.type = BtControlType::BT_SINK;
 	bt_control.last_type = BtControlType::BT_SINK;
 
 	return 0;
