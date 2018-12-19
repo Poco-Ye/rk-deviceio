@@ -359,10 +359,8 @@ static void led_volume(struct led_effect *effect, int arg)
 static void led_mute(struct led_effect *effect, int arg)
 {
     led_effect_default(effect);
-    effect->fore_color = WHITE;
-    effect->period = 200;
-    effect->timeout = 1000;
-    effect->leds_color = effect->back_color;
+    effect->fore_color = RED;
+    effect->leds_color = effect->fore_color;
 }
 
 static void led_alarm(struct led_effect *effect, int arg)
