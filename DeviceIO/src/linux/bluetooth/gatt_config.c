@@ -976,7 +976,6 @@ int gatt_open(void)
 {
 	printf("=== gatt_open ===\n");
 	ble_enable_adv();
-	system("hciconfig hci0 piscan");
 	BLE_FLAG = true;
 
 	return 1;

@@ -91,6 +91,8 @@ extern void adapter_changed(GDBusProxy *proxy, DBusMessageIter *iter, void *user
 extern void device_changed(GDBusProxy *proxy, DBusMessageIter *iter, void *user_data);
 extern int init_avrcp_ctrl(void);
 
+static volatile bool ble_connect = false;
+
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
 
@@ -633,22 +635,8 @@ static void device_added(GDBusProxy *proxy)
 
 		dbus_message_iter_get_basic(&iter, &connected);
 
-		if (connected) {
+		if (connected)
 			set_default_device(proxy, NULL);
-
-			//A2DP SRC
-			//if ((A2DP_SRC_FLAG) && (dist_dev_class(proxy) == BT_Device_Class::BT_SINK_DEVICE))
-			//	set_source_device(proxy);
-
-			//gatt
-			if (connected) {
-				if (dist_dev_class(proxy) ==
-					BT_Device_Class::BT_BLE_DEVICE) {
-					printf("[D: %s]: BLE DEVICE CONNECTED", __func__);
-					report_btsrc_event(DeviceInput::BT_BLE_ENV_CONNECT, NULL, 0);
-				}
-			}
-		}
 	}
 }
 
@@ -716,6 +704,7 @@ static void proxy_added(GDBusProxy *proxy, void *user_data)
 	} else if (!strcmp(interface, "org.bluez.GattService1")) {
 		if (service_is_child(proxy))
 			gatt_add_service(proxy);
+		ble_connect = true;
 	} else if (!strcmp(interface, "org.bluez.GattCharacteristic1")) {
 		gatt_add_characteristic(proxy);
 	} else if (!strcmp(interface, "org.bluez.GattDescriptor1")) {
@@ -737,10 +726,10 @@ static void proxy_added(GDBusProxy *proxy, void *user_data)
 			if ((dist_dev_class(proxy) == BT_Device_Class::BT_SOURCE_DEVICE))
 				a2dp_sink_proxy_added(proxy, user_data);
 		}
-	}
 
-	if (!strcmp(interface, "org.bluez.Adapter1")) {
-		a2dp_sink_proxy_added(proxy, user_data);
+		if (!strcmp(interface, "org.bluez.Adapter1")) {
+			a2dp_sink_proxy_added(proxy, user_data);
+		}
 	}
 
 	printf("BT Exit: proxy_added: %s\n", interface);
@@ -821,6 +810,7 @@ static void proxy_removed(GDBusProxy *proxy, void *user_data)
 
 		if (default_attr == proxy)
 			set_default_attribute(NULL);
+		ble_connect = false;
 	} else if (!strcmp(interface, "org.bluez.GattCharacteristic1")) {
 		gatt_remove_characteristic(proxy);
 
@@ -882,6 +872,24 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 			} else
 				str = g_strdup("");
 
+			if (strcmp(name, "ServicesResolved") == 0) {
+				dbus_bool_t ServicesResolved;
+				dbus_message_iter_get_basic(iter, &ServicesResolved);
+
+				//gatt
+				if (BLE_FLAG && ble_connect && ServicesResolved) {
+					report_btsrc_event(DeviceInput::BT_BLE_ENV_CONNECT, NULL, 0);
+					printf("[D: %s]: BLE DEVICE BT_BLE_ENV_CONNECT\n", __func__);
+				}
+
+				if (BLE_FLAG && ble_connect && (!ServicesResolved)) {
+					report_btsrc_event(DeviceInput::BT_BLE_ENV_DISCONNECT, NULL, 0);
+					printf("[D: %s]: BLE DEVICE DISCONNECTED\n", __func__);
+					sleep(1);
+					gatt_set_on_adv();
+				}
+			}
+
 			if (strcmp(name, "Connected") == 0) {
 				dbus_bool_t connected;
 
@@ -895,28 +903,9 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 				enum BT_Device_Class bdc;
 				bdc = dist_dev_class(proxy);
 
-				//gatt
-				if (connected) {
-					if (bdc == BT_Device_Class::BT_BLE_DEVICE) {
-						printf("[D: %s]: BLE DEVICE CONNECTED\n", __func__);
-						report_btsrc_event(DeviceInput::BT_BLE_ENV_CONNECT, NULL, 0);
-					}
-				} else if (!connected) {
-					if (bdc == BT_Device_Class::BT_BLE_DEVICE) {
-						report_btsrc_event(DeviceInput::BT_BLE_ENV_DISCONNECT, NULL, 0);
-						printf("[D: %s]: BLE DEVICE DISCONNECTED\n", __func__);
-						sleep(1);
-						gatt_set_on_adv();
-					}
-				}
-
 				//bt_source
 				if (A2DP_SRC_FLAG) {
-					if (connected && default_src_dev == NULL) {
-						if (bdc == BT_Device_Class::BT_SINK_DEVICE) {
-							//set_source_device(proxy);
-						}
-					} else if (!connected && default_src_dev == proxy) {
+					if (!connected && default_src_dev == proxy) {
 						if (bdc == BT_Device_Class::BT_SINK_DEVICE) {
 							set_source_device(NULL);
 						}
@@ -924,8 +913,10 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 				}
 
 				//bt_sink
-				if ((A2DP_SINK_FLAG) && (bdc == BT_Device_Class::BT_SOURCE_DEVICE))
-					device_changed(proxy, iter, user_data);
+				if (A2DP_SINK_FLAG) {
+					if (bdc == BT_Device_Class::BT_SOURCE_DEVICE)
+						device_changed(proxy, iter, user_data);
+				}
 			}
 
 			print_iter(str, name, iter);
