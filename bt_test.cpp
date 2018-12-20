@@ -196,6 +196,17 @@ void bt_api2_master_stop(void *data)
 	RK_btmaster_stop();
 }
 
+void bt_api2_master_status(void *data)
+{
+	RK_BtMasterStatus status;
+
+	RK_btmaster_getStatus(&status);
+	if (status == RK_BtMasterStatus_Connected)
+		printf("++++++++++++ BT MASTER STATUS: connected ++++++++++++\n");
+	else
+		printf("++++++++++++ BT MASTER STATUS: disconnected ++++++++++++\n");
+}
+
 /******************************************/
 /*                  BLE                   */
 /******************************************/

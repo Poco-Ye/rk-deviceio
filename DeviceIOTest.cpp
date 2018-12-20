@@ -310,6 +310,7 @@ static test_command_t process_command_table[] = {
 	{"bt_source_close", bt_source_close},
 	{"bt_open", bt_init_open},
 	{"bt_api2_master_start", bt_api2_master_start},
+	{"bt_api2_master_status", bt_api2_master_status},
 	{"bt_api2_master_stop", bt_api2_master_stop},
 	{"bt_api2_sink_open", bt_api2_sink_open},
 	{"bt_api2_sink_visibility00", bt_api2_sink_visibility00},

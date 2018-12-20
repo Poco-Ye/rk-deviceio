@@ -350,6 +350,19 @@ int RK_btmaster_getDeviceAddr(char *addr, int len)
 	return -1;
 }
 
+int RK_btmaster_getStatus(RK_BtMasterStatus *pstatus)
+{
+	if (!pstatus)
+		return 0;
+
+	if (a2dp_master_status(NULL, NULL))
+		*pstatus = RK_BtMasterStatus_Connected;
+	else
+		*pstatus = RK_BtMasterStatus_Disconnected;
+
+	return 0;
+}
+
 /*****************************************************************
  *            Rockchip bluetooth sink api                        *
  *****************************************************************/

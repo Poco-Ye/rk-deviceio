@@ -34,6 +34,7 @@ void bt_api2_sink_status(void *data);
 /******************************************/
 void bt_api2_master_start(void *data);
 void bt_api2_master_stop(void *data);
+void bt_api2_master_status(void *data);
 void bt_init_open(void *data);
 
 void bt_api2_spp_open(void *data);
