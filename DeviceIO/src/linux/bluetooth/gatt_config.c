@@ -1123,8 +1123,8 @@ int gatt_init(Bt_Content_t *bt_content)
 	for(i = 0; i < 6;i++)
 		 le_random_addr[i] = rand() & 0xFF;
 
-	le_random_addr[0] &= 0x3f;		/* Clear two most significant bits */
-	le_random_addr[0] |= 0xc0;		/* Set second most significant bit */
+	le_random_addr[5] &= 0x3f;		/* Clear two most significant bits */
+	le_random_addr[5] |= 0xc0;		/* Set second most significant bit */
 	for (i = 0; i < 6;i++) {
 		sprintf(temp_addr, "%02x", le_random_addr[i]);
 		strcat(CMD_RA, " ");

@@ -707,7 +707,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 
 	case BtControl::BT_BLE_WRITE:
 		ble_cfg = (struct ble_config *)data;
-		gatt_write_data(ble_cfg->uuid, ble_cfg->data, ble_cfg->len);
+		ret = gatt_write_data(ble_cfg->uuid, ble_cfg->data, ble_cfg->len);
 
 		break;
 	case BtControl::BT_VISIBILITY:

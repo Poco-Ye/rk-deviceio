@@ -10,7 +10,8 @@ int RK_bt_init(Bt_Content_t *p_bt_content);
 /******************************************/
 /*                    BLE                 */
 /******************************************/
-void kg_ble_test(void *data);
+void RK_ble_test(void *data);
+void RK_ble_audio_test(void *data);
 /******************************************/
 /*               A2DP SINK                */
 /******************************************/

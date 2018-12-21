@@ -21,9 +21,10 @@
 /* Immediate wifi Service UUID */
 #define BLE_UUID_SERVICE	"0000180A-0000-1000-8000-00805F9B34FB"
 #define BLE_UUID_WIFI_CHAR	"00009999-0000-1000-8000-00805F9B34FB"
+#define BLE_UUID_AUDIO_CHAR	"00006666-0000-1000-8000-00805F9B34FB"
 
 /* have to initialize */
-Bt_Content_t bt_content;
+static Bt_Content_t bt_content;
 
 void bt_init_open(void *data)
 {
@@ -32,7 +33,8 @@ void bt_init_open(void *data)
 	bt_content.ble_content.ble_name = "KUGOU_BLE_123";
 	bt_content.ble_content.server_uuid = BLE_UUID_SERVICE;
 	bt_content.ble_content.chr_uuid[0] = BLE_UUID_WIFI_CHAR;
-	bt_content.ble_content.chr_cnt = 1;
+	bt_content.ble_content.chr_uuid[1] = BLE_UUID_AUDIO_CHAR;
+	bt_content.ble_content.chr_cnt = 2;
 
 	RK_bt_init(&bt_content);
 }
@@ -243,7 +245,47 @@ static int RK_ble_recv_data_test(const char *uuid, unsigned char *data, int len)
 	return 1;
 }
 
-void kg_ble_test(void *data) {
+static int Setup_ble_audio_status_callback(RK_BLE_State_e state)
+{
+	printf("%s: status: %d.\n", __func__, state);
+
+	switch (state) {
+	case RK_BLE_State_IDLE:
+		printf("RK_BLE_State_IDLE.\n");
+	break;
+	case RK_BLE_State_CONNECTTING:
+		printf("RK_BLE_State_CONNECTTING.\n");
+	break;
+	case RK_BLE_State_SUCCESS:
+		printf("RK_BLE_State_SUCCESS.\n");
+	break;
+	case RK_BLE_State_FAIL:
+		printf("RK_BLE_State_FAIL.\n");
+	break;
+	case RK_BLE_State_DISCONNECT:
+		printf("RK_BLE_State_DISCONNECT.\n");
+	break;
+	}
+}
+
+static int RK_ble_audio_recv_data_test(const char *uuid, unsigned char *data, int len)
+{
+	char data_t[512];
+
+	printf("=== %s uuid: %s, data: %s ===\n", __func__, uuid, data);
+	memcpy(data_t, data, len);
+
+	return 1;
+}
+
+void RK_ble_audio_test(void *data)
+{
+	RK_ble_audio_register_callback(Setup_ble_audio_status_callback);
+	RK_ble_audio_recv_data_callback(RK_ble_audio_recv_data_test);
+	RK_bleaudio_start(NULL);
+}
+
+void RK_ble_test(void *data) {
 	printf("---------------kg_ble_open----------------\n");
 	RK_blewifi_register_callback(Setup_wifi_status_callback);
 	RK_ble_recv_data_callback(RK_ble_recv_data_test);

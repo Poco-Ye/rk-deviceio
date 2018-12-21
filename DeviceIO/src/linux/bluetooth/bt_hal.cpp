@@ -52,6 +52,9 @@ static rk_wifi_config wifi_cfg;
 
 RK_blewifi_state_callback ble_status_callback;
 RK_ble_recv_data ble_recv_data;
+RK_ble_audio_state_callback ble_audio_status_callback;
+RK_ble_audio_recv_data ble_audio_recv_data;
+
 RK_BLEWIFI_State_e gstate;
 
 /******************************************/
@@ -66,6 +69,7 @@ void *rk_config_wifi_thread(void)
 {
 	printf("config_wifi_thread\n");
 	ble_status_callback(RK_BLEWIFI_State_CONNECTTING);
+
 	gstate = RK_BLEWIFI_State_CONNECTTING;
 	DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_CONNECT, &wifi_cfg);
 }
@@ -84,6 +88,7 @@ static void wifi_status_callback(int status)
 
 #define BLE_UUID_SERVICE	"0000180A-0000-1000-8000-00805F9B34FB"
 #define BLE_UUID_WIFI_CHAR	"00009999-0000-1000-8000-00805F9B34FB"
+#define BLE_UUID_AUDIO_CHAR	"00006666-0000-1000-8000-00805F9B34FB"
 
 void ble_callback(char *uuid, unsigned char *data, int len)
 {
@@ -93,6 +98,9 @@ void ble_callback(char *uuid, unsigned char *data, int len)
 	memcpy(str, data, len);
 	str[len] = '\0';
 	printf("chr_write_value	 %p, %d\n", data, len);
+
+	if (!strcmp(BLE_UUID_AUDIO_CHAR, uuid))
+		ble_audio_recv_data(BLE_UUID_AUDIO_CHAR, str, len);
 
 	if (!strcmp(BLE_UUID_WIFI_CHAR, uuid)) {
 
@@ -128,6 +136,14 @@ int RK_blewifi_start(char *name)
 	return 1;
 }
 
+int RK_bleaudio_start(char *name)
+{
+	DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_OPEN);
+	ble_audio_status_callback(RK_BLE_State_IDLE);
+
+	return 1;
+}
+
 int RK_blewifi_register_callback(RK_blewifi_state_callback cb)
 {
 	ble_status_callback = cb;
@@ -137,6 +153,18 @@ int RK_blewifi_register_callback(RK_blewifi_state_callback cb)
 int RK_ble_recv_data_callback(RK_ble_recv_data cb)
 {
 	ble_recv_data = cb;
+	return 1;
+}
+
+int RK_ble_audio_register_callback(RK_ble_audio_state_callback cb)
+{
+	ble_audio_status_callback = cb;
+	return 1;
+}
+
+int RK_ble_audio_recv_data_callback(RK_ble_audio_recv_data cb)
+{
+	ble_audio_recv_data = cb;
 	return 1;
 }
 
