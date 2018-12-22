@@ -339,10 +339,12 @@ DeviceIo::DeviceIo() {
         APP_ERROR("[%s] error: power_init fail, err is:%d\n",  __FUNCTION__, ret);
     }
 
+#ifdef RTC_INIT
     ret = rtc_init();
     if (ret) {
         APP_ERROR("[%s] error: rtc_init fail, err is:%d\n",  __FUNCTION__, ret);
     }
+#endif
 
 #ifndef SOFTVOL
     ret = mixer_init(nullptr, nullptr);
@@ -463,9 +465,65 @@ bool DeviceIo::isMicrophoneOpened() {
     return true;
 }
 
+typedef enum {
+	ADC_VOLUME_LEVEL_30 = 0,// voluem < 30 时，设置adc级别
+	ADC_VOLUME_LEVEL_50,
+	ADC_VOLUME_LEVEL_60,
+	ADC_VOLUME_LEVEL_70,
+	ADC_VOLUME_LEVEL_99
+} ADC_VOLUME_LEVEL_T;
+
+static ADC_VOLUME_LEVEL_T getADCVolumeLevel(int volume) {
+	if (volume >= 70)
+		return ADC_VOLUME_LEVEL_99;
+	else if (volume >= 60)
+		return ADC_VOLUME_LEVEL_70;
+	else if (volume >= 50)
+		return ADC_VOLUME_LEVEL_60;
+	else if (volume >= 30)
+		return ADC_VOLUME_LEVEL_50;
+	else
+		return ADC_VOLUME_LEVEL_30;
+}
+
+static void setADCVolumeLevel(ADC_VOLUME_LEVEL_T level) {
+	switch(level) {
+		case ADC_VOLUME_LEVEL_99: {
+			system("sh /oem/adc-gain/hisense-acodec-gain--99voicelevel.sh");
+			break;
+		}
+		case ADC_VOLUME_LEVEL_70: {
+			system("sh /oem/adc-gain/hisense-acodec-gain--70voicelevel.sh");
+			break;
+		}
+		case ADC_VOLUME_LEVEL_60: {
+			system("sh /oem/adc-gain/hisense-acodec-gain--60voicelevel.sh");
+			break;
+		}
+		case ADC_VOLUME_LEVEL_50: {
+			system("sh /oem/adc-gain/hisense-acodec-gain--50voicelevel.sh");
+			break;
+		}
+		case ADC_VOLUME_LEVEL_30: {
+			system("sh /oem/adc-gain/hisense-acodec-gain--30voicelevel.sh");
+			break;
+		}
+	}
+}
+
 void DeviceIo::setVolume(int vol, int track_id) {
     pthread_mutex_lock(&user_volume_mutex);
+	ADC_VOLUME_LEVEL_T old_level = getADCVolumeLevel(user_volume.volume);
+	ADC_VOLUME_LEVEL_T new_level = getADCVolumeLevel(vol);
+	// 增大音量，先调adc，再调音量
+	if (old_level < new_level) {
+		setADCVolumeLevel(new_level);
+	}
     user_set_volume(vol);
+	// 减小音量，先调音量，再调adc
+	if (old_level > new_level) {
+		setADCVolumeLevel(new_level);
+	}
     pthread_mutex_unlock(&user_volume_mutex);
 }
 
