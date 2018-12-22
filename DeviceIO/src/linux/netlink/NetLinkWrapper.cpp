@@ -545,6 +545,11 @@ bool is_first_network_config(string path) {
 }
 
 void NetLinkWrapper::startNetworkRecovery() {
+	static bool inited = false;
+	if (inited)
+		return;
+	inited = true;
+
 	bt_init_for_hisense();
 	DeviceIo::getInstance()->controlBt(BtControl::BT_OPEN, &bt_content);
 	sleep(1);
