@@ -37,3 +37,13 @@ int RK_read_chip_id(char *buffer, const int size)
 
 	return ret;
 }
+
+int RK_read_version(char *buffer, const int size) {
+	if (!buffer)
+		return -1;
+
+	memset(buffer, 0, size);
+	strncpy(buffer, DEVICEIO_VERSION, size);
+	return 0;
+}
+

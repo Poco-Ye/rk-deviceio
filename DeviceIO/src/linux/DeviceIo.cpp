@@ -34,6 +34,7 @@
 #include "power.h"
 #include "bluetooth/avrcpctrl.h"
 #include "DeviceIo/NetLinkWrapper.h"
+#include "DeviceIo/Rk_system.h"
 
 using namespace std;
 
@@ -325,6 +326,8 @@ DeviceIo::DeviceIo() {
     int ret = 0;
 
     m_notify = nullptr;
+
+	APP_DEBUG("[%s] DeviceIo Version: %s\n", __FUNCTION__, getVersion().c_str());
 
     ret = rk_led_init();
     if (ret) {
@@ -649,7 +652,10 @@ std::string DeviceIo::getChipID() {
 }
 
 std::string DeviceIo::getVersion() {
-    return "";
+	char version[64] = {0};
+
+	RK_read_version(version, 64);
+	return version;
 }
 
 int DeviceIo::setHostName(const char *name, size_t len) {
