@@ -126,13 +126,13 @@ bool WifiUtil::start_wpa_supplicant() {
     Shell::system("ifconfig wlan0 down");
     Shell::system("ifconfig wlan0 up");
     Shell::system("ifconfig wlan0 0.0.0.0");
-    //Shell::system("killall dhcpcd");
+    Shell::system("killall dhcpcd");
     Shell::system("killall wpa_supplicant");
-    sleep(1);
+    usleep(100000);
     Shell::system("wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf");
-    //Shell::system("dhcpcd -k wlan0");//udhcpc -b -i wlan0 -q ");
-    //sleep(1);
-    //Shell::system("dhcpcd wlan0 -t 0 &");
+    usleep(600000);
+    Shell::system("dhcpcd -L -f /etc/dhcpcd.conf");
+    Shell::system("dhcpcd wlan0 -t 0 &");
 	if (start_wifi_monitor_threadId > 0)
 		pthread_cancel(start_wifi_monitor_threadId);
     pthread_create(&start_wifi_monitor_threadId, nullptr, start_wifi_monitor, nullptr);
@@ -621,9 +621,12 @@ bool checkWifiIsConnected() {
     LIST_STRING::iterator iterator;   
 
     // udhcpc network
-    int udhcpc_pid = Shell::pidof("dhcpcd");
-    if (udhcpc_pid == 0)
-		Shell::exec("dhcpcd -AB -f /etc/dhcpcd.conf", ret_buff);
+	Shell::exec("dhcpcd -k wlan0", ret_buff);
+	usleep(200000);
+	Shell::exec("killall dhcpcd", ret_buff);
+	usleep(300000);
+	Shell::exec("dhcpcd -L -f /etc/dhcpcd.conf", ret_buff);
+	Shell::exec("dhcpcd wlan0", ret_buff);
 
     bool isWifiConnected = false;
     int match = 0;

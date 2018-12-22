@@ -88,12 +88,13 @@ int WifiManager::setWifiEnabled(const bool enable) {
 		system("ifconfig wlan0 down");
 		system("ifconfig wlan0 up");
 		system("ifconfig wlan0 0.0.0.0");
+		system("killall dhcpcd");
 		system("killall wpa_supplicant");
-		sleep(1);
+		usleep(500000);
 		system("wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf");
-		//system("dhcpcd -k wlan0");
-		//sleep(1);
-		//system("dhcpcd wlan0 -t 0&");
+		usleep(500000);
+		system("dhcpcd -L -f /etc/dhcpcd.conf");
+		system("dhcpcd wlan0 -t 0 &");
 	} else {
 		system("ifconfig wlan0 down");
 		system("killall wpa_supplicant");

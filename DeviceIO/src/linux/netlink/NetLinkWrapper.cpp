@@ -550,8 +550,9 @@ void NetLinkWrapper::startNetworkRecovery() {
 	sleep(1);
 
 	DeviceIOFramework::WifiManager* wifiManager = DeviceIOFramework::WifiManager::getInstance();
-	wifiManager->disableWifiAp();
-	wifiManager->setWifiEnabled(true);
+	//wifiManager->disableWifiAp();
+	//wifiManager->setWifiEnabled(true);
+	DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_OPEN);
 
 	if (is_first_network_config(NETLINK_WPA_CONFIG_FILE)) {
 		getInstance()->m_operation_type = operation_type::EAutoConfig;
