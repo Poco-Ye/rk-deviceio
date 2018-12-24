@@ -41,7 +41,7 @@ using namespace std;
 
 namespace DeviceIOFramework {
 
-#define USER_VOL_MIN                    1   // keep some voice
+#define USER_VOL_MIN                    0   // keep some voice
 #define USER_VOL_MAX                    100
 
 // #define AUDIO_MIN_VOLUME                0
