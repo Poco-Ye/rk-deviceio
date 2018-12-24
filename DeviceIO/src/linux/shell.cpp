@@ -8,20 +8,48 @@
 
 #include "Logger.h"
 
+static char *spec_char_convers(const char *buf, char *dst)
+{
+	char buf_temp[strlen(buf) + 1];
+	int i = 0;
+	unsigned long con;
+
+	memset(buf_temp, 0, sizeof(buf_temp));
+	while(*buf != '\0') {
+		if(*buf == '\\') {
+			strcpy(buf_temp, buf);
+			*buf_temp = '0';
+			*(buf_temp + 4) = '\0';
+			con = strtoul(buf_temp, NULL, 16);
+			dst[i] = con;
+			buf += 3;
+		} else {
+			dst[i] = *buf;
+		}
+		i++;
+		buf++;
+	}
+	dst[i] = '\0';
+	return dst;
+}
+
 bool Shell::exec(const char *cmdline, char *recv_buff) {
-    printf("exec: %s\n",cmdline);
+	printf("exec: %s\n",cmdline);
 
-    FILE *stream = NULL;
-    char buff[1024];
+	FILE *stream = NULL;
+	char buff[1024];
+	char conver[1024];
 
-    memset(recv_buff, 0, sizeof(recv_buff));
-    if((stream = popen(cmdline,"r"))!=NULL){
-        while(fgets(buff,1024,stream)){
-            strcat(recv_buff,buff);
-        }
-    }
-    pclose(stream);
-    return true;
+	memset(recv_buff, 0, sizeof(recv_buff));
+	if((stream = popen(cmdline,"r"))!=NULL){
+		while(fgets(buff,1024,stream)){
+			memset(conver, 0, sizeof(conver));
+			spec_char_convers(buff, conver);
+			strcat(recv_buff, conver);
+		}
+	}
+	pclose(stream);
+	return true;
 }
 
 int system_fd_closexec(const char* command) {

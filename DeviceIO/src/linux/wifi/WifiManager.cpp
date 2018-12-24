@@ -25,6 +25,31 @@ int WifiManager::init(Properties* properties) {
 	return 0;
 }
 
+static char *spec_char_convers(const char *buf, char *dst)
+{
+	char buf_temp[strlen(buf) + 1];
+	int i = 0;
+	unsigned long con;
+
+	memset(buf_temp, 0, sizeof(buf_temp));
+	while(*buf != '\0') {
+		if(*buf == '\\') {
+			strcpy(buf_temp, buf);
+			*buf_temp = '0';
+			*(buf_temp + 4) = '\0';
+			con = strtoul(buf_temp, NULL, 16);
+			dst[i] = con;
+			buf += 3;
+		} else {
+			dst[i] = *buf;
+		}
+		i++;
+		buf++;
+	}
+	dst[i] = '\0';
+	return dst;
+}
+
 static std::string exec(const std::string& cmd) {
 	if (cmd.empty())
 		return "fail";
@@ -52,7 +77,10 @@ static std::string exec(const std::string& cmd) {
 
 	pclose(fp);
 	ret = (char*) realloc(ret, sizeof(char) * (strlen(ret) + 1));
-	std::string str = ret;
+
+	char convers[strlen(ret) + 1];
+	spec_char_convers(ret, convers);
+	std::string str = convers;
 	if (NULL != ret)
 		free(ret);
 

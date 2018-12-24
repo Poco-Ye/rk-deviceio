@@ -45,6 +45,31 @@ static char* exec1(const char* cmd)
 	return ret;
 }
 
+static char *spec_char_convers(const char *buf, char *dst)
+{
+	char buf_temp[strlen(buf) + 1];
+	int i = 0;
+	unsigned long con;
+
+	memset(buf_temp, 0, sizeof(buf_temp));
+	while(*buf != '\0') {
+		if(*buf == '\\') {
+			strcpy(buf_temp, buf);
+			*buf_temp = '0';
+			*(buf_temp + 4) = '\0';
+			con = strtoul(buf_temp, NULL, 16);
+			dst[i] = con;
+			buf += 3;
+		} else {
+			dst[i] = *buf;
+		}
+		i++;
+		buf++;
+	}
+	dst[i] = '\0';
+	return dst;
+}
+
 static int exec(const char* cmd, const char* ret)
 {
 	char* tmp;
@@ -53,7 +78,10 @@ static int exec(const char* cmd, const char* ret)
 	if (NULL == cmd)
 		return -1;
 
-	strncpy(ret, tmp, strlen(tmp) + 1);
+	char convers[strlen(tmp) + 1];
+
+	spec_char_convers(tmp, convers);
+	strncpy(ret, convers, strlen(convers) + 1);
 	free(tmp);
 
 	return 0;
