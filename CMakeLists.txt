@@ -7,14 +7,5 @@ message(${PROJECT_BINARY_DIR})
 
 add_definitions("-Wall -g")
 
-set(SRC_FILES
-    DeviceIOTest.cpp
-    bt_test.cpp
-)
-
-add_executable(deviceio_test ${SRC_FILES})
-target_link_libraries(deviceio_test pthread DeviceIo asound)
-
-install(TARGETS deviceio_test DESTINATION bin)
-
 add_subdirectory("DeviceIO")
+add_subdirectory("test")
