@@ -104,7 +104,8 @@ void ble_callback(char *uuid, unsigned char *data, int len)
 
 	if (!strcmp(BLE_UUID_WIFI_CHAR, uuid)) {
 
-		ble_recv_data(BLE_UUID_WIFI_CHAR, str, len);
+		if (ble_recv_data)
+			ble_recv_data(BLE_UUID_WIFI_CHAR, str, len);
 
 		strcpy(wifi_ssid, str + 20);
 		strcpy(wifi_password, str + 52);

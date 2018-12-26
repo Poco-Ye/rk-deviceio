@@ -180,6 +180,9 @@ static void _bt_open_server(const char *bt_name)
 	while (!ret_buff[0])
 		msleep(10);
 
+	//system("hcidump -i hci0 -w /tmp/h.log &");
+	//sleep(1);
+
 	execute("hciconfig hci0 up", ret_buff);
 	console_run("/usr/libexec/bluetooth/bluetoothd -C -n -d -E &");
 	sleep(2);

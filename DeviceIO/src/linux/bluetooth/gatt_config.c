@@ -620,7 +620,10 @@ static DBusMessage *chr_write_value(DBusConnection *conn, DBusMessage *msg,
 		return dbus_message_new_method_return(msg);
 	}
 
-	ble_content_internal->cb_ble_recv_fun(chr->uuid, chr->value, len);
+	if (ble_content_internal->cb_ble_recv_fun)
+		ble_content_internal->cb_ble_recv_fun(chr->uuid, chr->value, len);
+	else
+		printf("cb_ble_recv_fun is null !!! \n");
 
 	return dbus_message_new_method_return(msg);
 }

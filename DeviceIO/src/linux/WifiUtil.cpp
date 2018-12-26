@@ -559,6 +559,17 @@ bool wifiConnect(std::string ssid,std::string password){
 		goto falsed;
     }
 
+	// 2-1. setNetWork_priority
+	memset(cmdline, 0, sizeof(cmdline));
+	sprintf(cmdline,"wpa_cli -iwlan0 set_network %d priority %d", id, priority);
+	printf("%s\n", cmdline);
+	Shell::exec(cmdline, ret_buff);
+	execute_result = !strncmp(ret_buff, "OK", 2);
+	if(!execute_result){
+		log_err("setNetWork_priority failed.\n");
+		goto falsed;
+	}
+
     // 3. setNetWorkSECURe
     check_wifiinfo(1, wifi_security);
     memset(cmdline, 0, sizeof(cmdline));
