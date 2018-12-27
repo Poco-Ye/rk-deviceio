@@ -306,6 +306,7 @@ static test_command_t process_command_table[] = {
 	{"bt_sink", bt_sink_test},
 	{"bt_auto_source", bt_auto_source_test},
 	{"ble_wifi", ble_wifi_test},
+	{"ble_manual_wifi", ble_wifi_manual_test},
 	{"bt_sink_close", bt_sink_close},
 	{"bt_source_close", bt_source_close},
 	{"bt_open", bt_init_open},

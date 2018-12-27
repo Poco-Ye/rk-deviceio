@@ -22,6 +22,7 @@
 #include "advertising.h"
 #include "DeviceIo/BtsrcParameter.h"
 #include "DeviceIo/DeviceIo.h"
+#include "DeviceIo/RkBle.h"
 
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
@@ -73,6 +74,8 @@ volatile bool BLE_FLAG;
 static RK_btmaster_callback g_btmaster_cb;
 static void *g_btmaster_userdata;
 
+extern RK_ble_audio_state_callback ble_audio_status_callback;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -91,7 +94,7 @@ extern void adapter_changed(GDBusProxy *proxy, DBusMessageIter *iter, void *user
 extern void device_changed(GDBusProxy *proxy, DBusMessageIter *iter, void *user_data);
 extern int init_avrcp_ctrl(void);
 
-static volatile bool ble_connect = false;
+static volatile int ble_service_cnt = 0;
 
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
@@ -704,7 +707,16 @@ static void proxy_added(GDBusProxy *proxy, void *user_data)
 	} else if (!strcmp(interface, "org.bluez.GattService1")) {
 		if (service_is_child(proxy))
 			gatt_add_service(proxy);
-		ble_connect = true;
+
+		if (ble_service_cnt == 0) {
+			report_btsrc_event(DeviceInput::BT_BLE_ENV_CONNECT, NULL, 0);
+			if (ble_audio_status_callback)
+				ble_audio_status_callback(RK_BLE_State_SUCCESS);
+			printf("[D: %s]: BLE DEVICE BT_BLE_ENV_CONNECT\n", __func__);
+		}
+
+		ble_service_cnt++;
+
 	} else if (!strcmp(interface, "org.bluez.GattCharacteristic1")) {
 		gatt_add_characteristic(proxy);
 	} else if (!strcmp(interface, "org.bluez.GattDescriptor1")) {
@@ -810,7 +822,18 @@ static void proxy_removed(GDBusProxy *proxy, void *user_data)
 
 		if (default_attr == proxy)
 			set_default_attribute(NULL);
-		ble_connect = false;
+
+		ble_service_cnt--;
+
+		if (ble_service_cnt == 0) {
+			report_btsrc_event(DeviceInput::BT_BLE_ENV_DISCONNECT, NULL, 0);
+			if (ble_audio_status_callback)
+				ble_audio_status_callback(RK_BLE_State_DISCONNECT);
+			printf("[D: %s]: BLE DEVICE DISCONNECTED\n", __func__);
+			sleep(1);
+			gatt_set_on_adv();
+		}
+
 	} else if (!strcmp(interface, "org.bluez.GattCharacteristic1")) {
 		gatt_remove_characteristic(proxy);
 
@@ -871,24 +894,6 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 						"] Device %s ", address);
 			} else
 				str = g_strdup("");
-
-			if (strcmp(name, "ServicesResolved") == 0) {
-				dbus_bool_t ServicesResolved;
-				dbus_message_iter_get_basic(iter, &ServicesResolved);
-
-				//gatt
-				if (BLE_FLAG && ble_connect && ServicesResolved) {
-					report_btsrc_event(DeviceInput::BT_BLE_ENV_CONNECT, NULL, 0);
-					printf("[D: %s]: BLE DEVICE BT_BLE_ENV_CONNECT\n", __func__);
-				}
-
-				if (BLE_FLAG && ble_connect && (!ServicesResolved)) {
-					report_btsrc_event(DeviceInput::BT_BLE_ENV_DISCONNECT, NULL, 0);
-					printf("[D: %s]: BLE DEVICE DISCONNECTED\n", __func__);
-					sleep(1);
-					gatt_set_on_adv();
-				}
-			}
 
 			if (strcmp(name, "Connected") == 0) {
 				dbus_bool_t connected;
