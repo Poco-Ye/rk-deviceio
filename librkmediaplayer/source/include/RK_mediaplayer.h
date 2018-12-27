@@ -6,6 +6,13 @@ extern "C" {
 #endif
 
 typedef enum {
+	RK_MIDEA_MODE_SEQ, //Play in sequence, stop at the end of the playlist
+	RK_MIDEA_MODE_RAND, //Shuffle Playback
+	RK_MIDEA_MODE_SINGLE, //Single cycle
+	RK_MIDEA_MODE_LOOP //List loop
+} RK_MIDEA_MODE;
+
+typedef enum {
 	RK_MediaPlayer_State_IDLE = 0,
 	RK_MediaPlayer_State_PLAY ,
 	RK_MediaPlayer_State_PAUSE,
@@ -41,6 +48,12 @@ int RK_mediaplayer_get_duration(int iHandle); // 获取歌曲总时长
 int RK_mediaplayer_seek(int iHandle, int iMs);
 int RK_mediaplayer_stop(int iHandle);
 int RK_mediaplayer_register_callback(int iHandle, void *userdata, RK_media_event_callback cb);
+int RK_mediaplayer_set_mode(int iHandle, RK_MIDEA_MODE mode);
+int RK_mediaplayer_prev(int iHandle);
+int RK_mediaplayer_next(int iHandle);
+int RK_mediaplayer_add_music(int iHandle, char *title, char *url);
+int RK_mediaplayer_clear_playlist(int iHandle);
+int RK_mediaplayer_show_list(int iHandle);
 
 #ifdef __cplusplus
 }

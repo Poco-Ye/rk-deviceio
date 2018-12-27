@@ -5,6 +5,16 @@
 #include <gst/gst.h>
 
 #include "RK_mediaplayer.h"
+typedef struct _RkPlayerInfo {
+	char *url;
+	char *title;
+	char *singer;
+	char *album;
+	char *image_url;
+
+	void *next;
+	void *prev;
+} RkPlayerInfo;
 
 /* Structure to contain all our information, so we can pass it around */
 typedef struct _RkMediaPlayer {
@@ -18,6 +28,14 @@ typedef struct _RkMediaPlayer {
 	pthread_t thread_id;   /* Thread id */
 	RK_media_event_callback callback; /* Call back function */
 	void *userdata;        /* Callback arg */
+
+	RkPlayerInfo *playlist_start;
+	RkPlayerInfo *playlist_end;
+	RkPlayerInfo *playlist_current;
+	unsigned int playlist_cnt;
+	pthread_mutex_t playlist_mutex;
+	RK_MIDEA_MODE playlist_mode;
+
 } RkMediaPlayer;
 
 /* Forward definition of the message processing function */
@@ -44,6 +62,7 @@ static void handle_message (GstMessage *msg, RkMediaPlayer *c_player)
 			if (c_player->callback)
 				(*c_player->callback)(c_player->userdata, RK_MediaEvent_End);
 
+			RK_mediaplayer_next((int)c_player);
 			break;
 		case GST_MESSAGE_DURATION:
 			/* Send MediaEvent by callback */
@@ -165,11 +184,13 @@ static void *listen_playbin_bus(void *arg)
 
 int RK_mediaplayer_create(int *pHandle)
 {
-	RkMediaPlayer *c_player = (RkMediaPlayer *)malloc(sizeof(RkMediaPlayer));
+	RkMediaPlayer *c_player;
 
+	c_player = (RkMediaPlayer *)malloc(sizeof(RkMediaPlayer));
 	if (c_player == NULL)
 		return -ENOSPC;
 
+	memset(c_player, 0, sizeof(RkMediaPlayer));
 	c_player->playing = FALSE;
 	c_player->terminate = FALSE;
 	c_player->seek_enabled = FALSE;
@@ -188,6 +209,8 @@ int RK_mediaplayer_create(int *pHandle)
 		g_printerr ("Not all elements could be created.\n");
 		return -1;
 	}
+	/* Init mutex */
+	pthread_mutex_init(&c_player->playlist_mutex, NULL);
 
 	*pHandle = (int)c_player;
 	return 0;
@@ -214,6 +237,7 @@ int RK_mediaplayer_destroy(int iHandle)
 		c_player->playbin = NULL;
 	}
 
+	pthread_mutex_destroy(&c_player->playlist_mutex);
 	free(c_player);
 	return 0;
 }
@@ -221,10 +245,12 @@ int RK_mediaplayer_destroy(int iHandle)
 int RK_mediaplayer_play(int iHandle, const char *uri)
 {
 	GstStateChangeReturn ret;
+	GstState cur_state, pending_state;
 	pthread_t gst_player_thread;
 	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
 	int err = 0;
 	pthread_attr_t attr;
+	//gchar *cur_uri = NULL;
 
 	g_printerr ("#### %s, %x\n",__func__, iHandle);
 
@@ -232,14 +258,36 @@ int RK_mediaplayer_play(int iHandle, const char *uri)
 		return -EINVAL;
 
 	/* Stop playing */
-	ret = gst_element_set_state (c_player->playbin, GST_STATE_NULL);
+	gst_element_set_state (c_player->playbin, GST_STATE_PAUSED);
+	ret = gst_element_set_state (c_player->playbin, GST_STATE_READY);
 	if (ret == GST_STATE_CHANGE_FAILURE) {
-		g_printerr ("Unable to set the pipeline to the null state.\n");
+		g_printerr ("Unable to set the pipeline to the ready state.\n");
 		return -1;
+	}
+
+	while (1) {
+		ret = gst_element_get_state (c_player->playbin, &cur_state, &pending_state, NULL);
+		if (ret == GST_STATE_CHANGE_FAILURE) {
+			g_print("Unable to get player status before performing a play operation\n");
+			return -1;
+		} else if (ret ==  GST_STATE_CHANGE_ASYNC) {
+			usleep(500000);//500ms
+		} else //GST_STATE_CHANGE_SUCCESS
+			break;
+	}
+
+	if (cur_state != GST_STATE_READY) {
+		g_print("WARING: player status is not correct!\n");
+		gst_element_set_state (c_player->playbin, GST_STATE_READY);
 	}
 
 	/* Set the URI to play */
 	g_object_set (c_player->playbin, "uri", uri, NULL);
+	//g_object_get (c_player->playbin, "uri", &cur_uri, NULL);
+	//printf(">>>>> Set Uri:%s\n", uri);
+	//printf(">>>>> Aft Uri:%s\n", cur_uri);
+	//g_free(cur_uri);
+
 	/* Start playing */
 	ret = gst_element_set_state (c_player->playbin, GST_STATE_PLAYING);
 	if (ret == GST_STATE_CHANGE_FAILURE) {
@@ -254,6 +302,10 @@ int RK_mediaplayer_play(int iHandle, const char *uri)
 		c_player->is_live = FALSE;
 	}
 	c_player->stoped = FALSE;
+
+	//g_object_get (c_player->playbin, "current-uri", &cur_uri, NULL);
+	//printf(">>>>> Cur Uri0:%s\n", cur_uri);
+	//g_free(cur_uri);
 
 	if (c_player->thread_id == 0) {
 		/* Set thread joineable. */
@@ -276,11 +328,20 @@ int RK_mediaplayer_pause(int iHandle)
 {
 	GstStateChangeReturn ret;
 	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
+	GstState cur_state, pending_state;
 
 	g_printerr ("#### %s, %x\n",__func__, iHandle);
 
 	if (!c_player || !c_player->playbin)
 		return -EINVAL;
+
+	/* Check current status */
+	ret = gst_element_get_state (c_player->playbin, &cur_state, &pending_state, NULL);
+	if (ret != GST_STATE_CHANGE_SUCCESS) {
+		g_print("Unable to get player status before performing a pause operation\n");
+		return -1;
+	} else if (cur_state != GST_STATE_PLAYING)
+		return 0;
 
 	ret = gst_element_set_state (c_player->playbin, GST_STATE_PAUSED);
 	if (ret == GST_STATE_CHANGE_FAILURE) {
@@ -295,11 +356,20 @@ int RK_mediaplayer_resume(int iHandle)
 {
 	GstStateChangeReturn ret;
 	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
+	GstState cur_state, pending_state;
 
 	g_printerr ("#### %s, %x\n",__func__, iHandle);
 
 	if (!c_player || !c_player->playbin)
 		return -EINVAL;
+
+	/* Check current status */
+	ret = gst_element_get_state (c_player->playbin, &cur_state, &pending_state, NULL);
+	if (ret != GST_STATE_CHANGE_SUCCESS) {
+		g_print("Unable to get player status before performing a resume operation\n");
+		return -1;
+	} else if (cur_state != GST_STATE_PAUSED)
+		return 0;
 
 	ret = gst_element_set_state (c_player->playbin, GST_STATE_PLAYING);
 	if (ret == GST_STATE_CHANGE_FAILURE) {
@@ -402,5 +472,235 @@ int RK_mediaplayer_register_callback(int iHandle, void *userdata, RK_media_event
 	c_player->callback = cb;
 	c_player->userdata = userdata;
 
+	return 0;
+}
+
+int RK_mediaplayer_add_music(int iHandle, char *title, char *url)
+{
+	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
+	RkPlayerInfo *new_music = NULL;
+	int mem_size = 0;
+
+	if (!c_player || !url || !strlen(url))
+		return -EINVAL;
+
+	new_music = (RkPlayerInfo *) malloc(sizeof(RkPlayerInfo));
+	if (!new_music)
+		return -ENOSPC;
+	/* Reset value */
+	memset(new_music, 0, sizeof(RkPlayerInfo));
+	/* save url */
+	mem_size = strlen(url) + 1;
+	new_music->url = (char *) malloc(mem_size);
+	memset(new_music->url, 0, mem_size);
+	memcpy(new_music->url, url, strlen(url));
+	/* save title */
+	if (title && strlen(title)) {
+		mem_size = strlen(title) + 1;
+		new_music->title = (char *) malloc(mem_size);
+		memset(new_music->title, 0, mem_size);
+		memcpy(new_music->title, title, strlen(title));
+	}
+
+	/* Insert into playlist */
+	pthread_mutex_lock(&c_player->playlist_mutex);
+	if (c_player->playlist_end) {
+		new_music->prev = c_player->playlist_end;
+		c_player->playlist_end->next = new_music;
+		c_player->playlist_end = new_music;
+	} else {
+		c_player->playlist_start = new_music;
+		c_player->playlist_end = new_music;
+	}
+
+	c_player->playlist_cnt++;
+	pthread_mutex_unlock(&c_player->playlist_mutex);
+
+	return 0;
+}
+
+int RK_mediaplayer_show_list(int iHandle)
+{
+	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
+	RkPlayerInfo *tmp_music = NULL;
+	int id = 0;
+
+	if (!c_player)
+		return -EINVAL;
+
+	pthread_mutex_lock(&c_player->playlist_mutex);
+	tmp_music = c_player->playlist_start;
+
+	if (tmp_music == NULL)
+		printf("%s PlayList is NULL!\n", __func__);
+
+	while(tmp_music) {
+		printf("#%02d Title:%s, URL:%s\n", id++, tmp_music->title, tmp_music->url);
+		tmp_music = tmp_music->next;
+	}
+
+	if (c_player->playlist_current)
+		printf("Current Music Title:%s, URL:%s\n",
+			c_player->playlist_current->title,
+			c_player->playlist_current->url);
+
+	pthread_mutex_unlock(&c_player->playlist_mutex);
+
+	return 0;
+}
+
+int RK_mediaplayer_clear_playlist(int iHandle)
+{
+	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
+	RkPlayerInfo *tmp_music = NULL;
+
+	if (!c_player)
+		return -EINVAL;
+
+	RK_mediaplayer_stop(iHandle);
+
+	pthread_mutex_lock(&c_player->playlist_mutex);
+	while (c_player->playlist_start) {
+		tmp_music = c_player->playlist_start;
+		c_player->playlist_start = tmp_music->next;
+		if (tmp_music->title)
+			free(tmp_music->title);
+		if (tmp_music->url)
+			free(tmp_music->url);
+		if (tmp_music->singer)
+			free(tmp_music->singer);
+		if (tmp_music->album)
+			free(tmp_music->album);
+		if (tmp_music->image_url)
+			free(tmp_music->image_url);
+		free(tmp_music);
+	}
+
+	c_player->playlist_start = NULL;
+	c_player->playlist_end = NULL;
+	c_player->playlist_current = NULL;
+	c_player->playlist_cnt = 0;
+	pthread_mutex_unlock(&c_player->playlist_mutex);
+
+	return 0;
+}
+
+int RK_mediaplayer_next(int iHandle)
+{
+	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
+	RkPlayerInfo *cur_music = NULL;
+	int rand_step = 0;
+
+	if (!c_player)
+		return -EINVAL;
+
+	pthread_mutex_lock(&c_player->playlist_mutex);
+	if (!c_player->playlist_current) {
+		if (c_player->playlist_start)
+			c_player->playlist_current = c_player->playlist_start;
+	} else {
+		switch (c_player->playlist_mode) {
+			case RK_MIDEA_MODE_SEQ:
+				c_player->playlist_current = c_player->playlist_current->next;
+				break;
+			case RK_MIDEA_MODE_RAND:
+				if (c_player->playlist_cnt <= 1)
+					break;
+				srand((unsigned)time(NULL));
+				rand_step = rand() % c_player->playlist_cnt;
+				if (!rand_step)
+					rand_step++;
+
+				while(rand_step) {
+					c_player->playlist_current = c_player->playlist_current->next;
+					if (!c_player->playlist_current)
+						c_player->playlist_current = c_player->playlist_start;
+					rand_step--;
+				}
+				break;
+			case RK_MIDEA_MODE_SINGLE:
+				/* Do nothing */
+				break;
+			case RK_MIDEA_MODE_LOOP:
+				c_player->playlist_current = c_player->playlist_current->next;
+				if (!c_player->playlist_current)
+					c_player->playlist_current = c_player->playlist_start;
+				break;
+		}
+	}
+	cur_music = c_player->playlist_current;
+	pthread_mutex_unlock(&c_player->playlist_mutex);
+
+	if (!cur_music)
+		return -1;
+
+	printf(">>>>> %s cur_music title:%s, url:%s <<<<<\n",
+			__func__, cur_music->title, cur_music->url);
+	return RK_mediaplayer_play(iHandle, cur_music->url);
+}
+
+int RK_mediaplayer_prev(int iHandle)
+{
+	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
+	RkPlayerInfo *cur_music = NULL;
+	int rand_step = 0;
+
+	if (!c_player)
+		return -EINVAL;
+
+	pthread_mutex_lock(&c_player->playlist_mutex);
+	if (!c_player->playlist_current) {
+		if (c_player->playlist_start)
+			c_player->playlist_current = c_player->playlist_start;
+	} else {
+		switch (c_player->playlist_mode) {
+			case RK_MIDEA_MODE_SEQ:
+				if (c_player->playlist_current->prev)
+					c_player->playlist_current = c_player->playlist_current->prev;
+				break;
+			case RK_MIDEA_MODE_RAND:
+				if (c_player->playlist_cnt <= 1)
+					break;
+				srand((unsigned)time(NULL));
+				rand_step = rand() % c_player->playlist_cnt;
+				if (!rand_step)
+					rand_step++;
+
+				while(rand_step) {
+					c_player->playlist_current = c_player->playlist_current->next;
+					if (!c_player->playlist_current)
+						c_player->playlist_current = c_player->playlist_start;
+					rand_step--;
+				}
+				break;
+			case RK_MIDEA_MODE_SINGLE:
+				/* Do nothing */
+				break;
+			case RK_MIDEA_MODE_LOOP:
+				c_player->playlist_current = c_player->playlist_current->prev;
+				if (!c_player->playlist_current)
+					c_player->playlist_current = c_player->playlist_end;
+				break;
+		}
+	}
+	cur_music = c_player->playlist_current;
+	pthread_mutex_unlock(&c_player->playlist_mutex);
+
+	if (!cur_music)
+		return -1;
+
+	printf(">>>>> %s cur_music title:%s, url:%s <<<<<\n",
+			__func__, cur_music->title, cur_music->url);
+	return RK_mediaplayer_play(iHandle, cur_music->url);
+}
+
+int RK_mediaplayer_set_mode(int iHandle, RK_MIDEA_MODE mode)
+{
+	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
+
+	if (!c_player)
+		return -EINVAL;
+
+	c_player->playlist_mode = mode;
 	return 0;
 }
