@@ -29,7 +29,7 @@
 #include <DeviceIo/ScanResult.h>
 #include <DeviceIo/WifiInfo.h>
 #include <DeviceIo/WifiManager.h>
-#include <DeviceIo/RkMediaPlayer.h>
+#include <DeviceIo/RK_mediaplayer.h>
 #include <DeviceIo/BtsrcParameter.h>
 #include <DeviceIo/bt_hal.h>
 

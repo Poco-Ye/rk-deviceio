@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <gst/gst.h>
 
-#include "DeviceIo/RkMediaPlayer.h"
+#include "RK_mediaplayer.h"
 
 /* Structure to contain all our information, so we can pass it around */
 typedef struct _RkMediaPlayer {

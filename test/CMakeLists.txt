@@ -6,6 +6,6 @@ set(SRC_FILES
 )
 
 add_executable(deviceio_test ${SRC_FILES})
-target_link_libraries(deviceio_test pthread DeviceIo asound)
+target_link_libraries(deviceio_test pthread DeviceIo asound rkmediaplayer)
 
 install(TARGETS deviceio_test DESTINATION bin)
