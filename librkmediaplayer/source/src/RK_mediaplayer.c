@@ -257,28 +257,38 @@ int RK_mediaplayer_play(int iHandle, const char *uri)
 	if (!c_player || !c_player->playbin || !uri)
 		return -EINVAL;
 
-	/* Stop playing */
-	gst_element_set_state (c_player->playbin, GST_STATE_PAUSED);
-	ret = gst_element_set_state (c_player->playbin, GST_STATE_READY);
-	if (ret == GST_STATE_CHANGE_FAILURE) {
-		g_printerr ("Unable to set the pipeline to the ready state.\n");
-		return -1;
-	}
-
+	/* Get current status */
 	while (1) {
 		ret = gst_element_get_state (c_player->playbin, &cur_state, &pending_state, NULL);
 		if (ret == GST_STATE_CHANGE_FAILURE) {
-			g_print("Unable to get player status before performing a play operation\n");
+			g_print("Unable to get player status before playing operation\n");
 			return -1;
-		} else if (ret ==  GST_STATE_CHANGE_ASYNC) {
+		} else if (ret ==  GST_STATE_CHANGE_ASYNC)
 			usleep(500000);//500ms
-		} else //GST_STATE_CHANGE_SUCCESS
+		else //GST_STATE_CHANGE_SUCCESS
 			break;
 	}
 
-	if (cur_state != GST_STATE_READY) {
-		g_print("WARING: player status is not correct!\n");
-		gst_element_set_state (c_player->playbin, GST_STATE_READY);
+	/* Stop playing */
+	if (cur_state == GST_STATE_PLAYING) {
+		g_print("%s reset pipeline frome playing state to ready state...\n", __func__);
+		ret = gst_element_set_state (c_player->playbin, GST_STATE_PAUSED);
+		if (ret == GST_STATE_CHANGE_FAILURE) {
+			g_printerr ("Unable to set the pipeline frome playing to the pause state.\n");
+			return -1;
+		}
+		ret = gst_element_set_state (c_player->playbin, GST_STATE_READY);
+		if (ret == GST_STATE_CHANGE_FAILURE) {
+			g_printerr ("Unable to set the pipeline frome pause to the ready state.\n");
+			return -1;
+		}
+	} else {
+		g_print("%s reset pipeline to null state...\n", __func__);
+		ret = gst_element_set_state (c_player->playbin, GST_STATE_NULL);
+		if (ret == GST_STATE_CHANGE_FAILURE) {
+			g_printerr ("Unable to set the pipeline to the null state.\n");
+			return -1;
+		}
 	}
 
 	/* Set the URI to play */
