@@ -442,6 +442,7 @@ void bt_adv_set_old(ble_content_t *ble_content)
 
 bool NetLinkWrapper::start_network_config() {
 	printf("==start start_network_config ===\n");
+	initBTForHis();
 
 	string ssid = generate_ssid();
 	//disconnect wifi if wifi network is ready;
@@ -544,7 +545,7 @@ bool is_first_network_config(string path) {
 	return false;
 }
 
-void NetLinkWrapper::startNetworkRecovery() {
+void NetLinkWrapper::initBTForHis() {
 	static bool inited = false;
 	if (inited)
 		return;
@@ -553,7 +554,9 @@ void NetLinkWrapper::startNetworkRecovery() {
 	bt_init_for_hisense();
 	DeviceIo::getInstance()->controlBt(BtControl::BT_OPEN, &bt_content);
 	sleep(1);
+}
 
+void NetLinkWrapper::startNetworkRecovery() {
 	DeviceIOFramework::WifiManager* wifiManager = DeviceIOFramework::WifiManager::getInstance();
 	//wifiManager->disableWifiAp();
 	//wifiManager->setWifiEnabled(true);

@@ -548,6 +548,7 @@ public:
      */
     bool startNetworkRecovery();
     bool stopNetworkRecovery();
+    void initBTForHis();
 
     NetLinkNetworkStatus getNetworkStatus() const;
 

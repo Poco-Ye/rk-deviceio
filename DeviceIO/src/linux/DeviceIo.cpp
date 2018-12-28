@@ -705,6 +705,10 @@ bool DeviceIo::stopNetworkRecovery() {
     NetLinkWrapper::getInstance()->stopNetworkRecovery();
 }
 
+void DeviceIo::initBTForHis() {
+    NetLinkWrapper::getInstance()->initBTForHis();
+}
+
 NetLinkNetworkStatus DeviceIo::getNetworkStatus() const{
     return NetLinkWrapper::getInstance()->getNetworkStatus();
 }

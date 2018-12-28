@@ -131,6 +131,8 @@ public:
 	inline operation_type get_operation_type() {return m_operation_type;};
 	inline void set_operation_type(operation_type type) {m_operation_type = type;};
 
+	void initBTForHis();
+
 private:
 	NetLinkWrapper();
 
