@@ -55,7 +55,8 @@ enum notify_network_status_type {
 	ENetworkRecoverySucceed = 20,
 	ENetworkRecoveryFailed,
 	ENetworkWifiSucceed,
-	ENetworkWifiFailed
+	ENetworkWifiFailed,
+	ENetworkWifiWrongKeyFailed
 };
 //network status
 enum InternetConnectivity {

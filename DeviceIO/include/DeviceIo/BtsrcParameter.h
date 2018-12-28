@@ -76,7 +76,7 @@ typedef struct {
 	int psk_len;
 	char key_mgmt[22];
 	int key_len;
-	void (*wifi_status_callback)(int status);
+	void (*wifi_status_callback)(int status, int reason);
 } rk_wifi_config;
 
 #ifdef __cplusplus
