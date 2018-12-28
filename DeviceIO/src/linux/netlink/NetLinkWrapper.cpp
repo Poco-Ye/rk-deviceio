@@ -181,7 +181,9 @@ struct wifi_config wifi_cfg;
 
 #define HOSTNAME_MAX_LEN	250	/* 255 - 3 (FQDN) - 2 (DNS enc) */
 #define BLE_CONFIG_WIFI_SUCCESS 1
-#define BLE_CONFIG_WIFI_FAILED	2
+#define BLE_CONFIG_WIFI_FAILED 2
+#define BLE_CONFIG_WIFI_WRONG_KEY_FAILED 3
+
 #define UUID_MAX_LEN			36
 #define WIFI_MSG_BUFF_LEN (20 * 1024) //max size for wifi list
 
@@ -215,6 +217,7 @@ retry:
 
 		//chr_write(chr, slist, (len > BLE_SEND_MAX_LEN) ? BLE_SEND_MAX_LEN : len);
 		ble_cfg.len = (scanr_len > BLE_SEND_MAX_LEN) ? BLE_SEND_MAX_LEN : scanr_len;
+		memset(ble_cfg.data, 0, BLE_SEND_MAX_LEN);
 		memcpy(ble_cfg.data, wifi_list_buf + scanr_len_use, ble_cfg.len);
 		memcpy(ble_cfg.uuid, WIFILIST_CHAR_UUID, UUID_MAX_LEN);
 		DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_WRITE, &ble_cfg);
@@ -233,6 +236,7 @@ retry:
 		printf("%s: devcontext use: %d, len: %d\n", __func__, devcontext_len_use, devcontext_len);
 		//chr_write(chr, devicesn, (len > BLE_SEND_MAX_LEN) ? BLE_SEND_MAX_LEN : len);
 		ble_cfg.len = (devcontext_len > BLE_SEND_MAX_LEN) ? BLE_SEND_MAX_LEN : devcontext_len;
+		memset(ble_cfg.data, 0, BLE_SEND_MAX_LEN);
 		memcpy(ble_cfg.data, devcontext_list_buf + devcontext_len_use, ble_cfg.len);
 		memcpy(ble_cfg.uuid, DEVICECONTEXT_CHAR_UUID, UUID_MAX_LEN);
 		DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_WRITE, &ble_cfg);
@@ -248,12 +252,15 @@ void *config_wifi_thread(void)
 	DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_CONNECT, &wifi_cfg);
 }
 
-void wifi_status_callback(int status)
+void wifi_status_callback(int status, int reason)
 {
 	printf("%s: status: %d.\n", __func__, status);
 
 	if (status == NetLinkNetworkStatus::NETLINK_NETWORK_CONFIG_FAILED) {
-		NetLinkWrapper::getInstance()->notify_network_config_status(ENetworkWifiFailed);
+		if (reason == 1)
+			NetLinkWrapper::getInstance()->notify_network_config_status(ENetworkWifiWrongKeyFailed);
+		else
+			NetLinkWrapper::getInstance()->notify_network_config_status(ENetworkWifiFailed);
 	} else if (status == NetLinkNetworkStatus::NETLINK_NETWORK_CONFIG_SUCCEEDED) {
 		NetLinkWrapper::getInstance()->notify_network_config_status(ENetworkWifiSucceed);
 	}
@@ -627,7 +634,10 @@ static char *notifyEvent[] = {
 	"ENetworkLinkFailed",
 	"ENetworkRecoveryStart",
 	"ENetworkRecoverySucceed",
-	"ENetworkRecoveryFailed"
+	"ENetworkRecoveryFailed",
+	"ENetworkWifiSucceed",
+	"ENetworkWifiFailed",
+	"ENetworkWifiWrongKeyFailed"
 };
 
 void NetLinkWrapper::setNetworkStatus(NetLinkNetworkStatus networkStatus) {
@@ -670,24 +680,33 @@ void NetLinkWrapper::notify_network_config_status(notify_network_status_type not
 			break;
 		}
 		case ENetworkWifiFailed:
+		case ENetworkWifiWrongKeyFailed:
 			wifi_link_state = false;
 
 			/* fall though */
 		case ENetworkLinkFailed: {
 			//Network config failed, reset wpa_supplicant.conf
 			//set_wpa_conf(false);
-			ble_cfg.data[0] = BLE_CONFIG_WIFI_FAILED;
+			memset(ble_cfg.data, 0, BLE_SEND_MAX_LEN);
+			if (notify_type == ENetworkWifiWrongKeyFailed)
+				ble_cfg.data[0] = BLE_CONFIG_WIFI_FAILED;//BLE_CONFIG_WIFI_WRONG_KEY_FAILED;
+			else
+				ble_cfg.data[0] = BLE_CONFIG_WIFI_FAILED;
 			ble_cfg.len = 1;
 			memcpy(ble_cfg.uuid, NOTIFY_CHAR_UUID, UUID_MAX_LEN);
 			DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_WRITE, &ble_cfg);
 
-			setNetworkStatus(NETLINK_NETWORK_CONFIG_FAILED);
+			if (notify_type == ENetworkWifiWrongKeyFailed)
+				setNetworkStatus(NETLINK_NETWORK_CONFIG_WRONG_KEY_FAILED);
+			else
+				setNetworkStatus(NETLINK_NETWORK_CONFIG_FAILED);
 			SoundController::getInstance()->linkFailedPing(NetLinkWrapper::networkLinkFailed);
 			break;
 		}
 		case ENetworkConfigRouteFailed: {
 			//Network config failed, reset wpa_supplicant.conf
 			//set_wpa_conf(false);
+			memset(ble_cfg.data, 0, BLE_SEND_MAX_LEN);
 			ble_cfg.data[0] = BLE_CONFIG_WIFI_FAILED;
 			ble_cfg.len = 1;
 			memcpy(ble_cfg.uuid, NOTIFY_CHAR_UUID, UUID_MAX_LEN);
@@ -723,6 +742,7 @@ void NetLinkWrapper::notify_network_config_status(notify_network_status_type not
 			//Network config succed, update wpa_supplicant.conf
 			stop_network_config_timeout_alarm();
 			//set_wpa_conf(true);
+			memset(ble_cfg.data, 0, BLE_SEND_MAX_LEN);
 			ble_cfg.data[0] = BLE_CONFIG_WIFI_SUCCESS;
 			ble_cfg.len = 1;
 			memcpy(ble_cfg.uuid, NOTIFY_CHAR_UUID, UUID_MAX_LEN);

@@ -145,7 +145,8 @@ enum NetLinkNetworkStatus {
     NETLINK_NETWORK_RECOVERY_START,
     NETLINK_NETWORK_RECOVERY_SUCCEEDED,
     NETLINK_NETWORK_RECOVERY_FAILED,
-    NETLINK_WAIT_LOGIN
+    NETLINK_WAIT_LOGIN,
+    NETLINK_NETWORK_CONFIG_WRONG_KEY_FAILED,
 };
 
 /* input event */
@@ -306,7 +307,7 @@ struct wifi_config {
 	int psk_len;
 	char key_mgmt[22];
 	int key_len;
-	void (*wifi_status_callback)(int status);
+	void (*wifi_status_callback)(int status, int reason);
 };
 
 struct ble_config {

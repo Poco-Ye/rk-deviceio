@@ -434,18 +434,24 @@ static char check_data[256];
 static int priority = 0;
 static volatile bool g_results = false;
 bool checkWifiIsConnected();
-
+static volatile bool wifi_wrong_key = false;
+static int connect_retry_count;
+#define WIFI_CONNECT_RETRY 50
 
 static bool save_wifi_config(int mode)
 {
+	int fail_reason = 0;
+
 	//7. save config
 	if (mode == 1) {
 		Shell::system("wpa_cli enable_network all");
 		Shell::system("wpa_cli save_config");
-		gwifi_cfg->wifi_status_callback(NetLinkNetworkStatus::NETLINK_NETWORK_CONFIG_SUCCEEDED);
-	} else { 
+		gwifi_cfg->wifi_status_callback(NetLinkNetworkStatus::NETLINK_NETWORK_CONFIG_SUCCEEDED, fail_reason);
+	} else {
+		if (wifi_wrong_key)
+			fail_reason = 1;
 		Shell::system("wpa_cli flush");
-		gwifi_cfg->wifi_status_callback(NetLinkNetworkStatus::NETLINK_NETWORK_CONFIG_FAILED);
+		gwifi_cfg->wifi_status_callback(NetLinkNetworkStatus::NETLINK_NETWORK_CONFIG_FAILED, fail_reason);
 		sleep(2);
 		Shell::system("wpa_cli reconfigure");
 		Shell::system("wpa_cli reconnect");
@@ -523,6 +529,8 @@ bool wifiConnect(std::string ssid,std::string password){
 	if (ssid.empty() || password.empty()) {
 		printf("Input param is empty.");
 	}
+
+	wifi_wrong_key = false;
 
 	printf("%s ssid: %s, password: %s\n", __func__, ssid.c_str(), password.c_str());
 
@@ -636,13 +644,19 @@ bool checkWifiIsConnected() {
 	usleep(200000);
 	Shell::exec("killall dhcpcd", ret_buff);
 	usleep(300000);
+retry:
 	Shell::exec("dhcpcd -L -f /etc/dhcpcd.conf", ret_buff);
-	Shell::exec("dhcpcd wlan0", ret_buff);
+	Shell::exec("pidof dhcpcd", ret_buff);
+	if (!ret_buff)
+		goto retry;
+	Shell::exec("dhcpcd wlan0 -t 0 &", ret_buff);
 
     bool isWifiConnected = false;
     int match = 0;
+	connect_retry_count = WIFI_CONNECT_RETRY;
+
     /* 15s to check wifi whether connected */
-    for(int i=0;i<60;i++){
+    for(int i=0;i<connect_retry_count;i++){
         sleep(1);
         match = 0;
         Shell::exec("wpa_cli -iwlan0 status",ret_buff);
@@ -666,7 +680,9 @@ bool checkWifiIsConnected() {
             log_err("Congratulation: wifi connected.\n");
             break;
         }
-        log_err("Check wifi state with none state. try more %d/5, \n",i+1);
+		if (wifi_wrong_key)
+			break;
+        log_err("Check wifi state with none state. try more %d/%d, \n",i+1, WIFI_CONNECT_RETRY);
     }
 	return isWifiConnected;
 }
@@ -794,6 +810,7 @@ void WifiUtil::connect(void *data) {
 
 void WifiUtil::disconnect() {
     Shell::system("wpa_cli -iwlan0 disconnect");
+	Shell::system("wpa_cli -iwlan0 disable_network all");
 }
 
 void WifiUtil::recovery() {
@@ -942,6 +959,9 @@ int dispatch_event(char* event)
 	} else if (str_starts_with(event, (char *)WPA_EVENT_SCAN_RESULTS)) {
 		g_results = true;
 		printf("%s: wifi event results g_results: %d \n", __func__, g_results);
+	} else if (strstr(event, "reason=WRONG_KEY")) {
+		wifi_wrong_key = true;
+		printf("%s: wifi reason=WRONG_KEY \n", __func__);
 	} else if (str_starts_with(event, (char *)WPA_EVENT_TERMINATING)) {
 		printf("%s: wifi is WPA_EVENT_TERMINATING!\n", __func__);
 		wifi_close_sockets();

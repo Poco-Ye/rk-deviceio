@@ -74,7 +74,7 @@ void *rk_config_wifi_thread(void)
 	DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_CONNECT, &wifi_cfg);
 }
 
-static void wifi_status_callback(int status)
+static void wifi_status_callback(int status, int reason)
 {
 	printf("%s status: %d\n", __func__, status);
 	if (status == 2) {
