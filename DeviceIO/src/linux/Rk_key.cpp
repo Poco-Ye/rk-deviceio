@@ -452,6 +452,79 @@ int RK_input_register_compose_press_callback(RK_input_compose_press_callback cb,
 	return 0;
 }
 
+int RK_input_events_print(void)
+{
+	RK_input_long_press_t *events = m_long_press_head;
+	RK_input_long_press_key_t *event = NULL;
+	RK_input_compose_press_t *comp = m_compose_press_head;
+	char tmp[32];
+	char *str;
+	int size = 1024;
+
+	str = (char*) malloc(sizeof(char) * 1024);
+	strcat(str, "long:{");
+
+	while (events) {
+		memset(tmp, 0, sizeof(tmp));
+		snprintf(tmp, sizeof(tmp), "%d:[", events->key_code);
+		strcat(str, tmp);
+		event = events->event;
+		while (event) {
+			memset(tmp, 0, sizeof(tmp));
+			snprintf(tmp, sizeof(tmp), "(%d %lu),", event->key_code, event->time);
+
+			if (strlen(str) + strlen(tmp) + 1 + 4 >= size) {
+				size += 1024;
+				str = (char*) realloc(str, size);
+			}
+			strcat(str, tmp);
+
+			event = event->next;
+		}
+		if (str[strlen(str) - 1] == ',') {
+			str[strlen(str) - 1] = ']';
+		} else {
+			strcat(str, "]");
+		}
+		strcat(str, ",");
+
+		events = events->next;
+	}
+	if (str[strlen(str) - 1] == ',') {
+		str[strlen(str) - 1] = '}';
+		strcat(str, "\n");
+	} else {
+		strcat(str, "}\n");
+	}
+
+	if (strlen(str) + 1 + 11 <= size) {
+		size += 1024;
+		str = (char*) realloc(str, size);
+	}
+
+	strcat(str, "compose:{");
+	while (comp) {
+		memset(tmp, 0, sizeof(tmp));
+		snprintf(tmp, sizeof(tmp), "(%lu, %s),", comp->time, comp->keys);
+		if (strlen(str) + strlen(tmp) + 1 + 2 <= size) {
+			size += 1024;
+			str = (char*) realloc(str, size);
+		}
+		strcat(str, tmp);
+		comp = comp->next;
+	}
+	if (str[strlen(str) - 1] == ',') {
+		str[strlen(str) - 1] = '}';
+		strcat(str, "\n");
+	} else {
+		strcat(str, "}\n");
+	}
+
+	printf("%s\n", str);
+	free(str);
+	return 0;
+}
+
 int RK_input_exit(void)
 {
 	int ret;

@@ -16,6 +16,7 @@ int RK_input_init(RK_input_callback input_callback_cb);
 int RK_input_register_press_callback(RK_input_press_callback cb);
 int RK_input_register_long_press_callback(RK_input_long_press_callback cb, const uint32_t time, const int key_code);
 int RK_input_register_compose_press_callback(RK_input_compose_press_callback cb, const uint32_t time, const int key_code, ...);
+int RK_input_events_print(void);
 int RK_input_exit(void);
 
 
