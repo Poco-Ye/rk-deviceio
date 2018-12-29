@@ -541,12 +541,13 @@ int power_init(void)
         return -1;
     }
 
+#if 0
     ret = pthread_create(&pm_g.tid_det_temp, NULL, temperture_task, NULL);
     if (ret) {
 		pm_err("[%s:%d] create thread fail.\n", __func__, __LINE__);
         return -1;
     }
-
+#endif
     return 0;
 }
 
