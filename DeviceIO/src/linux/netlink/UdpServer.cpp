@@ -32,11 +32,13 @@
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/prettywriter.h"
 #include "UdpServer.h"
+#include <DeviceIo/Rk_wifi.h>
 
-const char* MSG_BROADCAST_AP_MODE = "{\"method\":\"softAP\", \"magic\":\"Rockchip\",\"params\":\"ap_wifi_mode\"}";
-const char* MSG_WIFI_CONNECTING = "{\"method\":\"softAP\", \"magic\":\"Rockchip\",\"params\":\"wifi_connecting\"}";
-const char* MSG_WIFI_CONNECTED = "{\"method\":\"softAP\", \"magic\":\"Rockchip\",\"params\":\"wifi_connected\"}";
-const char* MSG_WIFI_FAILED = "{\"method\":\"softAP\", \"magic\":\"Rockchip\",\"params\":\"wifi_failed\"}";
+const char* MSG_BROADCAST_AP_MODE = "{\"method\":\"softAP\", \"magic\":\"Rockchip\", \"params\":\"ap_wifi_mode\"}";
+const char* MSG_WIFI_CONNECTING = "{\"method\":\"softAP\", \"magic\":\"Rockchip\", \"params\":\"wifi_connecting\"}";
+const char* MSG_WIFI_CONNECTED = "{\"method\":\"softAP\", \"magic\":\"Rockchip\", \"params\":\"wifi_connected\"}";
+const char* MSG_WIFI_FAILED = "{\"method\":\"softAP\", \"magic\":\"Rockchip\", \"params\":\"wifi_failed\"}";
+const char* MSG_WIFI_LIST_FORMAT = "{\"method\":\"softAP\", \"magic\":\"Rockchip\", \"params\":{\"wifilist\":%s}}";
 
 namespace DeviceIOFramework {
 
@@ -111,7 +113,7 @@ void* checkWifi(void *arg) {
 	}
 
 	m_broadcastMsg = (ret ? MSG_WIFI_CONNECTED : MSG_WIFI_FAILED);
-	sendto(m_fd_broadcast, m_broadcastMsg.c_str(), strlen(m_broadcastMsg.c_str()) + 1, 0,
+	sendto(m_fd_broadcast, m_broadcastMsg.c_str(), strlen(m_broadcastMsg.c_str()), 0,
                         (struct sockaddr*)&m_addrto, sizeof(m_addrto));
 	m_isConnecting = false;
 	printf("Wifi connect result %d\n", ret ? 1 : 0);
@@ -133,6 +135,7 @@ static void handleRequest(const char* buff) {
 	rapidjson::Value params;
 	std::string ssid;
 	std::string passwd;
+	std::string cmd;
 	std::string userdata;
 
 	if (document.Parse(buff).HasParseError()) {
@@ -142,7 +145,44 @@ static void handleRequest(const char* buff) {
 
 	if (document.HasMember("params")) {
 		params = document["params"];
-		if (params.IsObject()) {
+
+		if (params.IsString()) {
+			std::string para;
+
+			para = params.GetString();
+			if (0 == strcmp(para.c_str(), "wifi_connected") || 0 == strcmp(para.c_str(), "wifi_failed")) {
+				m_broadcastMsg = "";
+			}
+			return;
+		}
+
+		if (!params.IsObject())
+			return;
+
+		if (params.HasMember("cmd") && params["cmd"].IsString()) {
+			cmd = params["cmd"].GetString();
+			if (cmd.empty())
+				return;
+
+			if (0 == strcmp(cmd.c_str(), "getWifilists")) {
+				char *wifilist;
+				m_broadcastMsg = "";
+
+				RK_wifi_scan();
+				sleep(1);
+				wifilist = RK_wifi_scan_r_sec(0x14);
+
+				if (strlen(wifilist) > 2) {
+					char tmp[strlen(wifilist) + 512];
+					memset(tmp, 0, sizeof(tmp));
+
+					snprintf(tmp, sizeof(tmp), MSG_WIFI_LIST_FORMAT, wifilist);
+
+					m_broadcastMsg = tmp;
+				}
+				free(wifilist);
+			}
+		} else {
 			if (params.HasMember("ssid") && params["ssid"].IsString()) {
 				ssid = params["ssid"].GetString();
 			}
@@ -154,7 +194,7 @@ static void handleRequest(const char* buff) {
 			}
 			if (!m_isConnecting && !ssid.empty()) {
 				m_broadcastMsg = MSG_WIFI_CONNECTING;
-				sendto(m_fd_broadcast, m_broadcastMsg.c_str(), strlen(m_broadcastMsg.c_str()) + 1, 0,
+				sendto(m_fd_broadcast, m_broadcastMsg.c_str(), strlen(m_broadcastMsg.c_str()), 0,
 						(struct sockaddr*)&m_addrto, sizeof(m_addrto));
 				if (m_cb != NULL)
 					m_cb(FW_softAP_State_CONNECTTING, userdata.c_str());
@@ -243,7 +283,7 @@ void* UdpServer::threadBroadcast(void* arg) {
 	m_broadcastMsg = MSG_BROADCAST_AP_MODE;
 	while (true) {
 		if (!m_broadcastMsg.empty()) {
-			ret = sendto(sock, m_broadcastMsg.c_str(), m_broadcastMsg.size() + 1, 0, (struct sockaddr*)&addrto, sizeof(addrto));
+			ret = sendto(sock, m_broadcastMsg.c_str(), m_broadcastMsg.size(), 0, (struct sockaddr*)&addrto, sizeof(addrto));
 			if (ret < 0) {
 				printf("udp send broadcast failed. error:%d\n", ret);
 			}

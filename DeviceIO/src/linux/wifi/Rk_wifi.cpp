@@ -234,7 +234,7 @@ char* RK_wifi_scan_r(void)
 
 char* RK_wifi_scan_r_sec(const unsigned int cols)
 {
-	char line[256];
+	char line[256], utf[256];
 	char item[384];
 	char col[128];
 	char *scan_r, *p_strtok;
@@ -265,8 +265,11 @@ char* RK_wifi_scan_r_sec(const unsigned int cols)
 	strcat(scan_r, "[");
 
 	while (fgets(line, sizeof(line) - 1, fp)) {
+		memset(utf, 0, sizeof(utf));
+		spec_char_convers(line, utf);
+
 		index = 0;
-		p_strtok = strtok(line, "\t");
+		p_strtok = strtok(utf, "\t");
 		memset(item, 0, sizeof(item));
 		strcat(item, "{");
 		while (p_strtok) {
@@ -277,9 +280,9 @@ char* RK_wifi_scan_r_sec(const unsigned int cols)
 				if (0 == index) {
 					snprintf(col, sizeof(col), "\"bssid\":\"%s\",", p_strtok);
 				} else if (1 == index) {
-					snprintf(col, sizeof(col), "\"frequency\":\"%s\",", p_strtok);
+					snprintf(col, sizeof(col), "\"frequency\":%d,", atoi(p_strtok));
 				} else if (2 == index) {
-					snprintf(col, sizeof(col), "\"signal level\":\"%s\",", p_strtok);
+					snprintf(col, sizeof(col), "\"rssi\":%d,", atoi(p_strtok));
 				} else if (3 == index) {
 					snprintf(col, sizeof(col), "\"flags\":\"%s\",", p_strtok);
 				} else if (4 == index) {
@@ -290,20 +293,21 @@ char* RK_wifi_scan_r_sec(const unsigned int cols)
 			p_strtok = strtok(NULL, "\t");
 			index++;
 		}
-		item[strlen(item) - 1] = '\0';
-		strcat(item, "}");
+		if (item[strlen(item) - 1] == ',') {
+			item[strlen(item) - 1] = '\0';
+		}
+		strcat(item, "},");
 
-		if (size <= (strlen(scan_r) + strlen(item)) + 8) {
+		if (size <= (strlen(scan_r) + strlen(item)) + 3) {
 			size += UNIT_SIZE;
 			scan_r = (char*) realloc(scan_r, sizeof(char) * size);
 		}
-		strcat(scan_r, "\n  ");
 		strcat(scan_r, item);
-		strcat(scan_r, ",");
 	}
-
-	scan_r[strlen(scan_r) - 1] = '\0';
-	strcat(scan_r, "\n]");
+	if (scan_r[strlen(scan_r) - 1] == ',') {
+		scan_r[strlen(scan_r) - 1] = '\0';
+	}
+	strcat(scan_r, "]");
 
 	fclose(fp);
 	return scan_r;
