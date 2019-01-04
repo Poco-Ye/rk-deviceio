@@ -75,6 +75,7 @@ static RK_btmaster_callback g_btmaster_cb;
 static void *g_btmaster_userdata;
 
 extern RK_ble_audio_state_callback ble_audio_status_callback;
+extern RK_BLE_State_e g_ble_audio_status;
 
 #ifdef __cplusplus
 extern "C" {
@@ -712,6 +713,7 @@ static void proxy_added(GDBusProxy *proxy, void *user_data)
 			report_btsrc_event(DeviceInput::BT_BLE_ENV_CONNECT, NULL, 0);
 			if (ble_audio_status_callback)
 				ble_audio_status_callback(RK_BLE_State_SUCCESS);
+			g_ble_audio_status = RK_BLE_State_SUCCESS;
 			printf("[D: %s]: BLE DEVICE BT_BLE_ENV_CONNECT\n", __func__);
 		}
 
@@ -830,6 +832,7 @@ static void proxy_removed(GDBusProxy *proxy, void *user_data)
 			if (ble_audio_status_callback)
 				ble_audio_status_callback(RK_BLE_State_DISCONNECT);
 			printf("[D: %s]: BLE DEVICE DISCONNECTED\n", __func__);
+			g_ble_audio_status = RK_BLE_State_DISCONNECT;
 			sleep(1);
 			gatt_set_on_adv();
 		}
@@ -2799,8 +2802,8 @@ int bt_open(Bt_Content_t *bt_content)
 	if (bt_thread)
 		return 1;
 
-    pthread_create(&bt_thread, NULL, bluetooth_open, bt_content);
-    return 1;
+	pthread_create(&bt_thread, NULL, bluetooth_open, bt_content);
+	return 1;
 }
 
 int init_a2dp_master_ctrl()
@@ -3114,14 +3117,14 @@ static int a2dp_master_save_status(char *address)
 
 void a2dp_master_register_cb(void *userdata, RK_btmaster_callback cb)
 {
-    g_btmaster_cb = cb;
-    g_btmaster_userdata = userdata;
-    return;
+	g_btmaster_cb = cb;
+	g_btmaster_userdata = userdata;
+	return;
 }
 
 void a2dp_master_clear_cb()
 {
-    g_btmaster_cb = NULL;
-    g_btmaster_userdata = NULL;
-    return;
+	g_btmaster_cb = NULL;
+	g_btmaster_userdata = NULL;
+	return;
 }

@@ -56,6 +56,7 @@ RK_ble_audio_state_callback ble_audio_status_callback;
 RK_ble_audio_recv_data ble_audio_recv_data;
 
 RK_BLEWIFI_State_e gstate;
+RK_BLE_State_e g_ble_audio_status;
 
 /******************************************/
 /***************** BLE ********************/
@@ -141,6 +142,7 @@ int RK_bleaudio_start(char *name)
 {
 	DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_OPEN);
 	ble_audio_status_callback(RK_BLE_State_IDLE);
+	g_ble_audio_status = RK_BLE_State_IDLE;
 
 	return 1;
 }
@@ -177,7 +179,17 @@ int RK_blewifi_stop(void)
 
 int RK_blewifi_getState(RK_BLEWIFI_State_e *pState)
 {
-	*pState = gstate;
+	if (pState)
+		*pState = gstate;
+
+	return 1;
+}
+
+int RK_bleaudio_getState(RK_BLE_State_e *pState)
+{
+	if (pState)
+		*pState = g_ble_audio_status;
+
 	return 1;
 }
 

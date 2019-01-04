@@ -36,6 +36,7 @@ int RK_blewifi_start(char *name);
 int RK_bleaudio_start(char *name);
 int RK_blewifi_stop(void);
 int RK_blewifi_getState(RK_BLEWIFI_State_e *pState);
+int RK_bleaudio_getState(RK_BLE_State_e *pState);
 int RK_blewifi_get_exdata(char *buffer, int *length);
 int RK_ble_write(const char *uuid, unsigned char *data, int len);
 
