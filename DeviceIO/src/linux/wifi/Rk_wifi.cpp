@@ -81,7 +81,7 @@ static int exec(const char* cmd, const char* ret)
 
 	char convers[strlen(tmp) + 1];
 
-	spec_char_convers(tmp, convers);
+	//spec_char_convers(tmp, convers);
 	strncpy(ret, convers, strlen(convers) + 1);
 	free(tmp);
 
@@ -290,11 +290,11 @@ char* RK_wifi_scan_r_sec(const unsigned int cols)
 	strcat(scan_r, "[");
 
 	while (fgets(line, sizeof(line) - 1, fp)) {
-		memset(utf, 0, sizeof(utf));
-		spec_char_convers(line, utf);
+		//memset(utf, 0, sizeof(utf));
+		//spec_char_convers(line, utf);
 
 		index = 0;
-		p_strtok = strtok(utf, "\t");
+		p_strtok = strtok(line, "\t");
 		memset(item, 0, sizeof(item));
 		strcat(item, "{");
 		while (p_strtok) {
