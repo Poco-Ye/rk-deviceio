@@ -9,6 +9,7 @@
 #include <net/if.h>
 
 #include "Hostapd.h"
+#include "ping.h"
 #include "DeviceIo/Rk_wifi.h"
 
 static RK_wifi_state_callback m_cb;
@@ -193,15 +194,39 @@ int RK_wifi_disable_ap()
 	return wifi_rtl_stop_hostapd();
 }
 
+static int is_wifi_enable()
+{
+	char str[8];
+	int ret;
+
+	memset(str, 0, sizeof(str));
+	ret = exec("pidof dhcpcd", str);
+	if (0 != ret || 0 == strlen(str))
+		return 0;
+
+	memset(str, 0, sizeof(str));
+	ret = exec("pidof wpa_supplicant", str);
+	if (0 != ret || 0 == strlen(str))
+		return 0;
+
+	return 1;
+}
+
+static int dhcpcd();
+
 int RK_wifi_enable(const int enable)
 {
 	if (enable) {
-		system("ifconfig wlan0 down");
-		system("ifconfig wlan0 up");
-		system("ifconfig wlan0 0.0.0.0");
-		system("killall wpa_supplicant");
-		sleep(1);
-		system("wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf");
+		if (!is_wifi_enable()) {
+			system("ifconfig wlan0 down");
+			system("ifconfig wlan0 up");
+			system("ifconfig wlan0 0.0.0.0");
+			system("killall dhcpcd");
+			system("killall wpa_supplicant");
+			sleep(1);
+			system("wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf");
+			dhcpcd();
+		}
 	} else {
 		system("ifconfig wlan0 down");
 		system("killall wpa_supplicant");
@@ -544,3 +569,28 @@ int RK_wifi_get_mac(char *wifi_mac)
     return 0;
 }
 
+int RK_wifi_has_config()
+{
+	FILE *fd;
+	fd = fopen("/data/cfg/wpa_supplicant.conf", "r");
+	if (fd == NULL)
+		return 0;
+
+	fseek(fd, 0L, SEEK_END);
+	int len = ftell(fd);
+	char *buf = (char *)malloc(len + 1);
+	fseek(fd, 0L, SEEK_SET);
+	fread(buf, 1, len, fd);
+	fclose(fd);
+
+	if (strstr(buf, "network") && strstr(buf, "ssid"))
+		return 1;
+
+	free(buf);
+	return 0;
+}
+
+int RK_wifi_ping(void)
+{
+	return rk_ping();
+}

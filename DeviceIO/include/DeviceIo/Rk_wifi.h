@@ -49,6 +49,8 @@ int RK_wifi_restart_network(void);
 int RK_wifi_set_hostname(const char* name);
 int RK_wifi_get_hostname(char* name, int len);
 int RK_wifi_get_mac(char *wifi_mac);
+int RK_wifi_has_config(void);
+int RK_wifi_ping(void);
 
 #ifdef __cplusplus
 }
