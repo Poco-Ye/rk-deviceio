@@ -721,6 +721,7 @@ static void proxy_added(GDBusProxy *proxy, void *user_data)
 
 	} else if (!strcmp(interface, "org.bluez.GattCharacteristic1")) {
 		gatt_add_characteristic(proxy);
+		//gatt_acquire_write(proxy, NULL);
 	} else if (!strcmp(interface, "org.bluez.GattDescriptor1")) {
 		gatt_add_descriptor(proxy);
 	} else if (!strcmp(interface, "org.bluez.GattManager1")) {

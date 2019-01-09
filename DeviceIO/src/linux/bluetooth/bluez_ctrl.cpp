@@ -717,6 +717,9 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		scan = (*(bool *)data);
 		rkbt_inquiry_scan(scan);
 		break;
+	case BtControl::BT_GATT_MTU:
+		ret = gatt_mtu();
+		break;
 	default:
 		APP_DEBUG("%s, cmd <%d> is not implemented.\n", __func__,
 				  static_cast<BtControl_rep_type>(cmd));

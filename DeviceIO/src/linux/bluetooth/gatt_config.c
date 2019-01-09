@@ -561,6 +561,7 @@ static DBusMessage *chr_read_value(DBusConnection *conn, DBusMessage *msg,
 	DBusMessageIter iter;
 	const char *device;
 	char str[512];
+	printf("=== chr_read_value enter ===\n");
 
 	if (!dbus_message_iter_init(msg, &iter))
 		return g_dbus_create_error(msg, DBUS_ERROR_INVALID_ARGS,
@@ -577,10 +578,7 @@ static DBusMessage *chr_read_value(DBusConnection *conn, DBusMessage *msg,
 
 	dbus_message_iter_init_append(reply, &iter);
 
-	if (!strcmp(WIFILIST_CHAR_UUID, chr->uuid))
-		ble_content_internal->cb_ble_request_data(WIFILIST_CHAR_UUID);
-	if (!strcmp(DEVICECONTEXT_CHAR_UUID, chr->uuid))
-		ble_content_internal->cb_ble_request_data(DEVICECONTEXT_CHAR_UUID);
+	ble_content_internal->cb_ble_request_data(chr->uuid);
 
 	chr_read(chr, &iter);
 	memcpy(str, chr->value, chr->vlen);
@@ -591,13 +589,14 @@ static DBusMessage *chr_read_value(DBusConnection *conn, DBusMessage *msg,
 		printf("0x%02x ", (chr->value)[i]);
 	printf("\n");
 
+	printf("=== chr_read_value exit ===\n");
 	return reply;
 }
 
 static DBusMessage *chr_write_value(DBusConnection *conn, DBusMessage *msg,
 							void *user_data)
 {
-	printf("chr_write_value v0.3\n");
+	printf("=== chr_write_value enter ===\n");
 	struct characteristic *chr = user_data;
 	DBusMessageIter iter;
 	const uint8_t *value;
@@ -620,11 +619,15 @@ static DBusMessage *chr_write_value(DBusConnection *conn, DBusMessage *msg,
 		return dbus_message_new_method_return(msg);
 	}
 
-	if (ble_content_internal->cb_ble_recv_fun)
+	if (ble_content_internal->cb_ble_recv_fun) {
+		printf("cb_ble_recv_fun enter \n");
 		ble_content_internal->cb_ble_recv_fun(chr->uuid, chr->value, len);
-	else
+		printf("cb_ble_recv_fun exit \n");
+	} else {
 		printf("cb_ble_recv_fun is null !!! \n");
+	}
 
+	printf("=== chr_write_value exit ===\n");
 	return dbus_message_new_method_return(msg);
 }
 
@@ -1052,6 +1055,9 @@ static int bt_string_to_uuid128(uuid128_t *uuid, const char *string)
 	return 0;
 }
 
+#define KG_ADV_DATA ""
+#define KG_ADV_RESP_DATA ""
+
 static void ble_adv_set(Bt_Content_t *bt_content, ble_content_t *ble_content)
 {
 	char hostname[HOSTNAME_MAX_LEN + 1];
@@ -1101,6 +1107,12 @@ static void ble_adv_set(Bt_Content_t *bt_content, ble_content_t *ble_content)
 	ble_content->char_cnt = bt_content->ble_content.chr_cnt;
 	ble_content->cb_ble_recv_fun = bt_content->ble_content.cb_ble_recv_fun;
 	ble_content->cb_ble_request_data = bt_content->ble_content.cb_ble_request_data;
+}
+
+volatile unsigned short rk_gatt_mtu = 0;
+unsigned int gatt_mtu(void)
+{
+	return (unsigned int)rk_gatt_mtu;
 }
 
 int gatt_init(Bt_Content_t *bt_content)

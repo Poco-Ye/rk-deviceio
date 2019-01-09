@@ -48,7 +48,7 @@ typedef struct {
 	uint8_t chr_cnt;
 	const char *ble_name;
 	/* recevice data */
-	void (*cb_ble_recv_fun)(char *uuid, char *data, int len);
+	void (*cb_ble_recv_fun)(char *uuid, unsigned char *data, int len);
 	/* full data */
 	void (*cb_ble_request_data)(char *uuid);
 } Ble_Gatt_Content_t;
@@ -67,12 +67,13 @@ int gatt_open(void);
 void gatt_close(void);
 int bt_open(Bt_Content_t *ble_content);
 int gatt_init(Bt_Content_t *ble_content);
+unsigned int gatt_mtu(void);
 //void bt_adv_set(ble_content_t *ble_content);
 
 typedef struct {
-	char ssid[60];
+	char ssid[256];
 	int ssid_len;
-	char psk[60];
+	char psk[256];
 	int psk_len;
 	char key_mgmt[22];
 	int key_len;

@@ -249,6 +249,7 @@ int RK_wifi_scan(void)
 	if (0 != strncmp(str, "OK", 2) &&  0 != strncmp(str, "ok", 2))
 		return -2;
 
+	printf("RK_wifi_scan str: %s.\n", str);
 	return 0;
 }
 

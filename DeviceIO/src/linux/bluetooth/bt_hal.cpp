@@ -20,6 +20,7 @@
 
 #include "DeviceIo/DeviceIo.h"
 #include <DeviceIo/bt_hal.h>
+#include <DeviceIo/Rk_wifi.h>
 
 #include "avrcpctrl.h"
 #include "bluez_ctrl.h"
@@ -33,11 +34,14 @@ extern volatile bt_control_t bt_control;
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::WifiControl;
 using DeviceIOFramework::BtControl;
+using DeviceIOFramework::wifi_config;
 
 #define BT_CONFIG_FAILED 2
 #define BT_CONFIG_OK 1
 
 static pthread_t wificonfig_tid = 0;
+static pthread_t wificonfig_scan_tid = 0;
+
 static char wifi_ssid[256];
 static char wifi_ssid_bk[256];
 static char wifi_password[256];
@@ -46,93 +50,208 @@ static char wifi_security[256];
 static char wifi_hide[256];
 static char check_data[256];
 static int priority = 0;
-static rk_wifi_config wifi_cfg;
+static struct wifi_config wifi_cfg;
 
 #define HOSTNAME_MAX_LEN	250	/* 255 - 3 (FQDN) - 2 (DNS enc) */
 
-RK_blewifi_state_callback ble_status_callback;
-RK_ble_recv_data ble_recv_data;
-RK_ble_audio_state_callback ble_audio_status_callback;
-RK_ble_audio_recv_data ble_audio_recv_data;
+RK_blewifi_state_callback ble_status_callback = NULL;
+RK_ble_recv_data ble_recv_data = NULL;
+RK_ble_audio_state_callback ble_audio_status_callback = NULL;
+RK_ble_audio_recv_data ble_audio_recv_data = NULL;
 
 RK_BLEWIFI_State_e gstate;
 RK_BLE_State_e g_ble_audio_status;
 
-/******************************************/
-/***************** BLE ********************/
-/******************************************/
-void rk_ble_request_data(char *uuid)
-{
-
-}
-
-void *rk_config_wifi_thread(void)
-{
-	printf("config_wifi_thread\n");
-	ble_status_callback(RK_BLEWIFI_State_CONNECTTING);
-
-	gstate = RK_BLEWIFI_State_CONNECTTING;
-	DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_CONNECT, &wifi_cfg);
-}
-
-static void wifi_status_callback(int status, int reason)
-{
-	printf("%s status: %d\n", __func__, status);
-	if (status == 2) {
-		ble_status_callback(RK_BLEWIFI_State_SUCCESS);
-		gstate = RK_BLEWIFI_State_SUCCESS;
-	} else if (status == 3) {
-		ble_status_callback(RK_BLEWIFI_State_FAIL);
-		gstate = RK_BLEWIFI_State_FAIL;
+/*
+"{\"method\":\"ble\", \"magic\":\"KugouMusic\", \"params\":
+	{\"wifilist\":
+		[
+		 {\"ssid\":\"aaa\",\"rssi\":-48},
+		 {\"ssid\":\"bbbbbbb\",\"rssi\":-32},
+		 {\"ssid\":\"ccccc\",\"rssi\":-39},
+		 {\"ssid\":\"ddddd\",\"rssi\":-41}
+		]
 	}
-}
+ }"
+*/
+const char* MSG_BLE_WIFI_LIST_FORMAT = "{\"method\":\"ble\", \"magic\":\"KugouMusic\", \"params\":{\"wifilist\":%s}}";
 
 #define BLE_UUID_SERVICE	"0000180A-0000-1000-8000-00805F9B34FB"
 #define BLE_UUID_WIFI_CHAR	"00009999-0000-1000-8000-00805F9B34FB"
 #define BLE_UUID_AUDIO_CHAR	"00006666-0000-1000-8000-00805F9B34FB"
 
+static char kg_wifi_list_buf[20 * 1024];
+static int scanr_len = 0, scanr_len_use = 0;
+#define BLE_SEND_MAX_LEN (134) //(20) //(512)
+#define UUID_MAX_LEN 36
+
+typedef struct  {
+	unsigned char start;    // 段， 1Byte， 固定为 0x01
+	char magic[10]; // 段， 10Byte， 固定为"KugouMusic"
+	char cmd[9];    // 段， 9Byte， 固定为"wifisetup"
+	char ssid[32];  // 段， 32Byte， 需要连接的 WiFi ssid， 长度不足 32 的部分填充 0
+	char psk[32];   // 段， 32Byte， 需要连接的 wifi password， 长度不足 32 的部分填充 0
+	unsigned char datalen[4]; //段，4Byte，表示后面自定义数据长度值（按小端：例如长度 10，使用 0x0a,0x00,0x00,0x00）
+	//unsigned char data[]段，datalen Byte，表示自定义数据
+	//end 段， 1Byte， 固定位 0x04
+} kugou_ble;
+
+/******************************************/
+/***************** BLE ********************/
+/******************************************/
+void rk_ble_request_data(char *uuid);
+void *rk_config_wifi_thread(void)
+{
+	printf("config_wifi_thread\n");
+	if (ble_status_callback)
+		ble_status_callback(RK_BLEWIFI_State_CONNECTTING);
+
+	gstate = RK_BLEWIFI_State_CONNECTTING;
+	printf("controlWifi connect ...\n");
+	DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_CONNECT, &wifi_cfg);
+}
+
+static void wifi_status_callback(int status, int reason)
+{
+	rk_ble_config kg_ble_cfg;
+
+	printf("%s status: %d\n", __func__, status);
+	if (status == 2) {
+		if (ble_status_callback)
+			ble_status_callback(RK_BLEWIFI_State_SUCCESS);
+		gstate = RK_BLEWIFI_State_SUCCESS;
+		kg_ble_cfg.data[0] = 0x1;
+	} else if (status == 3) {
+		if (ble_status_callback)
+			ble_status_callback(RK_BLEWIFI_State_FAIL);
+		gstate = RK_BLEWIFI_State_FAIL;
+		kg_ble_cfg.data[0] = 0x2;
+	}
+
+	kg_ble_cfg.len = 0x1;
+	strcpy(kg_ble_cfg.uuid, BLE_UUID_WIFI_CHAR);
+	DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_WRITE, &kg_ble_cfg);
+}
+
+void rk_ble_send_data(void)
+{
+	rk_ble_config kg_ble_cfg;
+
+	if (scanr_len == 0) {
+		scanr_len_use = 0;
+		printf("[KG] NO WIFI SCAN_R OR READ END!!!\n");
+		return;
+	}
+
+	while (scanr_len) {
+		printf("%s: wifi use: %d, remain len: %d\n", __func__, scanr_len_use, scanr_len);
+		kg_ble_cfg.len = (scanr_len > BLE_SEND_MAX_LEN) ? BLE_SEND_MAX_LEN : scanr_len;
+		memset(kg_ble_cfg.data, 0, BLE_SEND_MAX_LEN);
+		memcpy(kg_ble_cfg.data, kg_wifi_list_buf + scanr_len_use, kg_ble_cfg.len);
+		strcpy(kg_ble_cfg.uuid, BLE_UUID_WIFI_CHAR);
+		usleep(100000);
+		DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_WRITE, &kg_ble_cfg);
+		scanr_len -= kg_ble_cfg.len;
+		scanr_len_use += kg_ble_cfg.len;
+	}
+}
+
 void ble_callback(char *uuid, unsigned char *data, int len)
 {
-	unsigned char str[120];
-	memset(str, 0, 120);
+	unsigned char str[512];
+	memset(str, 0, 512);
 
 	memcpy(str, data, len);
 	str[len] = '\0';
-	printf("chr_write_value	 %p, %d\n", data, len);
+	printf("chr_write_value: %p, %d, data: \n", data, len);
 
-	if (!strcmp(BLE_UUID_AUDIO_CHAR, uuid))
-		ble_audio_recv_data(BLE_UUID_AUDIO_CHAR, str, len);
+	for (int i = 0; i < len; i++) {
+		   if (!( i % 8))
+				   printf("\n");
+		   printf("0x%02x ", str[i]);
+	}
+	printf("\n");
+
+	if (!strcmp(BLE_UUID_AUDIO_CHAR, uuid)) {
+		if (ble_audio_recv_data)
+			ble_audio_recv_data(BLE_UUID_AUDIO_CHAR, str, len);
+	}
 
 	if (!strcmp(BLE_UUID_WIFI_CHAR, uuid)) {
+		kugou_ble kg_ble;
+		char *wifilist;
 
-		if (ble_recv_data)
-			ble_recv_data(BLE_UUID_WIFI_CHAR, str, len);
+		memcpy(&kg_ble, str, len);
+		printf("kg_ble.cmd: %s, kg_ble.start: %d [%d]\n", kg_ble.cmd, kg_ble.start, strncmp(kg_ble.cmd, "wifilists", 9));
+		if (kg_ble.start != 0x1)
+				printf("BLE RECV DATA ERROR !!!\n");
 
-		strcpy(wifi_ssid, str + 20);
-		strcpy(wifi_password, str + 52);
-		printf("wifi ssid is %s\n", wifi_ssid);
-		printf("wifi psk is %s\n", wifi_password);
-		printf("wifi start: %d, end: %d %d\n", str[0], str[99], str[100]);
+		if (strncmp(kg_ble.cmd, "wifilists", 9) == 0) {
 
-		for (int i = 0; i < len; i++) {
-			if (!( i % 8))
-				printf("\n");
-			printf("0x%02x ", str[i]);
+scan_retry:
+			printf("RK_wifi_scan ...\n");
+			RK_wifi_scan();
+			usleep(800000);
+
+			printf("RK_wifi_scan_r_sec ...\n");
+			wifilist = RK_wifi_scan_r_sec(0x14);
+			printf("RK_wifi_scan_r_sec end wifilist: %p\n", wifilist);
+
+			if (wifilist == NULL)
+				goto scan_retry;
+			if (wifilist && (strlen(wifilist) < 3)) {
+				free(wifilist);
+				goto scan_retry;
+			}
+
+			memset(kg_wifi_list_buf, 0, sizeof(kg_wifi_list_buf));
+			snprintf(kg_wifi_list_buf, sizeof(kg_wifi_list_buf), MSG_BLE_WIFI_LIST_FORMAT, wifilist);
+			scanr_len = strlen(kg_wifi_list_buf);
+			scanr_len_use = 0;
+			printf("[KG] wifi scan_r: %s, len: %d\n", kg_wifi_list_buf, scanr_len);
+
+			free(wifilist);
+			pthread_create(&wificonfig_scan_tid, NULL, rk_ble_send_data, NULL);
+		} else if (strncmp(kg_ble.cmd, "wifisetup", 9) == 0) {
+			strcpy(wifi_ssid, kg_ble.ssid); // str + 20);
+			strcpy(wifi_password, kg_ble.psk); // str + 52);
+			printf("wifi ssid is %s\n", wifi_ssid);
+			printf("wifi psk is %s\n", wifi_password);
+
+			strcpy(wifi_cfg.ssid, wifi_ssid);
+			strcpy(wifi_cfg.psk, wifi_password);
+			wifi_cfg.wifi_status_callback = wifi_status_callback;
+			pthread_create(&wificonfig_tid, NULL, rk_config_wifi_thread, NULL);
 		}
-		printf("\n");
-
-		strcpy(wifi_cfg.ssid, wifi_ssid);
-		strcpy(wifi_cfg.psk, wifi_password);
-		wifi_cfg.wifi_status_callback = wifi_status_callback;
-		pthread_create(&wificonfig_tid, NULL, rk_config_wifi_thread, NULL);
 	}
+}
+
+void rk_ble_request_data(char *uuid)
+{
+	rk_ble_config kg_ble_cfg;
+	printf("%s: wifi use: %d, remain len: %d\n", __func__, scanr_len_use, scanr_len);
+
+	if (scanr_len == 0) {
+		printf("[KG] NO WIFI SCAN_R OR READ END!!!\n");
+		return;
+	}
+
+	kg_ble_cfg.len = (scanr_len > BLE_SEND_MAX_LEN) ? BLE_SEND_MAX_LEN : scanr_len;
+	memset(kg_ble_cfg.data, 0, BLE_SEND_MAX_LEN);
+	memcpy(kg_ble_cfg.data, kg_wifi_list_buf + scanr_len_use, kg_ble_cfg.len);
+	memcpy(kg_ble_cfg.uuid, BLE_UUID_WIFI_CHAR, UUID_MAX_LEN);
+	DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_WRITE, &kg_ble_cfg);
+	usleep(100000);
+	scanr_len -= kg_ble_cfg.len;
+	scanr_len_use += kg_ble_cfg.len;
 }
 
 int RK_blewifi_start(char *name)
 {
 	DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_OPEN);
 	DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_OPEN);
-	ble_status_callback(RK_BLEWIFI_State_IDLE);
+	if (ble_status_callback)
+		ble_status_callback(RK_BLEWIFI_State_IDLE);
 	gstate = RK_BLEWIFI_State_IDLE;
 
 	return 1;

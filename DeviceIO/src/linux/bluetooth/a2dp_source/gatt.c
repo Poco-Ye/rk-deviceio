@@ -150,12 +150,14 @@ static void print_inc_service(struct service *service, const char *description)
 					service->path, service->uuid, text);
 }
 
+extern volatile unsigned short rk_gatt_mtu;
 static void print_service_proxy(GDBusProxy *proxy, const char *description)
 {
 	struct service service;
 	DBusMessageIter iter;
 	const char *uuid;
 	dbus_bool_t primary;
+	dbus_uint16_t mtu;
 
 	if (g_dbus_proxy_get_property(proxy, "UUID", &iter) == FALSE)
 		return;
@@ -166,6 +168,13 @@ static void print_service_proxy(GDBusProxy *proxy, const char *description)
 		return;
 
 	dbus_message_iter_get_basic(&iter, &primary);
+
+	if (g_dbus_proxy_get_property(proxy, "MTU", &iter)) {
+		dbus_message_iter_get_basic(&iter, &mtu);
+		printf("=== %s: mtu: %d ===\n", (char *)g_dbus_proxy_get_path(proxy), mtu);
+		rk_gatt_mtu = mtu;
+	} else
+		printf("=== server no mtu ===\n");
 
 	service.path = (char *) g_dbus_proxy_get_path(proxy);
 	service.uuid = (char *) uuid;
@@ -803,7 +812,7 @@ static void acquire_write_reply(DBusMessage *message, void *user_data)
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
-	printf("AcquireWrite success: fd %d MTU %u\n", fd,
+	printf("XIAOYAO AcquireWrite success: fd %d MTU %u\n", fd,
 								write_io.mtu);
 
 	write_io.io = pipe_io_new(fd, NULL);
