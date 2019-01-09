@@ -83,6 +83,7 @@ extern "C" {
 
 void register_app(GDBusProxy *proxy);
 int gatt_set_on_adv(void);
+void ble_wifi_clean(void);
 
 #ifdef __cplusplus
 }
@@ -94,7 +95,6 @@ extern void a2dp_sink_property_changed(GDBusProxy *proxy, const char *name, DBus
 extern void adapter_changed(GDBusProxy *proxy, DBusMessageIter *iter, void *user_data);
 extern void device_changed(GDBusProxy *proxy, DBusMessageIter *iter, void *user_data);
 extern int init_avrcp_ctrl(void);
-
 static volatile int ble_service_cnt = 0;
 
 using DeviceIOFramework::DeviceIo;
@@ -714,6 +714,7 @@ static void proxy_added(GDBusProxy *proxy, void *user_data)
 			if (ble_audio_status_callback)
 				ble_audio_status_callback(RK_BLE_State_SUCCESS);
 			g_ble_audio_status = RK_BLE_State_SUCCESS;
+			ble_wifi_clean();
 			printf("[D: %s]: BLE DEVICE BT_BLE_ENV_CONNECT\n", __func__);
 		}
 
@@ -835,6 +836,7 @@ static void proxy_removed(GDBusProxy *proxy, void *user_data)
 			printf("[D: %s]: BLE DEVICE DISCONNECTED\n", __func__);
 			g_ble_audio_status = RK_BLE_State_DISCONNECT;
 			sleep(1);
+			ble_wifi_clean();
 			gatt_set_on_adv();
 		}
 
@@ -2754,7 +2756,7 @@ void *init_a2dp_master(void *)
 
 void bluetooth_open(Bt_Content_t *bt_content)
 {
-	printf("init_a2dp_master start A2DP_SRC_FLAG: %d\n", A2DP_SRC_FLAG);
+	bt_shell_printf("init_a2dp_master start A2DP_SRC_FLAG: %d\n", A2DP_SRC_FLAG);
 	a2dp_source_clean();
 	A2DP_SRC_FLAG = 1;
 	A2DP_SINK_FLAG = 1;

@@ -39,6 +39,7 @@
 #include "DeviceIo/NetLinkWrapper.h"
 #include "../SoundController.h"
 #include "../shell.h"
+#include <DeviceIo/RkBle.h>
 
 namespace DeviceIOFramework {
 
@@ -176,8 +177,8 @@ static char wifi_security[256];
 static char wifi_hide[256];
 static char check_data[256];
 static int priority = 0;
-struct ble_config ble_cfg;
-struct wifi_config wifi_cfg;
+static struct ble_config ble_cfg;
+static struct wifi_config wifi_cfg;
 
 #define HOSTNAME_MAX_LEN	250	/* 255 - 3 (FQDN) - 2 (DNS enc) */
 #define BLE_CONFIG_WIFI_SUCCESS 1
@@ -191,10 +192,31 @@ char wifi_list_buf[WIFI_MSG_BUFF_LEN] = {0};
 char devcontext_list_buf[WIFI_MSG_BUFF_LEN] = {0};
 #define BLE_SEND_MAX_LEN (134) //(20) //(512)
 
+static int scanr_len = 0, scanr_len_use = 0;
+static int devcontext_len = 0, devcontext_len_use = 0;
+
+extern "C" void ble_wifi_clean(void)
+{
+	printf("-ble_wifi_clean-\n");
+	memset(&wifi_cfg, 0, sizeof(struct wifi_config));
+	memset(&ble_cfg, 0, sizeof(struct ble_config));
+	memset(wifi_list_buf, 0, WIFI_MSG_BUFF_LEN);
+	memset(devcontext_list_buf, 0, WIFI_MSG_BUFF_LEN);
+	memset(wifi_ssid, 0, sizeof(wifi_ssid));
+	memset(wifi_ssid_bk, 0, sizeof(wifi_ssid_bk));
+	memset(wifi_password, 0, sizeof(wifi_password));
+	memset(wifi_password_bk, 0, sizeof(wifi_password_bk));
+	memset(wifi_security, 0, sizeof(wifi_security));
+	memset(wifi_hide, 0, sizeof(wifi_hide));
+	memset(check_data, 0, sizeof(check_data));
+	scanr_len = 0;
+	scanr_len_use = 0;
+	devcontext_len = 0;
+	devcontext_len_use = 0;
+}
+
 void ble_request_data(char *uuid)
 {
-	static int scanr_len = 0, scanr_len_use = 0;
-	static int devcontext_len = 0, devcontext_len_use = 0;
 	int scan_retry;
 	if (!strcmp(WIFILIST_CHAR_UUID, uuid)) {
 		if (!scanr_len) {
@@ -248,6 +270,7 @@ retry:
 void *config_wifi_thread(void)
 {
 	printf("config_wifi_thread\n");
+	printf("=== wifi info ssid: %s, psk: %s ===\n", wifi_cfg.ssid, wifi_cfg.psk);
 	NetLinkWrapper::getInstance()->notify_network_config_status(ENetworkConfigIng);
 	DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_CONNECT, &wifi_cfg);
 }
@@ -297,14 +320,14 @@ void ble_callback(char *uuid, void *data, int len)
 		strcpy(wifi_ssid, str);
 		//saveCheckdata(2, wifi_ssid_bk);
 		strcpy(wifi_cfg.ssid, wifi_ssid);
-		wifi_cfg.ssid_len = sizeof(wifi_ssid);
+		wifi_cfg.ssid_len = strlen(wifi_ssid);
 		printf("wifi ssid is %s, len: %d\n", wifi_cfg.ssid, wifi_cfg.ssid_len);
 	}
 
 	if (!strcmp(PASSWORD_CHAR_UUID, uuid)) {
 		strcpy(wifi_password, str);
 		strcpy(wifi_cfg.psk, wifi_password);
-		wifi_cfg.psk_len = sizeof(wifi_password);
+		wifi_cfg.psk_len = strlen(wifi_password);
 		printf("wifi pwd is %s, len: %d\n", wifi_cfg.psk, wifi_cfg.psk_len);
 	}
 
@@ -316,13 +339,15 @@ void ble_callback(char *uuid, void *data, int len)
 	if (!strcmp(SECURITY_CHAR_UUID, uuid)) {
 		strcpy(wifi_security, str);
 		strcpy(wifi_cfg.key_mgmt, wifi_security);
-		wifi_cfg.key_len = sizeof(wifi_security);
+		wifi_cfg.key_len = strlen(wifi_security);
 		printf("wifi sec is %s, len: %d\n", wifi_cfg.key_mgmt, wifi_cfg.key_len);
 	}
 
 	if (!strcmp(CHECKDATA_CHAR_UUID, uuid)) {
 		strncpy(check_data, str, len);
 		printf("check_data is  %s\n", check_data);
+		printf("=== wifi info ssid: %s, psk: %s ===\n", wifi_cfg.ssid, wifi_cfg.psk);
+		wifi_cfg.wifi_status_callback = wifi_status_callback;
 		pthread_create(&wificonfig_tid, NULL, config_wifi_thread, NULL);
 	}
 }
@@ -352,8 +377,6 @@ static bt_init_for_hisense(void)
 	p_bt_content->ble_content.chr_cnt = 9;
 	p_bt_content->ble_content.cb_ble_recv_fun = ble_callback;
 	p_bt_content->ble_content.cb_ble_request_data = ble_request_data;
-
-	wifi_cfg.wifi_status_callback = wifi_status_callback;
 }
 
 void bt_adv_set_old(ble_content_t *ble_content)

@@ -6,6 +6,7 @@
 class Shell {
 public:
     static bool exec(const char* cmd, char* result);
+    static bool scan(const char* cmd, char* result);
     static int pidof(const char *Name);
     static bool system(const char *cmd);
 };

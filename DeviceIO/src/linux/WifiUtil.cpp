@@ -41,7 +41,7 @@ using std::ifstream;
 typedef std::list<std::string> LIST_STRING;
 typedef std::list<WifiInfo*> LIST_WIFIINFO;
 static int network_id;
-rk_wifi_config *gwifi_cfg;
+static struct wifi_config *gwifi_cfg;
 
 static const char *WIFI_CONFIG_FORMAT = "ctrl_interface=/var/run/wpa_supplicant\n"
                                 "ap_scan=1\n\nnetwork={\nssid=\"%s\"\n"
@@ -457,6 +457,12 @@ static bool save_wifi_config(int mode)
 		Shell::system("wpa_cli reconnect");
 	}
 
+	memset(wifi_ssid, 0, 256);
+	memset(wifi_ssid_bk, 0, 256);
+	memset(wifi_password, 0, 256);
+	memset(wifi_password_bk, 0, 256);
+	memset(wifi_security, 0, 256);
+
 	return 0;
 }
 
@@ -578,6 +584,7 @@ bool wifiConnect(std::string ssid,std::string password){
 		goto falsed;
 	}
 
+#if 0
     // 3. setNetWorkSECURe
     check_wifiinfo(1, wifi_security);
     memset(cmdline, 0, sizeof(cmdline));
@@ -594,6 +601,20 @@ bool wifiConnect(std::string ssid,std::string password){
         printf("wifi_security is NONE! ignore the password\n");
 		goto enable_network;
     }
+#endif
+
+	if (strlen(wifi_password) != 0) {
+		strcpy(wifi_security, "WPA-PSK");
+		//memset(cmdline, 0, sizeof(cmdline));
+		//sprintf(cmdline,"wpa_cli -iwlan0 set_network %d key_mgmt %s", id, wifi_security);
+		//printf("%s\n", cmdline);
+		//Shell::exec(cmdline, ret_buff);
+		//execute_result = !strncmp(ret_buff, "OK", 2);
+	} else if (strlen(wifi_password) == 0) {
+		strcpy(wifi_security, "NONE");
+		printf("wifi_security is NONE! ignore the password\n");
+		goto enable_network;
+	}
 
     // 4. setNetWorkPWD
 	check_wifiinfo(2, wifi_password);
@@ -697,17 +718,18 @@ std::string WifiUtil::getWifiListJson(){
     LIST_WIFIINFO wifiInfoList;
 
 retry:
+    memset(ret_buff, 0, MSG_BUFF_LEN);
     Shell::exec("wpa_cli -i wlan0 -p /var/run/wpa_supplicant scan", ret_buff);
-    /* wap_cli sacn is useable */
-    if(!strncmp(ret_buff,"OK",2)){
-        log_info("scan useable: OKOK\n");
-        Shell::exec("wpa_cli -i wlan0 -p /var/run/wpa_supplicant scan_r", ret_buff);
-        wifiStringList = charArrayToList(ret_buff);
-        wifiInfoList = wifiStringFormat(wifiStringList);
-    }
+    sleep(1);
+    sync();
+
+    memset(ret_buff, 0, MSG_BUFF_LEN);
+    Shell::scan("wpa_cli -i wlan0 -p /var/run/wpa_supplicant scan_r", ret_buff);
+    wifiStringList = charArrayToList(ret_buff);
+    wifiInfoList = wifiStringFormat(wifiStringList);
     
     if ((wifiInfoList.size() == 0)  && (--retry_count > 0)) {
-	usleep(500000);
+        usleep(500000);
         goto retry;
     }
     // parse wifiInfo list into json.

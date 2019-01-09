@@ -21,6 +21,8 @@ static char *spec_char_convers(const char *buf, char *dst)
 			*buf_temp = '0';
 			*(buf_temp + 4) = '\0';
 			con = strtoul(buf_temp, NULL, 16);
+			if (con == 0)
+				con += 32;
 			dst[i] = con;
 			buf += 3;
 		} else {
@@ -33,21 +35,44 @@ static char *spec_char_convers(const char *buf, char *dst)
 	return dst;
 }
 
+static char conver[8 * 1024];
+bool Shell::scan(const char *cmdline, char *recv_buff) {
+	printf("scan: %s\n",cmdline);
+
+	FILE *stream = NULL;
+	char buff[1024];
+
+	memset(recv_buff, 0, sizeof(recv_buff));
+	memset(conver, 0, sizeof(conver));
+
+	if((stream = popen(cmdline,"r"))!=NULL){
+		while(fgets(buff,1024,stream)){
+			strcat(conver, buff);
+		}
+	}
+
+	printf("exec conver[%d]: %s\n", strlen(conver), conver);
+	spec_char_convers(conver, recv_buff);
+	printf("exec recv_buff[%d]: %s\n", strlen(recv_buff), recv_buff);
+
+	pclose(stream);
+	return true;
+}
+
 bool Shell::exec(const char *cmdline, char *recv_buff) {
 	printf("exec: %s\n",cmdline);
 
 	FILE *stream = NULL;
 	char buff[1024];
-	char conver[1024];
 
 	memset(recv_buff, 0, sizeof(recv_buff));
+
 	if((stream = popen(cmdline,"r"))!=NULL){
 		while(fgets(buff,1024,stream)){
-			memset(conver, 0, sizeof(conver));
-			spec_char_convers(buff, conver);
-			strcat(recv_buff, conver);
+			strcat(recv_buff, buff);
 		}
 	}
+
 	pclose(stream);
 	return true;
 }

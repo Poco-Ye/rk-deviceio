@@ -302,18 +302,18 @@ enum class BT_Device_Class {
 extern "C" {
 #endif
 struct wifi_config {
-	char ssid[60];
+	char ssid[512];
 	int ssid_len;
-	char psk[60];
+	char psk[512];
 	int psk_len;
-	char key_mgmt[22];
+	char key_mgmt[512];
 	int key_len;
 	void (*wifi_status_callback)(int status, int reason);
 };
 
 struct ble_config {
-	char uuid[38];
-	char data[134];
+	char uuid[64];
+	char data[512];
 	int len;
 };
 
