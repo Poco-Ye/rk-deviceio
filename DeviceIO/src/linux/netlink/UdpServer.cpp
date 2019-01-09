@@ -34,11 +34,11 @@
 #include "UdpServer.h"
 #include <DeviceIo/Rk_wifi.h>
 
-const char* MSG_BROADCAST_AP_MODE = "{\"method\":\"softAP\", \"magic\":\"Rockchip\", \"params\":\"ap_wifi_mode\"}";
-const char* MSG_WIFI_CONNECTING = "{\"method\":\"softAP\", \"magic\":\"Rockchip\", \"params\":\"wifi_connecting\"}";
-const char* MSG_WIFI_CONNECTED = "{\"method\":\"softAP\", \"magic\":\"Rockchip\", \"params\":\"wifi_connected\"}";
-const char* MSG_WIFI_FAILED = "{\"method\":\"softAP\", \"magic\":\"Rockchip\", \"params\":\"wifi_failed\"}";
-const char* MSG_WIFI_LIST_FORMAT = "{\"method\":\"softAP\", \"magic\":\"Rockchip\", \"params\":{\"wifilist\":%s}}";
+const char* MSG_BROADCAST_AP_MODE = "{\"method\":\"softAP\", \"magic\":\"KugouMusic\", \"params\":\"ap_wifi_mode\"}";
+const char* MSG_WIFI_CONNECTING = "{\"method\":\"softAP\", \"magic\":\"KugouMusic\", \"params\":\"wifi_connecting\"}";
+const char* MSG_WIFI_CONNECTED = "{\"method\":\"softAP\", \"magic\":\"KugouMusic\", \"params\":\"wifi_connected\"}";
+const char* MSG_WIFI_FAILED = "{\"method\":\"softAP\", \"magic\":\"KugouMusic\", \"params\":\"wifi_failed\"}";
+const char* MSG_WIFI_LIST_FORMAT = "{\"method\":\"softAP\", \"magic\":\"KugouMusic\", \"params\":{\"wifilist\":%s}}";
 
 namespace DeviceIOFramework {
 
@@ -113,6 +113,7 @@ void* checkWifi(void *arg) {
 	}
 
 	m_broadcastMsg = (ret ? MSG_WIFI_CONNECTED : MSG_WIFI_FAILED);
+	printf("UDP broadcast sendto \"%s\"\n", m_broadcastMsg.c_str());
 	sendto(m_fd_broadcast, m_broadcastMsg.c_str(), strlen(m_broadcastMsg.c_str()), 0,
                         (struct sockaddr*)&m_addrto, sizeof(m_addrto));
 	m_isConnecting = false;
@@ -194,6 +195,7 @@ static void handleRequest(const char* buff) {
 			}
 			if (!m_isConnecting && !ssid.empty()) {
 				m_broadcastMsg = MSG_WIFI_CONNECTING;
+				printf("UDP broadcast sendto \"%s\"\n", m_broadcastMsg.c_str());
 				sendto(m_fd_broadcast, m_broadcastMsg.c_str(), strlen(m_broadcastMsg.c_str()), 0,
 						(struct sockaddr*)&m_addrto, sizeof(m_addrto));
 				if (m_cb != NULL)
@@ -232,6 +234,7 @@ void* UdpServer::threadAccept(void *arg) {
 		if (n < 0)
 			goto end;
 
+		printf("UDP broadcast recvfrom \"%s\"\n", buff);
 		handleRequest(buff);
 	}
 
@@ -283,6 +286,7 @@ void* UdpServer::threadBroadcast(void* arg) {
 	m_broadcastMsg = MSG_BROADCAST_AP_MODE;
 	while (true) {
 		if (!m_broadcastMsg.empty()) {
+			printf("UDP broadcast sendto \"%s\"\n", m_broadcastMsg.c_str());
 			ret = sendto(sock, m_broadcastMsg.c_str(), m_broadcastMsg.size(), 0, (struct sockaddr*)&addrto, sizeof(addrto));
 			if (ret < 0) {
 				printf("udp send broadcast failed. error:%d\n", ret);
