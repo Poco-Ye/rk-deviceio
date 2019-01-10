@@ -82,7 +82,7 @@ static int exec(const char* cmd, const char* ret)
 	char convers[strlen(tmp) + 1];
 
 	//spec_char_convers(tmp, convers);
-	strncpy(ret, convers, strlen(convers) + 1);
+	strncpy(ret, tmp, strlen(tmp) + 1);
 	free(tmp);
 
 	return 0;
