@@ -44,6 +44,7 @@ typedef std::list<std::string> LIST_STRING;
 typedef std::list<WifiInfo*> LIST_WIFIINFO;
 static int network_id;
 static struct wifi_config *gwifi_cfg;
+int get_pid(const char Name[]);
 
 static const char *WIFI_CONFIG_FORMAT = "ctrl_interface=/var/run/wpa_supplicant\n"
                                 "ap_scan=1\n\nnetwork={\nssid=\"%s\"\n"
@@ -667,12 +668,6 @@ bool checkWifiIsConnected() {
 	usleep(200000);
 	Shell::exec("killall dhcpcd", ret_buff);
 	usleep(300000);
-retry:
-	Shell::exec("dhcpcd -L -f /etc/dhcpcd.conf", ret_buff);
-	Shell::exec("pidof dhcpcd", ret_buff);
-	if (!ret_buff)
-		goto retry;
-	Shell::exec("dhcpcd wlan0 -t 0 &", ret_buff);
 
     bool isWifiConnected = false;
     int match = 0;
@@ -680,6 +675,11 @@ retry:
 
     /* 15s to check wifi whether connected */
     for(int i=0;i<connect_retry_count;i++){
+		if (!get_pid("dhcpcd")) {
+			Shell::exec("dhcpcd -L -f /etc/dhcpcd.conf", ret_buff);
+			usleep(800000);
+			Shell::exec("dhcpcd wlan0 -t 0 &", ret_buff);
+		}
         sleep(1);
         match = 0;
         Shell::exec("wpa_cli -iwlan0 status",ret_buff);
@@ -934,6 +934,7 @@ int get_pid(const char Name[]) {
             break;
         }
     }
+	printf("get_pid pidof %s: %d\n", name, pid);
     pclose(pFile);
     return pid;
 }
