@@ -54,7 +54,9 @@ pthread_once_t	NetLinkWrapper::s_destroyOnce = PTHREAD_ONCE_INIT;
 static string m_target_ssid;
 static string m_target_pwd;
 static string m_target_ssid_prefix;
-static int m_ping_interval = 1;
+extern "C" {
+	int m_ping_interval = 1;
+}
 static int m_network_status = 0;
 static bool m_pinging = false;
 
@@ -177,7 +179,7 @@ static char wifi_security[256];
 static char wifi_hide[256];
 static char check_data[256];
 static int priority = 0;
-static struct ble_config ble_cfg;
+static rk_ble_config ble_cfg;
 static struct wifi_config wifi_cfg;
 
 #define HOSTNAME_MAX_LEN	250	/* 255 - 3 (FQDN) - 2 (DNS enc) */

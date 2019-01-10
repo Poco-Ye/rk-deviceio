@@ -100,6 +100,30 @@ typedef struct  {
 /***************** BLE ********************/
 /******************************************/
 void rk_ble_request_data(char *uuid);
+
+static int rk_blewifi_state_callback(RK_WIFI_RUNNING_State_e state)
+{
+	rk_ble_config kg_ble_cfg;
+
+	printf("%s state: %d\n", __func__, state);
+	if (state == RK_WIFI_State_CONNECTED) {
+		if (ble_status_callback)
+			ble_status_callback(RK_BLEWIFI_State_SUCCESS);
+		gstate = RK_BLEWIFI_State_SUCCESS;
+		kg_ble_cfg.data[0] = 0x1;
+	} else if (state == RK_WIFI_State_CONNECTFAILED) {
+		if (ble_status_callback)
+			ble_status_callback(RK_BLEWIFI_State_FAIL);
+		gstate = RK_BLEWIFI_State_FAIL;
+		kg_ble_cfg.data[0] = 0x2;
+	}
+
+	kg_ble_cfg.len = 0x1;
+	strcpy(kg_ble_cfg.uuid, BLE_UUID_WIFI_CHAR);
+	DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_WRITE, &kg_ble_cfg);
+
+}
+
 void *rk_config_wifi_thread(void)
 {
 	printf("config_wifi_thread\n");
@@ -108,7 +132,10 @@ void *rk_config_wifi_thread(void)
 
 	gstate = RK_BLEWIFI_State_CONNECTTING;
 	printf("controlWifi connect ...\n");
-	DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_CONNECT, &wifi_cfg);
+	//DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_CONNECT, &wifi_cfg);
+
+	RK_wifi_ble_register_callback(rk_blewifi_state_callback);
+	RK_wifi_connect(wifi_cfg.ssid, wifi_cfg.psk);
 }
 
 static void wifi_status_callback(int status, int reason)
@@ -248,7 +275,8 @@ void rk_ble_request_data(char *uuid)
 
 int RK_blewifi_start(char *name)
 {
-	DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_OPEN);
+	//DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_OPEN);
+	RK_wifi_enable(1);
 	DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_OPEN);
 	if (ble_status_callback)
 		ble_status_callback(RK_BLEWIFI_State_IDLE);

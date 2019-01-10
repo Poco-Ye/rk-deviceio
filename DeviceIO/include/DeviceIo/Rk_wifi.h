@@ -34,6 +34,7 @@ typedef struct {
 typedef int(*RK_wifi_state_callback)(RK_WIFI_RUNNING_State_e state);
 
 int RK_wifi_register_callback(RK_wifi_state_callback cb);
+int RK_wifi_ble_register_callback(RK_wifi_state_callback cb);
 int RK_wifi_running_getState(RK_WIFI_RUNNING_State_e* pState);
 int RK_wifi_running_getConnectionInfo(RK_WIFI_INFO_Connection_s* pInfo);
 int RK_wifi_enable_ap(const char* ssid, const char* psk, const char* ip);

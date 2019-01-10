@@ -18,6 +18,8 @@
 #include <netinet/ip_icmp.h>
 #include <csignal>
 #include <fcntl.h>
+#include <pthread.h>
+#include<signal.h>
 
 #include <signal.h>//SIGQUIT /usr/include/bits/signum.h
 #include <errno.h>// ESRCH  /usr/include/asm-/error-bash.h
@@ -965,6 +967,9 @@ int str_starts_with(char * str, char * search_str)
 	return (strstr(str, search_str) == str);
 }
 
+extern "C" {
+	extern int m_ping_interval;
+}
 int dispatch_event(char* event)
 {
 	if (strstr(event, "CTRL-EVENT-BSS") || strstr(event, "CTRL-EVENT-TERMINATING"))
@@ -976,6 +981,7 @@ int dispatch_event(char* event)
 	if (str_starts_with(event, (char *)WPA_EVENT_DISCONNECTED)) {
 		printf("%s: wifi is disconnect\n", __FUNCTION__);
 		system("ip addr flush dev wlan0");
+		m_ping_interval = 1;
 	} else if (str_starts_with(event, (char *)WPA_EVENT_CONNECTED)) {
 		printf("%s: wifi is connected\n", __func__);
 	} else if (str_starts_with(event, (char *)WPA_EVENT_SCAN_RESULTS)) {

@@ -7,17 +7,25 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <net/if.h>
+#include<errno.h>
 
 #include "Hostapd.h"
 #include "ping.h"
 #include "DeviceIo/Rk_wifi.h"
 
-static RK_wifi_state_callback m_cb;
+static RK_wifi_state_callback m_cb, m_ble_cb;
+static int priority = 0;
+static volatile bool wifi_wrong_key = false;
+static void format_wifiinfo(int flag, char *info);
+static int get_pid(const char Name[]);
+static void RK_wifi_start_monitor(void *arg);
 
 static char* exec1(const char* cmd)
 {
 	if (NULL == cmd || 0 == strlen(cmd))
 		return NULL;
+
+	printf("[RKWIFI] exec1: %s\n", cmd);
 
 	FILE* fp = NULL;
 	char buf[128];
@@ -59,6 +67,8 @@ static char *spec_char_convers(const char *buf, char *dst)
 			*buf_temp = '0';
 			*(buf_temp + 4) = '\0';
 			con = strtoul(buf_temp, NULL, 16);
+			//if (con == 0)
+			//	con += 32;
 			dst[i] = con;
 			buf += 3;
 		} else {
@@ -83,6 +93,10 @@ static int exec(const char* cmd, const char* ret)
 
 	//spec_char_convers(tmp, convers);
 	strncpy(ret, tmp, strlen(tmp) + 1);
+	//printf("exec tmp[%d]: %s\n", strlen(tmp), tmp);
+	//spec_char_convers(tmp, convers);
+	//printf("exec convers[%d]: %s\n", strlen(convers), convers);
+	//strncpy(ret, convers, strlen(convers) + 1);
 	free(tmp);
 
 	return 0;
@@ -91,6 +105,13 @@ static int exec(const char* cmd, const char* ret)
 int RK_wifi_register_callback(RK_wifi_state_callback cb)
 {
 	m_cb = cb;
+	return 1;
+}
+
+int RK_wifi_ble_register_callback(RK_wifi_state_callback cb)
+{
+	m_ble_cb = cb;
+	return 1;
 }
 
 int RK_wifi_running_getState(RK_WIFI_RUNNING_State_e* pState)
@@ -216,6 +237,14 @@ static int dhcpcd();
 
 int RK_wifi_enable(const int enable)
 {
+	static pthread_t start_wifi_monitor_threadId = 0;
+
+	printf("[RKWIFI] start_wpa_supplicant wpa_pid: %d, monitor_id: %d\n",
+			get_pid("pidof wpa_supplicant"), start_wifi_monitor_threadId);
+
+	if (get_pid("wpa_supplicant") && (start_wifi_monitor_threadId != 0))
+		return 1;
+
 	if (enable) {
 		if (!is_wifi_enable()) {
 			system("ifconfig wlan0 down");
@@ -223,14 +252,21 @@ int RK_wifi_enable(const int enable)
 			system("ifconfig wlan0 0.0.0.0");
 			system("killall dhcpcd");
 			system("killall wpa_supplicant");
-			sleep(1);
+			usleep(600000);
 			system("wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf");
-			dhcpcd();
+			usleep(600000);
+			system("dhcpcd -L -f /etc/dhcpcd.conf");
+			system("dhcpcd wlan0 -t 0 &");
 		}
 	} else {
 		system("ifconfig wlan0 down");
 		system("killall wpa_supplicant");
 	}
+
+	if (start_wifi_monitor_threadId > 0)
+		pthread_cancel(start_wifi_monitor_threadId);
+	pthread_create(&start_wifi_monitor_threadId, nullptr, RK_wifi_start_monitor, nullptr);
+	pthread_detach(start_wifi_monitor_threadId);
 
 	return 0;
 }
@@ -249,7 +285,6 @@ int RK_wifi_scan(void)
 	if (0 != strncmp(str, "OK", 2) &&  0 != strncmp(str, "ok", 2))
 		return -2;
 
-	printf("RK_wifi_scan str: %s.\n", str);
 	return 0;
 }
 
@@ -342,7 +377,6 @@ char* RK_wifi_scan_r_sec(const unsigned int cols)
 static int add_network()
 {
 	char ret[8];
-	int i;
 
 	memset(ret, 0, sizeof(ret));
 	exec("wpa_cli -iwlan0 add_network", ret);
@@ -358,11 +392,17 @@ static int set_network(const int id, const char* ssid, const char* psk, const RK
 	int ret;
 	char str[8];
 	char cmd[128];
+	char wifi_ssid[512];
+	char wifi_psk[512];
+
+	strcpy(wifi_ssid, ssid);
+	strcpy(wifi_psk, psk);
 
 	// 1. set network ssid
 	memset(str, 0, sizeof(str));
 	memset(cmd, 0, sizeof(cmd));
-	snprintf(cmd, sizeof(cmd), "wpa_cli -iwlan0 set_network %d ssid \\\"%s\\\"", id, ssid);
+	format_wifiinfo(0, wifi_ssid);
+	snprintf(cmd, sizeof(cmd), "wpa_cli -iwlan0 set_network %d ssid %s", id, wifi_ssid);
 	ret = exec(cmd, str);
 	if (0 != ret || 0 == strlen(str) || 0 != strncmp(str, "OK", 2))
 		return -1;
@@ -370,13 +410,14 @@ static int set_network(const int id, const char* ssid, const char* psk, const RK
 	// 2. set network psk
 	memset(str, 0, sizeof(str));
 	memset(cmd, 0, sizeof(cmd));
-	if (encryp == NONE) {
+	if (strlen(psk) == 0 && encryp == NONE) {
 		snprintf(cmd, sizeof(cmd), "wpa_cli -iwlan0 set_network %d key_mgmt NONE", id);
 		ret = exec(cmd, str);
 		if (0 != ret || 0 == strlen(str) || 0 != strncmp(str, "OK", 2))
 			return -2;
-	} else if (encryp == WPA) {
-		snprintf(cmd, sizeof(cmd), "wpa_cli -iwlan0 set_network %d psk \\\"%s\\\"", id, psk);
+	} else if (strlen(psk) || encryp == WPA) {
+		format_wifiinfo(1, wifi_psk);
+		snprintf(cmd, sizeof(cmd), "wpa_cli -iwlan0 set_network %d psk \\\"%s\\\"", id, wifi_psk);
 		ret = exec(cmd, str);
 		if (0 != ret || 0 == strlen(str) || 0 != strncmp(str, "OK", 2))
 			return -3;
@@ -431,6 +472,90 @@ static int enable_network(const int id)
 	return 0;
 }
 
+#define WIFI_CONNECT_RETRY 50
+static bool check_wifi_isconnected(void) {
+
+	printf("check_wifi_isconnected\n");
+	char ret_buff[256] = {0};
+	bool isWifiConnected = false;
+	int connect_retry_count = WIFI_CONNECT_RETRY;
+	RK_WIFI_INFO_Connection_s wifiinfo;
+
+	// udhcpc network
+	exec1("dhcpcd -k wlan0");
+	usleep(200000);
+	exec1("killall dhcpcd");
+	usleep(300000);
+
+retry:
+	exec1("dhcpcd -L -f /etc/dhcpcd.conf");
+	memset(ret_buff, 0, 256);
+	exec("pidof dhcpcd", ret_buff);
+	if (!ret_buff[0])
+		goto retry;
+	exec1("dhcpcd wlan0 -t 0 &");
+
+	for (int i = 0; i < connect_retry_count; i++) {
+		sleep(1);
+		memset(&wifiinfo, 0, sizeof(RK_WIFI_INFO_Connection_s));
+		RK_wifi_running_getConnectionInfo(&wifiinfo);
+		if (strncmp(wifiinfo.wpa_state, "COMPLETED", 9) == 0) {
+			if ((strlen(wifiinfo.ip_address) != 0) &&
+				strncmp(wifiinfo.ip_address, "127.0.0.1", 9) != 0) {
+				isWifiConnected = true;
+				printf("wifi is connected.\n");
+				break;
+			}
+		}
+		printf("Check wifi state with none state. try more %d/%d, \n", i + 1, WIFI_CONNECT_RETRY);
+	}
+
+	if (!isWifiConnected)
+		printf("wifi is not connected.\n");
+
+	return isWifiConnected;
+}
+
+static void format_wifiinfo(int flag, char *info)
+{
+	char temp[1024];
+	int j = 0;
+
+	if (flag == 0) {
+		for (int i = 0; i < strlen(info); i++) {
+			sprintf(temp+2*i, "%02x", info[i]);
+		}
+		temp[strlen(info)*2] = '\0';
+		strcpy(info, temp);
+		printf("format_wifiinfo ssid: %s\n", info);
+    } else if (flag == 1) {
+		for (int i = 0; i < strlen(info); i++) {
+		temp[j++] = '\\';
+		temp[j++] = info[i];
+		}
+		temp[j] = '\0';
+		strcpy(info, temp);
+		printf("format_wifiinfo password: %s\n", info);
+	}
+}
+
+static int set_priority_network(const int id, int priority)
+{
+	int ret;
+	char str[8];
+	char cmd[128];
+
+	memset(str, 0, sizeof(str));
+	memset(cmd, 0, sizeof(cmd));
+	snprintf(cmd, sizeof(cmd), "wpa_cli -iwlan0 set_network %d priority %d", id, priority);
+	ret = exec(cmd, str);
+
+	if (0 != ret || 0 == strlen(str) || 0 != strncmp(str, "OK", 2))
+		return -1;
+
+	return 0;
+}
+
 static int dhcpcd() {
 	char str[8];
 	int ret;
@@ -455,33 +580,51 @@ static int save_configuration()
 static void* wifi_connect_state_check(void *arg)
 {
 	RK_WIFI_RUNNING_State_e state;
-	int i;
+	bool isconnected;
 
 	state = RK_WIFI_State_IDLE;
-	for(i = 0; i < 30; i++) {
-		RK_wifi_running_getState(&state);
-		if (RK_WIFI_State_CONNECTED == state) {
-			save_configuration();
-			if (m_cb != NULL)
-				m_cb(state);
-			return NULL;
-		}
-		sleep(1);
+
+	isconnected = check_wifi_isconnected();
+
+	if (isconnected == 1) {
+		exec1("wpa_cli enable_network all");
+		exec1("wpa_cli save_config");
+		state = RK_WIFI_State_CONNECTED;
+	} else {
+		if (wifi_wrong_key)
+			state = RK_WIFI_State_CONNECTFAILED;
+		else
+			state = RK_WIFI_State_CONNECTFAILED;
+		exec1("wpa_cli flush");
+		sleep(2);
+		exec1("wpa_cli reconfigure");
+		exec1("wpa_cli reconnect");
 	}
+
 	if (m_cb != NULL)
-		m_cb(RK_WIFI_State_CONNECTFAILED);
+		m_cb(state);
+	if (m_ble_cb != NULL)
+		m_ble_cb(state);
 
 	return NULL;
 }
 
 int RK_wifi_connect(const char* ssid, const char* psk)
 {
+	RK_WIFI_RUNNING_State_e state = RK_WIFI_State_CONNECTING;
+	if (m_cb != NULL)
+		m_cb(state);
+
 	return RK_wifi_connect1(ssid, psk, WPA, 0);
 }
 
 int RK_wifi_connect1(const char* ssid, const char* psk, const RK_WIFI_CONNECTION_Encryp_e encryp, const int hide)
 {
 	int id, ret;
+
+	exec1("wpa_cli -iwlan0 disable_network all");
+	wifi_wrong_key = false;
+	sleep(1);
 
 	id = add_network();
 	if (id < 0)
@@ -491,6 +634,9 @@ int RK_wifi_connect1(const char* ssid, const char* psk, const RK_WIFI_CONNECTION
 	if (0 != ret)
 		return -2;
 
+	priority = id + 1;
+	set_priority_network(id, priority);
+
 	ret = select_network(id);
 	if (0 != ret)
 		return -3;
@@ -498,10 +644,6 @@ int RK_wifi_connect1(const char* ssid, const char* psk, const RK_WIFI_CONNECTION
 	ret = enable_network(id);
 	if (0 != ret)
 		return -4;
-
-	ret = dhcpcd();
-	if (0 != ret)
-		return -5;
 
 	pthread_t pth;
 	pthread_create(&pth, NULL, wifi_connect_state_check, NULL);
@@ -594,4 +736,289 @@ int RK_wifi_has_config()
 int RK_wifi_ping(void)
 {
 	return rk_ping();
+}
+
+#define EVENT_BUF_SIZE 1024
+#define PROPERTY_VALUE_MAX 32
+#define PROPERTY_KEY_MAX 32
+#include <poll.h>
+#include <wpa_ctrl.h>
+static void wifi_close_sockets();
+static const char WPA_EVENT_IGNORE[]    = "CTRL-EVENT-IGNORE ";
+static const char IFNAME[]              = "IFNAME=";
+static const char IFACE_DIR[]           = "/var/run/wpa_supplicant";
+#define WIFI_CHIP_TYPE_PATH				"/sys/class/rkwifi/chip"
+#define WIFI_DRIVER_INF         		"/sys/class/rkwifi/driver"
+#define IFNAMELEN                       (sizeof(IFNAME) - 1)
+static struct wpa_ctrl *ctrl_conn;
+static struct wpa_ctrl *monitor_conn;
+#define DBG_NETWORK 1
+
+static int exit_sockets[2];
+static char primary_iface[PROPERTY_VALUE_MAX] = "wlan0";
+
+#define HOSTAPD "hostapd"
+#define WPA_SUPPLICANT "wpa_supplicant"
+#define DNSMASQ "dnsmasq"
+#define SIMPLE_CONFIG "simple_config"
+#define SMART_CONFIG "smart_config"
+#define UDHCPC "udhcpc"
+
+static int get_pid(const char Name[]) {
+    int len;
+    char name[20] = {0};
+    len = strlen(Name);
+    strncpy(name,Name,len);
+    name[len] ='\0';
+    char cmdresult[256] = {0};
+    char cmd[20] = {0};
+    FILE *pFile = NULL;
+    int  pid = 0;
+
+    sprintf(cmd, "pidof %s", name);
+    pFile = popen(cmd, "r");
+    if (pFile != NULL)  {
+        while (fgets(cmdresult, sizeof(cmdresult), pFile)) {
+            pid = atoi(cmdresult);
+            break;
+        }
+    }
+    pclose(pFile);
+    return pid;
+}
+
+static void wifi_close_sockets() {
+	if (ctrl_conn != NULL) {
+		wpa_ctrl_close(ctrl_conn);
+		ctrl_conn = NULL;
+	}
+
+	if (monitor_conn != NULL) {
+		wpa_ctrl_close(monitor_conn);
+		monitor_conn = NULL;
+	}
+
+	if (exit_sockets[0] >= 0) {
+		close(exit_sockets[0]);
+		exit_sockets[0] = -1;
+	}
+
+	if (exit_sockets[1] >= 0) {
+		close(exit_sockets[1]);
+		exit_sockets[1] = -1;
+	}
+}
+
+static int str_starts_with(char * str, char * search_str)
+{
+	if ((str == NULL) || (search_str == NULL))
+		return 0;
+	return (strstr(str, search_str) == str);
+}
+
+static int dispatch_event(char* event)
+{
+	if (strstr(event, "CTRL-EVENT-BSS") || strstr(event, "CTRL-EVENT-TERMINATING"))
+		return 0;
+
+	printf("%s: %s\n", __func__, event);
+
+	if (str_starts_with(event, (char *)WPA_EVENT_DISCONNECTED)) {
+		printf("%s: wifi is disconnect\n", __FUNCTION__);
+		system("ip addr flush dev wlan0");
+	} else if (str_starts_with(event, (char *)WPA_EVENT_CONNECTED)) {
+		printf("%s: wifi is connected\n", __func__);
+	} else if (str_starts_with(event, (char *)WPA_EVENT_SCAN_RESULTS)) {
+		printf("%s: wifi event results\n", __func__);
+	} else if (strstr(event, "reason=WRONG_KEY")) {
+		wifi_wrong_key = true;
+		printf("%s: wifi reason=WRONG_KEY \n", __func__);
+	} else if (str_starts_with(event, (char *)WPA_EVENT_TERMINATING)) {
+		printf("%s: wifi is WPA_EVENT_TERMINATING!\n", __func__);
+		wifi_close_sockets();
+		return -1;
+	}
+
+	return 0;
+}
+
+static int check_wpa_supplicant_state() {
+	int count = 5;
+	int wpa_supplicant_pid = 0;
+	wpa_supplicant_pid = get_pid(WPA_SUPPLICANT);
+	printf("%s: wpa_supplicant_pid = %d\n",__FUNCTION__,wpa_supplicant_pid);
+	if(wpa_supplicant_pid > 0) {
+		return 1;
+	}
+	return 0;
+}
+
+static int wifi_ctrl_recv(char *reply, size_t *reply_len)
+{
+	int res;
+	int ctrlfd = wpa_ctrl_get_fd(monitor_conn);
+	struct pollfd rfds[2];
+
+	memset(rfds, 0, 2 * sizeof(struct pollfd));
+	rfds[0].fd = ctrlfd;
+	rfds[0].events |= POLLIN;
+	rfds[1].fd = exit_sockets[1];
+	rfds[1].events |= POLLIN;
+	do {
+		res = TEMP_FAILURE_RETRY(poll(rfds, 2, 30000));
+		if (res < 0) {
+			printf("Error poll = %d\n", res);
+			return res;
+		} else if (res == 0) {
+            /* timed out, check if supplicant is activeor not .. */
+			res = check_wpa_supplicant_state();
+			if (res < 0)
+				return -2;
+		}
+	} while (res == 0);
+
+	if (rfds[0].revents & POLLIN) {
+		return wpa_ctrl_recv(monitor_conn, reply, reply_len);
+	}
+	return -2;
+}
+
+static int wifi_wait_on_socket(char *buf, size_t buflen)
+{
+	size_t nread = buflen - 1;
+	int result;
+	char *match, *match2;
+
+	if (monitor_conn == NULL) {
+		return snprintf(buf, buflen, "IFNAME=%s %s - connection closed",
+			primary_iface, WPA_EVENT_TERMINATING);
+	}
+
+	result = wifi_ctrl_recv(buf, &nread);
+
+	/* Terminate reception on exit socket */
+	if (result == -2) {
+		return snprintf(buf, buflen, "IFNAME=%s %s - connection closed",
+			primary_iface, WPA_EVENT_TERMINATING);
+	}
+
+	if (result < 0) {
+		//printf("wifi_ctrl_recv failed: %s\n", strerror(errno));
+		//return snprintf(buf, buflen, "IFNAME=%s %s - recv error",
+		//	primary_iface, WPA_EVENT_TERMINATING);
+	}
+
+	buf[nread] = '\0';
+
+	/* Check for EOF on the socket */
+	if (result == 0 && nread == 0) {
+        /* Fabricate an event to pass up */
+		printf("Received EOF on supplicant socket\n");
+		return snprintf(buf, buflen, "IFNAME=%s %s - signal 0 received",
+			primary_iface, WPA_EVENT_TERMINATING);
+	}
+
+	if (strncmp(buf, IFNAME, IFNAMELEN) == 0) {
+		match = strchr(buf, ' ');
+        if (match != NULL) {
+			if (match[1] == '<') {
+				match2 = strchr(match + 2, '>');
+					if (match2 != NULL) {
+						nread -= (match2 - match);
+						memmove(match + 1, match2 + 1, nread - (match - buf) + 1);
+					}
+			}
+		} else {
+			return snprintf(buf, buflen, "%s", WPA_EVENT_IGNORE);
+		}
+	} else if (buf[0] == '<') {
+		match = strchr(buf, '>');
+		if (match != NULL) {
+			nread -= (match + 1 - buf);
+			memmove(buf, match + 1, nread + 1);
+			if (0)
+				printf("supplicant generated event without interface - %s\n", buf);
+		}
+	} else {
+		if (0)
+			printf("supplicant generated event without interface and without message level - %s\n", buf);
+	}
+
+	return nread;
+}
+
+static int wifi_connect_on_socket_path(const char *path)
+{
+	char supp_status[PROPERTY_VALUE_MAX] = {'\0'};
+
+	if(!check_wpa_supplicant_state()) {
+		printf("%s: wpa_supplicant is not ready\n",__FUNCTION__);
+		return -1;
+	}
+
+	ctrl_conn = wpa_ctrl_open(path);
+	if (ctrl_conn == NULL) {
+		printf("Unable to open connection to supplicant on \"%s\": %s\n",
+		path, strerror(errno));
+		return -1;
+	}
+	monitor_conn = wpa_ctrl_open(path);
+	if (monitor_conn == NULL) {
+		wpa_ctrl_close(ctrl_conn);
+		ctrl_conn = NULL;
+		return -1;
+	}
+	if (wpa_ctrl_attach(monitor_conn) != 0) {
+		wpa_ctrl_close(monitor_conn);
+		wpa_ctrl_close(ctrl_conn);
+		ctrl_conn = monitor_conn = NULL;
+		return -1;
+	}
+
+	if (socketpair(AF_UNIX, SOCK_STREAM, 0, exit_sockets) == -1) {
+		wpa_ctrl_close(monitor_conn);
+		wpa_ctrl_close(ctrl_conn);
+		ctrl_conn = monitor_conn = NULL;
+		return -1;
+	}
+	return 0;
+}
+
+/* Establishes the control and monitor socket connections on the interface */
+static int wifi_connect_to_supplicant()
+{
+	static char path[1024];
+	int count = 10;
+
+	printf("%s \n", __FUNCTION__);
+	while(count-- > 0) {
+		if (access(IFACE_DIR, F_OK) == 0)
+			break;
+		sleep(1);
+	}
+
+	snprintf(path, sizeof(path), "%s/%s", IFACE_DIR, primary_iface);
+
+	return wifi_connect_on_socket_path(path);
+}
+
+static void RK_wifi_start_monitor(void *arg)
+{
+	char eventStr[EVENT_BUF_SIZE];
+	int ret;
+
+	if ((ret = wifi_connect_to_supplicant()) != 0) {
+		printf("%s, connect to supplicant fail.\n", __FUNCTION__);
+		return;
+	}
+
+	for (;;) {
+		memset(eventStr, 0, EVENT_BUF_SIZE);
+		if (!wifi_wait_on_socket(eventStr, EVENT_BUF_SIZE))
+			continue;
+		if (dispatch_event(eventStr)) {
+			printf("disconnecting from the supplicant, no more events\n");
+			break;
+		}
+	}
 }

@@ -37,6 +37,7 @@
 #include <pthread.h>
 
 #include "bluez_ctrl.h"
+#include <DeviceIo/RkBle.h>
 
 #define BT_IS_BLE_SINK_COEXIST 1
 
@@ -520,7 +521,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 {
 	using BtControl_rep_type = std::underlying_type<BtControl>::type;
 	int ret = 0;
-	struct ble_config *ble_cfg;
+	rk_ble_config *ble_cfg;
 	bool scan;
 
 	APP_DEBUG("controlBt, cmd: %d\n", cmd);
@@ -709,7 +710,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		break;
 
 	case BtControl::BT_BLE_WRITE:
-		ble_cfg = (struct ble_config *)data;
+		ble_cfg = (rk_ble_config *)data;
 		ret = gatt_write_data(ble_cfg->uuid, ble_cfg->data, ble_cfg->len);
 
 		break;

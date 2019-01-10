@@ -885,6 +885,7 @@ void ble_disable_adv(void)
 	char buff[1024] = {0};
 	//g_dis_adv_close_ble = true;
 	execute(CMD_DISEN, buff);
+	execute(CMD_DISEN, buff);
 }
 
 int gatt_set_on_adv(void)

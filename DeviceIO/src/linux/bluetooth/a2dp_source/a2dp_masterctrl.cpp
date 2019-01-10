@@ -833,11 +833,12 @@ static void proxy_removed(GDBusProxy *proxy, void *user_data)
 			report_btsrc_event(DeviceInput::BT_BLE_ENV_DISCONNECT, NULL, 0);
 			if (ble_audio_status_callback)
 				ble_audio_status_callback(RK_BLE_State_DISCONNECT);
-			printf("[D: %s]: BLE DEVICE DISCONNECTED\n", __func__);
 			g_ble_audio_status = RK_BLE_State_DISCONNECT;
+			printf("[BLE: %s]: BLE DEVICE DISCONNECTED [BF: %d]\n", __func__, BLE_FLAG);
 			sleep(1);
 			ble_wifi_clean();
-			gatt_set_on_adv();
+			if (BLE_FLAG)
+				gatt_set_on_adv();
 		}
 
 	} else if (!strcmp(interface, "org.bluez.GattCharacteristic1")) {
