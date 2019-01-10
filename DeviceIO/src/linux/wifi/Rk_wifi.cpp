@@ -7,11 +7,69 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <net/if.h>
-#include<errno.h>
+#include <errno.h>
 
 #include "Hostapd.h"
 #include "ping.h"
+#include "DeviceIo/RK_encode.h"
 #include "DeviceIo/Rk_wifi.h"
+
+typedef struct RK_WIFI_encode_gbk {
+	char ori[128];
+	char utf8[128];
+	struct RK_WIFI_encode_gbk *next;
+} RK_WIFI_encode_gbk_t;
+static RK_WIFI_encode_gbk_t *m_gbk_head = NULL;
+
+static void encode_gbk_insert(const char *ori, const char *utf8)
+{
+	if ((ori == NULL || strlen(ori) == 0) || (utf8 == NULL || strlen(utf8) == 0))
+		return;
+
+	RK_WIFI_encode_gbk_t *gbk = (RK_WIFI_encode_gbk_t*) malloc(sizeof(RK_WIFI_encode_gbk_t));
+	memset(gbk->ori, 0, sizeof(gbk->ori));
+	memset(gbk->utf8, 0, sizeof(gbk->utf8));
+
+	if (strlen(ori) >= sizeof(gbk->ori) || strlen(utf8) >= sizeof(gbk->utf8)) {
+		free(gbk);
+		return;
+	}
+
+	strcat(gbk->ori, ori);
+	strcat(gbk->utf8, utf8);
+
+	gbk->next = m_gbk_head;
+	m_gbk_head = gbk;
+}
+
+static void encode_gbk_reset(void)
+{
+	RK_WIFI_encode_gbk_t *gbk, *gbk_next;
+
+	gbk = m_gbk_head;
+	while (gbk) {
+		gbk_next = gbk->next;
+		free(gbk);
+
+		gbk = gbk_next;
+	}
+	m_gbk_head = NULL;
+}
+
+static char *get_encode_gbk_ori(const char* str, char* dst)
+{
+	RK_WIFI_encode_gbk_t *gbk = m_gbk_head;
+
+	while (gbk) {
+		if (strcmp(gbk->utf8, str) == 0) {
+			strncpy(dst, gbk->ori, strlen(gbk->ori));
+			break;
+		}
+		gbk = gbk->next;
+	}
+
+	return dst;
+}
 
 static RK_wifi_state_callback m_cb, m_ble_cb;
 static int priority = 0;
@@ -67,15 +125,13 @@ static char *spec_char_convers(const char *buf, char *dst)
 			*buf_temp = '0';
 			*(buf_temp + 4) = '\0';
 			con = strtoul(buf_temp, NULL, 16);
-			//if (con == 0)
-			//	con += 32;
 			dst[i] = con;
-			buf += 3;
+			buf += 4;
 		} else {
 			dst[i] = *buf;
+			buf++;
 		}
 		i++;
-		buf++;
 	}
 	dst[i] = '\0';
 	return dst;
@@ -91,12 +147,7 @@ static int exec(const char* cmd, const char* ret)
 
 	char convers[strlen(tmp) + 1];
 
-	//spec_char_convers(tmp, convers);
 	strncpy(ret, tmp, strlen(tmp) + 1);
-	//printf("exec tmp[%d]: %s\n", strlen(tmp), tmp);
-	//spec_char_convers(tmp, convers);
-	//printf("exec convers[%d]: %s\n", strlen(convers), convers);
-	//strncpy(ret, convers, strlen(convers) + 1);
 	free(tmp);
 
 	return 0;
@@ -302,6 +353,7 @@ char* RK_wifi_scan_r_sec(const unsigned int cols)
 	size_t size = 0, index = 0;
 	static size_t UNIT_SIZE = 512;
 	FILE *fp = NULL;
+	int is_utf8;
 
 	if (!(cols & 0x1F)) {
 		scan_r = (char*) malloc(3 * sizeof(char));
@@ -325,10 +377,8 @@ char* RK_wifi_scan_r_sec(const unsigned int cols)
 	memset(scan_r, 0, size);
 	strcat(scan_r, "[");
 
+	encode_gbk_reset();
 	while (fgets(line, sizeof(line) - 1, fp)) {
-		//memset(utf, 0, sizeof(utf));
-		//spec_char_convers(line, utf);
-
 		index = 0;
 		p_strtok = strtok(line, "\t");
 		memset(item, 0, sizeof(item));
@@ -347,7 +397,28 @@ char* RK_wifi_scan_r_sec(const unsigned int cols)
 				} else if (3 == index) {
 					snprintf(col, sizeof(col), "\"flags\":\"%s\",", p_strtok);
 				} else if (4 == index) {
-					snprintf(col, sizeof(col), "\"ssid\":\"%s\",", p_strtok);
+					char utf8[strlen(p_strtok) + 1];
+					memset(utf8, 0, sizeof(utf8));
+
+					if (strlen(p_strtok) > 0) {
+						char dst[strlen(p_strtok) + 1];
+						memset(dst, 0, sizeof(dst));
+						spec_char_convers(p_strtok, dst);
+
+						is_utf8 = RK_encode_is_utf8(dst, strlen(dst));
+						if (!is_utf8) {
+							RK_encode_gbk_to_utf8(dst, strlen(dst), utf8);
+							encode_gbk_insert(dst, utf8);
+
+							// if convert gbk to utf8 failed, ignore it
+							if (!RK_encode_is_utf8(utf8, strlen(utf8))) {
+								continue;
+							}
+						} else {
+							strncpy(utf8, dst, strlen(dst));
+						}
+					}
+					snprintf(col, sizeof(col), "\"ssid\":\"%s\",", utf8);
 				}
 				strcat(item, col);
 			}
@@ -611,11 +682,15 @@ static void* wifi_connect_state_check(void *arg)
 
 int RK_wifi_connect(const char* ssid, const char* psk)
 {
+	char ori[strlen(ssid) + 1];
 	RK_WIFI_RUNNING_State_e state = RK_WIFI_State_CONNECTING;
 	if (m_cb != NULL)
 		m_cb(state);
 
-	return RK_wifi_connect1(ssid, psk, WPA, 0);
+	memset(ori, 0, sizeof(ori));
+	get_encode_gbk_ori(ssid, ori);
+
+	return RK_wifi_connect1(ori, psk, WPA, 0);
 }
 
 int RK_wifi_connect1(const char* ssid, const char* psk, const RK_WIFI_CONNECTION_Encryp_e encryp, const int hide)
