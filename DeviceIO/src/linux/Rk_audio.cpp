@@ -106,7 +106,7 @@ static int cset(const char *value_string, int roflag)
 	return ret;
 }
 
-void RK_set_volume(int vol)
+void RK_audio_set_volume(int vol)
 {
 	pthread_mutex_lock(&user_volume_mutex);
 
@@ -133,7 +133,7 @@ void RK_set_volume(int vol)
 	pthread_mutex_unlock(&user_volume_mutex);
 }
 
-int RK_get_volume()
+int RK_audio_get_volume(void)
 {
 	int volume;
 
@@ -148,4 +148,34 @@ int RK_get_volume()
 	pthread_mutex_unlock(&user_volume_mutex);
 
 	return volume;
+}
+
+void RK_audio_mute(void)
+{
+	pthread_mutex_lock(&user_volume_mutex);
+
+	char value[4];
+	memset(value, 0, sizeof(value));
+	snprintf(value, sizeof(value), "%d%%", 0);
+	user_volume.is_mute = 1;
+
+	cset(value, 0);
+
+	pthread_mutex_unlock(&user_volume_mutex);
+}
+
+int RK_audio_unmute(void)
+{
+	pthread_mutex_lock(&user_volume_mutex);
+
+	char value[4];
+	memset(value, 0, sizeof(value));
+	snprintf(value, sizeof(value), "%d%%", user_volume.volume);
+	user_volume.is_mute = 0;
+
+	cset(value, 0);
+
+	pthread_mutex_unlock(&user_volume_mutex);
+
+	return user_volume.volume;
 }
