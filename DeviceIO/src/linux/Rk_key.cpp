@@ -384,7 +384,7 @@ int RK_input_register_long_press_callback(RK_input_long_press_callback cb, const
 	if (events) {
 		event = events->event;
 		while (event) {
-			if (event->time == time) {
+			if (event->time == time && event->key_code == key_code) {
 				break;
 			}
 			event = event->next;
