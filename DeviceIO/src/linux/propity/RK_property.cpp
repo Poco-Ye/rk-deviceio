@@ -149,7 +149,7 @@ int RK_property_init(void)
 			m_property_map_head = prop;
 		}
 	}
-
+	fclose(fp);
 	return 0;
 }
 

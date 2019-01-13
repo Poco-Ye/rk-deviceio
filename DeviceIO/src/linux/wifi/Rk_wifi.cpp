@@ -801,8 +801,10 @@ int RK_wifi_has_config()
 	fread(buf, 1, len, fd);
 	fclose(fd);
 
-	if (strstr(buf, "network") && strstr(buf, "ssid"))
+	if (strstr(buf, "network") && strstr(buf, "ssid")) {
+		free(buf);
 		return 1;
+	}
 
 	free(buf);
 	return 0;

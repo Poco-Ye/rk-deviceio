@@ -105,7 +105,7 @@ static BOOL check_compose_press_event(RK_input_compose_press_t *comp)
 				ret = 1;
 				if (is_compose_press_event_ready(target)) {
 					if (target) {
-						comp->keys = (char*) malloc(strlen(target->keys));
+						comp->keys = (char*) calloc(strlen(target->keys), 1);
 						strcpy(comp->keys, target->keys);
 						comp->time = target->time;
 						comp->cb = target->cb;
@@ -215,7 +215,7 @@ static void handle_input_event(const int code, const int value, RK_Timer_t *time
 
 	if (value) {
 		compose_state = 0;
-		event = (RK_input_pressed_t*) malloc(sizeof(RK_input_pressed_t));
+		event = (RK_input_pressed_t*) calloc(sizeof(RK_input_pressed_t), 1);
 		event->key_code = code;
 		event->next = m_key_pressed_head;
 		m_key_pressed_head = event;
@@ -393,7 +393,7 @@ int RK_input_register_long_press_callback(RK_input_long_press_callback cb, const
 		if (event) {// already registered, ignore
 
 		} else {
-			event = (RK_input_long_press_key_t*) malloc(sizeof(RK_input_long_press_key_t));
+			event = (RK_input_long_press_key_t*) calloc(sizeof(RK_input_long_press_key_t), 1);
 			event->key_code = key_code;
 			event->time = time;
 			event->cb = cb;
@@ -402,8 +402,8 @@ int RK_input_register_long_press_callback(RK_input_long_press_callback cb, const
 			events->event = event;
         }
 	} else {
-		events = (RK_input_long_press_t*) malloc (sizeof(RK_input_long_press_t));
-		event = (RK_input_long_press_key_t*) malloc(sizeof(RK_input_long_press_key_t));
+		events = (RK_input_long_press_t*) calloc (sizeof(RK_input_long_press_t), 1);
+		event = (RK_input_long_press_key_t*) calloc(sizeof(RK_input_long_press_key_t), 1);
 		event->key_code = key_code;
 		event->time = time;
 		event->cb = cb;
@@ -438,10 +438,11 @@ int RK_input_register_compose_press_callback(RK_input_compose_press_callback cb,
 		snprintf(tmp, sizeof(tmp), "%d ", key);
 		strcat(strKey, tmp);
 	}
-	keys = (char*) malloc(sizeof(char) * (strlen(strKey) + 1));
+	va_end(keys_ptr);
+	keys = (char*) calloc(sizeof(char), (strlen(strKey) + 1));
 	strcpy(keys, strKey);
 
-	comp = (RK_input_compose_press_t*) malloc(sizeof(RK_input_compose_press_t));
+	comp = (RK_input_compose_press_t*) calloc(sizeof(RK_input_compose_press_t), 1);
 	comp->cb = cb;
 	comp->keys = keys;
 	comp->time = time;
@@ -461,7 +462,7 @@ int RK_input_events_print(void)
 	char *str;
 	int size = 1024;
 
-	str = (char*) malloc(sizeof(char) * 1024);
+	str = (char*) calloc(sizeof(char), 1024);
 	strcat(str, "long:{");
 
 	while (events) {
