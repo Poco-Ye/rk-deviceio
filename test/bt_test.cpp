@@ -22,6 +22,9 @@
 #define BLE_UUID_SERVICE	"0000180A-0000-1000-8000-00805F9B34FB"
 #define BLE_UUID_WIFI_CHAR	"00009999-0000-1000-8000-00805F9B34FB"
 #define BLE_UUID_AUDIO_CHAR	"00006666-0000-1000-8000-00805F9B34FB"
+#define BLE_UUID_PROXIMITY	"7B931104-1810-4CBC-94DA-875C8067F845"
+#define BLE_UUID_SEND		"dfd4416e-1810-47f7-8248-eb8be3dc47f9"
+#define BLE_UUID_RECV		"7B931104-1810-4CBC-94DA-875C8067F845"
 
 /* have to initialize */
 static Bt_Content_t bt_content;
@@ -30,11 +33,30 @@ void bt_init_open(void *data)
 {
 	printf("---------------BT_OPEN----------------\n");
 	bt_content.bt_name = "KUGOU_AUDIO";
-	bt_content.ble_content.ble_name = "KUGOU_BLE_123";
+	bt_content.ble_content.ble_name = NULL; // "KUGOU_BLE_888";
 	bt_content.ble_content.server_uuid = BLE_UUID_SERVICE;
 	bt_content.ble_content.chr_uuid[0] = BLE_UUID_WIFI_CHAR;
 	bt_content.ble_content.chr_uuid[1] = BLE_UUID_AUDIO_CHAR;
-	bt_content.ble_content.chr_cnt = 2;
+	bt_content.ble_content.chr_uuid[2] = BLE_UUID_SEND;
+	bt_content.ble_content.chr_uuid[3] = BLE_UUID_RECV;
+	bt_content.ble_content.chr_cnt = 4;
+
+	bt_content.ble_content.adv_kg.flag = 0x1;
+	bt_content.ble_content.adv_kg.flag_value = 0x06;
+	bt_content.ble_content.adv_kg.Company_id = 0x00a5;
+	bt_content.ble_content.adv_kg.iBeacon = 0x1502;
+	bt_content.ble_content.adv_kg.iCompany_id = 0x004c;
+	bt_content.ble_content.adv_kg.local_name_flag = 0x09;
+	bt_content.ble_content.adv_kg.local_name_value = "KUGOU W2 8888";
+	bt_content.ble_content.adv_kg.Major_id = 0x0049;
+	bt_content.ble_content.adv_kg.Minor_id = 0x000a;
+	bt_content.ble_content.adv_kg.ManufacturerData_flag = 0xff;
+	bt_content.ble_content.adv_kg.Measured_Power = 0xc5;
+	bt_content.ble_content.adv_kg.pid = 0x0102;
+	bt_content.ble_content.adv_kg.Proximity_uuid = BLE_UUID_PROXIMITY;
+	bt_content.ble_content.adv_kg.service_uuid_flag = 0x16;
+	bt_content.ble_content.adv_kg.service_uuid_value = 0x180a;
+	bt_content.ble_content.adv_kg.version = 0x1;
 
 	RK_bt_init(&bt_content);
 }

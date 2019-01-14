@@ -84,6 +84,10 @@ typedef struct {
 	uint8_t data[16];
 } uuid128_t;
 
+typedef struct {
+	uint8_t data[6];
+} mac_t;
+
 struct AdvDataContent {
 	uint8_t adv_length;
 	uint8_t flag_length;
@@ -99,6 +103,35 @@ struct AdvRespDataContent {
 	uint8_t local_name_length;
 	uint8_t local_name_flag;
 	uint8_t local_name_value[];
+};
+
+struct AdvDataContent_KG {
+	uint8_t adv_length;
+	uint8_t flag_length;
+	uint8_t flag;
+	uint8_t flag_value;
+	uint8_t ManufacturerData_length;
+	uint8_t ManufacturerData_flag;
+	uint16_t iCompany_id;
+	uint16_t iBeacon;
+	uuid128_t Proximity_uuid;
+	uint16_t Major_id;
+	uint16_t Minor_id;
+	uint8_t Measured_Power;
+};
+
+struct AdvRespDataContent_KG {
+	uint8_t adv_resp_length;
+	uint8_t local_name_length;
+	uint8_t local_name_flag;
+	uint8_t local_name_value[13];
+	uint8_t service_uuid_length;
+	uint8_t service_uuid_flag;
+	uint16_t service_uuid_value;
+	uint16_t Company_id;
+	uint16_t pid;
+	uint8_t version;
+	mac_t mac_addr;
 };
 
 ble_content_t *ble_content_internal;
@@ -541,7 +574,7 @@ void execute(const char cmdline[], char recv_buff[])
 	FILE *stream = NULL;
 	char buff[1024];
 
-	memset(recv_buff, 0, sizeof(recv_buff));
+	memset(recv_buff, 0, strlen(recv_buff));
 
 	if((stream = popen(cmdline,"r"))!=NULL){
 		while(fgets(buff,1024,stream)){
@@ -1014,7 +1047,7 @@ static void bt_gethostname(char *hostname_buf)
 	strcpy(hostname_buf, hostname);
 }
 
-static int bt_string_to_uuid128(uuid128_t *uuid, const char *string)
+static int bt_string_to_uuid128(uuid128_t *uuid, const char *string, int rever)
 {
 	uint32_t data0, data4;
 	uint16_t data1, data2, data3, data5;
@@ -1041,13 +1074,15 @@ static int bt_string_to_uuid128(uuid128_t *uuid, const char *string)
 	memcpy(&val[10], &data4, 4);
 	memcpy(&val[14], &data5, 2);
 
-	memcpy(tmp, val, 16);
-	printf("UUID: ");
-	for (int i = 0; i < 16; i++) {
-		val[15 - i] = tmp[i];
-		printf("0x%x ", tmp[i]);
+	if (rever) {
+		memcpy(tmp, val, 16);
+		printf("UUID: ");
+		for (int i = 0; i < 16; i++) {
+			val[15 - i] = tmp[i];
+			printf("0x%x ", tmp[i]);
+		}
+		printf("\n");
 	}
-	printf("\n");
 
 	//bt_uuid128_create(uuid, u128);
 	memset(uuid, 0, sizeof(uuid128_t));
@@ -1056,8 +1091,77 @@ static int bt_string_to_uuid128(uuid128_t *uuid, const char *string)
 	return 0;
 }
 
-#define KG_ADV_DATA ""
-#define KG_ADV_RESP_DATA ""
+static void kg_ble_adv_set(Bt_Content_t *bt_content, ble_content_t *ble_content)
+{
+	char hostname[HOSTNAME_MAX_LEN + 1];
+	int i, name_len;
+	struct AdvDataContent_KG advdata;
+	struct AdvRespDataContent_KG advdataresp;
+	uuid128_t uuid;
+
+	printf("[KG] %s\n", __func__);
+	printf("[KG] %s [%d:%d]\n", __func__, sizeof(struct AdvDataContent_KG), sizeof(struct AdvRespDataContent_KG));
+
+	advdata.flag_length = 2;
+	advdata.flag = bt_content->ble_content.adv_kg.flag;
+	advdata.flag_value = bt_content->ble_content.adv_kg.flag_value;
+	advdata.iBeacon = bt_content->ble_content.adv_kg.iBeacon;
+	advdata.iCompany_id = bt_content->ble_content.adv_kg.iCompany_id;
+	advdata.Major_id = bt_content->ble_content.adv_kg.Major_id;
+	advdata.Minor_id = bt_content->ble_content.adv_kg.Minor_id;
+	advdata.ManufacturerData_flag = bt_content->ble_content.adv_kg.ManufacturerData_flag;
+	advdata.Measured_Power = bt_content->ble_content.adv_kg.Measured_Power;
+	advdata.ManufacturerData_length = 26;
+
+	bt_string_to_uuid128(&(advdata.Proximity_uuid), bt_content->ble_content.adv_kg.Proximity_uuid, 0);
+	memcpy(ble_content->server_uuid, bt_content->ble_content.server_uuid, strlen(bt_content->ble_content.server_uuid));
+
+	// adv
+	advdata.adv_length = sizeof(struct AdvDataContent_KG) - 2;
+	ble_content->advDataLen = sizeof(struct AdvDataContent_KG);
+	memset(ble_content->advData, 0, sizeof(ble_content->advData));
+	memcpy(ble_content->advData, (uint8_t *)(&advdata), sizeof(struct AdvDataContent_KG));
+
+	//ble name
+	if (bt_content->ble_content.adv_kg.local_name_value) {
+		name_len = strlen(bt_content->ble_content.adv_kg.local_name_value);
+		advdataresp.local_name_length = name_len + 1;
+	} else {
+		bt_gethostname(hostname);
+		name_len = strlen(hostname);
+		advdataresp.local_name_length = name_len + 1;
+	}
+	advdataresp.local_name_flag = AD_COMPLETE_LOCAL_NAME;
+
+	for (i = 0; i < name_len; i++) {
+		if (bt_content->ble_content.adv_kg.local_name_value)
+			advdataresp.local_name_value[i] = bt_content->ble_content.adv_kg.local_name_value[i];
+		else
+			advdataresp.local_name_value[i] = hostname[i];
+	}
+
+	advdataresp.Company_id = bt_content->ble_content.adv_kg.Company_id;
+	advdataresp.pid = bt_content->ble_content.adv_kg.pid;
+	advdataresp.service_uuid_flag = bt_content->ble_content.adv_kg.service_uuid_flag;
+	advdataresp.service_uuid_length = 0x0e;
+	advdataresp.service_uuid_value = bt_content->ble_content.adv_kg.service_uuid_value;
+	advdataresp.version = bt_content->ble_content.adv_kg.version;
+	memcpy(advdataresp.mac_addr.data, le_random_addr, sizeof(advdataresp.mac_addr.data));
+
+	//adv resp
+	advdataresp.adv_resp_length = sizeof(struct AdvRespDataContent_KG) - 2;
+	ble_content->respDataLen = sizeof(struct AdvRespDataContent_KG);
+	memset(ble_content->respData, 0, sizeof(ble_content->respData));
+	memcpy(ble_content->respData, (uint8_t *)(&advdataresp), ble_content->respDataLen);
+
+	/* set chr uuid */
+	for (i = 0; i < bt_content->ble_content.chr_cnt; i++)
+		strcpy(ble_content->char_uuid[i], bt_content->ble_content.chr_uuid[i]);
+
+	ble_content->char_cnt = bt_content->ble_content.chr_cnt;
+	ble_content->cb_ble_recv_fun = bt_content->ble_content.cb_ble_recv_fun;
+	ble_content->cb_ble_request_data = bt_content->ble_content.cb_ble_request_data;
+}
 
 static void ble_adv_set(Bt_Content_t *bt_content, ble_content_t *ble_content)
 {
@@ -1073,7 +1177,7 @@ static void ble_adv_set(Bt_Content_t *bt_content, ble_content_t *ble_content)
 	advdata.flag_value = 0x1a;
 	advdata.service_uuid_length = 0x10 + 1;
 	advdata.service_uuid_flag = AD_COMPLETE_128_SERVICE_UUID;
-	bt_string_to_uuid128(&(advdata.service_uuid_value), bt_content->ble_content.server_uuid);
+	bt_string_to_uuid128(&(advdata.service_uuid_value), bt_content->ble_content.server_uuid, 1);
 	memcpy(ble_content->server_uuid, bt_content->ble_content.server_uuid, strlen(bt_content->ble_content.server_uuid));
 
 	ble_content->advDataLen = sizeof(struct AdvDataContent);
@@ -1130,11 +1234,7 @@ int gatt_init(Bt_Content_t *bt_content)
 	service_id = 1;
 	gid = 0;
 
-	ble_adv_set(bt_content, &ble_content_internal_bak);
-	printf("gatt_init server_uuid: %s\n", ble_content_internal_bak.server_uuid);
-
-	ble_content_internal = &ble_content_internal_bak;
-
+	// random addr
 	srand(time(NULL) + getpid() + getpid() * 987654 + rand());
 	for(i = 0; i < 6;i++)
 		 le_random_addr[i] = rand() & 0xFF;
@@ -1146,6 +1246,16 @@ int gatt_init(Bt_Content_t *bt_content)
 		strcat(CMD_RA, " ");
 		strcat(CMD_RA, temp_addr);
 	}
+
+	//adv
+	if (bt_content->ble_content.adv_kg.pid == 0x0102)
+		kg_ble_adv_set(bt_content, &ble_content_internal_bak);
+	else
+		ble_adv_set(bt_content, &ble_content_internal_bak);
+
+	printf("gatt_init server_uuid: %s\n", ble_content_internal_bak.server_uuid);
+
+	ble_content_internal = &ble_content_internal_bak;
 
 	create_wifi_services();
 

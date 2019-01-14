@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 typedef unsigned char	  uint8_t;
+typedef unsigned short uint16_t;
 
 typedef struct _bt_device_info {
     char name[128]; // bt name
@@ -43,10 +44,30 @@ typedef struct BLE_CONTENT_T
 } ble_content_t;
 
 typedef struct {
+	uint8_t flag;
+	uint8_t flag_value;
+	uint8_t ManufacturerData_flag;
+	uint16_t iCompany_id;
+	uint16_t iBeacon;
+	const char *Proximity_uuid;
+	uint16_t Major_id;
+	uint16_t Minor_id;
+	uint8_t Measured_Power;
+	uint8_t local_name_flag;
+	const char *local_name_value;
+	uint8_t service_uuid_flag;
+	uint16_t service_uuid_value;
+	uint16_t Company_id;
+	uint16_t pid;
+	uint8_t version;
+} AdvDataKgContent;
+
+typedef struct {
 	const char *server_uuid;
 	char *chr_uuid[12];
 	uint8_t chr_cnt;
 	const char *ble_name;
+	AdvDataKgContent adv_kg;
 	/* recevice data */
 	void (*cb_ble_recv_fun)(char *uuid, unsigned char *data, int len);
 	/* full data */
