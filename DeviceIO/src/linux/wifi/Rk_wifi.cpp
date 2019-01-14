@@ -58,14 +58,19 @@ static void encode_gbk_reset(void)
 
 static char *get_encode_gbk_ori(const char* str, char* dst)
 {
+	int is_gbk = 0;
 	RK_WIFI_encode_gbk_t *gbk = m_gbk_head;
 
 	while (gbk) {
 		if (strcmp(gbk->utf8, str) == 0) {
+			is_gbk = 1;
 			strncpy(dst, gbk->ori, strlen(gbk->ori));
 			break;
 		}
 		gbk = gbk->next;
+	}
+	if (!is_gbk) {
+		strncpy(dst, str, strlen(str));
 	}
 
 	return dst;
