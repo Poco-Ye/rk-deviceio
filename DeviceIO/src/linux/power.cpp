@@ -86,9 +86,11 @@ static int get_item_value(const char *path, char *buffer)
 {
     int ret = -1;
 	char read_cmd[CMD_SIZE] = { 0 };
+	char read_buf[CMD_SIZE] = { 0 };
 
 	sprintf(read_cmd, "cat %s ", path);
-    ret = Shell::exec(read_cmd, buffer);
+	ret = Shell::exec(read_cmd, read_buf, CMD_SIZE);
+	strcpy(buffer, read_buf);
 
     return 0;
 }
@@ -206,7 +208,7 @@ static void* pm_poweroff_thread(void* arg)
 	char buffer[CMD_SIZE] = {0};
     sync();
 	pm_info("PowerOff!\n");
-    Shell::exec("poweroff", buffer);
+    Shell::exec("poweroff", buffer, CMD_SIZE);
     pthread_exit(NULL);
 }
 

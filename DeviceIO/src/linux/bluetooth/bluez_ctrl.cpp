@@ -52,26 +52,6 @@ volatile bt_control_t bt_control = {
 };
 
 Bt_Content_t GBt_Content;
-
-static void execute(const char cmdline[], char recv_buff[])
-{
-	printf("consule_run: %s\n", cmdline);
-
-	FILE *stream = NULL;
-	char buff[1024];
-
-	memset(recv_buff, 0, sizeof(recv_buff));
-
-	if((stream = popen(cmdline,"r"))!=NULL){
-		while(fgets(buff,1024,stream)){
-			strcat(recv_buff,buff);
-		}
-	}
-	printf("consule_run results: %s \n", recv_buff);
-
-	pclose(stream);
-}
-
 static const bool console_run(const char *cmdline)
 {
 	printf("cmdline = %s\n", cmdline);
@@ -126,25 +106,23 @@ static void _bt_close_server()
 	char ret_buff[1024];
 
 	printf("=== _bt_close_server ===\n");
-	execute("killall bluealsa", ret_buff);
-	execute("killall bluealsa-aplay", ret_buff);
-	execute("killall bluetoothctl", ret_buff);
-	execute("killall bluetoothd", ret_buff);
+	Shell::exec("killall bluealsa", ret_buff, 1024);
+	Shell::exec("killall bluealsa-aplay", ret_buff, 1024);
+	Shell::exec("killall bluetoothctl", ret_buff, 1024);
+	Shell::exec("killall bluetoothd", ret_buff, 1024);
 
 kill:
-	execute("killall bluetoothd", ret_buff);
+	Shell::exec("killall bluetoothd", ret_buff, 1024);
 	msleep(100);
-	memset(ret_buff, 0, 1024);
-	execute("pidof bluetoothd", ret_buff);
+	Shell::exec("pidof bluetoothd", ret_buff, 1024);
 	while (ret_buff[0]) {
 		msleep(10);
 		goto kill;
 	}
 
-	execute("killall rtk_hciattach", ret_buff);
+	Shell::exec("killall rtk_hciattach", ret_buff, 1024);
 	msleep(800);
-	memset(ret_buff, 0, 1024);
-	execute("pidof rtk_hciattach", ret_buff);
+	Shell::exec("pidof rtk_hciattach", ret_buff, 1024);
 	while (ret_buff[0]) {
 		msleep(10);
 		goto kill;
@@ -153,68 +131,65 @@ kill:
 
 static void _bt_open_server(const char *bt_name)
 {
-	char ret_buff[1024];
 	char hostname_buf[HOSTNAME_MAX_LEN];
 	char cmd_buf[64 + HOSTNAME_MAX_LEN]; /* 64 for "hciconfig hci0 name" */
+	char ret_buff[1024];
 
-	memset(ret_buff, 0, 1024);
-	execute("pidof bluetoothd", ret_buff);
+	Shell::exec("pidof bluetoothd", ret_buff, 1024);
 	if (ret_buff[0])
 		return;
 
-	printf("=== _bt_open_server(%s) ===\n", bt_name);
+	printf("[BT_OPEN] _bt_open_server \n");
 	_bt_close_server();
 
-	execute("echo 0 > /sys/class/rfkill/rfkill0/state && sleep 2", ret_buff);
-	execute("echo 1 > /sys/class/rfkill/rfkill0/state && usleep 200000", ret_buff);
+	Shell::exec("echo 0 > /sys/class/rfkill/rfkill0/state && sleep 2", ret_buff, 1024);
+	Shell::exec("echo 1 > /sys/class/rfkill/rfkill0/state && usleep 200000", ret_buff, 1024);
 
 	console_run("insmod /usr/lib/modules/hci_uart.ko && usleep 300000");
-	memset(ret_buff, 0, 1024);
-	execute("lsmod", ret_buff);
+	Shell::exec("lsmod", ret_buff, 1024);
 	while (!strstr(ret_buff, "hci_uart"))
 		msleep(10);
 
 	console_run("rtk_hciattach -n -s 115200 /dev/ttyS4 rtk_h5 &");
 	sleep(2);
-	memset(ret_buff, 0, 1024);
-	execute("pidof rtk_hciattach", ret_buff);
+	Shell::exec("pidof rtk_hciattach", ret_buff, 1024);
 	while (!ret_buff[0])
 		msleep(10);
 
 	//system("hcidump -i hci0 -w /tmp/h.log &");
 	//sleep(1);
 
-	execute("hciconfig hci0 up", ret_buff);
+	Shell::exec("hciconfig hci0 up", ret_buff, 1024);
 	console_run("/usr/libexec/bluetooth/bluetoothd -C -n -d -E &");
 	sleep(2);
-	memset(ret_buff, 0, 1024);
-	execute("pidof bluetoothd", ret_buff);
+	Shell::exec("pidof bluetoothd", ret_buff, 1024);
 	while (!ret_buff[0])
 		msleep(10);
 
-	execute("hciconfig hci0 up", ret_buff);
+	Shell::exec("hciconfig hci0 up", ret_buff, 1024);
 	msleep(10);
 	//set Bluetooth NoInputNoOutput mode
 	console_run("bluetoothctl -a NoInputNoOutput &");
 	sleep(1);
 
-	execute("hciconfig hci0 piscan", ret_buff);
+	Shell::exec("hciconfig hci0 piscan", ret_buff, 1024);
 	msleep(10);
 
 	/* Use a user-specified name or a device default name? */
-	if (bt_name)
+	if (bt_name) {
+		printf("[BT_OPEN]: bt_name: %s\n", bt_name);
 		sprintf(cmd_buf, "hciconfig hci0 name \'%s\'", bt_name);
-	else {
+	} else {
 		bt_gethostname(hostname_buf);
 		sprintf(cmd_buf, "hciconfig hci0 name \'%s\'", hostname_buf);
 	}
-	execute(cmd_buf, ret_buff);
+	Shell::exec(cmd_buf, ret_buff, 1024);
 
 	msleep(10);
-	execute("hciconfig hci0 down", ret_buff);
+	Shell::exec("hciconfig hci0 down", ret_buff, 1024);
 	msleep(10);
-	execute("hciconfig hci0 up", ret_buff);
-	execute("hciconfig hci0 up", ret_buff);
+	Shell::exec("hciconfig hci0 up", ret_buff, 1024);
+	Shell::exec("hciconfig hci0 up", ret_buff, 1024);
 	msleep(200);
 }
 
@@ -231,21 +206,18 @@ static void bt_start_a2dp_source()
 {
 	char ret_buff[1024];
 
-	memset(ret_buff, 0, 1024);
-
 	console_run("killall bluealsa");
 	console_run("killall bluealsa-aplay");
 
 	msleep(500);
 	console_run("bluealsa --profile=a2dp-source &");
-	memset(ret_buff, 0, 1024);
-	execute("pidof bluealsa", ret_buff);
+	Shell::exec("pidof bluealsa", ret_buff, 1024);
 	while (!ret_buff[0])
 		msleep(10);
 
-	execute("hciconfig hci0 class 0x480400", ret_buff);
+	Shell::exec("hciconfig hci0 class 0x480400", ret_buff, 1024);
 	msleep(100);
-	execute("hciconfig hci0 class 0x480400", ret_buff);
+	Shell::exec("hciconfig hci0 class 0x480400", ret_buff, 1024);
 	msleep(100);
 }
 
@@ -258,20 +230,18 @@ static void bt_start_a2dp_sink()
 
 	msleep(500);
 	console_run("bluealsa --profile=a2dp-sink &");
-	memset(ret_buff, 0, 1024);
-	execute("pidof bluealsa", ret_buff);
+	Shell::exec("pidof bluealsa", ret_buff, 1024);
 	while (!ret_buff[0])
 		msleep(10);
 
 	console_run("bluealsa-aplay --profile-a2dp 00:00:00:00:00:00 &");
-	memset(ret_buff, 0, 1024);
-	execute("pidof bluealsa-aplay", ret_buff);
+	Shell::exec("pidof bluealsa-aplay", ret_buff, 1024);
 	while (!ret_buff[0])
 		msleep(10);
 
-	execute("hciconfig hci0 class 0x240404", ret_buff);
+	Shell::exec("hciconfig hci0 class 0x240404", ret_buff, 1024);
 	msleep(100);
-	execute("hciconfig hci0 class 0x240404", ret_buff);
+	Shell::exec("hciconfig hci0 class 0x240404", ret_buff, 1024);
 	msleep(200);
 	printf("bt_start_a2dp_sink exit\n");
 }
@@ -508,7 +478,7 @@ static int get_bt_mac(char *bt_mac)
 	char ret_buff[1024] = {0};
 	bool ret;
 
-	ret = Shell::exec("hciconfig hci0 | grep Address | awk '{print $3}'",ret_buff);
+	ret = Shell::exec("hciconfig hci0 | grep Address | awk '{print $3}'",ret_buff, 1024);
 	if(!ret){
 		APP_ERROR("get bt address failed.\n");
 		return false;

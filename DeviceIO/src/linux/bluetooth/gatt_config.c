@@ -567,20 +567,27 @@ static int parse_options(DBusMessageIter *iter, const char **device)
 	return 0;
 }
 
-void execute(const char cmdline[], char recv_buff[])
+static char ret_buff[1024];
+static void execute(const char cmdline[], char recv_buff[], int len)
 {
-	printf("consule_run: %s\n",cmdline);
+	printf("[GATT_CONFIG] execute: %s\n", cmdline);
 
 	FILE *stream = NULL;
-	char buff[1024];
+	char *tmp_buff = recv_buff;
 
-	memset(recv_buff, 0, strlen(recv_buff));
+	memset(recv_buff, 0, len);
 
-	if((stream = popen(cmdline,"r"))!=NULL){
-		while(fgets(buff,1024,stream)){
-			strcat(recv_buff,buff);
+	if ((stream = popen(cmdline, "r")) != NULL) {
+		while (fgets(tmp_buff, len, stream)) {
+			//printf("tmp_buf[%d]: %s\n", strlen(tmp_buff), tmp_buff);
+			tmp_buff += strlen(tmp_buff);
+			len -= strlen(tmp_buff);
+			if (len <= 1)
+				break;
 		}
 	}
+
+	printf("[GATT_CONFIG] execute_r: %s \n", recv_buff);
 
 	pclose(stream);
 }
@@ -906,19 +913,17 @@ int gatt_write_data(char *uuid, void *data, int len)
 
 void ble_enable_adv(void)
 {
-	char buff[1024] = {0};
 	system("hciconfig hci0 piscan");
 	system("hciconfig hci0 piscan");
 	gatt_set_on_adv();
-	execute(CMD_EN, buff);
+	execute(CMD_EN, ret_buff, 1024);
 }
 
 void ble_disable_adv(void)
 {
-	char buff[1024] = {0};
 	//g_dis_adv_close_ble = true;
-	execute(CMD_DISEN, buff);
-	execute(CMD_DISEN, buff);
+	execute(CMD_DISEN, ret_buff, 1024);
+	execute(CMD_DISEN, ret_buff, 1024);
 }
 
 int gatt_set_on_adv(void)
@@ -936,12 +941,12 @@ int gatt_set_on_adv(void)
 		return -1;
 
 	//LE Set Random Address Command
-	execute(CMD_RA, buff);
-	printf("CMD_RA buff: %s", buff);
+	execute(CMD_RA, ret_buff, 1024);
+	printf("CMD_RA buff: %s", ret_buff);
 	sleep(1);
 	//LE SET PARAMETERS
-	execute(CMD_PARA, buff);
-	printf("CMD_PARA buff: %s", buff);
+	execute(CMD_PARA, ret_buff, 1024);
+	printf("CMD_PARA buff: %s", ret_buff);
 
 	// LE Set Advertising Data Command
 	memset(temp, 0, 32);
@@ -951,7 +956,7 @@ int gatt_set_on_adv(void)
 		strcat(CMD_ADV_DATA, temp);
 	}
 	printf("CMD_ADV_DATA: %s\n", CMD_ADV_DATA);
-	execute(CMD_ADV_DATA, buff);
+	execute(CMD_ADV_DATA, ret_buff, 1024);
 
 	memset(temp, 0, 32);
 	for (i = 0; i < ble_content_internal->respDataLen; i++) {
@@ -961,10 +966,10 @@ int gatt_set_on_adv(void)
 	}
 	usleep(500000);
 	printf("CMD_ADV_RESP_DATA: %s\n", CMD_ADV_RESP_DATA);
-	execute(CMD_ADV_RESP_DATA, buff);
+	execute(CMD_ADV_RESP_DATA, ret_buff, 1024);
 
 	// LE Set Advertise Enable Command
-	execute(CMD_EN, buff);
+	execute(CMD_EN, ret_buff, 1024);
 
 	return 1;
 }

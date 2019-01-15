@@ -59,21 +59,29 @@ bool Shell::scan(const char *cmdline, char *recv_buff) {
 	return true;
 }
 
-bool Shell::exec(const char *cmdline, char *recv_buff) {
-	printf("exec: %s\n",cmdline);
+bool Shell::exec(const char *cmdline, char *recv_buff, int len) {
+	printf("[SHELL] exec: %s\n", cmdline);
 
 	FILE *stream = NULL;
-	char buff[1024];
+	char *tmp_buff = recv_buff;
 
-	memset(recv_buff, 0, sizeof(recv_buff));
+	memset(recv_buff, 0, len);
 
-	if((stream = popen(cmdline,"r"))!=NULL){
-		while(fgets(buff,1024,stream)){
-			strcat(recv_buff, buff);
+	if ((stream = popen(cmdline, "r")) != NULL) {
+		while (fgets(tmp_buff, len, stream)) {
+			//printf("tmp_buf[%d]: %s\n", strlen(tmp_buff), tmp_buff);
+			tmp_buff += strlen(tmp_buff);
+			len -= strlen(tmp_buff);
+			if (len <= 1)
+				break;
 		}
 	}
 
+	printf("[SHELL] exec_r:\n");
+	printf("%s\n", recv_buff);
+
 	pclose(stream);
+
 	return true;
 }
 

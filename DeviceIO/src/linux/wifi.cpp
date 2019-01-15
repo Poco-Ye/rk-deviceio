@@ -241,7 +241,7 @@ bool isWifiConnected() {
     char ret_buff[1024] = {0};
     bool ret;
 
-    ret = Shell::exec("wpa_cli -iwlan0 status | grep wpa_state | awk -F '=' '{printf $2}'", ret_buff);
+    ret = Shell::exec("wpa_cli -iwlan0 status | grep wpa_state | awk -F '=' '{printf $2}'", ret_buff, 1024);
     if (!ret) {
         APP_ERROR("getWifiMac failed.\n");
         return false;

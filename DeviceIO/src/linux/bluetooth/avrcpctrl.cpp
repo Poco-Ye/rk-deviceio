@@ -880,6 +880,7 @@ int release_avrcp_ctrl(void)
 	if (disconn_device())
 		sleep(3);
 	A2DP_SINK_FLAG = false;
+	g_btsrc_connect_status = RK_BTA2DP_State_IDLE;
 	system("hciconfig hci0 noscan");
 	system("hciconfig hci0 noscan");
 	return 0;

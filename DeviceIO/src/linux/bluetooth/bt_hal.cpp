@@ -576,9 +576,9 @@ int RK_bta2dp_open(char* name)
 		Shell::system(set_hostname_cmd);
 		msleep(10);
 		/* Restart the device to make the new name take effect */
-		Shell::system("hciconfig hci0 down");
-		msleep(10);
-		Shell::system("hciconfig hci0 up");
+		//Shell::system("hciconfig hci0 down");
+		//msleep(10);
+		//Shell::system("hciconfig hci0 up");
 	}
 
 	/* Already in sink mode? */
@@ -727,4 +727,28 @@ int RK_bt_init(Bt_Content_t *p_bt_content)
 	sleep(1);
 
 	return 1;
+}
+
+/*
+ * / # hcitool con
+ * Connections:
+ *      > ACL 64:A2:F9:68:1E:7E handle 1 state 1 lm SLAVE AUTH ENCRYPT
+ *      > LE 60:9C:59:31:7F:B9 handle 16 state 1 lm SLAVE
+ */
+bool bt_get_link_state(void)
+{
+	char buf[1024];
+	bool state = false;
+
+	memset(buf, 0, 1024);
+	Shell::exec("hcitool con", buf, 1024);
+	usleep(300000);
+
+	printf("[BT LINK]: %s\n", buf);
+	if (strstr(buf, "ACL") || strstr(buf, "LE"))
+		state = true;
+	else
+		state = false;
+
+	return state;
 }

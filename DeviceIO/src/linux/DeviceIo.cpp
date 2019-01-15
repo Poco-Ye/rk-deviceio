@@ -646,7 +646,7 @@ std::string DeviceIo::getChipID() {
     char ret[1024] = {0};
     std::string chipid;
 
-    Shell::exec("cat /proc/cpuinfo | grep Serial | awk -F ': ' '{printf $2}'", ret);
+    Shell::exec("cat /proc/cpuinfo | grep Serial | awk -F ': ' '{printf $2}'", ret, 1024);
     chipid = ret;
     return chipid;
 }
@@ -679,7 +679,7 @@ bool DeviceIo::isHeadPhoneInserted() {
     char ret_buff[1024] = {0};
     bool ret;
 
-    ret = Shell::exec("cat /sys/devices/platform/ff560000.acodec/rk3308-acodec-dev/dac_output",ret_buff);
+    ret = Shell::exec("cat /sys/devices/platform/ff560000.acodec/rk3308-acodec-dev/dac_output",ret_buff, 1024);
     if(!ret){
         APP_ERROR("cat dac_output failed.\n");
         return false;

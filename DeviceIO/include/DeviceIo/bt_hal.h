@@ -7,6 +7,7 @@
 #include <DeviceIo/RkBtSpp.h>
 
 int RK_bt_init(Bt_Content_t *p_bt_content);
+bool bt_get_link_state(void);
 /******************************************/
 /*                    BLE                 */
 /******************************************/
