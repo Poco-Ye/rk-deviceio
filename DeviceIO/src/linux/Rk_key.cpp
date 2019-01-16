@@ -32,6 +32,22 @@ typedef struct RK_input_compose_press {
 	struct RK_input_compose_press *next;
 } RK_input_compose_press_t;
 
+typedef struct RK_input_transaction_press {
+	char *keys;
+	uint32_t time;
+	RK_input_transaction_press_callback cb;
+	struct RK_input_transaction_press *next;
+} RK_input_transaction_press_t;
+
+typedef struct RK_input_transaction_event {
+	char *keys;
+	char *remain;
+	uint32_t time;
+	uint64_t last_time;
+	RK_input_transaction_press_callback cb;
+	struct RK_input_transaction_event *next;
+} RK_input_transaction_event_t;
+
 typedef struct RK_input_pressed {
 	int key_code;
 	struct RK_input_pressed *next;
@@ -47,6 +63,8 @@ typedef struct RK_input_timer {
 
 static RK_input_long_press_t *m_long_press_head = NULL;
 static RK_input_compose_press_t *m_compose_press_head = NULL;
+static RK_input_transaction_press_t *m_transaction_press_head = NULL;
+static RK_input_transaction_event_t *m_transaction_event_head = NULL;
 static RK_input_pressed_t *m_key_pressed_head = NULL;
 
 static RK_input_callback m_cb;
@@ -206,6 +224,78 @@ static uint64_t get_timestamp_ms(void)
 	return (1e+6 * (uint64_t)ctime.tv_sec + ctime.tv_usec) / 1000;
 }
 
+static void check_transaction_event(const int code, const int value)
+{
+	RK_input_transaction_press_t *transaction_press = m_transaction_press_head;
+	char strcode[10];
+
+	memset(strcode, 0, sizeof(strcode));
+	snprintf(strcode, sizeof(strcode), " %d ", code);
+
+	if (m_transaction_event_head) {
+		if (0 == strncmp(m_transaction_event_head->remain, strcode, strlen(strcode))) {
+			if (strlen(m_transaction_event_head->remain) == strlen(strcode)) {
+				if (m_transaction_event_head->cb) {
+					m_transaction_event_head->cb(m_transaction_event_head->keys, m_transaction_event_head->time);
+				}
+				free(m_transaction_event_head->keys);
+				free(m_transaction_event_head->remain);
+				free(m_transaction_event_head);
+				m_transaction_event_head = NULL;
+			} else {
+				if (get_timestamp_ms() - m_transaction_event_head->last_time > m_transaction_event_head->time) {
+					printf("transaction invalid. now:%llu, last:%llu, time:%lu\n", get_timestamp_ms(),
+						m_transaction_event_head->last_time, m_transaction_event_head->time);
+					free(m_transaction_event_head->keys);
+					free(m_transaction_event_head->remain);
+					free(m_transaction_event_head);
+					m_transaction_event_head = NULL;
+					goto recheck;
+				}
+
+				int len = strlen(m_transaction_event_head->remain) - strlen(strcode) + 1;
+				char *remain = calloc(sizeof(char), len + 1);
+				strncpy(remain, m_transaction_event_head->remain + strlen(strcode) - 1, len);
+				free(m_transaction_event_head->remain);
+				m_transaction_event_head->remain = remain;
+				m_transaction_event_head->last_time = get_timestamp_ms();
+			}
+		} else {
+			free(m_transaction_event_head->keys);
+			free(m_transaction_event_head->remain);
+			free(m_transaction_event_head);
+			m_transaction_event_head = NULL;
+
+			goto recheck;
+		}
+		return;
+	}
+
+recheck:
+	while (transaction_press) {
+		if (0 == strncmp(transaction_press->keys, strcode, strlen(strcode))) {
+			break;
+		}
+		transaction_press = transaction_press->next;
+	}
+	if (transaction_press) {
+		RK_input_transaction_event_t *event = (RK_input_transaction_event_t*) calloc(sizeof(RK_input_transaction_event_t), 1);
+		int len = strlen(transaction_press->keys) - strlen(strcode) + 1;
+		char *keys = (char*) calloc(sizeof(char), strlen(transaction_press->keys) + 1);
+		char *remain = (char*) calloc(sizeof(char), len + 1);
+
+		strncpy(keys, transaction_press->keys, strlen(transaction_press->keys));
+		strncpy(remain, transaction_press->keys + strlen(strcode) - 1, len);
+		event->keys = keys;
+		event->remain = remain;
+		event->time = transaction_press->time;
+		event->last_time = get_timestamp_ms();
+		event->cb = transaction_press->cb;
+
+		m_transaction_event_head = event;
+	}
+}
+
 static void handle_input_event(const int code, const int value, RK_Timer_t *timer)
 {
 	static RK_input_pressed_t *event, *prev;
@@ -220,6 +310,7 @@ static void handle_input_event(const int code, const int value, RK_Timer_t *time
 		event->next = m_key_pressed_head;
 		m_key_pressed_head = event;
 
+		check_transaction_event(code, value);
 		if (check_compose_press_event(&comp)) {
 			if (comp.keys) {
 				compose_state = 2;
@@ -453,11 +544,49 @@ int RK_input_register_compose_press_callback(RK_input_compose_press_callback cb,
 	return 0;
 }
 
+int RK_input_register_transaction_press_callback(RK_input_transaction_press_callback cb, const uint32_t time, const int key_code, ...)
+{
+	char *keys;
+	char strKey[64];
+	char tmp[8];
+	va_list keys_ptr;
+	int i, count, key;
+	RK_input_transaction_press_t *trans;
+
+	memset(strKey, 0, sizeof(strKey));
+	count = key_code;
+	va_start(keys_ptr, key_code);
+
+	strcat(strKey, " ");
+	for (i = 0; i < count; i++) {
+		key = va_arg(keys_ptr, int);
+		memset(tmp, 0, sizeof(tmp));
+
+		snprintf(tmp, sizeof(tmp), "%d ", key);
+		strcat(strKey, tmp);
+	}
+	va_end(keys_ptr);
+	keys = (char*) calloc(sizeof(char), (strlen(strKey) + 1));
+	strcpy(keys, strKey);
+
+	trans = calloc(sizeof(RK_input_transaction_press_t), 1);
+	trans->cb = cb;
+	trans->keys = keys;
+	trans->time = time;
+	printf("RK_input_register_transaction_press_callback keys:\"%s\"\n", trans->keys);
+
+	trans->next = m_transaction_press_head;
+	m_transaction_press_head = trans;
+
+	return 0;
+}
+
 int RK_input_events_print(void)
 {
 	RK_input_long_press_t *events = m_long_press_head;
 	RK_input_long_press_key_t *event = NULL;
 	RK_input_compose_press_t *comp = m_compose_press_head;
+	RK_input_transaction_press_t *trans = m_transaction_press_head;
 	char tmp[32];
 	char *str;
 	int size = 1024;
@@ -513,6 +642,27 @@ int RK_input_events_print(void)
 		}
 		strcat(str, tmp);
 		comp = comp->next;
+	}
+	if (str[strlen(str) - 1] == ',') {
+		str[strlen(str) - 1] = '}';
+		strcat(str, "\n");
+	} else {
+		strcat(str, "}\n");
+	}
+
+	if (strlen(str) + 1 + 15 <= size) {
+		size += 1024;
+	}
+	strcat(str, "transaction:{");
+	while (trans) {
+		memset(tmp, 0, sizeof(tmp));
+		snprintf(tmp, sizeof(tmp), "(%lu, %s),", trans->time, trans->keys);
+		if (strlen(str) + strlen(tmp) + 1 + 2 <= size) {
+			size += 1024;
+			str = (char*) realloc(str, size);
+		}
+		strcat(str, tmp);
+		trans = trans->next;
 	}
 	if (str[strlen(str) - 1] == ',') {
 		str[strlen(str) - 1] = '}';
