@@ -714,3 +714,12 @@ int RK_mediaplayer_set_mode(int iHandle, RK_MIDEA_MODE mode)
 	c_player->playlist_mode = mode;
 	return 0;
 }
+
+char* RK_mediaplayer_get_title(int iHandle)
+{
+	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
+	if (!c_player || !c_player->playlist_current)
+		return NULL;
+
+	return c_player->playlist_current->title;
+}
