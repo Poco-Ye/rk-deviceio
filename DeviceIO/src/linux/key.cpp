@@ -114,6 +114,11 @@ static void handle_keys_on_3s(int state) {
         dbg("on 3s KEYS_BIT_VOLUME_UP | KEYS_BIT_POWER\n");
         report_key_event(DeviceInput::KEY_FACTORY_RESET, NULL, 0);
     }
+    if (state == (KEYS_BIT_MIC_MUTE)) {
+        dbg("on 3s KEYS_BIT_MIC_MUTE\n");
+        report_key_event(DeviceInput::KEY_ENTER_AP, NULL, 0);
+                m_mute_long = 1;
+    }
 }
 static void handle_keys_on_5s(int state) {
     if (state == (KEYS_BIT_MIC_MUTE)) {
@@ -173,7 +178,7 @@ static void handle_keys(void) {
             }
 
             if (key.count == 50) {
-                handle_keys_on_5s(key.keys_state);
+                //handle_keys_on_5s(key.keys_state);
             }
         }
     }
