@@ -247,18 +247,17 @@ void player_added(GDBusProxy *proxy)
 {
 	printf("player_added \n");
 
-	printf("=== add set last_connected_device_proxy 0x%p \n", proxy);
-	last_connected_device_proxy = last_temp_connected_device_proxy;
-	device_connected_post(last_connected_device_proxy);
-	report_avrcp_event(DeviceInput::BT_SINK_ENV_CONNECT, NULL, 0);
-	printf("[D: %s]: BT_SNK_DEVICE CONNECTED\n", __func__);
-	system("hciconfig hci0 noscan");
-	system("hciconfig hci0 noscan");
-
 	players = g_slist_append(players, proxy);
 
 	if (default_player == NULL) {
 	    printf("set default player\n");
+		printf("=== add set last_connected_device_proxy 0x%p \n", proxy);
+		last_connected_device_proxy = last_temp_connected_device_proxy;
+		device_connected_post(last_connected_device_proxy);
+		report_avrcp_event(DeviceInput::BT_SINK_ENV_CONNECT, NULL, 0);
+		printf("[D: %s]: BT_SNK_DEVICE CONNECTED\n", __func__);
+		system("hciconfig hci0 noscan");
+		system("hciconfig hci0 noscan");
 		default_player = proxy;
 	}
 
@@ -705,15 +704,15 @@ void a2dp_sink_proxy_added(GDBusProxy *proxy, void *user_data)
 {
 	print_player(proxy, COLORED_DEL);
 
-	if (default_player == proxy)
+	if (default_player == proxy) {
+		printf("[D: %s]: BT_SNK_DEVICE DISCONNECTED\n", __func__);
+		report_avrcp_event(DeviceInput::BT_SINK_ENV_DISCONNECT, NULL, 0);
+		system("hciconfig hci0 piscan");
+		system("hciconfig hci0 piscan");
 		default_player = NULL;
+	}
 
 	players = g_slist_remove(players, proxy);
-
-	printf("[D: %s]: BT_SNK_DEVICE DISCONNECTED\n", __func__);
-	report_avrcp_event(DeviceInput::BT_SINK_ENV_DISCONNECT, NULL, 0);
-	system("hciconfig hci0 piscan");
-	system("hciconfig hci0 piscan");
 }
 
 void item_removed(GDBusProxy *proxy)

@@ -618,7 +618,6 @@ int RK_bta2dp_setVisibility(const int visiable, const int connectal)
 
 int RK_bta2dp_close(void)
 {
-	a2dp_sink_clear_cb();
 	bt_close_sink();
 
 	return 1;
@@ -699,7 +698,6 @@ int RK_btspp_open(RK_btspp_callback cb)
 int RK_btspp_close(void)
 {
 	bt_spp_server_close();
-	RK_bta2dp_close();
 }
 
 int RK_btspp_getState(RK_BTSPP_State *pState)
