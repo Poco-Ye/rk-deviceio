@@ -912,6 +912,7 @@ static int dispatch_event(char* event)
 		printf("%s: wifi is connected\n", __func__);
 	} else if (str_starts_with(event, (char *)WPA_EVENT_SCAN_RESULTS)) {
 		printf("%s: wifi event results\n", __func__);
+		system("echo 1 > /tmp/scan_r");
 	} else if (strstr(event, "reason=WRONG_KEY")) {
 		wifi_wrong_key = true;
 		printf("%s: wifi reason=WRONG_KEY \n", __func__);

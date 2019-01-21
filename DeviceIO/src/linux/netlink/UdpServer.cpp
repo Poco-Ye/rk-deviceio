@@ -118,17 +118,6 @@ void* checkWifi(void *arg) {
                         (struct sockaddr*)&m_addrto, sizeof(m_addrto));
 	m_isConnecting = false;
 	printf("Wifi connect result %d\n", ret ? 1 : 0);
-	if (ret) {
-	//	sleep(5);
-	//	wifiManager->disableWifiAp();
-		if (m_cb != NULL) {
-			m_cb(FW_softAP_State_SUCCESS, NULL);
-		}
-	} else {
-		if (m_cb != NULL) {
-			m_cb(FW_softAP_State_FAIL, NULL);
-		}
-	}
 }
 
 static void handleRequest(const char* buff) {
@@ -151,8 +140,16 @@ static void handleRequest(const char* buff) {
 			std::string para;
 
 			para = params.GetString();
-			if (0 == strcmp(para.c_str(), "wifi_connected") || 0 == strcmp(para.c_str(), "wifi_failed")) {
+			if (0 == strcmp(para.c_str(), "wifi_connected")) {
 				m_broadcastMsg = "";
+				if (m_cb != NULL) {
+					m_cb(FW_softAP_State_SUCCESS, NULL);
+				}
+			} else if (0 == strcmp(para.c_str(), "wifi_failed")) {
+				m_broadcastMsg = "";
+				if (m_cb != NULL) {
+					m_cb(FW_softAP_State_FAIL, NULL);
+				}
 			}
 			return;
 		}
@@ -169,10 +166,21 @@ static void handleRequest(const char* buff) {
 				char *wifilist;
 				m_broadcastMsg = "";
 
+				system("rm -rf /tmp/scan_r");
 				RK_wifi_scan();
-				sleep(1);
+				int i = 0;
+				FILE *fi;
+				while (i < 3) {
+					fi = fopen("/tmp/scan_r", "rb");
+					if (fi) {
+						fclose(fi);
+						break;
+					}
+					sleep(1);
+				}
 				wifilist = RK_wifi_scan_r_sec(0x14);
 
+				printf("handle getWifilists: \"%s\"\n", wifilist);
 				if (strlen(wifilist) > 2) {
 					char tmp[strlen(wifilist) + 512];
 					memset(tmp, 0, sizeof(tmp));
@@ -180,6 +188,8 @@ static void handleRequest(const char* buff) {
 					snprintf(tmp, sizeof(tmp), MSG_WIFI_LIST_FORMAT, wifilist);
 
 					m_broadcastMsg = tmp;
+					sendto(m_fd_broadcast, m_broadcastMsg.c_str(), strlen(m_broadcastMsg.c_str()), 0,
+						(struct sockaddr*)&m_addrto, sizeof(m_addrto));
 				}
 				free(wifilist);
 			}
@@ -193,6 +203,7 @@ static void handleRequest(const char* buff) {
 			if (params.HasMember("userdata") && params["userdata"].IsString()) {
 				userdata = params["userdata"].GetString();
 			}
+			printf("do connect ssid:\"%s\", psk:\"%s\", isConnecting:%d\n", ssid.c_str(), passwd.c_str(), m_isConnecting);
 			if (!m_isConnecting && !ssid.empty()) {
 				m_broadcastMsg = MSG_WIFI_CONNECTING;
 				printf("UDP broadcast sendto \"%s\"\n", m_broadcastMsg.c_str());
@@ -201,11 +212,22 @@ static void handleRequest(const char* buff) {
 				if (m_cb != NULL)
 					m_cb(FW_softAP_State_CONNECTTING, userdata.c_str());
 				WifiManager* wifiManager = WifiManager::getInstance();
-				if (0 == wifiManager->connect(ssid, passwd)) {
-					m_isConnecting = true;
-					pthread_t pid;
-					pthread_create(&pid, NULL, checkWifi, NULL);
+				int id = wifiManager->connect(ssid, passwd);
+				if (0 != id) {
+					printf("wifi connect failed %d. ssid:\"%s\", id, psk:\"%s\"\n", ssid.c_str(), passwd.c_str());
+					m_broadcastMsg = MSG_WIFI_FAILED;
+					sendto(m_fd_broadcast, m_broadcastMsg.c_str(), strlen(m_broadcastMsg.c_str()), 0,
+							(struct sockaddr*)&m_addrto, sizeof(m_addrto));
+					if (m_cb != NULL) {
+						m_cb(FW_softAP_State_FAIL, NULL);
+					}
+					m_isConnecting = false;
+					return;
 				}
+				m_isConnecting = true;
+				pthread_t pid;
+				pthread_create(&pid, NULL, checkWifi, NULL);
+				pthread_detach(pid);
 			}
 		}
 	}
