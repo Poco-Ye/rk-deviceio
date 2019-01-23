@@ -322,8 +322,9 @@ int bt_control_cmd_send(enum BtControl bt_ctrl_cmd)
 	memset(cmd, 0, 10);
 	sprintf(cmd, "%d", bt_ctrl_cmd);
 
-	if (bt_control.type != BtControlType::BT_SINK && bt_control.type != BtControlType::BT_BLE_MODE) {
-		APP_DEBUG("Not bluetooth play mode, don`t send bluetooth control commands type:%d\n", bt_control.type);
+	//if (bt_control.type != BtControlType::BT_SINK) {
+	if (!bt_control.is_a2dp_sink_open) {
+		APP_DEBUG("Not bluetooth play mode, don`t send bluetooth control commands\n");
 		return 0;
 	}
 

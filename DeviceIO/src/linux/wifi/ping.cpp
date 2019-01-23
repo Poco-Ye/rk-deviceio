@@ -62,7 +62,7 @@ static int m_icmp_seq = 0;
 static struct sockaddr_in m_dest_addr;
 static struct sockaddr_in m_from_addr;
 static pid_t m_pid;
-static int m_ping_interval = 1;
+int m_ping_interval = 1;
 static int m_network_status = 0;
 static bool m_pinging = false;
 

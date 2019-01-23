@@ -45,7 +45,7 @@ target_include_directories(DeviceIo PUBLIC
 		"${DeviceIo_SOURCE_DIR}/src/linux/bluetooth/include"
         "${RAPIDJSON_INCLUDE_DIR}")
 
-add_definitions("-Wall -g -fpermissive")
+add_definitions("-Wall -g -O0 -fpermissive")
 
 # install target
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)

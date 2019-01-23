@@ -435,6 +435,8 @@ static char wifi_security[256];
 static char wifi_hide[256];
 static char check_data[256];
 static int priority = 0;
+static int select_id = -1;
+
 static volatile bool g_results = false;
 bool checkWifiIsConnected();
 static volatile bool wifi_wrong_key = false;
@@ -473,10 +475,11 @@ static void check_wifiinfo(int flag, char *info)
 {
     char temp[1024];
     char buff[1024] = {0};
+	char buff1[1024] = {0};
     char cmdline[1024] = {0};
     int j = 0;
-	int scan_cnt = 6;
-    
+    char *str;
+
     if (flag == 0) {
 		for (int i = 0; i < strlen(info); i++) {
 			sprintf(temp+2*i, "%02x", info[i]);
@@ -484,32 +487,49 @@ static void check_wifiinfo(int flag, char *info)
 		temp[strlen(info)*2] = '\0';
 		strcpy(info, temp);
 		printf("check_wifiinfo ssid: %s\n", info);
-    } else if (flag == 1) {
-		memset(cmdline, 0, sizeof(cmdline));
-		sprintf(cmdline,"wpa_cli -iwlan0 scan_result | grep %s", wifi_ssid_bk);
-retry_scan:
-		Shell::exec("wpa_cli -iwlan0 scan", buff, 1024);
-		while (!g_results) {
-			sleep(1);
-			printf("==== g_results: %d ===\n", g_results);
-			if (scan_cnt)
-				break;
-		}
-		g_results = false;
-		Shell::exec(cmdline, buff, 1024);
-		scan_cnt--;
-		if ((!buff[0]) && (scan_cnt))
-			goto retry_scan;
 
-		printf("scan_r: %s.\n", buff);
+		select_id = -1;
+		memset(cmdline, 0, sizeof(cmdline));
+		sprintf(cmdline,"wpa_cli -iwlan0 list_network | grep %s | awk -F \" \" '{print $1}'", wifi_ssid_bk);
+		Shell::exec(cmdline, buff, 1024);
+
+		memset(cmdline, 0, sizeof(cmdline));
+		sprintf(cmdline,"cat /data/cfg/wpa_supplicant.conf | grep %s", info);
+		Shell::exec(cmdline, buff1, 1024);
+
+		if (strlen(buff) > 0) {
+			select_id = atoi(buff);
+		} else if (strlen(buff1) > 0) {
+			Shell::exec("cat /data/cfg/wpa_supplicant.conf | grep ssid", buff, 1024);
+			while ((str = strchr(buff, '\n')) != NULL) {
+				select_id++;
+				if (strstr(str, info) == NULL)
+					break;
+				strcpy(buff, str + 1);
+			}
+		}
+		return select_id;
+    } else if (flag == 1) {
+		int j = 0;
+		while(j < 3){
+			memset(cmdline, 0, sizeof(cmdline));
+			sprintf(cmdline,"wpa_cli -iwlan0 scan_result | grep %s", wifi_ssid_bk);
+			Shell::exec("wpa_cli -iwlan0 scan", buff, 1024);
+			Shell::exec(cmdline, buff, 1024);
+			if (strlen(buff) > 0) {
+					printf("scan ssid: %s\n", buff);
+					break;
+			}
+			j++;
+			usleep(300000);
+		}
+
 		if (strstr(buff, "WPA") != NULL)
 	        strcpy(wifi_security, "WPA-PSK");
+		else if (strstr(buff, "WEP") != NULL)
+			strcpy(wifi_security, "WEP");
 		else if (strstr(buff, "ESS") != NULL && strstr(buff, "WPA") == NULL)
 	        strcpy(wifi_security, "NONE");
-		else {
-			strcpy(wifi_security, "WPA-PSK");
-			printf("check_wifiinfo: wifi security is unknow !!!\n");
-		}
 
 		printf("check_wifiinfo security: %s\n", wifi_security);
     } else if (flag == 2) {
@@ -529,7 +549,7 @@ retry_scan:
  * @parm ssid
  * @parm password
  */
-bool wifiConnect(std::string ssid,std::string password){
+bool wifiConnect(std::string ssid,std::string password,std::string security){
     char ret_buff[1024] = {0};
     char cmdline[1024] = {0};
     int id = -1;
@@ -549,23 +569,41 @@ bool wifiConnect(std::string ssid,std::string password){
 	strcpy(wifi_password, password.c_str());
 	strcpy(wifi_password_bk, password.c_str());
 
+	strcpy(wifi_security, security.c_str());
+
 	Shell::system("wpa_cli -iwlan0 disable_network all");
 	sleep(1);
 
     // 1. add network
-    Shell::exec("wpa_cli -iwlan0 add_network", ret_buff, 1024);
-    id = atoi(ret_buff);
-    if (id < 0) {
-		save_wifi_config(0);
-        log_err("add_network failed.\n");
-		goto falsed;
+    //Shell::exec("wpa_cli -iwlan0 add_network", ret_buff, 1024);
+    //id = atoi(ret_buff);
+    //if (id < 0) {
+	//	save_wifi_config(0);
+    //    log_err("add_network failed.\n");
+	//	goto falsed;
+    //}
+	if (wifi_ssid != NULL && strlen(wifi_ssid) != 0) {
+		check_wifiinfo(0, wifi_ssid);
+		if (select_id != -1)
+			id = select_id;
+	}
+
+    if (select_id == -1) {
+        // 1. add network
+        Shell::exec("wpa_cli -iwlan0 add_network", ret_buff, 1024);
+        id = atoi(ret_buff);
+        if (id < 0) {
+			save_wifi_config(0);
+			log_err("add_network failed.\n");
+			goto falsed;
+        }
     }
 
 	// prioity
 	priority = id + 1;
 
     // 2. setNetWorkSSID
-	check_wifiinfo(0, wifi_ssid);
+	//check_wifiinfo(0, wifi_ssid);
     memset(cmdline, 0, sizeof(cmdline));
     sprintf(cmdline,"wpa_cli -iwlan0 set_network %d ssid %s", id, wifi_ssid);
     printf("%s\n", cmdline);
@@ -606,15 +644,19 @@ bool wifiConnect(std::string ssid,std::string password){
     }
 #endif
 
-	if (strlen(wifi_password) != 0) {
-		strcpy(wifi_security, "WPA-PSK");
-		//memset(cmdline, 0, sizeof(cmdline));
-		//sprintf(cmdline,"wpa_cli -iwlan0 set_network %d key_mgmt %s", id, wifi_security);
-		//printf("%s\n", cmdline);
-		//Shell::exec(cmdline, ret_buff);
-		//execute_result = !strncmp(ret_buff, "OK", 2);
-	} else if (strlen(wifi_password) == 0) {
-		strcpy(wifi_security, "NONE");
+	check_wifiinfo(1, wifi_security);
+	if (strncmp(wifi_security, "WEP", 3) == 0) {
+		memset(cmdline, 0, sizeof(cmdline));
+		sprintf(cmdline, "wpa_cli -iwlan0 set_network %d key_mgmt NONE", id);
+		Shell::exec(cmdline, ret_buff, 1024);
+	} else if (strncmp(wifi_security, "WPA-PSK", 7) == 0) {
+		memset(cmdline, 0, sizeof(cmdline));
+		sprintf(cmdline, "wpa_cli -iwlan0 set_network %d key_mgmt WPA-PSK", id);
+		Shell::exec(cmdline, ret_buff, 1024);
+	} else if (strncmp(wifi_security, "NONE", 4) == 0) {
+		memset(cmdline, 0, sizeof(cmdline));
+		sprintf(cmdline, "wpa_cli -iwlan0 set_network %d key_mgmt NONE", id);
+		Shell::exec(cmdline, ret_buff, 1024);
 		printf("wifi_security is NONE! ignore the password\n");
 		goto enable_network;
 	}
@@ -622,7 +664,15 @@ bool wifiConnect(std::string ssid,std::string password){
     // 4. setNetWorkPWD
 	check_wifiinfo(2, wifi_password);
     memset(cmdline, 0, sizeof(cmdline));
-    sprintf(cmdline,"wpa_cli -iwlan0 set_network %d psk \\\"%s\\\"", id, wifi_password);
+	if (strncmp(wifi_security, "WPA-PSK", 7) == 0) {
+		sprintf(cmdline,"wpa_cli -iwlan0 set_network %d psk \\\"%s\\\"", id, wifi_password);
+	} else if (strncmp(wifi_security, "WEP", 3) == 0) {
+		memset(cmdline, 0, sizeof(cmdline));
+		if (strlen(wifi_password_bk) == 10 || strlen(wifi_password_bk) == 26)
+			 sprintf(cmdline,"wpa_cli -iwlan0 set_network %d wep_key0 %s", id, wifi_password);
+		else
+			 sprintf(cmdline,"wpa_cli -iwlan0 set_network %d wep_key0 \\\"%s\\\"", id, wifi_password);
+	}
     printf("%s\n", cmdline);
     Shell::exec(cmdline,ret_buff, 1024);
     execute_result = !strncmp(ret_buff,"OK",2);
@@ -674,11 +724,6 @@ bool checkWifiIsConnected() {
 
     /* 15s to check wifi whether connected */
     for(int i=0;i<connect_retry_count;i++){
-		if (!get_pid("dhcpcd")) {
-			Shell::exec("dhcpcd -L -f /etc/dhcpcd.conf", ret_buff, 1024);
-			usleep(800000);
-			Shell::exec("dhcpcd wlan0 -t 0 &", ret_buff, 1024);
-		}
         sleep(1);
         match = 0;
         Shell::exec("wpa_cli -iwlan0 status",ret_buff, 1024);
@@ -688,6 +733,11 @@ bool checkWifiIsConnected() {
             if(item.find("wpa_state")!=std::string::npos){
                 if(item.substr(item.find('=')+1)=="COMPLETED"){
                     match++;
+					if (!get_pid("dhcpcd")) {
+						Shell::exec("dhcpcd -L -f /etc/dhcpcd.conf", ret_buff, 1024);
+						usleep(800000);
+						Shell::system("dhcpcd wlan0 -t 0 &");
+					}
                 }
             }
             if(item.find("ip_address")!=std::string::npos){
@@ -828,7 +878,7 @@ static bool saveWifiConfig(const char* name, const char* pwd)
 
 void WifiUtil::connect(void *data) {
 	gwifi_cfg = data;
-	wifiConnect(gwifi_cfg->ssid, gwifi_cfg->psk);
+	wifiConnect(gwifi_cfg->ssid, gwifi_cfg->psk, gwifi_cfg->key_mgmt);
 }
 
 void WifiUtil::disconnect() {
@@ -855,6 +905,7 @@ void WifiUtil::connectJson(char *recv_buff) {
 
     std::string userName;
     std::string password;
+    std::string sec;
 
     auto userNameIterator = document.FindMember("ssid");
     if (userNameIterator != document.MemberEnd() && userNameIterator->value.IsString()) {
@@ -872,7 +923,7 @@ void WifiUtil::connectJson(char *recv_buff) {
     }
 
     /* use wpa_cli to connect wifi by ssid and password */
-    bool connectResult = wifiConnect(userName,password);
+    bool connectResult = wifiConnect(userName,password,sec);
 
     if(connectResult){
         std::thread thread(checkWifiIsConnected);

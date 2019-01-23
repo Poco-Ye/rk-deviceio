@@ -41,6 +41,10 @@
 #include "../shell.h"
 #include <DeviceIo/RkBle.h>
 
+extern "C" {
+	extern int m_ping_interval;
+}
+
 namespace DeviceIOFramework {
 
 using std::string;
@@ -54,9 +58,7 @@ pthread_once_t	NetLinkWrapper::s_destroyOnce = PTHREAD_ONCE_INIT;
 static string m_target_ssid;
 static string m_target_pwd;
 static string m_target_ssid_prefix;
-extern "C" {
-	int m_ping_interval = 1;
-}
+
 static int m_network_status = 0;
 static bool m_pinging = false;
 
@@ -185,6 +187,7 @@ static struct wifi_config wifi_cfg;
 #define HOSTNAME_MAX_LEN	250	/* 255 - 3 (FQDN) - 2 (DNS enc) */
 #define BLE_CONFIG_WIFI_SUCCESS 1
 #define BLE_CONFIG_WIFI_FAILED 2
+#define BLE_CONFIG_WIFI_TIMEOUT 3
 #define BLE_CONFIG_WIFI_WRONG_KEY_FAILED 3
 
 #define UUID_MAX_LEN			36
@@ -732,7 +735,7 @@ void NetLinkWrapper::notify_network_config_status(notify_network_status_type not
 			//Network config failed, reset wpa_supplicant.conf
 			//set_wpa_conf(false);
 			memset(ble_cfg.data, 0, BLE_SEND_MAX_LEN);
-			ble_cfg.data[0] = BLE_CONFIG_WIFI_FAILED;
+			ble_cfg.data[0] = BLE_CONFIG_WIFI_TIMEOUT;
 			ble_cfg.len = 1;
 			memcpy(ble_cfg.uuid, NOTIFY_CHAR_UUID, UUID_MAX_LEN);
 			DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_WRITE, &ble_cfg);
