@@ -64,7 +64,7 @@ UdpServer* UdpServer::getInstance() {
 UdpServer::UdpServer() {
 	m_wifiManager = WifiManager::getInstance();
 	m_thread_broadcast = -1;
-	m_thread = -1;
+	m_thread = 0;
 	m_fd_broadcast = -1;
 }
 
@@ -263,7 +263,7 @@ void* UdpServer::threadAccept(void *arg) {
 end:
 	if (fd_server >= 0)
 		close(fd_server);
-	m_instance->m_thread = -1;
+	m_instance->m_thread = 0;
 
 	return NULL;
 }
@@ -276,7 +276,7 @@ int UdpServer::startUdpServer(const unsigned int port) {
 	m_port = port;
 	ret = pthread_create(&m_thread, NULL, threadAccept, &m_port);
 	if (0 != ret) {
-		m_thread = -1;
+		m_thread = 0;
 	}
 	return ret;
 }
@@ -359,7 +359,7 @@ int UdpServer::stopBroadcastThread() {
 
 int UdpServer::stopUdpServer() {
 	stopBroadcastThread();
-	if (m_thread < 0)
+	if (m_thread <= 0)
 		return 0;
 
 	if (0 != pthread_cancel(m_thread)) {
@@ -370,7 +370,7 @@ int UdpServer::stopUdpServer() {
 		return -1;
 	}
 
-	m_thread = -1;
+	m_thread = 0;
 	return 0;
 }
 

@@ -58,11 +58,11 @@ TcpServer* TcpServer::getInstance() {
 
 TcpServer::TcpServer() {
 	m_wifiManager = WifiManager::getInstance();
-	m_thread = -1;
+	m_thread = 0;
 }
 
 bool TcpServer::isRunning() {
-	return (m_thread >= 0);
+	return (m_thread > 0);
 }
 
 static int initSocket(const unsigned int port) {
@@ -284,7 +284,7 @@ void* TcpServer::threadAccept(void *arg) {
 end:
 	if (fd_server >= 0)
 		close(fd_server);
-	m_instance->m_thread = -1;
+	m_instance->m_thread = 0;
 
 	return NULL;
 }
@@ -295,13 +295,13 @@ int TcpServer::startTcpServer(const unsigned int port) {
 	m_port = port;
 	ret = pthread_create(&m_thread, NULL, threadAccept, &m_port);
 	if (0 != ret) {
-		m_thread = -1;
+		m_thread = 0;
 	}
 	return ret;
 }
 
 int TcpServer::stopTcpServer() {
-	if (m_thread < 0)
+	if (m_thread <= 0)
 		return 0;
 
 	if (0 != pthread_cancel(m_thread)) {
@@ -312,7 +312,7 @@ int TcpServer::stopTcpServer() {
 		return -1;
 	}
 
-	m_thread = -1;
+	m_thread = 0;
 	return 0;
 }
 
