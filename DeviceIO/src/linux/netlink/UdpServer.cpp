@@ -214,7 +214,7 @@ static void handleRequest(const char* buff) {
 				WifiManager* wifiManager = WifiManager::getInstance();
 				int id = wifiManager->connect(ssid, passwd);
 				if (0 != id) {
-					printf("wifi connect failed %d. ssid:\"%s\", id, psk:\"%s\"\n", ssid.c_str(), passwd.c_str());
+					printf("wifi connect failed %d. ssid:\"%s\", id, psk:\"%s\"\n", id, ssid.c_str(), passwd.c_str());
 					m_broadcastMsg = MSG_WIFI_FAILED;
 					sendto(m_fd_broadcast, m_broadcastMsg.c_str(), strlen(m_broadcastMsg.c_str()), 0,
 							(struct sockaddr*)&m_addrto, sizeof(m_addrto));
