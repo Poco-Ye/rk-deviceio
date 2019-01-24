@@ -505,7 +505,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 
 		//FOR HISENSE
 		//bt_adv_set((Bt_Content_t *)data);
-		bt_open((Bt_Content_t *)data);
+		bt_open(&GBt_Content);
 
 		bt_control.is_bt_open = 1;
 		bt_control.type = BtControlType::BT_NONE;
