@@ -8,6 +8,10 @@ extern "C" {
 /*
  *Version 1.0.2 Release 2019/01/24
   1.ble_wifi
+    1. fix netstatus print error when NETLINK_NETWORK_CONFIG_WRONG_KEY_FAILED
+    2. notify NETLINK_NETWORK_SUCCEEDED when net recovery from config failed
+ *Version 1.0.2 Release 2019/01/24
+  1.ble_wifi
     1. support wep key
     2. optimize wpa_supplicant.conf
     3. fix many times reports sink connected
@@ -27,7 +31,7 @@ extern "C" {
  *Version 1.0.0 Release 2018/12/22
  */
 
-#define DEVICEIO_VERSION "V1.0.2"
+#define DEVICEIO_VERSION "V1.0.3"
 
 int RK_read_chip_id(char *buffer, const int size);
 int RK_read_version(char *buffer, const int size);
