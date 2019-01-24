@@ -831,13 +831,14 @@ void NetLinkWrapper::network_status_changed(InternetConnectivity current_status,
 			switch (getNetworkStatus()) {
 				case DeviceIOFramework::NETLINK_NETWORK_CONFIG_STARTED:
 				case DeviceIOFramework::NETLINK_NETWORK_CONFIGING:
-				case DeviceIOFramework::NETLINK_NETWORK_CONFIG_FAILED:
 						notify_network_config_status(ENetworkLinkSucceed);
 						break;
 				case DeviceIOFramework::NETLINK_NETWORK_RECOVERY_FAILED:
 						notify_network_config_status(ENetworkRecoverySucceed);
 						break;
 				case DeviceIOFramework::NETLINK_NETWORK_FAILED:
+				case DeviceIOFramework::NETLINK_NETWORK_CONFIG_FAILED:
+				case DeviceIOFramework::NETLINK_NETWORK_CONFIG_WRONG_KEY_FAILED:
 						setNetworkStatus(NETLINK_NETWORK_SUCCEEDED);
 						break;
 				default:
