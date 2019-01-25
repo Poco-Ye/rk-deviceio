@@ -53,12 +53,16 @@ static void *init_bt_spp_server(void *arg)
 	char rem_addr_str[96] = {0};
 	int bytes_read, result;
 	int opt = sizeof(rem_addr);
+	int parame = 1;
 
 	g_server_sk = socket(PF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
 	if(g_server_sk < 0) {
 		perror("create socket error");
-		exit(1);
+		return;
 	}
+
+	/* Set address reuse */
+	setsockopt(g_server_sk, SOL_SOCKET, SO_REUSEADDR, (const void *)&parame, sizeof(parame));
 
 	loc_addr.rc_family = AF_BLUETOOTH;
 	loc_addr.rc_bdaddr = *BDADDR_ANY;
@@ -67,14 +71,14 @@ static void *init_bt_spp_server(void *arg)
 	result = bind(g_server_sk, (struct sockaddr *)&loc_addr, sizeof(loc_addr));
 	if(result<0) {
 		perror("bind socket error:");
-		exit(1);
+		return;
 	}
 
 	result = listen(g_server_sk, 1);
 	if(result < 0) {
 		printf("error:%d/n:", result);
 		perror("listen error:");
-		exit(1);
+		return;
 	}
 	g_spp_server_running = true;
 
@@ -83,7 +87,7 @@ REPEAT:
 	g_client_sk = accept(g_server_sk, (struct sockaddr *)&rem_addr, &opt);
 	if(g_client_sk < 0) {
 		perror("accept error");
-		exit(1);
+		return;
 	} else {
 		printf("OK!\n");
 	}
