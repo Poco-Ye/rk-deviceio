@@ -457,6 +457,7 @@ static bool save_wifi_config(int mode)
 	if (mode == 1) {
 		Shell::system("wpa_cli enable_network all");
 		Shell::system("wpa_cli save_config");
+		Shell::system("sync");
 		if (gwifi_cfg->wifi_status_callback)
 			gwifi_cfg->wifi_status_callback(NetLinkNetworkStatus::NETLINK_NETWORK_CONFIG_SUCCEEDED, fail_reason);
 	} else {

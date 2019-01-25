@@ -649,6 +649,7 @@ static int save_configuration()
 {
 	system("wpa_cli -iwlan0 enable_network all");
 	system("wpa_cli -iwlan0 save_config");
+	system("sync");
 
 	return 0;
 }
