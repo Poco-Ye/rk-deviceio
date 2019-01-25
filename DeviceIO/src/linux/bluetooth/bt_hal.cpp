@@ -324,6 +324,12 @@ int RK_blewifi_stop(void)
 	return 1;
 }
 
+int RK_bleaduio_stop(void)
+{
+	DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_COLSE);
+	return 1;
+}
+
 int RK_blewifi_getState(RK_BLEWIFI_State_e *pState)
 {
 	if (pState)
