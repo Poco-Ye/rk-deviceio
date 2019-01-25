@@ -110,6 +110,7 @@ bool check_ap_interface_status(string ap) {
 
 bool WifiUtil::start_wpa_supplicant() {
 	static pthread_t start_wifi_monitor_threadId = 0;
+	int count = 10;
 
 	printf("start_wpa_supplicant wpa_pid: %d, monitor_id: %d\n",
 			Shell::pidof("wpa_supplicant"), start_wifi_monitor_threadId);
@@ -132,7 +133,12 @@ bool WifiUtil::start_wpa_supplicant() {
     Shell::system("killall dhcpcd");
     Shell::system("killall wpa_supplicant");
     usleep(100000);
+
+retry:
     Shell::system("wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf");
+	if ((!Shell::pidof("wpa_supplicant")) && (count--))
+		goto retry;
+
     usleep(600000);
     Shell::system("dhcpcd -L -f /etc/dhcpcd.conf");
     Shell::system("dhcpcd wlan0 -t 0 &");
@@ -451,15 +457,17 @@ static bool save_wifi_config(int mode)
 	if (mode == 1) {
 		Shell::system("wpa_cli enable_network all");
 		Shell::system("wpa_cli save_config");
-		gwifi_cfg->wifi_status_callback(NetLinkNetworkStatus::NETLINK_NETWORK_CONFIG_SUCCEEDED, fail_reason);
+		if (gwifi_cfg->wifi_status_callback)
+			gwifi_cfg->wifi_status_callback(NetLinkNetworkStatus::NETLINK_NETWORK_CONFIG_SUCCEEDED, fail_reason);
 	} else {
 		if (wifi_wrong_key)
 			fail_reason = 1;
 		Shell::system("wpa_cli flush");
-		gwifi_cfg->wifi_status_callback(NetLinkNetworkStatus::NETLINK_NETWORK_CONFIG_FAILED, fail_reason);
-		sleep(2);
-		Shell::system("wpa_cli reconfigure");
-		Shell::system("wpa_cli reconnect");
+		if (gwifi_cfg->wifi_status_callback)
+			gwifi_cfg->wifi_status_callback(NetLinkNetworkStatus::NETLINK_NETWORK_CONFIG_FAILED, fail_reason);
+		//sleep(8);
+		//Shell::system("wpa_cli reconfigure");
+		//Shell::system("wpa_cli reconnect");
 	}
 
 	memset(wifi_ssid, 0, 256);
@@ -511,7 +519,7 @@ static void check_wifiinfo(int flag, char *info)
 		return select_id;
     } else if (flag == 1) {
 		int j = 0;
-		while(j < 3){
+		while (j < 6) {
 			memset(cmdline, 0, sizeof(cmdline));
 			sprintf(cmdline,"wpa_cli -iwlan0 scan_result | grep %s", wifi_ssid_bk);
 			Shell::exec("wpa_cli -iwlan0 scan", buff, 1024);
@@ -521,7 +529,7 @@ static void check_wifiinfo(int flag, char *info)
 					break;
 			}
 			j++;
-			usleep(300000);
+			sleep(1);
 		}
 
 		if (strstr(buff, "WPA") != NULL)
@@ -529,7 +537,7 @@ static void check_wifiinfo(int flag, char *info)
 		else if (strstr(buff, "WEP") != NULL)
 			strcpy(wifi_security, "WEP");
 		else if (strstr(buff, "ESS") != NULL && strstr(buff, "WPA") == NULL)
-	        strcpy(wifi_security, "NONE");
+			strcpy(wifi_security, "NONE");
 
 		printf("check_wifiinfo security: %s\n", wifi_security);
     } else if (flag == 2) {
@@ -561,7 +569,7 @@ bool wifiConnect(std::string ssid,std::string password,std::string security){
 
 	wifi_wrong_key = false;
 
-	printf("%s ssid: %s, password: %s\n", __func__, ssid.c_str(), password.c_str());
+	printf("%s ssid: %s, password: %s, security: %s\n", __func__, ssid.c_str(), password.c_str(), security.c_str());
 
 	strcpy(wifi_ssid, ssid.c_str());
 	strcpy(wifi_ssid_bk, ssid.c_str());

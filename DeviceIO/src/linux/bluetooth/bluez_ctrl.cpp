@@ -198,8 +198,9 @@ static int bt_ble_open(void)
 	int ret;
 
 	gatt_open();
+	printf("%s: ret: 0x%x\n", ret);
 
-	return ret;
+	return 1;
 }
 
 static void bt_start_a2dp_source()
@@ -691,6 +692,9 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		break;
 	case BtControl::BT_GATT_MTU:
 		ret = gatt_mtu();
+		break;
+	case BtControl::BT_BLE_DISCONNECT:
+		ret = ble_disconnect();
 		break;
 	default:
 		APP_DEBUG("%s, cmd <%d> is not implemented.\n", __func__,

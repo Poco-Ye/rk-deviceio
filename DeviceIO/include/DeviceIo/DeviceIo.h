@@ -111,6 +111,7 @@ enum class BtControl {
 	BT_BLE_READ,
 	BT_VISIBILITY,
 	BT_GATT_MTU,
+	BT_BLE_DISCONNECT,
 
     GET_BT_MAC,
 };
