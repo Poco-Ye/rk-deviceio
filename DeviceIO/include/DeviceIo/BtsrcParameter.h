@@ -90,6 +90,7 @@ int bt_open(Bt_Content_t *ble_content);
 int gatt_init(Bt_Content_t *ble_content);
 unsigned int gatt_mtu(void);
 //void bt_adv_set(ble_content_t *ble_content);
+int ble_disconnect(void);
 
 typedef struct {
 	char ssid[256];

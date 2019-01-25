@@ -343,7 +343,14 @@ void ble_callback(char *uuid, void *data, int len)
 
 	if (!strcmp(SECURITY_CHAR_UUID, uuid)) {
 		strcpy(wifi_security, str);
-		strcpy(wifi_cfg.key_mgmt, wifi_security);
+		if (strstr(wifi_security, "WPA"))
+			strcpy(wifi_cfg.key_mgmt, "WPA-PSK");
+		else if (strstr(wifi_security, "WEP"))
+			strcpy(wifi_cfg.key_mgmt, "WEP");
+		else if (strstr(wifi_security, "ESS") != NULL
+				 && strstr(wifi_security, "WPA") == NULL)
+			strcpy(wifi_cfg.key_mgmt, "NONE");
+
 		wifi_cfg.key_len = strlen(wifi_security);
 		printf("wifi sec is %s, len: %d\n", wifi_cfg.key_mgmt, wifi_cfg.key_len);
 	}
@@ -367,7 +374,7 @@ static bt_init_for_hisense(void)
 	p_bt_content = &bt_content;
 	p_bt_content->bt_name = NULL;//"HISENSE_AUDIO";
 
-	p_bt_content->ble_content.ble_name = NULL;//"HISENSE_BLE";
+	p_bt_content->ble_content.ble_name = NULL;//"小聚音箱MINI-6666";
 	p_bt_content->ble_content.server_uuid = WIFI_SERVICES_UUID;
 	p_bt_content->ble_content.chr_uuid[0] = SECURITY_CHAR_UUID;
 	p_bt_content->ble_content.chr_uuid[1] = HIDE_CHAR_UUID;
@@ -506,6 +513,7 @@ void NetLinkWrapper::stop_network_config() {
 	DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_CLOSE_AP_MODE);
 #endif
 	DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_COLSE);
+	DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_DISCONNECT);
 }
 
 void *NetLinkWrapper::monitor_work_routine(void *arg) {
@@ -588,7 +596,7 @@ void NetLinkWrapper::initBTForHis() {
 
 	bt_init_for_hisense();
 	DeviceIo::getInstance()->controlBt(BtControl::BT_OPEN, &bt_content);
-	sleep(1);
+	sleep(3);
 }
 
 void NetLinkWrapper::startNetworkRecovery() {
@@ -735,11 +743,11 @@ void NetLinkWrapper::notify_network_config_status(notify_network_status_type not
 		case ENetworkConfigRouteFailed: {
 			//Network config failed, reset wpa_supplicant.conf
 			//set_wpa_conf(false);
-			memset(ble_cfg.data, 0, BLE_SEND_MAX_LEN);
-			ble_cfg.data[0] = BLE_CONFIG_WIFI_TIMEOUT;
-			ble_cfg.len = 1;
-			memcpy(ble_cfg.uuid, NOTIFY_CHAR_UUID, UUID_MAX_LEN);
-			DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_WRITE, &ble_cfg);
+			//memset(ble_cfg.data, 0, BLE_SEND_MAX_LEN);
+			//ble_cfg.data[0] = BLE_CONFIG_WIFI_TIMEOUT;
+			//ble_cfg.len = 1;
+			//memcpy(ble_cfg.uuid, NOTIFY_CHAR_UUID, UUID_MAX_LEN);
+			//DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_WRITE, &ble_cfg);
 
 			setNetworkStatus(NETLINK_NETWORK_CONFIG_FAILED);
 			SoundController::getInstance()->linkFailedIp(NetLinkWrapper::networkLinkFailed);
@@ -771,6 +779,7 @@ void NetLinkWrapper::notify_network_config_status(notify_network_status_type not
 			//Network config succed, update wpa_supplicant.conf
 			stop_network_config_timeout_alarm();
 			//set_wpa_conf(true);
+			DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_COLSE);
 			memset(ble_cfg.data, 0, BLE_SEND_MAX_LEN);
 			ble_cfg.data[0] = BLE_CONFIG_WIFI_SUCCESS;
 			ble_cfg.len = 1;
@@ -785,7 +794,7 @@ void NetLinkWrapper::notify_network_config_status(notify_network_status_type not
 
 			m_isLoopNetworkConfig = false;
 			OnNetworkReady();
-			DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_COLSE);
+			//DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_COLSE);
 
 			break;
 		}

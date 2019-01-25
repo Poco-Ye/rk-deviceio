@@ -160,6 +160,7 @@ static GSList *services;
 extern volatile bool BLE_FLAG;
 extern struct adapter *default_ctrl;
 extern DBusConnection *dbus_conn;
+extern volatile GDBusProxy *ble_dev;
 static GList *ctrl_list;
 static GDBusProxy *default_dev;
 static GDBusProxy *default_attr;
@@ -885,6 +886,11 @@ int gatt_write_data(char *uuid, void *data, int len)
 	int i;
 	struct characteristic *chr;
 
+	if (!ble_dev) {
+		printf("gatt_write_data: ble not connect!\n");
+		return 0;
+	}
+
 	printf("gatt_write uuid: %s, len: [%d], data[%p]: %s\n", uuid, len, data, (char *)data);
 	printf("	dump 8 byte: ");
 	for (i = 0; i < min(len, 8); i++)
@@ -921,6 +927,7 @@ void ble_enable_adv(void)
 
 void ble_disable_adv(void)
 {
+	printf("=== ble_disable_adv ===\n");
 	//g_dis_adv_close_ble = true;
 	execute(CMD_DISEN, ret_buff, 1024);
 	execute(CMD_DISEN, ret_buff, 1024);

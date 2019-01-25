@@ -53,6 +53,8 @@ static GDBusProxy *default_src_dev = NULL;
 static GDBusProxy *default_attr;
 GList *ctrl_list;
 
+volatile GDBusProxy *ble_dev = NULL;
+
 GDBusClient *btsrc_client;
 static GMainLoop *btsrc_main_loop;
 /* For scan cmd */
@@ -477,8 +479,10 @@ static gboolean service_is_child(GDBusProxy *service)
 	if (!default_ctrl)
 		return FALSE;
 
-	return g_dbus_proxy_lookup(default_ctrl->devices, NULL, device,
-					"org.bluez.Device1") != NULL;
+	ble_dev = g_dbus_proxy_lookup(default_ctrl->devices, NULL, device,
+					"org.bluez.Device1");
+
+	return ble_dev != NULL;
 }
 
 static struct adapter *find_parent(GDBusProxy *device)
@@ -830,6 +834,7 @@ static void proxy_removed(GDBusProxy *proxy, void *user_data)
 		ble_service_cnt--;
 
 		if (ble_service_cnt == 0) {
+			ble_dev = NULL;
 			report_btsrc_event(DeviceInput::BT_BLE_ENV_DISCONNECT, NULL, 0);
 			if (ble_audio_status_callback)
 				ble_audio_status_callback(RK_BLE_State_DISCONNECT);
@@ -839,6 +844,8 @@ static void proxy_removed(GDBusProxy *proxy, void *user_data)
 			ble_wifi_clean();
 			if (BLE_FLAG)
 				gatt_set_on_adv();
+			else
+				ble_disable_adv();
 		}
 
 	} else if (!strcmp(interface, "org.bluez.GattCharacteristic1")) {
@@ -2993,6 +3000,47 @@ int a2dp_master_connect(char *t_address)
 	printf("Attempting to connect to %s\n", address);
 
 	return 0;
+}
+
+void ble_disconn_reply(DBusMessage *message, void *user_data)
+{
+	GDBusProxy *proxy = (GDBusProxy *)user_data;
+	DBusError error;
+
+	dbus_error_init(&error);
+
+	if (dbus_set_error_from_message(&error, message) == TRUE) {
+		printf("Failed to disconnect: %s\n", error.name);
+		dbus_error_free(&error);
+		return bt_shell_noninteractive_quit(EXIT_FAILURE);
+	}
+
+	if (proxy == ble_dev) {
+		ble_dev = NULL;
+		printf("Successful disconnected ble\n");
+	} else {
+		printf("Failed disconnected ble\n");
+	}
+
+	return bt_shell_noninteractive_quit(EXIT_SUCCESS);
+}
+
+int ble_disconnect(void)
+{
+	if (!ble_dev) {
+		printf("ble no connect\n");
+		return 0;
+	}
+
+	if (g_dbus_proxy_method_call(ble_dev, "Disconnect", NULL, ble_disconn_reply,
+							ble_dev, NULL) == FALSE) {
+		printf("Failed to disconnect\n");
+		return 0;
+	}
+
+	printf("Attempting to disconnect ble from %s\n", proxy_address(ble_dev));
+
+	return 1;
 }
 
 int a2dp_master_disconnect(char *address)
