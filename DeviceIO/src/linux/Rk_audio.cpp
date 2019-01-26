@@ -139,6 +139,8 @@ int RK_audio_get_volume(void)
 
 	pthread_mutex_lock(&user_volume_mutex);
 
+	user_volume.volume = cset(NULL, 1);
+
 	if (user_volume.is_mute) {
 		volume = 0;
 	} else {
