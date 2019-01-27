@@ -9,7 +9,7 @@
 static void *m_userdata;
 static RK_battery_callback m_cb;
 static int m_running = 0;
-static int m_charging;
+static RK_Battery_Status_e m_status = RK_BATTERY_STATUS_UNKNOWN;
 
 static int exec(const char *cmd, char *buf) {
 	FILE *stream = NULL;
@@ -29,21 +29,22 @@ static int exec(const char *cmd, char *buf) {
 
 static void* thread_detect_battery_status(void *arg)
 {
-	int cur_level, last_level, charging;
+	int cur_level, last_level;
+	RK_Battery_Status_e status = RK_BATTERY_STATUS_UNKNOWN;
 	time_t cb_time = 0;
 
-	charging = RK_battery_is_charging();
+	status = RK_battery_get_status();
 	last_level = RK_battery_get_cur_level();
-	m_charging = charging;
+	m_status = status;
 
 	while (m_running) {
 		sleep(1);
 		cur_level = RK_battery_get_cur_level();
-		charging = RK_battery_is_charging();
-		if (m_charging != charging) {
-			m_charging = charging;
+		status = RK_battery_get_status();
+		if (m_status != status) {
+			m_status = status;
 			if (m_cb != NULL)
-				m_cb(m_userdata, RK_BATTERY_CHARGING_STATE, cur_level);
+				m_cb(m_userdata, RK_BATTERY_STATUS, status);
 		}
 
 		if (cb_time != 0 && difftime(time(NULL), cb_time) < 60) {
@@ -116,7 +117,7 @@ int RK_battery_get_cur_level()
 	return level;
 }
 
-int RK_battery_is_charging()
+RK_Battery_Status_e RK_battery_get_status()
 {
 	int ret;
 	char buf[64];
@@ -124,10 +125,13 @@ int RK_battery_is_charging()
 	memset(buf, 0, sizeof(buf));
 	ret = exec("cat /sys/class/power_supply/battery/status", buf);
 	if (0 != ret)
-		return 0;
+		return RK_BATTERY_STATUS_UNKNOWN;
 
-	if (0 != strncmp(buf, "Discharging", 11))
-		return 1;
-
-	return 0;
+	if (0 == strncmp(buf, "Discharging", 11) || 0 == strncmp(buf, "Not charging", 12))
+		return RK_BATTERY_STATUS_DISCHARGING;
+	else if (0 == strncmp(buf, "Full", 4))
+		return RK_BATTERY_STATUS_FULL;
+	else if (0 == strncmp(buf, "Charging", 8))
+		return RK_BATTERY_STATUS_CHARGING;
+	return RK_BATTERY_STATUS_UNKNOWN;
 }

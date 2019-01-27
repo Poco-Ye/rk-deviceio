@@ -5,12 +5,18 @@
 extern "C" {
 #endif
 
-
 typedef enum
 {
-	RK_BATTERY_CHARGING_STATE = 0,
+	RK_BATTERY_STATUS = 0,
 	RK_BATTERY_LEVEL
 } RK_Battery_Msg_Type_e;
+
+typedef enum {
+        RK_BATTERY_STATUS_UNKNOWN = 0,
+        RK_BATTERY_STATUS_CHARGING,
+        RK_BATTERY_STATUS_DISCHARGING,
+        RK_BATTERY_STATUS_FULL,
+} RK_Battery_Status_e;
 
 typedef enum
 {
@@ -28,8 +34,7 @@ int RK_battery_init(void);
 int RK_battery_register_callback(void *userdata, RK_battery_callback cb);
 int RK_battery_get_cur_level();
 int RK_battery_get_cur_temp();
-int RK_battery_is_charging();
-
+RK_Battery_Status_e RK_battery_get_status();
 
 #ifdef __cplusplus
 }
