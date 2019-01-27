@@ -3,8 +3,8 @@
 #include "alsa/asoundlib.h"
 #include "DeviceIo/Rk_audio.h"
 
-#define USER_VOL_MIN			0
-#define USER_VOL_MAX			100
+static int m_vol_min = 0;
+static int m_vol_max = 100;
 #define SOFTVOL_CARD			"default"
 #define SOFTVOL_ELEM			"name='Master Playback Volume'"
 
@@ -112,10 +112,10 @@ void RK_audio_set_volume(int vol)
 
 	char value[4];
 
-	if (vol < USER_VOL_MIN)
-		vol = USER_VOL_MIN;
-	if (vol > USER_VOL_MAX)
-		vol = USER_VOL_MAX;
+	if (vol < m_vol_min)
+		vol = m_vol_min;
+	if (vol > m_vol_max)
+		vol = m_vol_max;
 
 	if (vol == 0) {
 		user_volume.is_mute = 1;
@@ -150,6 +150,17 @@ int RK_audio_get_volume(void)
 	pthread_mutex_unlock(&user_volume_mutex);
 
 	return volume;
+}
+
+int RK_audio_limit_max_volume(int vol)
+{
+	if (vol >= 0 && vol <= 100) {
+		m_vol_max = vol;
+		if (RK_audio_get_volume() > m_vol_max)
+			RK_audio_set_volume(m_vol_max);
+		return 0;
+	}
+	return -1;
 }
 
 void RK_audio_mute(void)
