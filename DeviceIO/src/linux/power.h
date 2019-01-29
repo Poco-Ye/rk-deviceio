@@ -21,7 +21,7 @@
 #define	DEVICEIO_POWER_TYPE_BATTERY		"battery"
 #define	DEVICEIO_POWER_TYPE_USB			"usb"
 
-#define DEFAULT_LOW_POWER_THRESHOLD		(5) /* 5 percent */
+#define DEFAULT_LOW_POWER_THRESHOLD		(0) /* 5 percent */
 #define DEFAULT_CAPACITY_DETECT_PERIOD	(60) /* 60 seconds */
 
 #define DEFAULT_TEMPERTURE_LOW_THRESHOLD	(0 * 10) /* 0 degree */

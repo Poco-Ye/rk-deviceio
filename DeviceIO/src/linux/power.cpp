@@ -233,7 +233,7 @@ int power_set_capacity_period_detect(unsigned int period)
 
 int power_set_low_power_threshold(unsigned int threshold_val)
 {
-	if (threshold_val) {
+	if (threshold_val >= 0) {
 		pm_g.low_power_threshold = threshold_val;
 	} else {
 		pm_err("Power Low Threshold Is Invalid.\n");
