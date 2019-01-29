@@ -6,7 +6,12 @@ extern "C" {
 #endif
 
 /*
- *Version 1.0.2 Release 2019/01/24
+ *Version 1.0.4 Release 2019/01/29
+  1.ble_wifi
+    1. add config timeout to discon ble
+    2. fix gatt_open flag
+    3. add reconfigure when last config fail
+ *Version 1.0.3 Release 2019/01/24
   1.ble_wifi
     1. fix netstatus print error when NETLINK_NETWORK_CONFIG_WRONG_KEY_FAILED
     2. notify NETLINK_NETWORK_SUCCEEDED when net recovery from config failed
@@ -31,7 +36,7 @@ extern "C" {
  *Version 1.0.0 Release 2018/12/22
  */
 
-#define DEVICEIO_VERSION "V1.0.3"
+#define DEVICEIO_VERSION "V1.0.4"
 
 int RK_read_chip_id(char *buffer, const int size);
 int RK_read_version(char *buffer, const int size);
