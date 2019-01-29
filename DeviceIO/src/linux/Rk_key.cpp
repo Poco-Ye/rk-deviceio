@@ -32,6 +32,17 @@ typedef struct RK_input_compose_press {
 	struct RK_input_compose_press *next;
 } RK_input_compose_press_t;
 
+typedef struct RK_input_compose_long_press {
+	RK_input_compose_press_t *event;
+	uint64_t time;                       // time of compose press event completed
+	struct RK_input_compose_long_press *next;
+} RK_input_compose_long_press_t;
+static pthread_mutex_t m_mutex_compose_long_press;
+static pthread_cond_t m_cond_compose_long_press;
+static pthread_t m_tid_compose_long_press;
+static int m_complete_compose_long_press = 0;
+static int m_compose_long_press_key_up = 0;
+
 typedef struct RK_input_transaction_press {
 	char *keys;
 	uint32_t time;
@@ -63,18 +74,30 @@ typedef struct RK_input_timer {
 
 static RK_input_long_press_t *m_long_press_head = NULL;
 static RK_input_compose_press_t *m_compose_press_head = NULL;
+static RK_input_compose_long_press_t *m_compose_long_press_head = NULL;
 static RK_input_transaction_press_t *m_transaction_press_head = NULL;
 static RK_input_transaction_event_t *m_transaction_event_head = NULL;
 static RK_input_pressed_t *m_key_pressed_head = NULL;
+static RK_input_compose_long_press_t *m_compose_long_press_earliest = NULL;
+static RK_input_compose_press_t *m_compose_press_ready = NULL;
 
 static RK_input_callback m_cb;
 static RK_input_press_callback m_input_press_cb;
 static RK_input_timer_t m_input_timer;
+static pthread_mutex_t m_mutex_input;
 
 static pthread_t m_th;
 static int m_event0 = -1;
 static int m_event1 = -1;
 static int m_event2 = -1;
+
+static uint64_t get_timestamp_ms(void)
+{
+	struct timeval ctime;
+	gettimeofday(&ctime, NULL);
+
+	return (1e+6 * (uint64_t)ctime.tv_sec + ctime.tv_usec) / 1000;
+}
 
 static BOOL is_compose_press_event_ready(RK_input_compose_press_t *comp)
 {
@@ -104,36 +127,43 @@ static BOOL is_compose_press_event_ready(RK_input_compose_press_t *comp)
 	return 1;
 }
 
-static BOOL check_compose_press_event(RK_input_compose_press_t *comp)
+static int check_compose_press_event(const int code)
 {
-	RK_input_pressed_t *key;
 	RK_input_compose_press_t *target;
+	RK_input_compose_long_press_t *event;
 	char str[8];
 	int ret;
 
 	ret = 0;
-	key = m_key_pressed_head;
+	memset(str, 0, sizeof(str));
+	snprintf(str, sizeof(str), "%d ", code);
 	target = m_compose_press_head;
 
-	while (key) {
-		memset(str, 0, sizeof(str));
-		snprintf(str, sizeof(str), "%d ", key->key_code);
-		while (target) {
+	while (target) {
+		if (is_compose_press_event_ready(target)) {
+			if (ret == 0) ret = 1;
 			if (strstr(target->keys, str)) {
-				ret = 1;
-				if (is_compose_press_event_ready(target)) {
-					if (target) {
-						comp->keys = (char*) calloc(strlen(target->keys), 1);
-						strcpy(comp->keys, target->keys);
-						comp->time = target->time;
-						comp->cb = target->cb;
+				ret = 2;
+				pthread_mutex_lock(&m_mutex_compose_long_press);
+				event = m_compose_long_press_head;
+				while (event) {
+					if (strcmp(event->event->keys, target->keys) == 0) {
+						break;
 					}
-					return ret;
+					event = event->next;
+				}
+				if (!event) {
+					RK_input_compose_long_press_t *comp = (RK_input_compose_long_press_t*) calloc(sizeof(RK_input_compose_long_press_t), 1);
+					comp->event = target;
+					comp->time = get_timestamp_ms();
+
+					comp->next = m_compose_long_press_head;
+					m_compose_long_press_head = comp;
+					pthread_mutex_unlock(&m_mutex_compose_long_press);
 				}
 			}
-			target = target->next;
 		}
-		key = key->next;
+		target = target->next;
 	}
 
 	return ret;
@@ -216,14 +246,6 @@ static void timer_cb(const int end)
 	input_timer_reset(&m_input_timer);
 }
 
-static uint64_t get_timestamp_ms(void)
-{
-	struct timeval ctime;
-	gettimeofday(&ctime, NULL);
-
-	return (1e+6 * (uint64_t)ctime.tv_sec + ctime.tv_usec) / 1000;
-}
-
 static void check_transaction_event(const int code, const int value)
 {
 	RK_input_transaction_press_t *transaction_press = m_transaction_press_head;
@@ -299,31 +321,29 @@ recheck:
 static void handle_input_event(const int code, const int value, RK_Timer_t *timer)
 {
 	static RK_input_pressed_t *event, *prev;
-	static RK_input_compose_press_t comp;
+	static RK_input_compose_press_t *comp;
+	static RK_input_compose_long_press_t *comp_long, *comp_long_prev;
 	static RK_input_long_press_key_t *max_long;
 	static int compose_state;
+	static char strcode[8];
 
 	if (value) {
-		compose_state = 0;
+		// insert key into input pressed list
 		event = (RK_input_pressed_t*) calloc(sizeof(RK_input_pressed_t), 1);
 		event->key_code = code;
 		event->next = m_key_pressed_head;
 		m_key_pressed_head = event;
 
 		check_transaction_event(code, value);
-		if (check_compose_press_event(&comp)) {
-			if (comp.keys) {
-				compose_state = 2;
-				if (comp.cb)
-					comp.cb(comp.keys, comp.time);
-
-				free(comp.keys);
-				memset(&comp, 0, sizeof(RK_input_compose_press_t));
-
-				return;
-			} else {
-				compose_state = 1;
+		compose_state = 0;
+		if (compose_state = check_compose_press_event(code)) {
+			pthread_mutex_lock(&m_mutex_compose_long_press);
+			if (compose_state == 2) {
+				m_complete_compose_long_press = 1;
+				pthread_cond_signal(&m_cond_compose_long_press);
 			}
+			pthread_mutex_unlock(&m_mutex_compose_long_press);
+			return;
 		}
 
 		if (max_long = get_max_input_long_press_key(code)) {
@@ -339,6 +359,7 @@ static void handle_input_event(const int code, const int value, RK_Timer_t *time
 		if (m_input_press_cb)
 			m_input_press_cb(code);
 	} else {
+		// remove key from input pressed list
 		event = prev = m_key_pressed_head;
 		while (event) {
 			if (event->key_code == code) {
@@ -354,8 +375,44 @@ static void handle_input_event(const int code, const int value, RK_Timer_t *time
 			event = event->next;
 		}
 
-		if (compose_state == 2)
-			return;
+		// check key up whether affected compose key list, if so remove from list and notify
+		pthread_mutex_lock(&m_mutex_compose_long_press);
+		m_compose_long_press_key_up = 0;
+		comp_long = comp_long_prev = m_compose_long_press_head;
+		memset(strcode, 0, sizeof(strcode));
+		snprintf(strcode, sizeof(strcode), "%d ", code);
+		while (comp_long) {
+			if (strstr(comp_long->event->keys, strcode)) {
+				if (comp_long == comp_long_prev) {
+					m_compose_long_press_head = comp_long->next;
+					free(comp_long);
+
+					comp_long = comp_long_prev = m_compose_long_press_head;
+				} else {
+					comp_long_prev->next = comp_long->next;
+					free(comp_long);
+
+					comp_long = comp_long_prev->next;
+				}
+				m_compose_long_press_key_up = code;
+				continue;
+			}
+			comp_long_prev = comp_long;
+			comp_long = comp_long->next;
+		}
+		if (m_compose_long_press_key_up > 0) {
+			pthread_cond_signal(&m_cond_compose_long_press);
+		}
+		pthread_mutex_unlock(&m_mutex_compose_long_press);
+
+		// if compose event was ready front, ignore until all key up
+		if (compose_state == 2) {
+			if (m_key_pressed_head) {
+				return;
+			} else {
+				compose_state = 0;
+			}
+		}
 
 		// check whether has long key
 		if (max_long = get_max_input_long_press_key(code)) {
@@ -375,6 +432,125 @@ static void handle_input_event(const int code, const int value, RK_Timer_t *time
 			}
 		}
 	}
+}
+
+static RK_input_compose_long_press_t *get_earliest_compose_long_event(void)
+{
+//	uint64_t time;
+	RK_input_compose_long_press_t *event, *target;
+	event = target = m_compose_long_press_head;
+
+	while (event) {
+//		time = get_timestamp_ms();
+//		if (event->event->time - (time - event->time) <
+//				target->event->time - (time - target->time))
+		if (event->event->time + event->time < target->event->time + target->time) {
+			target = event;
+		}
+		event = event->next;
+	}
+
+	return target;
+}
+
+static int compose_wait_new_event(void)
+{
+	int ret = 0;
+	pthread_mutex_lock(&m_mutex_compose_long_press);
+
+	ret = m_complete_compose_long_press;
+
+	pthread_mutex_unlock(&m_mutex_compose_long_press);
+	return ret;
+}
+
+static void compose_check_has_event(void);
+
+static void compose_handle_new_event(void)
+{
+	RK_input_compose_long_press_t *event;
+
+	pthread_mutex_lock(&m_mutex_compose_long_press);
+	m_complete_compose_long_press = 0;
+	pthread_mutex_unlock(&m_mutex_compose_long_press);
+
+	compose_check_has_event();
+}
+
+static void compose_long_press_event_dequeue(RK_input_compose_long_press_t *event)
+{
+	RK_input_compose_long_press_t *target, *prev;
+	target = m_compose_long_press_head;
+	prev = NULL;
+	while (target) {
+		if (strcmp(target->event->keys, event->event->keys) == 0) {
+			if (!prev) {
+				m_compose_long_press_head = target->next;
+			} else {
+				prev->next = target->next;
+			}
+			free(target);
+			event = NULL;
+
+			return;
+		}
+
+		prev = target;
+		target = target->next;
+	}
+}
+
+static void compose_check_has_event(void)
+{
+	pthread_mutex_lock(&m_mutex_compose_long_press);
+	RK_input_compose_long_press_t *event;
+
+	event = get_earliest_compose_long_event();
+
+	if (event) {
+		uint32_t time = get_timestamp_ms() - event->time;
+		if (time >= event->event->time) {
+			if (event->event->cb) {
+				event->event->cb(event->event->keys, event->event->time);
+				compose_long_press_event_dequeue(event);
+			}
+		} else {
+			struct timespec tout;
+			clock_gettime(CLOCK_REALTIME, &tout);
+
+			time = event->event->time - time;
+			tout.tv_sec += time / 1000;
+			tout.tv_nsec += 1000000 * (time % 1000);
+			while (tout.tv_nsec > 1000000000) {
+				tout.tv_sec += 1;
+				tout.tv_nsec -= 1000000000;
+			}
+
+			pthread_cond_timedwait(&m_cond_compose_long_press, &m_mutex_compose_long_press, &tout);
+
+			if (m_compose_long_press_key_up <= 0 && !m_complete_compose_long_press && event->event->cb) {
+				event->event->cb(event->event->keys, event->event->time);
+				compose_long_press_event_dequeue(event);
+			}
+		}
+	} else {
+		pthread_cond_wait(&m_cond_compose_long_press, &m_mutex_compose_long_press);
+	}
+
+	pthread_mutex_unlock(&m_mutex_compose_long_press);
+}
+
+static void* thread_compose_long_key(void *arg)
+{
+	while (1) {
+		if (compose_wait_new_event()) {
+			compose_handle_new_event();
+		} else {
+			compose_check_has_event();
+		}
+	}
+
+	return NULL;
 }
 
 static void* thread_key_monitor(void *arg)
@@ -416,13 +592,25 @@ static void* thread_key_monitor(void *arg)
 			continue;
 		}
 
-		if (ret == sizeof(ev_key) && ev_key.code != 0) {
-			if(m_cb != NULL) {
-				m_cb(ev_key.code, ev_key.value);
-			}
+		// ignore if error
+		if (ret == -1)
+			continue;
+
+		// ignore illegal key code
+		if (ev_key.code == 0)
+			continue;
+
+		// ignore illegal key value
+		if (ev_key.value != 0 && ev_key.value != 1)
+			continue;
+
+		if(m_cb != NULL) {
+			m_cb(ev_key.code, ev_key.value);
 		}
 
+		pthread_mutex_lock(&m_mutex_input);
 		handle_input_event(ev_key.code, ev_key.value, &timer);
+		pthread_mutex_unlock(&m_mutex_input);
 	}
 
 
@@ -449,7 +637,46 @@ int RK_input_init(RK_input_callback input_callback_cb)
 		printf("open /dev/input/event2 failed...\n");
 	}
 
+	ret = pthread_mutex_init(&m_mutex_input, NULL);
+	if (ret != 0) {
+		printf("RK_input_init pthread_mutex_init m_mutex_input failed... error:%d\n", ret);
+		return -1;
+	}
+
+	ret = pthread_mutex_init(&m_mutex_compose_long_press, NULL);
+	if (ret != 0) {
+		printf("RK_input_init pthread_mutex_init m_mutex_compose_long_press failed...error:%d\n", ret);
+		pthread_mutex_destroy(&m_mutex_input);
+		return -2;
+	}
+
+	ret = pthread_cond_init(&m_cond_compose_long_press, NULL);
+	if (ret != 0) {
+		printf("RK_input_init pthread_cond_init m_cond_compose_long_press failed...error:%d\n", ret);
+		pthread_mutex_destroy(&m_mutex_input);
+		pthread_mutex_destroy(&m_mutex_compose_long_press);
+		return -3;
+	}
+
+	ret = pthread_create(&m_tid_compose_long_press, NULL, thread_compose_long_key, NULL);
+	if (ret != 0) {
+		printf("RK_input_init pthread_create thread_compose_long_key failed...error:%d\n", ret);
+		pthread_mutex_destroy(&m_mutex_input);
+		pthread_cond_destroy(&m_cond_compose_long_press);
+		pthread_mutex_destroy(&m_mutex_compose_long_press);
+		return -4;
+	}
+	pthread_detach(m_tid_compose_long_press);
+
 	ret = pthread_create(&m_th, NULL, thread_key_monitor, NULL);
+	if (ret != 0) {
+		printf("RK_input_init pthread_create thread_key_monitor failed... error:%d\n", ret);
+		pthread_mutex_destroy(&m_mutex_input);
+		pthread_cond_destroy(&m_cond_compose_long_press);
+		pthread_mutex_destroy(&m_mutex_compose_long_press);
+		return -5;
+	}
+	pthread_detach(m_th);
 
 	return ret;
 }
@@ -491,7 +718,7 @@ int RK_input_register_long_press_callback(RK_input_long_press_callback cb, const
 
 			event->next = events->event;
 			events->event = event;
-        }
+		}
 	} else {
 		events = (RK_input_long_press_t*) calloc (sizeof(RK_input_long_press_t), 1);
 		event = (RK_input_long_press_key_t*) calloc(sizeof(RK_input_long_press_key_t), 1);
@@ -686,6 +913,14 @@ int RK_input_exit(void)
 			pthread_join(m_th, NULL);
 		}
 		m_th = -1;
+	}
+
+	if (m_tid_compose_long_press > 0) {
+		ret = pthread_cancel(m_tid_compose_long_press);
+		if (ret == 0) {
+			pthread_join(m_tid_compose_long_press, NULL);
+		}
+		m_tid_compose_long_press = 1;
 	}
 
 	if (m_event0 > 0) {
