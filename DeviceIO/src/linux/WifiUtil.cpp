@@ -466,9 +466,12 @@ static bool save_wifi_config(int mode)
 		Shell::system("wpa_cli flush");
 		if (gwifi_cfg->wifi_status_callback)
 			gwifi_cfg->wifi_status_callback(NetLinkNetworkStatus::NETLINK_NETWORK_CONFIG_FAILED, fail_reason);
-		//sleep(8);
-		//Shell::system("wpa_cli reconfigure");
-		//Shell::system("wpa_cli reconnect");
+		usleep(500000);
+		Shell::system("wpa_cli reconfigure");
+		usleep(500000);
+		Shell::system("wpa_cli -iwlan0 disable_network all");
+		usleep(500000);
+		Shell::system("wpa_cli -iwlan0 disable_network all");
 	}
 
 	memset(wifi_ssid, 0, 256);
