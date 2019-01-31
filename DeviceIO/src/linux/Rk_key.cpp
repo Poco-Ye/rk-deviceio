@@ -8,7 +8,10 @@
 #include <linux/input.h>
 #include <sys/select.h>
 #include "DeviceIo/Rk_key.h"
+#include "DeviceIo/RK_log.h"
 #include "DeviceIo/RK_timer.h"
+
+#define TIME_MULTIPLE        (500)
 
 typedef int BOOL;
 
@@ -59,6 +62,26 @@ typedef struct RK_input_transaction_event {
 	struct RK_input_transaction_event *next;
 } RK_input_transaction_event_t;
 
+typedef struct RK_input_multiple_press {
+	int code;
+	int times;
+	RK_input_multiple_press_callback cb;
+	struct RK_input_multiple_press *next;
+} RK_input_multiple_press_t;
+
+typedef struct RK_input_multiple_event {
+	RK_input_multiple_press_t *event;
+	RK_input_multiple_press_t *max;
+	int times;
+	int clicked;
+	int code;
+	uint64_t last_time;
+	pthread_mutex_t mutex;
+	pthread_cond_t cond;
+	pthread_t tid;
+} RK_input_multiple_event_t;
+static RK_input_multiple_event_t m_input_multiple_event;
+
 typedef struct RK_input_pressed {
 	int key_code;
 	struct RK_input_pressed *next;
@@ -73,6 +96,7 @@ typedef struct RK_input_timer {
 } RK_input_timer_t;
 
 static RK_input_long_press_t *m_long_press_head = NULL;
+static RK_input_multiple_press_t *m_multiple_press_head = NULL;
 static RK_input_compose_press_t *m_compose_press_head = NULL;
 static RK_input_compose_long_press_t *m_compose_long_press_head = NULL;
 static RK_input_transaction_press_t *m_transaction_press_head = NULL;
@@ -322,9 +346,11 @@ static void handle_input_event(const int code, const int value, RK_Timer_t *time
 {
 	static RK_input_pressed_t *event, *prev;
 	static RK_input_compose_press_t *comp;
+	static RK_input_multiple_press_t *multiple, *max_multiple;
 	static RK_input_compose_long_press_t *comp_long, *comp_long_prev;
 	static RK_input_long_press_key_t *max_long;
 	static int compose_state;
+	static int is_multiple;
 	static char strcode[8];
 
 	if (value) {
@@ -353,11 +379,52 @@ static void handle_input_event(const int code, const int value, RK_Timer_t *time
 			m_input_timer.key_code = code;
 			m_input_timer.cb_long_press = max_long->cb;
 
+			// check has multiple key registed
+			max_multiple = NULL;
+			multiple = m_multiple_press_head;
+			while (multiple) {
+				if (multiple->code == code) {
+					if (max_multiple == NULL || max_multiple->times < multiple->times) {
+						max_multiple = multiple;
+					}
+				}
+				multiple = multiple->next;
+			}
+			if (max_multiple) {
+				pthread_mutex_lock(&m_input_multiple_event.mutex);
+				m_input_multiple_event.clicked = 1;
+				m_input_multiple_event.code = code;
+				m_input_multiple_event.max = max_multiple;
+				pthread_cond_signal(&m_input_multiple_event.cond);
+				pthread_mutex_unlock(&m_input_multiple_event.mutex);
+			}
+
 			return;
 		}
 
-		if (m_input_press_cb)
-			m_input_press_cb(code);
+		// check has multiple key registed
+		max_multiple = NULL;
+		multiple = m_multiple_press_head;
+		while (multiple) {
+			if (multiple->code == code) {
+				if (max_multiple == NULL || max_multiple->times < multiple->times) {
+					max_multiple = multiple;
+				}
+			}
+			multiple = multiple->next;
+		}
+		if (max_multiple) {
+			pthread_mutex_lock(&m_input_multiple_event.mutex);
+			m_input_multiple_event.clicked = 1;
+			m_input_multiple_event.code = code;
+			m_input_multiple_event.max = max_multiple;
+			pthread_cond_signal(&m_input_multiple_event.cond);
+			pthread_mutex_unlock(&m_input_multiple_event.mutex);
+		} else {
+			if (m_input_press_cb) {
+				m_input_press_cb(code);
+			}
+		}
 	} else {
 		// remove key from input pressed list
 		event = prev = m_key_pressed_head;
@@ -426,8 +493,12 @@ static void handle_input_event(const int code, const int value, RK_Timer_t *time
 					if (long_press->cb)
 						long_press->cb(long_press->key_code, long_press->time);
 				} else {
-					if (m_input_press_cb)
+					pthread_mutex_lock(&m_input_multiple_event.mutex);
+					is_multiple = m_input_multiple_event.event ? 1 : 0;
+					pthread_mutex_unlock(&m_input_multiple_event.mutex);
+					if (!is_multiple && m_input_press_cb) {
 						m_input_press_cb(code);
+					}
 				}
 			}
 		}
@@ -553,6 +624,140 @@ static void* thread_compose_long_key(void *arg)
 	return NULL;
 }
 
+static void multiple_press_event_reset(RK_input_multiple_event_t *event)
+{
+	if (event == NULL) {
+		return;
+	}
+
+	event->event = NULL;
+	event->times = 0;
+	event->max = NULL;
+	event->last_time = 0;
+	event->code = 0;
+}
+
+static RK_input_multiple_press_t *get_multiple_press(const int code, const int times)
+{
+	RK_input_multiple_press_t *event, *target;
+	event = m_multiple_press_head;
+
+	target = NULL;
+	while (event) {
+		if (event->code == code && times >= event->times) {
+			if (target == NULL || target->times < event->times) {
+				target = event;
+			}
+		}
+		event = event->next;
+	}
+	return target;
+}
+
+static int multiple_wait_new_event(void)
+{
+	static int ret;
+	static RK_input_multiple_press_t *event;
+	pthread_mutex_lock(&m_input_multiple_event.mutex);
+
+	if (!m_input_multiple_event.clicked) {
+		if (m_input_multiple_event.event) {
+			uint32_t time = TIME_MULTIPLE - (get_timestamp_ms() - m_input_multiple_event.last_time);
+			if (time <= 0) {
+				if (m_input_press_cb) {
+					m_input_press_cb(m_input_multiple_event.event->code);
+				}
+
+				multiple_press_event_reset(&m_input_multiple_event);
+			} else {
+				struct timespec tout;
+				clock_gettime(CLOCK_REALTIME, &tout);
+
+				tout.tv_sec += time / 1000;
+				tout.tv_nsec += 1000000 * (time % 1000);
+				while (tout.tv_nsec > 1000000000) {
+					tout.tv_sec += 1;
+					tout.tv_nsec -= 1000000000;
+				}
+
+				pthread_cond_timedwait(&m_input_multiple_event.cond, &m_input_multiple_event.mutex, &tout);
+				if (!m_input_multiple_event.clicked) {
+					event = get_multiple_press(m_input_multiple_event.code, m_input_multiple_event.times);
+					if (event) {
+						if (event->cb) {
+							event->cb(event->code, event->times);
+						}
+					} else {
+						if (m_input_press_cb) {
+							if (m_input_timer.key_code <= 0) {
+								m_input_press_cb(m_input_multiple_event.code);
+							}
+						}
+					}
+					multiple_press_event_reset(&m_input_multiple_event);
+				}
+			}
+		} else {
+			pthread_cond_wait(&m_input_multiple_event.cond, &m_input_multiple_event.mutex);
+		}
+	}
+	ret = m_input_multiple_event.clicked;
+
+	pthread_mutex_unlock(&m_input_multiple_event.mutex);
+	return ret;
+}
+
+static int multiple_handle_new_event(void)
+{
+	static RK_input_multiple_press_t *event;
+	pthread_mutex_lock(&m_input_multiple_event.mutex);
+	event = NULL;
+	m_input_multiple_event.clicked = 0;
+	m_input_multiple_event.last_time = get_timestamp_ms();
+	if (m_input_multiple_event.event) {
+		if (m_input_multiple_event.event->code != m_input_multiple_event.code) {
+			event = get_multiple_press(m_input_multiple_event.event->code, m_input_multiple_event.times);
+			if (event) {
+				if (event->cb) {
+					event->cb(event->code, event->times);
+				}
+			} else {
+				if (m_input_press_cb) {
+					m_input_press_cb(event->code);
+				}
+			}
+			m_input_multiple_event.times = 1;
+			m_input_multiple_event.event = m_input_multiple_event.max;
+		} else {
+			m_input_multiple_event.times++;
+			if (m_input_multiple_event.times >= m_input_multiple_event.max->times) {
+				if (m_input_multiple_event.max->cb) {
+					m_input_multiple_event.max->cb(m_input_multiple_event.max->code, m_input_multiple_event.max->times);
+				}
+				multiple_press_event_reset(&m_input_multiple_event);
+			}
+		}
+	} else {
+		m_input_multiple_event.times = 1;
+		m_input_multiple_event.event = m_input_multiple_event.max;
+	}
+
+	pthread_mutex_unlock(&m_input_multiple_event.mutex);
+
+	return 0;
+}
+
+static void* thread_key_multiple(void *arg)
+{
+	while (1) {
+		if (multiple_wait_new_event()) {
+			multiple_handle_new_event();
+		}
+	}
+
+	return NULL;
+}
+
 static void* thread_key_monitor(void *arg)
 {
 	int max_fd;
@@ -619,7 +824,7 @@ static void* thread_key_monitor(void *arg)
 
 int RK_input_init(RK_input_callback input_callback_cb)
 {
-	int ret;
+	int ret, ret1;
 
 	m_cb = input_callback_cb;
 	m_event0 = open("/dev/input/event0", O_RDONLY);
@@ -678,6 +883,27 @@ int RK_input_init(RK_input_callback input_callback_cb)
 	}
 	pthread_detach(m_th);
 
+	memset(&m_input_multiple_event, 0, sizeof(RK_input_multiple_event_t));
+	ret1 = pthread_mutex_init(&m_input_multiple_event.mutex, NULL);
+	if (ret1 != 0) {
+		printf("RK_input_init pthread_mutex_init m_input_multiple_event.mutex failed... error:%d\n", ret1);
+	}
+
+	ret1 = pthread_cond_init(&m_input_multiple_event.cond, NULL);
+	if (ret1 != 0) {
+		printf("RK_input_init pthread_cond_init m_input_multiple_event.cond failed... error:%d\n", ret1);
+		pthread_mutex_destroy(&m_input_multiple_event.mutex);
+	}
+
+	ret1 = pthread_create(&m_input_multiple_event.tid, NULL, thread_key_multiple, NULL);
+	if (ret1 != 0) {
+		printf("RK_input_init pthread_create m_input_multiple_event.tid failed... error:%d\n", ret1);
+		pthread_cond_destroy(&m_input_multiple_event.cond);
+		pthread_mutex_destroy(&m_input_multiple_event.mutex);
+	} else {
+		pthread_detach(m_input_multiple_event.tid);
+	}
+
 	return ret;
 }
 
@@ -734,6 +960,29 @@ int RK_input_register_long_press_callback(RK_input_long_press_callback cb, const
 		m_long_press_head = events;
 	}
 
+	return 0;
+}
+
+int RK_input_register_multiple_press_callback(RK_input_multiple_press_callback cb, const int key_code, const int times)
+{
+	RK_input_multiple_press_t *event;
+	event = m_multiple_press_head;
+
+	while (event) {
+		if (event->code == key_code && event->times == times) {
+			printf("RK_input_register_multiple_press_callback already exist. code:%d; times:%d\n", key_code, times);
+			return;
+		}
+		event = event->next;
+	}
+
+	event = (RK_input_multiple_press_t*) calloc(sizeof(RK_input_multiple_press_t), 1);
+	event->code = key_code;
+	event->times = times;
+	event->cb = cb;
+
+	event->next = m_multiple_press_head;
+	m_multiple_press_head = event;
 	return 0;
 }
 
