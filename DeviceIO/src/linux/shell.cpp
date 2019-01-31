@@ -49,13 +49,12 @@ bool Shell::scan(const char *cmdline, char *recv_buff) {
 		while(fgets(buff,1024,stream)){
 			strcat(conver, buff);
 		}
+		pclose(stream);
 	}
 
 	printf("exec conver[%d]: %s\n", strlen(conver), conver);
 	spec_char_convers(conver, recv_buff);
 	printf("exec recv_buff[%d]: %s\n", strlen(recv_buff), recv_buff);
-
-	pclose(stream);
 	return true;
 }
 
@@ -75,12 +74,9 @@ bool Shell::exec(const char *cmdline, char *recv_buff, int len) {
 			if (len <= 1)
 				break;
 		}
+		pclose(stream);
+		printf("%s\n", recv_buff);
 	}
-
-	printf("[SHELL] exec_r:\n");
-	printf("%s\n", recv_buff);
-
-	pclose(stream);
 
 	return true;
 }
@@ -172,7 +168,7 @@ int Shell::pidof(const char *Name) {
             pid = atoi(cmdresult);
             break;
         }
+        pclose(pFile);
     }
-    pclose(pFile);
     return pid;
 }

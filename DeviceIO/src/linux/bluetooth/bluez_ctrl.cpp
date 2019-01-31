@@ -266,8 +266,8 @@ static int get_ps_pid(const char Name[])
 			pid = atoi(cmdresult);
 			break;
 		}
+		pclose(pFile);
 	}
-	pclose(pFile);
 	return pid;
 }
 

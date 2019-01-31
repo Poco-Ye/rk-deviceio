@@ -586,11 +586,9 @@ static void execute(const char cmdline[], char recv_buff[], int len)
 			if (len <= 1)
 				break;
 		}
+		printf("[GATT_CONFIG] execute_r: %s \n", recv_buff);
+		pclose(stream);
 	}
-
-	printf("[GATT_CONFIG] execute_r: %s \n", recv_buff);
-
-	pclose(stream);
 }
 
 #define BLE_SEND_MAX_LEN (134)

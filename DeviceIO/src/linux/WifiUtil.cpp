@@ -995,9 +995,9 @@ int get_pid(const char Name[]) {
             pid = atoi(cmdresult);
             break;
         }
+        pclose(pFile);
     }
-	printf("get_pid pidof %s: %d\n", name, pid);
-    pclose(pFile);
+    printf("get_pid pidof %s: %d\n", name, pid);
     return pid;
 }
 
