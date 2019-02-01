@@ -19,6 +19,7 @@ typedef struct RK_input_long_press_key {
 	int key_code;
 	uint32_t time;
 	RK_input_long_press_callback cb;
+	RK_input_long_press_hb_callback hb;
 	struct RK_input_long_press_key *next;
 } RK_input_long_press_key_t;
 
@@ -90,6 +91,7 @@ typedef struct RK_input_pressed {
 typedef struct RK_input_timer {
 	RK_Timer_t *timer;
 	RK_input_long_press_callback cb_long_press;
+	RK_input_long_press_callback hb_long_press;
 	RK_input_compose_press_callback cb_compose_press;
 	int key_code;
 	char *keys;
@@ -257,17 +259,18 @@ static void input_timer_reset(RK_input_timer_t* input_timer)
 
 static void timer_cb(const int end)
 {
-	if (!end)
-		return;
+	if (m_input_timer.cb_long_press) {
+		RK_timer_stop(m_input_timer.timer);
 
-	RK_timer_stop(m_input_timer.timer);
-
-	if (m_input_timer.keys && m_input_timer.cb_compose_press) {
-		m_input_timer.cb_compose_press(m_input_timer.keys, m_input_timer.timer->timer_time);
-	} else if (m_input_timer.key_code > 0 && m_input_timer.cb_long_press) {
-		m_input_timer.cb_long_press(m_input_timer.key_code, m_input_timer.timer->timer_time);
+		if (m_input_timer.key_code > 0) {
+			m_input_timer.cb_long_press(m_input_timer.key_code, m_input_timer.timer->timer_time);
+		}
+		input_timer_reset(&m_input_timer);
+	} else if (m_input_timer.hb_long_press) {
+		if (m_input_timer.key_code > 0) {
+			m_input_timer.hb_long_press(m_input_timer.key_code, 1);
+		}
 	}
-	input_timer_reset(&m_input_timer);
 }
 
 static void check_transaction_event(const int code, const int value)
@@ -363,6 +366,8 @@ static void handle_input_event(const int code, const int value, RK_Timer_t *time
 		check_transaction_event(code, value);
 		compose_state = 0;
 		if (compose_state = check_compose_press_event(code)) {
+			RK_timer_stop(m_input_timer.timer);
+			input_timer_reset(&m_input_timer);
 			pthread_mutex_lock(&m_mutex_compose_long_press);
 			if (compose_state == 2) {
 				m_complete_compose_long_press = 1;
@@ -373,11 +378,18 @@ static void handle_input_event(const int code, const int value, RK_Timer_t *time
 		}
 
 		if (max_long = get_max_input_long_press_key(code)) {
-			RK_timer_create(timer, timer_cb, max_long->time, 0);
-			RK_timer_start(timer);
+			if (max_long->cb) {
+				RK_timer_create(timer, timer_cb, max_long->time, 0);
+				m_input_timer.cb_long_press = max_long->cb;
+				m_input_timer.hb_long_press = NULL;
+			} else if (max_long->hb) {
+				RK_timer_create(timer, timer_cb, 0, max_long->time);
+				m_input_timer.cb_long_press = NULL;
+				m_input_timer.hb_long_press = max_long->hb;
+			}
 			m_input_timer.timer = timer;
 			m_input_timer.key_code = code;
-			m_input_timer.cb_long_press = max_long->cb;
+			RK_timer_start(timer);
 
 			// check has multiple key registed
 			max_multiple = NULL;
@@ -822,6 +834,36 @@ static void* thread_key_monitor(void *arg)
 	return NULL;
 }
 
+static int input_multiple_init(void)
+{
+	int ret;
+
+	memset(&m_input_multiple_event, 0, sizeof(RK_input_multiple_event_t));
+	ret = pthread_mutex_init(&m_input_multiple_event.mutex, NULL);
+	if (ret != 0) {
+		RK_LOGE("input_multiple_init pthread_mutex_init m_input_multiple_event.mutex failed... error:%d\n", ret);
+		return -1;
+	}
+
+	ret = pthread_cond_init(&m_input_multiple_event.cond, NULL);
+	if (ret != 0) {
+		RK_LOGE("input_multiple_init pthread_cond_init m_input_multiple_event.cond failed... error:%d\n", ret);
+		pthread_mutex_destroy(&m_input_multiple_event.mutex);
+		return -2;
+	}
+
+	ret = pthread_create(&m_input_multiple_event.tid, NULL, thread_key_multiple, NULL);
+	if (ret != 0) {
+		RK_LOGE("input_multiple_init pthread_create m_input_multiple_event.tid failed... error:%d\n", ret);
+		pthread_cond_destroy(&m_input_multiple_event.cond);
+		pthread_mutex_destroy(&m_input_multiple_event.mutex);
+		return -3;
+	}
+	pthread_detach(m_input_multiple_event.tid);
+
+	return ret;
+}
+
 int RK_input_init(RK_input_callback input_callback_cb)
 {
 	int ret, ret1;
@@ -883,26 +925,7 @@ int RK_input_init(RK_input_callback input_callback_cb)
 	}
 	pthread_detach(m_th);
 
-	memset(&m_input_multiple_event, 0, sizeof(RK_input_multiple_event_t));
-	ret1 = pthread_mutex_init(&m_input_multiple_event.mutex, NULL);
-	if (ret1 != 0) {
-		printf("RK_input_init pthread_mutex_init m_input_multiple_event.mutex failed... error:%d\n", ret1);
-	}
-
-	ret1 = pthread_cond_init(&m_input_multiple_event.cond, NULL);
-	if (ret1 != 0) {
-		printf("RK_input_init pthread_cond_init m_input_multiple_event.cond failed... error:%d\n", ret1);
-		pthread_mutex_destroy(&m_input_multiple_event.mutex);
-	}
-
-	ret1 = pthread_create(&m_input_multiple_event.tid, NULL, thread_key_multiple, NULL);
-	if (ret1 != 0) {
-		printf("RK_input_init pthread_create m_input_multiple_event.tid failed... error:%d\n", ret1);
-		pthread_cond_destroy(&m_input_multiple_event.cond);
-		pthread_mutex_destroy(&m_input_multiple_event.mutex);
-	} else {
-		pthread_detach(m_input_multiple_event.tid);
-	}
+	input_multiple_init();
 
 	return ret;
 }
@@ -915,13 +938,35 @@ int RK_input_register_press_callback(RK_input_press_callback cb)
 
 int RK_input_register_long_press_callback(RK_input_long_press_callback cb, const uint32_t time, const int key_code)
 {
-	RK_input_long_press_t *events = m_long_press_head;
-	RK_input_long_press_key_t *event = NULL;
+	RK_input_long_press_t *events, *events_prev;
+	RK_input_long_press_key_t *event, *event_prev;
+	event = event_prev = NULL;
+	events = m_long_press_head;
+	events_prev = NULL;
 
 	while (events) {
 		if (events->key_code == key_code) {
+			if (events->event->hb) {
+				event = events->event;
+				event_prev = NULL;
+				while (event) {
+					event_prev = event;
+					event = event->next;
+
+					free(event_prev);
+				}
+				events->event = NULL;
+				if (events_prev == NULL) {
+					m_long_press_head = m_long_press_head->next;
+				} else {
+					events_prev->next = events->next;
+				}
+				free(events);
+				events == NULL;
+			}
 			break;
 		}
+		events_prev = events;
 		events = events->next;
 	}
 
@@ -941,6 +986,7 @@ int RK_input_register_long_press_callback(RK_input_long_press_callback cb, const
 			event->key_code = key_code;
 			event->time = time;
 			event->cb = cb;
+			event->hb = NULL;
 
 			event->next = events->event;
 			events->event = event;
@@ -951,8 +997,80 @@ int RK_input_register_long_press_callback(RK_input_long_press_callback cb, const
 		event->key_code = key_code;
 		event->time = time;
 		event->cb = cb;
+		event->hb = NULL;
 
-		event->next = events->event;
+		events->event = event;
+		events->key_code = key_code;
+
+		events->next = m_long_press_head;
+		m_long_press_head = events;
+	}
+
+	return 0;
+}
+
+int RK_input_register_long_press_hb_callback(RK_input_long_press_hb_callback hb, const uint32_t time, const int key_code)
+{
+	RK_input_long_press_t *events, *events_prev;
+	RK_input_long_press_key_t *event, *event_prev;
+	events = m_long_press_head;
+	events_prev = NULL;
+	event = event_prev = NULL;
+
+	while (events) {
+		if (events->key_code == key_code) {
+			if (events->event->cb) {
+				event = events->event;
+				event_prev = NULL;
+				while (event) {
+					event_prev = event;
+					event = event->next;
+					free(event_prev);
+				}
+				events->event = NULL;
+				if (events_prev == NULL) {
+					m_long_press_head = m_long_press_head->next;
+				} else {
+					events_prev->next = events->next;
+				}
+				free(events);
+				events == NULL;
+			}
+			break;
+		}
+		events_prev = events;
+		events = events->next;
+	}
+
+	if (events) {
+		event = events->event;
+		while (event) {
+			if (event->time == time && event->key_code == key_code) {
+				break;
+			}
+			event = event->next;
+		}
+
+		if (event) {// already registered, ignore
+
+		} else {
+			event = (RK_input_long_press_key_t*) calloc(sizeof(RK_input_long_press_key_t), 1);
+			event->key_code = key_code;
+			event->time = time;
+			event->cb = NULL;
+			event->hb = hb;
+
+			event->next = events->event;
+			events->event = event;
+		}
+	} else {
+		events = (RK_input_long_press_t*) calloc (sizeof(RK_input_long_press_t), 1);
+		event = (RK_input_long_press_key_t*) calloc(sizeof(RK_input_long_press_key_t), 1);
+		event->key_code = key_code;
+		event->time = time;
+		event->cb = NULL;
+		event->hb = hb;
+
 		events->event = event;
 		events->key_code = key_code;
 

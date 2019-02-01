@@ -51,7 +51,9 @@ int RK_timer_start(RK_Timer_t *handle)
 
 	RK_Timer_t *target = head_handle;
 	while (target) {
-		if(target == handle) return -1;	//already exist.
+		if (target == handle) {//already exist.
+			return -1;
+		}
 		target = target->next;
 	}
 	handle->timer_start = handle->timer_last = get_timestamp_ms();
@@ -69,14 +71,19 @@ int RK_timer_start(RK_Timer_t *handle)
   */
 int RK_timer_stop(RK_Timer_t *handle)
 {
-	RK_Timer_t **curr;
-	for(curr = &head_handle; *curr; ) {
-		RK_Timer_t *entry = *curr;
-		if (entry == handle) {
-			*curr = entry->next;
-		} else {
-			curr = &entry->next;
+	RK_Timer_t *curr, *prev;
+	curr = head_handle;
+	prev = NULL;
+	while (curr) {
+		if (curr == handle) {
+			if (prev == NULL) {
+				head_handle = NULL;
+			} else {
+				prev->next = curr->next;
+			}
+			break;
 		}
+		curr = curr->next;
 	}
 
 	return 0;
@@ -96,9 +103,9 @@ static void* rk_thread_timer(void *arg)
 		usleep(1000);
 		for (target = head_handle; target; target = target->next) {
 			time = get_timestamp_ms();
-			if (time - target->timer_start >= target->timer_time) {
-				RK_timer_stop(target);
+			if (target->timer_repeat <= 0 && time - target->timer_start >= target->timer_time) {
 				target->timer_cb(1);
+				RK_timer_stop(target);
 				continue;
 			}
 
