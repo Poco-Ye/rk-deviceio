@@ -5,11 +5,9 @@
 extern "C" {
 #endif
 
-#define RK_LOGV(fmt, ...) printf("%s" fmt, log_prefix('V'), ##__VA_ARGS__)
-#define RK_LOGI(fmt, ...) printf("%s" fmt, log_prefix('I'), ##__VA_ARGS__)
-#define RK_LOGE(fmt, ...) printf("%s" fmt, log_prefix('E'), ##__VA_ARGS__)
-
-char *log_prefix(char level);
+int RK_LOGV(const char *format, ...);
+int RK_LOGI(const char *format, ...);
+int RK_LOGE(const char *format, ...);
 
 #ifdef __cplusplus
 }
