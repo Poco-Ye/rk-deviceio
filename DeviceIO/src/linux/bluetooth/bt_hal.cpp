@@ -92,7 +92,7 @@ typedef struct  {
 	char ssid[32];  // 段， 32Byte， 需要连接的 WiFi ssid， 长度不足 32 的部分填充 0
 	char psk[32];   // 段， 32Byte， 需要连接的 wifi password， 长度不足 32 的部分填充 0
 	unsigned char datalen[4]; //段，4Byte，表示后面自定义数据长度值（按小端：例如长度 10，使用 0x0a,0x00,0x00,0x00）
-	//unsigned char data[]段，datalen Byte，表示自定义数据
+	unsigned char data[0];//段，datalen Byte，表示自定义数据
 	//end 段， 1Byte， 固定位 0x04
 } kugou_ble;
 
@@ -205,15 +205,15 @@ void ble_callback(char *uuid, unsigned char *data, int len)
 	}
 
 	if (!strcmp(BLE_UUID_WIFI_CHAR, uuid)) {
-		kugou_ble kg_ble;
+		kugou_ble *kg_ble;
 		char *wifilist;
 
-		memcpy(&kg_ble, str, len);
-		printf("kg_ble.cmd: %s, kg_ble.start: %d [%d]\n", kg_ble.cmd, kg_ble.start, strncmp(kg_ble.cmd, "wifilists", 9));
-		if (kg_ble.start != 0x1)
+		kg_ble = (kugou_ble *)str;
+		printf("kg_ble.cmd: %s, kg_ble.start: %d [%d]\n", kg_ble->cmd, kg_ble->start, strncmp(kg_ble->cmd, "wifilists", 9));
+		if (kg_ble->start != 0x1)
 				printf("BLE RECV DATA ERROR !!!\n");
 
-		if (strncmp(kg_ble.cmd, "wifilists", 9) == 0) {
+		if (strncmp(kg_ble->cmd, "wifilists", 9) == 0) {
 
 scan_retry:
 			printf("RK_wifi_scan ...\n");
@@ -239,9 +239,9 @@ scan_retry:
 
 			free(wifilist);
 			pthread_create(&wificonfig_scan_tid, NULL, rk_ble_send_data, NULL);
-		} else if (strncmp(kg_ble.cmd, "wifisetup", 9) == 0) {
-			strcpy(wifi_ssid, kg_ble.ssid); // str + 20);
-			strcpy(wifi_password, kg_ble.psk); // str + 52);
+		} else if (strncmp(kg_ble->cmd, "wifisetup", 9) == 0) {
+			strcpy(wifi_ssid, kg_ble->ssid); // str + 20);
+			strcpy(wifi_password, kg_ble->psk); // str + 52);
 			printf("wifi ssid is %s\n", wifi_ssid);
 			printf("wifi psk is %s\n", wifi_password);
 
