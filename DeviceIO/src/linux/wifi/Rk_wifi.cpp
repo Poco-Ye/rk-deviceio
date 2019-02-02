@@ -296,7 +296,7 @@ int RK_wifi_enable(const int enable)
 	static pthread_t start_wifi_monitor_threadId = 0;
 
 	printf("[RKWIFI] start_wpa_supplicant wpa_pid: %d, monitor_id: %d\n",
-			get_pid("pidof wpa_supplicant"), start_wifi_monitor_threadId);
+			get_pid("wpa_supplicant"), start_wifi_monitor_threadId);
 
 	if (get_pid("wpa_supplicant") && (start_wifi_monitor_threadId != 0))
 		return 1;
@@ -807,6 +807,7 @@ int RK_wifi_has_config()
 	fread(buf, 1, len, fd);
 	fclose(fd);
 
+       buf[len] = '\0';
 	if (strstr(buf, "network") && strstr(buf, "ssid")) {
 		free(buf);
 		return 1;
@@ -849,12 +850,12 @@ static char primary_iface[PROPERTY_VALUE_MAX] = "wlan0";
 
 static int get_pid(const char Name[]) {
     int len;
-    char name[20] = {0};
+    char name[32] = {0};
     len = strlen(Name);
     strncpy(name,Name,len);
-    name[len] ='\0';
+    name[31] ='\0';
     char cmdresult[256] = {0};
-    char cmd[20] = {0};
+    char cmd[64] = {0};
     FILE *pFile = NULL;
     int  pid = 0;
 

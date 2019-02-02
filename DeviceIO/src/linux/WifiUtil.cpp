@@ -979,12 +979,12 @@ char PASSWD[65];
 
 int get_pid(const char Name[]) {
     int len;
-    char name[20] = {0};
+    char name[32] = {0};
     len = strlen(Name);
     strncpy(name,Name,len);
-    name[len] ='\0';
+    name[31] ='\0';
     char cmdresult[256] = {0};
-    char cmd[20] = {0};
+    char cmd[64] = {0};
     FILE *pFile = NULL;
     int  pid = 0;
 

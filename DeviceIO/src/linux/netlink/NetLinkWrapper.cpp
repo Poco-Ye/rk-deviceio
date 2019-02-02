@@ -204,7 +204,7 @@ extern "C" void ble_wifi_clean(void)
 {
 	printf("-ble_wifi_clean-\n");
 	memset(&wifi_cfg, 0, sizeof(struct wifi_config));
-	memset(&ble_cfg, 0, sizeof(struct ble_config));
+	memset(&ble_cfg, 0, sizeof(ble_cfg));
 	memset(wifi_list_buf, 0, WIFI_MSG_BUFF_LEN);
 	memset(devcontext_list_buf, 0, WIFI_MSG_BUFF_LEN);
 	memset(wifi_ssid, 0, sizeof(wifi_ssid));

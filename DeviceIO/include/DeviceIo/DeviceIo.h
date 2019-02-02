@@ -312,12 +312,6 @@ struct wifi_config {
 	void (*wifi_status_callback)(int status, int reason);
 };
 
-struct ble_config {
-	char uuid[64];
-	char data[512];
-	int len;
-};
-
 #ifdef __cplusplus
 }
 #endif
