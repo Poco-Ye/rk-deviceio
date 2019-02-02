@@ -198,7 +198,7 @@ static int bt_ble_open(void)
 	int ret;
 
 	gatt_open();
-	printf("%s: ret: 0x%x\n", ret);
+	printf("%s: ret: 0x%x\n", __func__, ret);
 
 	return 1;
 }
