@@ -80,6 +80,7 @@ typedef struct RK_input_multiple_event {
 	pthread_mutex_t mutex;
 	pthread_cond_t cond;
 	pthread_t tid;
+	int responded;
 } RK_input_multiple_event_t;
 static RK_input_multiple_event_t m_input_multiple_event;
 
@@ -506,7 +507,7 @@ static void handle_input_event(const int code, const int value, RK_Timer_t *time
 						long_press->cb(long_press->key_code, long_press->time);
 				} else {
 					pthread_mutex_lock(&m_input_multiple_event.mutex);
-					is_multiple = m_input_multiple_event.event ? 1 : 0;
+					is_multiple = (m_input_multiple_event.event || m_input_multiple_event.responded) ? 1 : 0;
 					pthread_mutex_unlock(&m_input_multiple_event.mutex);
 					if (!is_multiple && m_input_press_cb) {
 						m_input_press_cb(code);
@@ -514,6 +515,7 @@ static void handle_input_event(const int code, const int value, RK_Timer_t *time
 				}
 			}
 		}
+		m_input_multiple_event.responded = 0;
 	}
 }
 
@@ -676,8 +678,18 @@ static int multiple_wait_new_event(void)
 		if (m_input_multiple_event.event) {
 			uint32_t time = TIME_MULTIPLE - (get_timestamp_ms() - m_input_multiple_event.last_time);
 			if (time <= 0) {
-				if (m_input_press_cb) {
-					m_input_press_cb(m_input_multiple_event.event->code);
+				event = get_multiple_press(m_input_multiple_event.code, m_input_multiple_event.times);
+				if (event) {
+					if (event->cb) {
+						event->cb(event->code, event->times);
+					}
+					m_input_multiple_event.responded = 1;
+				} else {
+					if (m_input_press_cb) {
+						if (m_input_timer.key_code <= 0) {
+							m_input_press_cb(m_input_multiple_event.code);
+						}
+					}
 				}
 
 				multiple_press_event_reset(&m_input_multiple_event);
@@ -699,6 +711,7 @@ static int multiple_wait_new_event(void)
 						if (event->cb) {
 							event->cb(event->code, event->times);
 						}
+						m_input_multiple_event.responded = 1;
 					} else {
 						if (m_input_press_cb) {
 							if (m_input_timer.key_code <= 0) {
@@ -733,6 +746,7 @@ static int multiple_handle_new_event(void)
 				if (event->cb) {
 					event->cb(event->code, event->times);
 				}
+				m_input_multiple_event.responded = 1;
 			} else {
 				if (m_input_press_cb) {
 					m_input_press_cb(event->code);
@@ -747,6 +761,7 @@ static int multiple_handle_new_event(void)
 					m_input_multiple_event.max->cb(m_input_multiple_event.max->code, m_input_multiple_event.max->times);
 				}
 				multiple_press_event_reset(&m_input_multiple_event);
+				m_input_multiple_event.responded = 1;
 			}
 		}
 	} else {
