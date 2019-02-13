@@ -76,6 +76,8 @@ bool Shell::exec(const char *cmdline, char *recv_buff, int len) {
 		}
 		pclose(stream);
 		printf("%s\n", recv_buff);
+	} else {
+		printf("%s failed\n", cmdline);
 	}
 
 	return true;

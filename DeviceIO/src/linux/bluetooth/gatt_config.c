@@ -102,7 +102,7 @@ struct AdvRespDataContent {
 	uint8_t adv_resp_length;
 	uint8_t local_name_length;
 	uint8_t local_name_flag;
-	uint8_t local_name_value[];
+	uint8_t local_name_value[29];
 };
 
 struct AdvDataContent_KG {
@@ -1135,10 +1135,14 @@ static void kg_ble_adv_set(Bt_Content_t *bt_content, ble_content_t *ble_content)
 	//ble name
 	if (bt_content->ble_content.adv_kg.local_name_value) {
 		name_len = strlen(bt_content->ble_content.adv_kg.local_name_value);
+		if (name_len > sizeof(advdataresp.local_name_value))
+			name_len = sizeof(advdataresp.local_name_value);
 		advdataresp.local_name_length = name_len + 1;
 	} else {
 		bt_gethostname(hostname);
 		name_len = strlen(hostname);
+		if (name_len > sizeof(advdataresp.local_name_value))
+			name_len = sizeof(advdataresp.local_name_value);
 		advdataresp.local_name_length = name_len + 1;
 	}
 	advdataresp.local_name_flag = AD_COMPLETE_LOCAL_NAME;
@@ -1196,10 +1200,14 @@ static void ble_adv_set(Bt_Content_t *bt_content, ble_content_t *ble_content)
 	//============================================================================
 	if (bt_content->ble_content.ble_name) {
 		name_len = strlen(bt_content->ble_content.ble_name);
+		if (name_len > sizeof(advdataresp.local_name_value))
+			name_len = sizeof(advdataresp.local_name_value);
 		advdataresp.local_name_length = name_len + 1;
 	} else {
 		bt_gethostname(hostname);
 		name_len = strlen(hostname);
+		if (name_len > sizeof(advdataresp.local_name_value))
+			name_len = sizeof(advdataresp.local_name_value);
 		advdataresp.local_name_length = name_len + 1;
 	}
 	advdataresp.local_name_flag = AD_COMPLETE_LOCAL_NAME;

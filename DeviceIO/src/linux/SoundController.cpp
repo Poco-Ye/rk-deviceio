@@ -60,10 +60,10 @@ void SoundController::audioPlay(const std::string &source,
                                 void (*start_callback)(void *arg),
                                 void *start_cb_arg,
                                 void (*finish_callback)()) {
-    char cmd_line[512];
+    /*char cmd_line[512];
 
     sprintf(cmd_line, "aplay -t raw -c 1 -f S16_LE -r 24000 %s&", source.c_str());
-    Shell::system(cmd_line);
+    Shell::system(cmd_line);*/
 }
 
 void SoundController::wakeUp() {
