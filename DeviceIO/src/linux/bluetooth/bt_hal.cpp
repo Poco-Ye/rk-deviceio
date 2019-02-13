@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <paths.h>
 #include <sys/wait.h>
+#include <sys/prctl.h>
 
 #include "../Logger.h"
 #include "../shell.h"
@@ -134,6 +135,8 @@ void *rk_config_wifi_thread(void)
 	printf("controlWifi connect ...\n");
 	//DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_CONNECT, &wifi_cfg);
 
+	prctl(PR_SET_NAME,"rk_config_wifi_thread");
+
 	RK_wifi_ble_register_callback(rk_blewifi_state_callback);
 	RK_wifi_connect(wifi_cfg.ssid, wifi_cfg.psk);
 }
@@ -169,6 +172,8 @@ void rk_ble_send_data(void)
 		printf("[KG] NO WIFI SCAN_R OR READ END!!!\n");
 		return;
 	}
+
+	prctl(PR_SET_NAME,"rk_ble_send_data");
 
 	while (scanr_len) {
 		printf("%s: wifi use: %d, remain len: %d\n", __func__, scanr_len_use, scanr_len);
@@ -390,6 +395,8 @@ static void* _btmaster_autoscan_and_connect(void *data)
 	scan_param.item_cnt = 100;
 	scan_param.device_list = NULL;
 	scan_cnt = 3;
+
+	prctl(PR_SET_NAME,"_btmaster_autoscan_and_connect");
 
 scan_retry:
 	printf("=== BT_SOURCE_SCAN ===\n");

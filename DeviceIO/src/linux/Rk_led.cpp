@@ -4,6 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "DeviceIo/Rk_led.h"
+#include <sys/prctl.h>
 
 
 #define LED_PWD_R			"/sys/devices/platform/pwmleds/leds/PWM-R/brightness"
@@ -262,6 +263,8 @@ static void led_handle_new_command(void)
 
 static void *led_thread(void *args)
 {
+	prctl(PR_SET_NAME,"led_thread");
+
 	while (true) {
 		if (led_wait_new_command()) {
 			led_handle_new_command();

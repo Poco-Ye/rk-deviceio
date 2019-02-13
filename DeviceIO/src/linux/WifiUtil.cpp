@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include<signal.h>
+#include <sys/prctl.h>
 
 #include <signal.h>//SIGQUIT /usr/include/bits/signum.h
 #include <errno.h>// ESRCH  /usr/include/asm-/error-bash.h
@@ -730,6 +731,8 @@ bool checkWifiIsConnected() {
 	Shell::exec("killall dhcpcd", ret_buff, 1024);
 	usleep(300000);
 
+    prctl(PR_SET_NAME,"checkWifiIsConnected");
+
     bool isWifiConnected = false;
     int match = 0;
 	connect_retry_count = WIFI_CONNECT_RETRY;
@@ -1227,6 +1230,8 @@ void WifiUtil::start_wifi_monitor(void *arg)
 {
 	char eventStr[EVENT_BUF_SIZE];
 	int ret;
+
+	prctl(PR_SET_NAME,"start_wifi_monitor");
 
 	if ((ret = wifi_connect_to_supplicant()) != 0) {
 		printf("%s, connect to supplicant fail.\n", __FUNCTION__);

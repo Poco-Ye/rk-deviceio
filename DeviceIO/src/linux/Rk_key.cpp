@@ -10,6 +10,7 @@
 #include "DeviceIo/Rk_key.h"
 #include "DeviceIo/RK_log.h"
 #include "DeviceIo/RK_timer.h"
+#include <sys/prctl.h>
 
 #define TIME_MULTIPLE        (500)
 
@@ -627,6 +628,8 @@ static void compose_check_has_event(void)
 
 static void* thread_compose_long_key(void *arg)
 {
+	prctl(PR_SET_NAME,"thread_compose_long_key");
+
 	while (1) {
 		if (compose_wait_new_event()) {
 			compose_handle_new_event();
@@ -776,6 +779,8 @@ static int multiple_handle_new_event(void)
 
 static void* thread_key_multiple(void *arg)
 {
+	prctl(PR_SET_NAME,"thread_key_multiple");
+
 	while (1) {
 		if (multiple_wait_new_event()) {
 			multiple_handle_new_event();
@@ -789,6 +794,8 @@ static void* thread_key_monitor(void *arg)
 {
 	int max_fd;
 	fd_set rfds;
+
+	prctl(PR_SET_NAME,"thread_key_monitor");
 
 	max_fd = (m_event0 > m_event1 ? m_event0 : m_event1);
 	max_fd = (max_fd > m_event2 ? max_fd : m_event2);

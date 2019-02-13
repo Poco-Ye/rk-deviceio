@@ -26,6 +26,7 @@
 #include "DeviceIo/DeviceIo.h"
 #include "shell.h"
 #include "power.h"
+#include <sys/prctl.h>
 
 #define pm_dbg(fmt, ...)	APP_DEBUG("PowerManager debug: " fmt, ##__VA_ARGS__)
 #define pm_info(fmt, ...)	APP_INFO("PowerManager info: " fmt, ##__VA_ARGS__)

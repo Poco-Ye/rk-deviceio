@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include "DeviceIo/RK_timer.h"
+#include <sys/prctl.h>
 
 static RK_Timer_t *head_handle = NULL;
 static pthread_t timer_thread;
@@ -98,6 +99,8 @@ static void* rk_thread_timer(void *arg)
 {
 	RK_Timer_t *target;
 	uint64_t time;
+
+	prctl(PR_SET_NAME,"rk_thread_timer");
 
 	while (timer_running) {
 		usleep(1000);

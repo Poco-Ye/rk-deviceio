@@ -16,6 +16,7 @@
 #include <termios.h>
 #include <poll.h>
 #include <pthread.h>
+#include <sys/prctl.h>
 
 #include <sys/param.h>
 #include <sys/ioctl.h>
@@ -54,6 +55,8 @@ static void *init_bt_spp_server(void *arg)
 	int bytes_read, result;
 	int opt = sizeof(rem_addr);
 	int parame = 1;
+
+	prctl(PR_SET_NAME,"init_bt_spp_server");
 
 	g_server_sk = socket(PF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
 	if(g_server_sk < 0) {

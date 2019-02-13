@@ -25,6 +25,7 @@
 #include <linux/input.h>
 #include <math.h>
 #include "Logger.h"
+#include <sys/prctl.h>
 
 #define dbg(fmt, ...) APP_DEBUG("[rk keys debug ]" fmt, ##__VA_ARGS__)
 #define err(fmt, ...) APP_ERROR("[rk keys error ]" fmt, ##__VA_ARGS__)
@@ -273,6 +274,8 @@ static void * key_task(void *param) {
     nfds = key.gpio_keys_fd > key.rk816_keys_fd ? key.gpio_keys_fd : key.rk816_keys_fd;
     nfds = nfds > key.hpdet_fd ? nfds : key.hpdet_fd;
     nfds = nfds + 1;
+
+    prctl(PR_SET_NAME,"key_task");
 
     while (1) {
         FD_ZERO(&rfds);

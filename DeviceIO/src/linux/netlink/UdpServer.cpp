@@ -33,6 +33,7 @@
 #include "rapidjson/prettywriter.h"
 #include "UdpServer.h"
 #include <DeviceIo/Rk_wifi.h>
+#include <sys/prctl.h>
 
 const char* MSG_BROADCAST_AP_MODE = "{\"method\":\"softAP\", \"magic\":\"KugouMusic\", \"params\":\"ap_wifi_mode\"}";
 const char* MSG_WIFI_CONNECTING = "{\"method\":\"softAP\", \"magic\":\"KugouMusic\", \"params\":\"wifi_connecting\"}";
@@ -101,6 +102,8 @@ static int initSocket(const unsigned int port) {
 void* checkWifi(void *arg) {
 	printf("Wifi check thread start...\n");
 	WifiManager* wifiManager = WifiManager::getInstance();
+
+	prctl(PR_SET_NAME,"checkWifi");
 
 	bool ret = false;
 	int time;
@@ -241,6 +244,8 @@ void* UdpServer::threadAccept(void *arg) {
 	char buff[512 + 1];
 	int n;
 
+	prctl(PR_SET_NAME,"udp threadAccept");
+
 	port = *(int*) arg;
 	fd_server = initSocket(port);
 
@@ -285,6 +290,8 @@ void* UdpServer::threadBroadcast(void* arg) {
 	int sock, port, ret;
 	const int opt = 1;
 	struct sockaddr_in addrto;
+
+	prctl(PR_SET_NAME,"udp threadBroadcast");
 
 	port = *(int*) arg;
 	bzero(&addrto, sizeof(struct sockaddr_in));

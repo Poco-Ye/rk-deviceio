@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <net/if.h>
 #include <errno.h>
+#include <sys/prctl.h>
 
 #include "Hostapd.h"
 #include "ping.h"
@@ -661,6 +662,8 @@ static void* wifi_connect_state_check(void *arg)
 
 	state = RK_WIFI_State_IDLE;
 
+	prctl(PR_SET_NAME,"wifi_connect_state_check");
+
 	isconnected = check_wifi_isconnected();
 
 	if (isconnected == 1) {
@@ -1091,6 +1094,8 @@ static void RK_wifi_start_monitor(void *arg)
 {
 	char eventStr[EVENT_BUF_SIZE];
 	int ret;
+
+	prctl(PR_SET_NAME,"RK_wifi_start_monitor");
 
 	if ((ret = wifi_connect_to_supplicant()) != 0) {
 		printf("%s, connect to supplicant fail.\n", __FUNCTION__);

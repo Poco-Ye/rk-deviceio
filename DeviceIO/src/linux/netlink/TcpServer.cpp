@@ -32,6 +32,7 @@
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/prettywriter.h"
 #include "TcpServer.h"
+#include <sys/prctl.h>
 
 #define REQUEST_WIFI_LIST					"/provision/wifiListInfo"
 #define REQUEST_WIFI_SET_UP					"/provision/wifiSetup"
@@ -266,6 +267,8 @@ void* TcpServer::threadAccept(void *arg) {
 
 	port = *(int*) arg;
 	fd_server = initSocket(port);
+
+	prctl(PR_SET_NAME,"threadAccept");
 
 	if (fd_server < 0) {
 		printf("TcpServer::threadAccept init tcp socket port %d fail. error:%d\n", port, fd_server);

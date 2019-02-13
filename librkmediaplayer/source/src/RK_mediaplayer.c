@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <gst/gst.h>
+#include <sys/prctl.h>
 
 #include "RK_mediaplayer.h"
 typedef struct _RkPlayerInfo {
@@ -161,6 +162,8 @@ static void *listen_playbin_bus(void *arg)
 	GstMessage *msg;
 	GstMessageType listen_flag;
 	RkMediaPlayer *c_player = (RkMediaPlayer *)arg;
+
+	prctl(PR_SET_NAME,"listen_playbin_bus");
 
 	listen_flag = (GstMessageType)(GST_MESSAGE_STATE_CHANGED |
 								   GST_MESSAGE_ERROR | GST_MESSAGE_EOS |

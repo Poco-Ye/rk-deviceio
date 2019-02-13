@@ -5,6 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "DeviceIo/Rk_battery.h"
+#include <sys/prctl.h>
 
 static void *m_userdata;
 static RK_battery_callback m_cb;
@@ -32,6 +33,8 @@ static void* thread_detect_battery_status(void *arg)
 	int cur_level, last_level;
 	RK_Battery_Status_e status = RK_BATTERY_STATUS_UNKNOWN;
 	time_t cb_time = 0;
+
+	prctl(PR_SET_NAME,"thread_detect_battery_status");
 
 	status = RK_battery_get_status();
 	last_level = RK_battery_get_cur_level();

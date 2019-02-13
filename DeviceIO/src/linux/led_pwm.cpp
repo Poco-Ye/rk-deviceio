@@ -23,6 +23,7 @@
 #include <math.h>
 #include <vector>
 #include "Logger.h"
+#include <sys/prctl.h>
 
 #define TIMER_PERIOD (20)
 #define LED_NUM (1)
@@ -622,6 +623,8 @@ static bool is_sleep_mode()
 
 static void *led_task(void *param)
 {
+    prctl(PR_SET_NAME,"led_task");
+
     while (true) {
         // check every layer color
         if (led_wait_new_command()) {

@@ -18,6 +18,7 @@
 #include <iostream>
 #include "Logger.h"
 #include "Timer.h"
+#include <sys/prctl.h>
 
 namespace DeviceIOFramework {
 
@@ -115,6 +116,8 @@ int TimerManager::timerRemove(Timer* timer) {
 void* TimerManager::timerThread(void* param) {
     struct timeval time_now;
     struct timeval time_delta;
+
+    prctl(PR_SET_NAME,"timerThread");
 
     while (1) {
         time_delta.tv_sec = 0;

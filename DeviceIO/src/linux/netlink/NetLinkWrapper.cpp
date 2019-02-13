@@ -30,6 +30,7 @@
 #include <errno.h>
 #include <paths.h>
 #include <sys/wait.h>
+#include <sys/prctl.h>
 
 #include "TcpServer.h"
 #include "UdpServer.h"
@@ -274,6 +275,8 @@ retry:
 
 void *config_wifi_thread(void)
 {
+	prctl(PR_SET_NAME,"config_wifi_thread");
+
 	printf("config_wifi_thread\n");
 	printf("=== wifi info ssid: %s, psk: %s ===\n", wifi_cfg.ssid, wifi_cfg.psk);
 	NetLinkWrapper::getInstance()->notify_network_config_status(ENetworkConfigIng);
