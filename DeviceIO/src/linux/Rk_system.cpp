@@ -1,9 +1,11 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "DeviceIo/Rk_system.h"
 
 
-static int exec(const char *cmd, char *buf, const size_t size) {
+static int exec(const char *cmd, char *buf, const size_t size)
+{
 	FILE *stream = NULL;
 	char tmp[1024];
 
@@ -38,7 +40,8 @@ int RK_read_chip_id(char *buffer, const int size)
 	return ret;
 }
 
-int RK_read_version(char *buffer, const int size) {
+int RK_read_version(char *buffer, const int size)
+{
 	if (!buffer)
 		return -1;
 
@@ -47,3 +50,12 @@ int RK_read_version(char *buffer, const int size) {
 	return 0;
 }
 
+int RK_system_factory_reset(const int reboot = 1)
+{
+	if (reboot) {
+		system("rkboot_control wipe_userdata reboot");
+	} else {
+		system("rkboot_control wipe_userdata");
+	}
+	return 0;
+}

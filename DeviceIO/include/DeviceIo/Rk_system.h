@@ -40,6 +40,7 @@ extern "C" {
 
 int RK_read_chip_id(char *buffer, const int size);
 int RK_read_version(char *buffer, const int size);
+int RK_system_factory_reset(const int reboot = 1);
 
 
 #ifdef __cplusplus
