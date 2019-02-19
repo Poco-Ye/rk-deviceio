@@ -399,9 +399,12 @@ int RK_set_led_effect_off(const RK_Led_Effect_layer_e layer, const char *name)
 			stable = stable->next;
 		}
 	} else if (Led_Effect_layer_REALTIME == layer) {
-		free(m_led_manager.realtime->effect);
-		free(m_led_manager.realtime);
-		m_led_manager.realtime = NULL;
+        if(m_led_manager.realtime != NULL){
+            if(m_led_manager.realtime->effect != NULL)
+                free(m_led_manager.realtime->effect);
+            free(m_led_manager.realtime);
+            m_led_manager.realtime = NULL;
+        }
 	} else if (Led_Effect_layer_TEMP == layer) {
 		free(m_led_manager.temp->effect);
 		free(m_led_manager.temp);
