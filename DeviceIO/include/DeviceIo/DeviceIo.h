@@ -309,6 +309,7 @@ struct wifi_config {
 	int psk_len;
 	char key_mgmt[512];
 	int key_len;
+	bool hide;
 	void (*wifi_status_callback)(int status, int reason);
 };
 

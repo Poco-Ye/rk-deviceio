@@ -278,7 +278,7 @@ void *config_wifi_thread(void)
 	prctl(PR_SET_NAME,"config_wifi_thread");
 
 	printf("config_wifi_thread\n");
-	printf("=== wifi info ssid: %s, psk: %s ===\n", wifi_cfg.ssid, wifi_cfg.psk);
+	printf("=== wifi info ssid: %s, psk: %s, hide: %d ===\n", wifi_cfg.ssid, wifi_cfg.psk, wifi_cfg.hide);
 	NetLinkWrapper::getInstance()->notify_network_config_status(ENetworkConfigIng);
 	DeviceIo::getInstance()->controlWifi(WifiControl::WIFI_CONNECT, &wifi_cfg);
 }
@@ -342,6 +342,8 @@ void ble_callback(char *uuid, void *data, int len)
 	if (!strcmp(HIDE_CHAR_UUID, uuid)) {
 		strcpy(wifi_hide, str);
 		printf("wifi hide is %s\n", wifi_hide);
+		wifi_cfg.hide = atoi(wifi_hide);
+		printf("wifi_cfg hide is %d\n", wifi_cfg.hide);
 	}
 
 	if (!strcmp(SECURITY_CHAR_UUID, uuid)) {
@@ -361,7 +363,7 @@ void ble_callback(char *uuid, void *data, int len)
 	if (!strcmp(CHECKDATA_CHAR_UUID, uuid)) {
 		strncpy(check_data, str, len);
 		printf("check_data is  %s\n", check_data);
-		printf("=== wifi info ssid: %s, psk: %s ===\n", wifi_cfg.ssid, wifi_cfg.psk);
+		printf("=== wifi info ssid: %s, psk: %s, hide: %d ===\n", wifi_cfg.ssid, wifi_cfg.psk, wifi_cfg.hide);
 		wifi_cfg.wifi_status_callback = wifi_status_callback;
 		pthread_create(&wificonfig_tid, NULL, config_wifi_thread, NULL);
 	}
@@ -377,7 +379,7 @@ static bt_init_for_hisense(void)
 	p_bt_content = &bt_content;
 	p_bt_content->bt_name = NULL;//"HISENSE_AUDIO";
 
-	p_bt_content->ble_content.ble_name = NULL;//"小聚音箱MINI-6666";
+	p_bt_content->ble_content.ble_name = NULL; //"小聚音箱MINI-6666";
 	p_bt_content->ble_content.server_uuid = WIFI_SERVICES_UUID;
 	p_bt_content->ble_content.chr_uuid[0] = SECURITY_CHAR_UUID;
 	p_bt_content->ble_content.chr_uuid[1] = HIDE_CHAR_UUID;
@@ -509,6 +511,7 @@ bool NetLinkWrapper::start_network_config() {
 	printf("==start notify_network_config_status ===\n");
 	getInstance()->notify_network_config_status(ENetworkConfigStarted);
 	m_ping_interval = 1;
+	wifi_link_state = false;
 }
 
 void NetLinkWrapper::stop_network_config() {

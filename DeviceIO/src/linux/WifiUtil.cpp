@@ -438,6 +438,7 @@ static char wifi_ssid[256];
 static char wifi_ssid_bk[256];
 static char wifi_password[256];
 static char wifi_password_bk[256];
+static char wifi_ssid_bk_s[1024];
 static char wifi_security[256];
 static char wifi_hide[256];
 static char check_data[256];
@@ -480,6 +481,7 @@ static bool save_wifi_config(int mode)
 	memset(wifi_password, 0, 256);
 	memset(wifi_password_bk, 0, 256);
 	memset(wifi_security, 0, 256);
+	memset(wifi_ssid_bk_s, 0, 1024);
 
 	return 0;
 }
@@ -501,9 +503,18 @@ static void check_wifiinfo(int flag, char *info)
 		strcpy(info, temp);
 		printf("check_wifiinfo ssid: %s\n", info);
 
+		j = 0;
+		for (int i = 0; i < strlen(wifi_ssid_bk); i++) {
+			if (!((wifi_ssid_bk[i] >= 48) && (wifi_ssid_bk[i] <= 57)))
+				wifi_ssid_bk_s[j++] = '\\';
+
+			wifi_ssid_bk_s[j++] = wifi_ssid_bk[i];
+		}
+		wifi_ssid_bk_s[j] = '\0';
+
 		select_id = -1;
 		memset(cmdline, 0, sizeof(cmdline));
-		sprintf(cmdline,"wpa_cli -iwlan0 list_network | grep %s | awk -F \" \" '{print $1}'", wifi_ssid_bk);
+		sprintf(cmdline,"wpa_cli -iwlan0 list_network | grep \"%s\" | awk -F \" \" '{print $1}'", wifi_ssid_bk_s);
 		Shell::exec(cmdline, buff, 1024);
 
 		memset(cmdline, 0, sizeof(cmdline));
@@ -513,7 +524,7 @@ static void check_wifiinfo(int flag, char *info)
 		if (strlen(buff) > 0) {
 			select_id = atoi(buff);
 		} else if (strlen(buff1) > 0) {
-			Shell::exec("cat /data/cfg/wpa_supplicant.conf | grep ssid", buff, 1024);
+			Shell::exec("cat data/cfg/wpa_supplicant.conf | grep -v scan_ssid | grep ssid", buff, 1024);
 			while ((str = strchr(buff, '\n')) != NULL) {
 				select_id++;
 				if (strstr(str, info) == NULL)
@@ -526,7 +537,7 @@ static void check_wifiinfo(int flag, char *info)
 		int j = 0;
 		while (j < 6) {
 			memset(cmdline, 0, sizeof(cmdline));
-			sprintf(cmdline,"wpa_cli -iwlan0 scan_result | grep %s", wifi_ssid_bk);
+			sprintf(cmdline,"wpa_cli -iwlan0 scan_result | grep \"%s\"", wifi_ssid_bk_s);
 			Shell::exec("wpa_cli -iwlan0 scan", buff, 1024);
 			Shell::exec(cmdline, buff, 1024);
 			if (strlen(buff) > 0) {
@@ -562,7 +573,7 @@ static void check_wifiinfo(int flag, char *info)
  * @parm ssid
  * @parm password
  */
-bool wifiConnect(std::string ssid,std::string password,std::string security){
+bool wifiConnect(std::string ssid,std::string password,std::string security, bool hide){
     char ret_buff[1024] = {0};
     char cmdline[1024] = {0};
     int id = -1;
@@ -574,7 +585,7 @@ bool wifiConnect(std::string ssid,std::string password,std::string security){
 
 	wifi_wrong_key = false;
 
-	printf("%s ssid: %s, password: %s, security: %s\n", __func__, ssid.c_str(), password.c_str(), security.c_str());
+	printf("%s ssid: %s, password: %s, security: %s, hide: %d\n", __func__, ssid.c_str(), password.c_str(), security.c_str(), hide);
 
 	strcpy(wifi_ssid, ssid.c_str());
 	strcpy(wifi_ssid_bk, ssid.c_str());
@@ -638,6 +649,17 @@ bool wifiConnect(std::string ssid,std::string password,std::string security){
 		goto falsed;
 	}
 
+	// 5. setNetWorkHIDE
+	memset(cmdline, 0, sizeof(cmdline));
+	sprintf(cmdline,"wpa_cli -iwlan0 set_network %d scan_ssid %d", id, hide);
+	printf("%s\n", cmdline);
+	Shell::exec(cmdline, ret_buff, 1024);
+	execute_result = !strncmp(ret_buff, "OK", 2);
+	if (!execute_result) {
+		log_err("setNetWorkHIDE failed.\n");
+		goto falsed;
+	}
+
 #if 0
     // 3. setNetWorkSECURe
     check_wifiinfo(1, wifi_security);
@@ -657,7 +679,14 @@ bool wifiConnect(std::string ssid,std::string password,std::string security){
     }
 #endif
 
-	check_wifiinfo(1, wifi_security);
+	if (hide) {
+		if (wifi_password[0] == 0)
+			strcpy(wifi_security, "NONE");
+		else
+			strcpy(wifi_security, "WPA-PSK");
+	} else
+		check_wifiinfo(1, wifi_security);
+
 	if (strncmp(wifi_security, "WEP", 3) == 0) {
 		memset(cmdline, 0, sizeof(cmdline));
 		sprintf(cmdline, "wpa_cli -iwlan0 set_network %d key_mgmt NONE", id);
@@ -721,47 +750,59 @@ falsed:
 
 bool checkWifiIsConnected() {
     char ret_buff[1024] = {0};
+	int dhcpcd_retry = 5;
+	bool is_connected = false;
+	bool is_vaild_ip_addr = false;
 
     LIST_STRING stateSList;
-    LIST_STRING::iterator iterator;   
-
-    // udhcpc network
-	Shell::exec("dhcpcd -k wlan0", ret_buff, 1024);
-	usleep(200000);
-	Shell::exec("killall dhcpcd", ret_buff, 1024);
-	usleep(300000);
+    LIST_STRING::iterator iterator;
 
     prctl(PR_SET_NAME,"checkWifiIsConnected");
 
     bool isWifiConnected = false;
-    int match = 0;
 	connect_retry_count = WIFI_CONNECT_RETRY;
+
+	Shell::exec("dhcpcd -k wlan0", ret_buff, 1024);
+	usleep(500000);
+	Shell::exec("killall dhcpcd", ret_buff, 1024);
+	usleep(500000);
 
     /* 15s to check wifi whether connected */
     for(int i=0;i<connect_retry_count;i++){
         sleep(1);
-        match = 0;
+		is_connected = false;
+		is_vaild_ip_addr = false;
+
         Shell::exec("wpa_cli -iwlan0 status",ret_buff, 1024);
         stateSList = charArrayToList(ret_buff);
         for(iterator=stateSList.begin();iterator!=stateSList.end();iterator++){
             std::string item = (*iterator);
-            if(item.find("wpa_state")!=std::string::npos){
-                if(item.substr(item.find('=')+1)=="COMPLETED"){
-                    match++;
-					if (!get_pid("dhcpcd")) {
-						Shell::exec("dhcpcd -L -f /etc/dhcpcd.conf", ret_buff, 1024);
-						usleep(800000);
-						Shell::system("dhcpcd wlan0 -t 0 &");
-					}
-                }
-            }
-            if(item.find("ip_address")!=std::string::npos){
-                if(item.substr(item.find('=')+1)!="127.0.0.1"){
-                    match++;
-                }
-            }
+			if (item.find("wpa_state") != std::string::npos) {
+				if(item.substr(item.find('=')+1)=="COMPLETED")
+					is_connected = true;
+			}
+			if (item.find("ip_address") != std::string::npos) {
+				if(item.substr(item.find('=')+1)!="127.0.0.1")
+					is_vaild_ip_addr = true;
+			}
         }
-        if(match >= 2){
+
+		if ((is_connected == true) && (is_vaild_ip_addr == false)) {
+			if (dhcpcd_retry) {
+				dhcpcd_retry--;
+				// udhcpc network
+				Shell::exec("dhcpcd -k wlan0", ret_buff, 1024);
+				usleep(500000);
+				Shell::exec("killall dhcpcd", ret_buff, 1024);
+				usleep(500000);
+				Shell::exec("dhcpcd -L -f /etc/dhcpcd.conf", ret_buff, 1024);
+				sleep(1);
+				Shell::system("dhcpcd wlan0 -t 0 &");
+				sleep(1);
+			}
+		}
+
+		if ((is_connected == true) && (is_vaild_ip_addr == true)) {
             isWifiConnected = true;
             // TODO play audio: wifi connected
             log_err("Congratulation: wifi connected.\n");
@@ -893,7 +934,7 @@ static bool saveWifiConfig(const char* name, const char* pwd)
 
 void WifiUtil::connect(void *data) {
 	gwifi_cfg = data;
-	wifiConnect(gwifi_cfg->ssid, gwifi_cfg->psk, gwifi_cfg->key_mgmt);
+	wifiConnect(gwifi_cfg->ssid, gwifi_cfg->psk, gwifi_cfg->key_mgmt, gwifi_cfg->hide);
 }
 
 void WifiUtil::disconnect() {
@@ -938,7 +979,7 @@ void WifiUtil::connectJson(char *recv_buff) {
     }
 
     /* use wpa_cli to connect wifi by ssid and password */
-    bool connectResult = wifiConnect(userName,password,sec);
+    bool connectResult = wifiConnect(userName,password,sec,0);
 
     if(connectResult){
         std::thread thread(checkWifiIsConnected);
