@@ -659,7 +659,7 @@ int RK_bta2dp_pause(void)
 
 int RK_bta2dp_prev(void)
 {
-	if (bt_control_cmd_send(BtControl::BT_AVRCP_FWD) < 0)
+	if (bt_control_cmd_send(BtControl::BT_AVRCP_BWD) < 0)
 		return -1;
 
 	return 0;
@@ -667,7 +667,7 @@ int RK_bta2dp_prev(void)
 
 int RK_bta2dp_next(void)
 {
-	if (bt_control_cmd_send(BtControl::BT_AVRCP_BWD) < 0)
+	if (bt_control_cmd_send(BtControl::BT_AVRCP_FWD) < 0)
 		return -1;
 
 	return 0;
