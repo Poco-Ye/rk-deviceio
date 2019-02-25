@@ -13,6 +13,7 @@
 #include "Hostapd.h"
 #include "ping.h"
 #include "DeviceIo/RK_encode.h"
+#include "DeviceIo/RK_log.h"
 #include "DeviceIo/Rk_wifi.h"
 
 typedef struct RK_WIFI_encode_gbk {
@@ -118,6 +119,27 @@ static char* exec1(const char* cmd)
 	return ret;
 }
 
+static char *remove_escape_character(const char *buf, char *dst)
+{
+	char buf_temp[strlen(buf) + 1];
+	int i = 0;
+
+	memset(buf_temp, 0, sizeof(buf_temp));
+	while(*buf != '\0') {
+		if (*buf == '\\' && (*(buf + 1) == '\\' || *(buf + 1) == '\"')) {
+			dst[i] = *(buf + 1);
+			buf = buf + 2;
+		} else {
+			dst[i] = *buf;
+			buf++;
+		}
+		i++;
+	}
+	dst[i] = '\0';
+
+	return dst;
+}
+
 static char *spec_char_convers(const char *buf, char *dst)
 {
 	char buf_temp[strlen(buf) + 1];
@@ -126,7 +148,7 @@ static char *spec_char_convers(const char *buf, char *dst)
 
 	memset(buf_temp, 0, sizeof(buf_temp));
 	while(*buf != '\0') {
-		if(*buf == '\\') {
+		if(*buf == '\\' && *(buf + 1) == 'x') {
 			strcpy(buf_temp, buf);
 			*buf_temp = '0';
 			*(buf_temp + 4) = '\0';
@@ -413,8 +435,12 @@ char* RK_wifi_scan_r_sec(const unsigned int cols)
 
 						is_utf8 = RK_encode_is_utf8(dst, strlen(dst));
 						if (!is_utf8) {
+							char act_utf8[sizeof(utf8)];
+							memset(act_utf8, 0, sizeof(act_utf8));
+
 							RK_encode_gbk_to_utf8(dst, strlen(dst), utf8);
-							encode_gbk_insert(dst, utf8);
+							remove_escape_character(utf8, act_utf8);
+							encode_gbk_insert(dst, act_utf8);
 
 							// if convert gbk to utf8 failed, ignore it
 							if (!RK_encode_is_utf8(utf8, strlen(utf8))) {
@@ -691,20 +717,17 @@ static void* wifi_connect_state_check(void *arg)
 
 int RK_wifi_connect(const char* ssid, const char* psk)
 {
-	char ori[strlen(ssid) + 1];
 	RK_WIFI_RUNNING_State_e state = RK_WIFI_State_CONNECTING;
 	if (m_cb != NULL)
 		m_cb(state);
 
-	memset(ori, 0, sizeof(ori));
-	get_encode_gbk_ori(ssid, ori);
-
-	return RK_wifi_connect1(ori, psk, WPA, 0);
+	return RK_wifi_connect1(ssid, psk, WPA, 0);
 }
 
 int RK_wifi_connect1(const char* ssid, const char* psk, const RK_WIFI_CONNECTION_Encryp_e encryp, const int hide)
 {
 	int id, ret;
+	char ori[strlen(ssid) + 1];
 
 	exec1("wpa_cli -iwlan0 disable_network all");
 	wifi_wrong_key = false;
@@ -714,7 +737,10 @@ int RK_wifi_connect1(const char* ssid, const char* psk, const RK_WIFI_CONNECTION
 	if (id < 0)
 		return -1;
 
-	ret = set_network(id, ssid, psk, encryp);
+	memset(ori, 0, sizeof(ori));
+	get_encode_gbk_ori(ssid, ori);
+	RK_LOGI("RK_wifi_connect ssid:\"%s\" strlen(ssid):%lu; ori:\"%s\" strlen(ori):%lu; psk:\"%s\"\n", ssid, strlen(ssid), ori, strlen(ori), psk);
+	ret = set_network(id, ori, psk, encryp);
 	if (0 != ret)
 		return -2;
 
