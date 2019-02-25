@@ -451,7 +451,7 @@ static volatile bool wifi_wrong_key = false;
 static int connect_retry_count;
 #define WIFI_CONNECT_RETRY 50
 
-static bool save_wifi_config(int mode)
+static bool save_wifi_config(int mode, bool wrong_key)
 {
 	int fail_reason = 0;
 
@@ -463,7 +463,7 @@ static bool save_wifi_config(int mode)
 		if (gwifi_cfg->wifi_status_callback)
 			gwifi_cfg->wifi_status_callback(NetLinkNetworkStatus::NETLINK_NETWORK_CONFIG_SUCCEEDED, fail_reason);
 	} else {
-		if (wifi_wrong_key)
+		if ((wifi_wrong_key) || wrong_key)
 			fail_reason = 1;
 		Shell::system("wpa_cli flush");
 		if (gwifi_cfg->wifi_status_callback)
@@ -617,7 +617,7 @@ bool wifiConnect(std::string ssid,std::string password,std::string security, boo
         Shell::exec("wpa_cli -iwlan0 add_network", ret_buff, 1024);
         id = atoi(ret_buff);
         if (id < 0) {
-			save_wifi_config(0);
+			//save_wifi_config(0);
 			log_err("add_network failed.\n");
 			goto falsed;
         }
@@ -736,15 +736,15 @@ enable_network:
     }
 
 	if (checkWifiIsConnected()) {
-		save_wifi_config(1);
+		save_wifi_config(1, false);
 	} else {
-		save_wifi_config(0);
+		save_wifi_config(0, false);
 	}
 
 	return true;
 
 falsed:
-	save_wifi_config(0);
+	save_wifi_config(0, true);
 	return false;	
 }
 

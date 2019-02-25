@@ -16,7 +16,7 @@ static char *spec_char_convers(const char *buf, char *dst)
 
 	memset(buf_temp, 0, sizeof(buf_temp));
 	while(*buf != '\0') {
-		if(*buf == '\\') {
+		if(*buf == '\\' && *(buf + 1) == 'x') {
 			strcpy(buf_temp, buf);
 			*buf_temp = '0';
 			*(buf_temp + 4) = '\0';
