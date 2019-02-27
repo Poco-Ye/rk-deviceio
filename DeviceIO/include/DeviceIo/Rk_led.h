@@ -27,11 +27,13 @@ typedef struct RK_Led_Effect {
 	RK_Led_Effect_layer_e layer;
 } RK_Led_Effect_t;
 
+int RK_led_init(void);
 int RK_set_led_effect(RK_Led_Effect *effect);
 int RK_set_led_effect_off(const RK_Led_Effect_layer_e layer, const char *name);
 int RK_set_all_led_effect_off(void);
 int RK_set_all_led_status(const int Rval, const int Gval, const int Bval);
 int RK_set_all_led_off();
+int RK_led_exit(void);
 
 
 #ifdef __cplusplus

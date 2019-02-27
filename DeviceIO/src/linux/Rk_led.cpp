@@ -1,10 +1,12 @@
+#include <fcntl.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include "DeviceIo/Rk_led.h"
 #include <sys/prctl.h>
+#include "DeviceIo/Rk_led.h"
+#include "DeviceIo/RK_log.h"
 
 
 #define LED_PWD_R			"/sys/devices/platform/pwmleds/leds/PWM-R/brightness"
@@ -12,6 +14,13 @@
 #define LED_PWD_B			"/sys/devices/platform/pwmleds/leds/PWM-B/brightness"
 
 #define TIMER_PERIOD (20)
+
+typedef struct RK_LedFd {
+	int fd_r;
+	int fd_g;
+	int fd_b;
+	int status;  // 0 is not open, 1 is inited, -1 is init failed
+} RK_LedFd_t;
 
 typedef struct RK_Led_Effect_ins {
 	RK_Led_Effect_t *effect;    // Parameters seted througth interface
@@ -32,6 +41,7 @@ typedef struct RK_Led_Manager {
 } RK_Led_Manager_t;
 
 static RK_Led_Manager_t m_led_manager;
+static RK_LedFd_t m_LedFd = {0,0,0,0};
 
 // 呼吸灯效
 static void led_effect_breath(RK_Led_Effect_ins_t *effect) {
@@ -304,6 +314,35 @@ static int check_moudle_init(void)
 	return 0;
 }
 
+int RK_led_init(void)
+{
+	if (m_LedFd.status == -1) {
+		return -1;
+	} else if (m_LedFd.status == 0) {
+		m_LedFd.fd_r = open(LED_PWD_R, O_WRONLY);
+		if (m_LedFd.fd_r < 0) {
+			m_LedFd.status = -1;
+			return -2;
+		}
+
+		m_LedFd.fd_g = open(LED_PWD_G, O_WRONLY);
+		if (m_LedFd.fd_g < 0) {
+			m_LedFd.status = -1;
+			return -3;
+		}
+
+		m_LedFd.fd_b = open(LED_PWD_B, O_WRONLY);
+		if (m_LedFd.fd_b < 0) {
+			m_LedFd.status = -1;
+			return -4;
+		}
+
+		m_LedFd.status = 1;
+	}
+
+	return 0;
+}
+
 int RK_set_led_effect(RK_Led_Effect_t *effect)
 {
 	int ret;
@@ -453,19 +492,50 @@ int RK_set_all_led_effect_off(void)
 
 int RK_set_all_led_status(const int Rval, const int Gval, const int Bval)
 {
+	int ret;
 	char cmd[64];
 
-	memset(cmd, 0, sizeof(cmd));
-	snprintf(cmd, sizeof(cmd), "echo %d > %s", Rval, LED_PWD_R);
-	system(cmd);
+	if (m_LedFd.status == -1) {
+		return -1;
+	} else if (m_LedFd.status == 0) {
+		m_LedFd.fd_r = open(LED_PWD_R, O_WRONLY);
+		if (m_LedFd.fd_r < 0) {
+			m_LedFd.status = -1;
+			return -2;
+		}
 
-	memset(cmd, 0, sizeof(cmd));
-	snprintf(cmd, sizeof(cmd), "echo %d > %s", Gval, LED_PWD_G);
-	system(cmd);
+		m_LedFd.fd_g = open(LED_PWD_G, O_WRONLY);
+		if (m_LedFd.fd_g < 0) {
+			m_LedFd.status = -1;
+			return -3;
+		}
 
-	memset(cmd, 0, sizeof(cmd));
-	snprintf(cmd, sizeof(cmd), "echo %d > %s", Bval, LED_PWD_B);
-	system(cmd);
+		m_LedFd.fd_b = open(LED_PWD_B, O_WRONLY);
+		if (m_LedFd.fd_b < 0) {
+			m_LedFd.status = -1;
+			return -4;
+		}
+
+		m_LedFd.status = 1;
+	}
+
+	ret = dprintf(m_LedFd.fd_r, "%d", Rval & 0xFF);
+	if (ret < 0) {
+		RK_LOGE("RK_set_all_led_status(%d, %d, %d) fd_r failed", Rval, Gval, Bval);
+		return ret;
+	}
+
+	ret = dprintf(m_LedFd.fd_g, "%d", Gval & 0xFF);
+	if (ret < 0) {
+		RK_LOGE("RK_set_all_led_status(%d, %d, %d) fd_g failed", Rval, Gval, Bval);
+		return ret;
+	}
+
+	ret = dprintf(m_LedFd.fd_b, "%d", Bval & 0xFF);
+	if (ret < 0) {
+		RK_LOGE("RK_set_all_led_status(%d, %d, %d) fd_b failed", Rval, Gval, Bval);
+		return ret;
+	}
 
 	return 0;
 }
@@ -473,4 +543,26 @@ int RK_set_all_led_status(const int Rval, const int Gval, const int Bval)
 int RK_set_all_led_off()
 {
 	return RK_set_all_led_status(0x00, 0x00, 0x00);
+}
+
+int RK_led_exit(void)
+{
+	if (m_LedFd.fd_r > 0) {
+		close(m_LedFd.fd_r);
+		m_LedFd.fd_r = 0;
+	}
+
+	if (m_LedFd.fd_g > 0) {
+		close(m_LedFd.fd_g);
+		m_LedFd.fd_g = 0;
+	}
+
+	if (m_LedFd.fd_b > 0) {
+		close(m_LedFd.fd_b);
+		m_LedFd.fd_b = 0;
+	}
+
+	m_LedFd.status = 0;
+
+	return 0;
 }

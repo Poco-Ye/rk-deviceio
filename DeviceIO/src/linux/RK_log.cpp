@@ -284,6 +284,18 @@ int RK_LOGV(const char *format, ...)
 	return done;
 }
 
+int RK_LOGD(const char *format, ...)
+{
+	va_list arg;
+	int done;
+	pthread_mutex_lock(&m_mutex);
+	va_start (arg, format);
+	done = RK_LOG('D', format, arg);
+	va_end (arg);
+	pthread_mutex_unlock(&m_mutex);
+	return done;
+}
+
 int RK_LOGI(const char *format, ...)
 {
 	va_list arg;

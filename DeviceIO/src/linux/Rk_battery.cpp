@@ -4,26 +4,45 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include "DeviceIo/Rk_battery.h"
 #include <sys/prctl.h>
+#include "DeviceIo/Rk_battery.h"
+
+#define BATTERY_CAPACITY        "/sys/class/power_supply/battery/capacity"
+#define BATTERY_STATUS          "/sys/class/power_supply/battery/status"
+
+typedef struct {
+	FILE *fd_capacity;
+	FILE *fd_status;
+	int status;      // 0 is not open, 1 is inited, -1 is init failed
+} RK_Battery_Manager_t;
 
 static void *m_userdata;
 static RK_battery_callback m_cb;
 static int m_running = 0;
 static RK_Battery_Status_e m_status = RK_BATTERY_STATUS_UNKNOWN;
+static RK_Battery_Manager_t m_manager = {NULL, NULL, 0};
 
-static int exec(const char *cmd, char *buf) {
-	FILE *stream = NULL;
-	char tmp[1024];
+static int _read(const FILE* fd, char* str, size_t size)
+{
+	int len;
 
-	if ((stream = popen(cmd,"r")) == NULL) {
+	if (fd == NULL || str == NULL) {
 		return -1;
 	}
 
-	while (fgets(tmp, sizeof(tmp) -1, stream)) {
-		strcat(buf, tmp);
+	fseek(fd, 0L, SEEK_END);
+	len = ftell(fd);
+	if (len > size -1) {
+		len = size - 1;
 	}
-	pclose(stream);
+
+	memset(str, 0, size);
+	fseek(fd, 0L, SEEK_SET);
+	fread(str, 1, len, fd);
+
+	if (str[strlen(str) - 1] == '\n') {
+		str[strlen(str) - 1] = '\0';
+	}
 
 	return 0;
 }
@@ -43,6 +62,10 @@ static void* thread_detect_battery_status(void *arg)
 	while (m_running) {
 		sleep(1);
 		cur_level = RK_battery_get_cur_level();
+		if (cur_level < 0) {
+			continue;
+		}
+
 		status = RK_battery_get_status();
 		if (m_status != status) {
 			m_status = status;
@@ -88,6 +111,25 @@ int RK_battery_init(void)
 	if (m_running)
 		return 0;
 
+	if (m_manager.status == -1) {
+		return -1;
+	} else if (m_manager.status == 0) {
+		m_manager.fd_capacity = fopen(BATTERY_CAPACITY, "r");
+		if (!m_manager.fd_capacity) {
+			m_manager.status = -1;
+			return -2;
+		}
+
+		m_manager.fd_status = fopen(BATTERY_STATUS, "r");
+		if (!m_manager.fd_status) {
+			if (m_manager.fd_capacity) {
+				fclose(m_manager.fd_capacity);
+			}
+			m_manager.status = -1;
+			return -3;
+		}
+	}
+
 	m_running = 1;
 	ret = pthread_create(&pth, NULL, thread_detect_battery_status, NULL);
 
@@ -111,13 +153,15 @@ int RK_battery_get_cur_level()
 	char buf[64];
 
 	memset(buf, 0, sizeof(buf));
-	ret = exec("cat /sys/class/power_supply/battery/capacity", buf);
-	if (0 != ret)
-		return 0;
+	if (m_manager.fd_capacity) {
+		_read(m_manager.fd_capacity, buf, sizeof(buf));
+		if (strlen(buf) > 0) {
+			level = atoi(buf);
+			return level;
+		}
+	}
 
-	level = atoi(buf);
-
-	return level;
+	return -1;
 }
 
 RK_Battery_Status_e RK_battery_get_status()
@@ -126,15 +170,18 @@ RK_Battery_Status_e RK_battery_get_status()
 	char buf[64];
 
 	memset(buf, 0, sizeof(buf));
-	ret = exec("cat /sys/class/power_supply/battery/status", buf);
-	if (0 != ret)
-		return RK_BATTERY_STATUS_UNKNOWN;
+	if (m_manager.fd_status) {
+		_read(m_manager.fd_status, buf, sizeof(buf));
+		if (strlen(buf) > 0) {
+			if (0 == strncmp(buf, "Discharging", 11) || 0 == strncmp(buf, "Not charging", 12)) {
+				return RK_BATTERY_STATUS_DISCHARGING;
+			} else if (0 == strncmp(buf, "Full", 4)) {
+				return RK_BATTERY_STATUS_FULL;
+			} else if (0 == strncmp(buf, "Charging", 8)) {
+				return RK_BATTERY_STATUS_CHARGING;
+			}
+		}
+	}
 
-	if (0 == strncmp(buf, "Discharging", 11) || 0 == strncmp(buf, "Not charging", 12))
-		return RK_BATTERY_STATUS_DISCHARGING;
-	else if (0 == strncmp(buf, "Full", 4))
-		return RK_BATTERY_STATUS_FULL;
-	else if (0 == strncmp(buf, "Charging", 8))
-		return RK_BATTERY_STATUS_CHARGING;
 	return RK_BATTERY_STATUS_UNKNOWN;
 }

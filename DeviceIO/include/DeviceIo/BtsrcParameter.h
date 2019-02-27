@@ -63,8 +63,17 @@ typedef struct {
 } AdvDataKgContent;
 
 typedef struct {
-	const char *server_uuid;
-	char *chr_uuid[12];
+#define UUID_16     2
+#define UUID_32     4
+#define UUID_128    16
+
+	uint16_t len; //byte
+	const char *uuid;
+} Ble_Uuid_Type_t;
+
+typedef struct {
+	Ble_Uuid_Type_t server_uuid;
+	Ble_Uuid_Type_t chr_uuid[12];
 	uint8_t chr_cnt;
 	const char *ble_name;
 	AdvDataKgContent adv_kg;

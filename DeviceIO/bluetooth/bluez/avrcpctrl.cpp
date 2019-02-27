@@ -18,11 +18,11 @@
 #include "gdbus.h"
 
 #include "DeviceIo/DeviceIo.h"
-#include "../Timer.h"
+//#include "../Timer.h"
 
-using DeviceIOFramework::Timer;
-using DeviceIOFramework::TimerManager;
-using DeviceIOFramework::TimerNotify;
+//using DeviceIOFramework::Timer;
+//using DeviceIOFramework::TimerManager;
+//using DeviceIOFramework::TimerNotify;
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
 

@@ -16,12 +16,11 @@
 #include <sys/wait.h>
 #include <sys/prctl.h>
 
-#include "../Logger.h"
-#include "../shell.h"
-
 #include "DeviceIo/DeviceIo.h"
 #include <DeviceIo/bt_hal.h>
 #include <DeviceIo/Rk_wifi.h>
+#include <DeviceIo/RK_log.h>
+#include <DeviceIo/Rk_shell.h>
 
 #include "avrcpctrl.h"
 #include "bluez_ctrl.h"
@@ -492,7 +491,7 @@ int RK_btmaster_connect_start(void *userdata, RK_btmaster_callback cb)
 	bt_control.type = BtControlType::BT_SOURCE;
 	if (!bt_source_is_open()) {
 		if (bt_sink_is_open()) {
-			APP_ERROR("bt sink isn't coexist with source!!!\n");
+			RK_LOGE("bt sink isn't coexist with source!!!\n");
 			bt_close_sink();
 		}
 
@@ -586,12 +585,12 @@ int RK_bta2dp_open(char* name)
 	if (name && GBt_Content.bt_name && strcmp(GBt_Content.bt_name, name)) {
 		/* Set bluetooth device name */
 		sprintf(set_hostname_cmd, "hciconfig hci0 name \'%s\'", name);
-		Shell::system(set_hostname_cmd);
+		RK_shell_system(set_hostname_cmd);
 		msleep(10);
 		/* Restart the device to make the new name take effect */
-		//Shell::system("hciconfig hci0 down");
+		//RK_shell_system("hciconfig hci0 down");
 		//msleep(10);
-		//Shell::system("hciconfig hci0 up");
+		//RK_shell_system("hciconfig hci0 up");
 	}
 
 	/* Already in sink mode? */
@@ -599,7 +598,7 @@ int RK_bta2dp_open(char* name)
 		return 0;
 
 	if (bt_source_is_open()) {
-		APP_ERROR("bt sink isn't coexist with source!!!\n");
+		RK_LOGE("bt sink isn't coexist with source!!!\n");
 		bt_close_source();
 	}
 
@@ -619,12 +618,12 @@ int RK_bta2dp_open(char* name)
 
 int RK_bta2dp_setVisibility(const int visiable, const int connectal)
 {
-	Shell::system("hciconfig hci0 noscan");
+	RK_shell_system("hciconfig hci0 noscan");
 	usleep(2000);//2ms
 	if (visiable)
-		Shell::system("hciconfig hci0 iscan");
+		RK_shell_system("hciconfig hci0 iscan");
 	if (connectal)
-		Shell::system("hciconfig hci0 pscan");
+		RK_shell_system("hciconfig hci0 pscan");
 
 	return 0;
 }
@@ -729,7 +728,7 @@ int RK_btspp_write(char *data, int len)
 //====================================================//
 int RK_bt_init(Bt_Content_t *p_bt_content)
 {
-	if (p_bt_content->ble_content.server_uuid) {
+	if (p_bt_content->ble_content.server_uuid.uuid) {
 		p_bt_content->ble_content.cb_ble_recv_fun = ble_callback;
 		p_bt_content->ble_content.cb_ble_request_data = rk_ble_request_data;
 	}
@@ -752,7 +751,7 @@ bool bt_get_link_state(void)
 	bool state = false;
 
 	memset(buf, 0, 1024);
-	Shell::exec("hcitool con", buf, 1024);
+	RK_shell_exec("hcitool con", buf, 1024);
 	usleep(300000);
 
 	printf("[BT LINK]: %s\n", buf);

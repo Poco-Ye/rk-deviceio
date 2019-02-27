@@ -1,6 +1,8 @@
 #ifndef __BLUETOOTH_BLE_H__
 #define __BLUETOOTH_BLE_H__
 
+#include "DeviceIo/BtsrcParameter.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -33,8 +35,10 @@ int RK_ble_recv_data_callback(RK_ble_recv_data cb);
 int RK_ble_audio_register_callback(RK_ble_audio_state_callback cb);
 int RK_ble_audio_recv_data_callback(RK_ble_audio_recv_data cb);
 int RK_blewifi_start(char *name);
-int RK_bleaudio_start(char *name);
 int RK_blewifi_stop(void);
+int RK_bsa_ble_start(Ble_Gatt_Content_t ble_content);
+int RK_bsa_ble_stop(void);
+int RK_bleaudio_start(char *name);
 int RK_bleaduio_stop(void);
 int RK_blewifi_getState(RK_BLEWIFI_State_e *pState);
 int RK_bleaudio_getState(RK_BLE_State_e *pState);

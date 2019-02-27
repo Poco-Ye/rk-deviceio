@@ -34,11 +34,16 @@ void bt_init_open(void *data)
 	printf("---------------BT_OPEN----------------\n");
 	bt_content.bt_name = "KUGOU_AUDIO";
 	bt_content.ble_content.ble_name = NULL; // "KUGOU_BLE_888";
-	bt_content.ble_content.server_uuid = BLE_UUID_SERVICE;
-	bt_content.ble_content.chr_uuid[0] = BLE_UUID_WIFI_CHAR;
-	bt_content.ble_content.chr_uuid[1] = BLE_UUID_AUDIO_CHAR;
-	bt_content.ble_content.chr_uuid[2] = BLE_UUID_SEND;
-	bt_content.ble_content.chr_uuid[3] = BLE_UUID_RECV;
+	bt_content.ble_content.server_uuid.uuid = BLE_UUID_SERVICE;
+    bt_content.ble_content.server_uuid.len = UUID_128;
+	bt_content.ble_content.chr_uuid[0].uuid = BLE_UUID_WIFI_CHAR;
+    bt_content.ble_content.chr_uuid[0].len = UUID_128;
+	bt_content.ble_content.chr_uuid[1].uuid = BLE_UUID_AUDIO_CHAR;
+    bt_content.ble_content.chr_uuid[1].len = UUID_128;
+	bt_content.ble_content.chr_uuid[2].uuid = BLE_UUID_SEND;
+    bt_content.ble_content.chr_uuid[2].len = UUID_128;
+	bt_content.ble_content.chr_uuid[3].uuid = BLE_UUID_RECV;
+    bt_content.ble_content.chr_uuid[3].len = UUID_128;
 	bt_content.ble_content.chr_cnt = 4;
 
 	bt_content.ble_content.adv_kg.flag = 0x1;

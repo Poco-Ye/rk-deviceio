@@ -380,16 +380,26 @@ static bt_init_for_hisense(void)
 	p_bt_content->bt_name = NULL;//"HISENSE_AUDIO";
 
 	p_bt_content->ble_content.ble_name = NULL; //"小聚音箱MINI-6666";
-	p_bt_content->ble_content.server_uuid = WIFI_SERVICES_UUID;
-	p_bt_content->ble_content.chr_uuid[0] = SECURITY_CHAR_UUID;
-	p_bt_content->ble_content.chr_uuid[1] = HIDE_CHAR_UUID;
-	p_bt_content->ble_content.chr_uuid[2] = SSID_CHAR_UUID;
-	p_bt_content->ble_content.chr_uuid[3] = PASSWORD_CHAR_UUID;
-	p_bt_content->ble_content.chr_uuid[4] = CHECKDATA_CHAR_UUID;
-	p_bt_content->ble_content.chr_uuid[5] = NOTIFY_CHAR_UUID;
-	p_bt_content->ble_content.chr_uuid[6] = NOTIFY_DESC_UUID;
-	p_bt_content->ble_content.chr_uuid[7] = WIFILIST_CHAR_UUID;
-	p_bt_content->ble_content.chr_uuid[8] = DEVICECONTEXT_CHAR_UUID;
+	p_bt_content->ble_content.server_uuid.uuid = WIFI_SERVICES_UUID;
+	p_bt_content->ble_content.server_uuid.len = UUID_128;
+	p_bt_content->ble_content.chr_uuid[0].uuid = SECURITY_CHAR_UUID;
+	p_bt_content->ble_content.chr_uuid[0].len = UUID_128;
+	p_bt_content->ble_content.chr_uuid[1].uuid = HIDE_CHAR_UUID;
+	p_bt_content->ble_content.chr_uuid[1].len = UUID_128;
+	p_bt_content->ble_content.chr_uuid[2].uuid = SSID_CHAR_UUID;
+	p_bt_content->ble_content.chr_uuid[2].len = UUID_128;
+	p_bt_content->ble_content.chr_uuid[3].uuid = PASSWORD_CHAR_UUID;
+	p_bt_content->ble_content.chr_uuid[3].len = UUID_128;
+	p_bt_content->ble_content.chr_uuid[4].uuid = CHECKDATA_CHAR_UUID;
+	p_bt_content->ble_content.chr_uuid[4].len = UUID_128;
+	p_bt_content->ble_content.chr_uuid[5].uuid = NOTIFY_CHAR_UUID;
+	p_bt_content->ble_content.chr_uuid[5].len = UUID_128;
+	p_bt_content->ble_content.chr_uuid[6].uuid = NOTIFY_DESC_UUID;
+	p_bt_content->ble_content.chr_uuid[6].len = UUID_128;
+	p_bt_content->ble_content.chr_uuid[7].uuid = WIFILIST_CHAR_UUID;
+	p_bt_content->ble_content.chr_uuid[7].len = UUID_128;
+	p_bt_content->ble_content.chr_uuid[8].uuid = DEVICECONTEXT_CHAR_UUID;
+	p_bt_content->ble_content.chr_uuid[8].len = UUID_128;
 
 	p_bt_content->ble_content.chr_cnt = 9;
 	p_bt_content->ble_content.cb_ble_recv_fun = ble_callback;

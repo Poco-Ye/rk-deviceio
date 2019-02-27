@@ -1124,7 +1124,7 @@ static void kg_ble_adv_set(Bt_Content_t *bt_content, ble_content_t *ble_content)
 	advdata.ManufacturerData_length = 26;
 
 	bt_string_to_uuid128(&(advdata.Proximity_uuid), bt_content->ble_content.adv_kg.Proximity_uuid, 0);
-	memcpy(ble_content->server_uuid, bt_content->ble_content.server_uuid, strlen(bt_content->ble_content.server_uuid));
+	memcpy(ble_content->server_uuid, bt_content->ble_content.server_uuid.uuid, strlen(bt_content->ble_content.server_uuid.uuid));
 
 	// adv
 	advdata.adv_length = sizeof(struct AdvDataContent_KG) - 2;
@@ -1170,7 +1170,7 @@ static void kg_ble_adv_set(Bt_Content_t *bt_content, ble_content_t *ble_content)
 
 	/* set chr uuid */
 	for (i = 0; i < bt_content->ble_content.chr_cnt; i++)
-		strcpy(ble_content->char_uuid[i], bt_content->ble_content.chr_uuid[i]);
+		strcpy(ble_content->char_uuid[i], bt_content->ble_content.chr_uuid[i].uuid);
 
 	ble_content->char_cnt = bt_content->ble_content.chr_cnt;
 	ble_content->cb_ble_recv_fun = bt_content->ble_content.cb_ble_recv_fun;
@@ -1191,8 +1191,8 @@ static void ble_adv_set(Bt_Content_t *bt_content, ble_content_t *ble_content)
 	advdata.flag_value = 0x1a;
 	advdata.service_uuid_length = 0x10 + 1;
 	advdata.service_uuid_flag = AD_COMPLETE_128_SERVICE_UUID;
-	bt_string_to_uuid128(&(advdata.service_uuid_value), bt_content->ble_content.server_uuid, 1);
-	memcpy(ble_content->server_uuid, bt_content->ble_content.server_uuid, strlen(bt_content->ble_content.server_uuid));
+	bt_string_to_uuid128(&(advdata.service_uuid_value), bt_content->ble_content.server_uuid.uuid, 1);
+	memcpy(ble_content->server_uuid, bt_content->ble_content.server_uuid.uuid, strlen(bt_content->ble_content.server_uuid.uuid));
 
 	ble_content->advDataLen = sizeof(struct AdvDataContent);
 	memcpy(ble_content->advData, (uint8_t *)(&advdata), sizeof(struct AdvDataContent));
@@ -1225,7 +1225,7 @@ static void ble_adv_set(Bt_Content_t *bt_content, ble_content_t *ble_content)
 
 	/* set chr uuid */
 	for (i = 0; i < bt_content->ble_content.chr_cnt; i++)
-		strcpy(ble_content->char_uuid[i], bt_content->ble_content.chr_uuid[i]);
+		strcpy(ble_content->char_uuid[i], bt_content->ble_content.chr_uuid[i].uuid);
 
 	ble_content->char_cnt = bt_content->ble_content.chr_cnt;
 	ble_content->cb_ble_recv_fun = bt_content->ble_content.cb_ble_recv_fun;
