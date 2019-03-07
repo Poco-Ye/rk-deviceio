@@ -768,7 +768,7 @@ int app_xml_write_db(const char *p_fname, const tAPP_XML_REM_DEVICE *p_xml_rem_d
     app_xml_close_tag(fd, APP_XML_DEVS_KEY, TRUE);
     app_xml_close_tag(fd, APP_XML_ROOT_KEY, TRUE);
 
-    fsync(fd); //tiantian
+    fsync(fd);
     close(fd);
 
     (void)dummy;

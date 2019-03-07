@@ -1080,7 +1080,7 @@ int app_ble_wifi_introducer_gatt_server_init(Ble_Gatt_Content_t ble_content)
     }
 
     /* Set visisble and connectable */
-    app_dm_set_visibility(FALSE, FALSE);
+    //app_dm_set_visibility(FALSE, FALSE);
     app_dm_set_ble_visibility(TRUE, TRUE);
     return 0;
 }

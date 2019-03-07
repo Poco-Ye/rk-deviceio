@@ -134,7 +134,7 @@ int app_mgt_open(const char *p_uipc_path, tAPP_MGT_CUSTOM_CBACK *p_mgt_callback)
     app_mgt_cb.mgt_custom_cback = p_mgt_callback;
 
     /* Let's try to connect several time */
-    for (i = 0 ; i < 10 ; i++) //tiantian
+    for (i = 0 ; i < 10 ; i++)
     {
         /* Connect to BSA Server */
         bsa_status = BSA_MgtOpen(&bsa_open_param);

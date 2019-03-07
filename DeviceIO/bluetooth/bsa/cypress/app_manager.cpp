@@ -1483,9 +1483,9 @@ int app_mgr_config(const char *bt_name, app_mgr_callback cb)
         app_xml_config.discoverable = TRUE;
         app_xml_config.connectable = TRUE;
         memset((char *)app_xml_config.name, 0, BD_NAME_LEN + 1);
-        
+
         app_mgr_get_bt_config(NULL, 0, (char *)app_xml_config.bd_addr, BD_ADDR_LEN);
-        
+
         if(bt_name)
             sprintf((char *)app_xml_config.name, "%s%02X%02X", bt_name,
                 app_xml_config.bd_addr[4], app_xml_config.bd_addr[5]);
@@ -1493,7 +1493,6 @@ int app_mgr_config(const char *bt_name, app_mgr_callback cb)
             sprintf((char *)app_xml_config.name, "%s%02X%02X", APP_DEFAULT_BT_NAME,
                 app_xml_config.bd_addr[4], app_xml_config.bd_addr[5]);
 
-        app_xml_config.name[sizeof(app_xml_config.name) - 1] = '\0';
         APP_DEBUG1("device name: %s", app_xml_config.name);
 
         memcpy(app_xml_config.class_of_device, local_class_of_device, sizeof(DEV_CLASS));
@@ -1947,7 +1946,7 @@ int app_manager_init(const char *bt_name, app_mgr_callback cb)
         APP_DEBUG1("Current DualStack mode:%s", app_mgr_get_dual_stack_mode_desc());
     }
 
-    //app_dm_set_ble_visibility(FALSE, FALSE);
+    app_dm_set_ble_visibility(FALSE, FALSE);
     return 0;
 }
 

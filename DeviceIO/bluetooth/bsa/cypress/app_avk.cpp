@@ -477,7 +477,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
             connection->is_streaming_chl_open = FALSE;
 
             /* Set disvisisble and disconnectable */
-            app_dm_set_visibility(FALSE, FALSE);
+            //app_dm_set_visibility(FALSE, FALSE);
             app_avk_notify_status(RK_BTA2DP_State_CONNECT);
         }
 
@@ -494,9 +494,9 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
         APP_DEBUG1("BSA_AVK_CLOSE_EVT status 0x%x, handle %d", p_data->sig_chnl_close.status, p_data->sig_chnl_close.ccb_handle);
 
         /* Set visisble and connectable */
-        app_dm_set_visibility(TRUE, TRUE);
+        //app_dm_set_visibility(TRUE, TRUE);
         app_avk_notify_status(RK_BTA2DP_State_DISCONNECT);
-		
+
         connection = app_avk_find_connection_by_bd_addr(p_data->sig_chnl_close.bd_addr);
         if(connection == NULL)
         {
@@ -1018,7 +1018,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
     case BSA_AVK_SET_ABS_VOL_CMD_EVT:
         APP_DEBUG0("BSA_AVK_SET_ABS_VOL_CMD_EVT");
         connection = app_avk_find_connection_by_rc_handle(p_data->abs_volume.handle);
-        if(connection != NULL && connection->m_bAbsVolumeSupported)
+        if(connection != NULL)
         {
             APP_INFO1("ADSOLUTE Volume : %d", p_data->abs_volume.abs_volume_cmd.volume);
             /* Peer requested change in volume. Make the change and send response with new system volume. BSA is TG role in AVK */
@@ -1439,7 +1439,7 @@ void app_avk_close_str(UINT8 ccb_handle)
 int app_avk_register(void)
 {
     tBSA_STATUS status;
-    //UINT8 index;
+    UINT8 index;
     tBSA_AVK_REGISTER bsa_avk_register_param;
 
     /* register an audio AVK end point */
@@ -1456,8 +1456,8 @@ int app_avk_register(void)
 
     bsa_avk_register_param.reg_notifications = reg_notifications;
 
-    //for(index = 0; index < BSA_MAX_AVK_CONNECTIONS; index++) //tiantian, why for?
-    //{
+    for(index = 0; index < BSA_MAX_AVK_CONNECTIONS; index++)
+    {
         status = BSA_AvkRegister(&bsa_avk_register_param);
         if (status != BSA_SUCCESS)
         {
@@ -1469,10 +1469,9 @@ int app_avk_register(void)
             }
             return -1;
         }
-    //}
+    }
 
     return 0;
-
 }
 
 /*******************************************************************************
@@ -3511,16 +3510,18 @@ int app_avk_start()
         return -1;
     }
 
+    app_dm_set_visibility(TRUE, TRUE);
+
     return 0;
 }
 
 void app_avk_stop()
-{    
+{
     app_avk_deregister_cb();
 
     app_avk_close_all();
-    
-    app_avk_deregister(); 
-    
+
+    app_avk_deregister();
+
     app_avk_deinit();
 }

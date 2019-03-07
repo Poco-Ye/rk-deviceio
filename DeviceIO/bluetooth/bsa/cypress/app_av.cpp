@@ -81,7 +81,7 @@
 /* Name of the XML file containing the saved remote devices */
 #define APP_AV_REMOTE_DEVICES_XML_FILE "/data/bsa/config/bt_devices.xml"
 /* Name of the default sound file */
-#define APP_AV_SOUND_FILE "/data/bsa/config/test.wav"
+#define APP_AV_SOUND_FILE "/data/bsa/test.wav"
 
 /* Min and Max UIPC parameters (Period and Length) */
 #define APP_AV_PERIOD_MIN      (BSA_AV_MIN_SYNCHRONOUS_LATENCY*1000) /* convert ms to us */

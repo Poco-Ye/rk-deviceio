@@ -26,7 +26,7 @@ typedef struct
     tBSA_DISC_CBACK *p_disc_cback;
 } tAPP_DISC_CB;
 
-static BOOLEAN app_discovery_complete = APP_DISCOVERY_IDEL;
+static int app_discovery_complete = APP_DISCOVERY_IDEL;
 tAPP_DISC_CB app_disc_cb;
 tAPP_DISCOVERY_CB app_discovery_cb;
 
