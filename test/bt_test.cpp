@@ -21,10 +21,9 @@
 /* Immediate wifi Service UUID */
 #define BLE_UUID_SERVICE	"0000180A-0000-1000-8000-00805F9B34FB"
 #define BLE_UUID_WIFI_CHAR	"00009999-0000-1000-8000-00805F9B34FB"
-#define BLE_UUID_AUDIO_CHAR	"00006666-0000-1000-8000-00805F9B34FB"
 #define BLE_UUID_PROXIMITY	"7B931104-1810-4CBC-94DA-875C8067F845"
 #define BLE_UUID_SEND		"dfd4416e-1810-47f7-8248-eb8be3dc47f9"
-#define BLE_UUID_RECV		"7B931104-1810-4CBC-94DA-875C8067F845"
+#define BLE_UUID_RECV		"9884d812-1810-4a24-94d3-b2c11a851fac"
 
 /* have to initialize */
 static Bt_Content_t bt_content;
@@ -38,13 +37,11 @@ void bt_init_open(void *data)
     bt_content.ble_content.server_uuid.len = UUID_128;
 	bt_content.ble_content.chr_uuid[0].uuid = BLE_UUID_WIFI_CHAR;
     bt_content.ble_content.chr_uuid[0].len = UUID_128;
-	bt_content.ble_content.chr_uuid[1].uuid = BLE_UUID_AUDIO_CHAR;
+	bt_content.ble_content.chr_uuid[1].uuid = BLE_UUID_SEND;
     bt_content.ble_content.chr_uuid[1].len = UUID_128;
-	bt_content.ble_content.chr_uuid[2].uuid = BLE_UUID_SEND;
+	bt_content.ble_content.chr_uuid[2].uuid = BLE_UUID_RECV;
     bt_content.ble_content.chr_uuid[2].len = UUID_128;
-	bt_content.ble_content.chr_uuid[3].uuid = BLE_UUID_RECV;
-    bt_content.ble_content.chr_uuid[3].len = UUID_128;
-	bt_content.ble_content.chr_cnt = 4;
+	bt_content.ble_content.chr_cnt = 3;
 
 	bt_content.ble_content.adv_kg.flag = 0x1;
 	bt_content.ble_content.adv_kg.flag_value = 0x06;

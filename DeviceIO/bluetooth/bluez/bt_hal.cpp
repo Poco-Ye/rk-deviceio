@@ -78,7 +78,8 @@ const char* MSG_BLE_WIFI_LIST_FORMAT = "{\"method\":\"ble\", \"magic\":\"KugouMu
 
 #define BLE_UUID_SERVICE	"0000180A-0000-1000-8000-00805F9B34FB"
 #define BLE_UUID_WIFI_CHAR	"00009999-0000-1000-8000-00805F9B34FB"
-#define BLE_UUID_AUDIO_CHAR	"00006666-0000-1000-8000-00805F9B34FB"
+#define BLE_UUID_SEND		"dfd4416e-1810-47f7-8248-eb8be3dc47f9"
+#define BLE_UUID_RECV		"9884d812-1810-4a24-94d3-b2c11a851fac"
 
 static char kg_wifi_list_buf[20 * 1024];
 static int scanr_len = 0, scanr_len_use = 0;
@@ -203,9 +204,9 @@ void ble_callback(char *uuid, unsigned char *data, int len)
 	}
 	printf("\n");
 
-	if (!strcmp(BLE_UUID_AUDIO_CHAR, uuid)) {
+	if (!strcmp(BLE_UUID_RECV, uuid)) {
 		if (ble_audio_recv_data)
-			ble_audio_recv_data(BLE_UUID_AUDIO_CHAR, str, len);
+			ble_audio_recv_data(BLE_UUID_RECV, str, len);
 	}
 
 	if (!strcmp(BLE_UUID_WIFI_CHAR, uuid)) {
