@@ -895,15 +895,16 @@ int app_disc_start_regular(tBSA_DISC_CBACK *p_custom_disc_cback)
     tBSA_DISC_START disc_start_param;
 
     APP_INFO0("Start Regular Discovery");
-    
+
     app_discovery_complete = APP_DISCOVERYING;
-    
+
     BSA_DiscStartInit(&disc_start_param);
 
     disc_start_param.cback = app_generic_disc_cback;
     disc_start_param.nb_devices = app_disc_cb.nb_devices;
     disc_start_param.duration = 4; // duration * 1.28s
     disc_start_param.mode = BSA_DM_GENERAL_INQUIRY;
+    disc_start_param.skip_name_request = TRUE;
 #if (defined(BLE_INCLUDED) && BLE_INCLUDED == TRUE)
     disc_start_param.mode |= BSA_BLE_GENERAL_INQUIRY;
 #endif
