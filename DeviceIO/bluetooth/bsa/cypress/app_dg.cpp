@@ -32,7 +32,7 @@
 #include "app_xml_utils.h"
 #include "app_disc.h"
 #include "app_utils.h"
-
+#include "app_dm.h"
 
 /* Default BdAddr */
 #define APP_DG_TX_BUFFER_SIZE   1024
@@ -529,6 +529,9 @@ void app_dg_uipc_cback(BT_HDR *p_msg)
                 app_dg_sendto_vtty((char *)rx_buffer,length,connection);
 
                 app_dg_send_event(RK_BTSPP_Event_DATA, (char *)rx_buffer, length);
+
+                //Just test sending data
+                //app_dg_write_data((char *)rx_buffer, length);
 
                 if (app_dg_cb.loopback == TRUE)
                 {
@@ -2740,6 +2743,9 @@ int app_dg_spp_open(RK_btspp_callback cb)
         APP_ERROR0("Unable to start DG");
         return -1;
     }
+
+    /* Set visisble and connectable */
+    app_dm_set_visibility(TRUE, TRUE);
 
     /* DG Listen */
     if (app_dg_listen() < 0) {
