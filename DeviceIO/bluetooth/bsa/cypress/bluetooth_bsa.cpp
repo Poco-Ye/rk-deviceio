@@ -255,6 +255,12 @@ static int bt_bsa_server_close()
     return 0;
 }
 
+// add default interface to compile dui. keep untill bluze remove the interface
+int gatt_open(void)
+{
+	return 0;
+}
+
 int RK_bt_is_connected(void)
 {
 	return 0;
