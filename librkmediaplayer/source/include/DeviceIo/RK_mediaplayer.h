@@ -55,6 +55,8 @@ int RK_mediaplayer_add_music(int iHandle, char *title, char *url);
 int RK_mediaplayer_clear_playlist(int iHandle);
 int RK_mediaplayer_show_list(int iHandle);
 char* RK_mediaplayer_get_title(int iHandle);
+int RK_mediaplayer_start_playlist(int iHandle);
+
 
 #ifdef __cplusplus
 }
