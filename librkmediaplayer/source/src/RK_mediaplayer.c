@@ -726,3 +726,17 @@ char* RK_mediaplayer_get_title(int iHandle)
 
 	return c_player->playlist_current->title;
 }
+
+int RK_mediaplayer_start_playlist(int iHandle)
+{
+	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
+
+	if (!c_player)
+		return -EINVAL;
+	/* Already in playing state */
+	if (c_player->playing)
+		return 0;
+
+	return RK_mediaplayer_next(iHandle);
+}
+
