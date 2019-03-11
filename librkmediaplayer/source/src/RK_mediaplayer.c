@@ -730,13 +730,24 @@ char* RK_mediaplayer_get_title(int iHandle)
 int RK_mediaplayer_start_playlist(int iHandle)
 {
 	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
+	RkPlayerInfo *cur_music = NULL;
+	int rand_step = 0;
 
 	if (!c_player)
 		return -EINVAL;
-	/* Already in playing state */
-	if (c_player->playing)
+
+	pthread_mutex_lock(&c_player->playlist_mutex);
+	if (!c_player->playlist_current) {
+		c_player->playlist_current = c_player->playlist_end;
+		cur_music = c_player->playlist_current;
+	}
+	pthread_mutex_unlock(&c_player->playlist_mutex);
+
+	if (!cur_music)
 		return 0;
 
-	return RK_mediaplayer_next(iHandle);
+	printf(">>>>> %s cur_music title:%s, url:%s <<<<<\n",
+			__func__, cur_music->title, cur_music->url);
+	return RK_mediaplayer_play(iHandle, cur_music->url);
 }
 
