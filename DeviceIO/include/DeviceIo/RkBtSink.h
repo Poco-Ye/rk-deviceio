@@ -26,6 +26,8 @@ int RK_bta2dp_pause(void);
 int RK_bta2dp_prev(void);
 int RK_bta2dp_next(void);
 int RK_bta2dp_stop(void);
+int RK_bta2dp_volume_up(void);
+int RK_bta2dp_volume_down(void);
 int RK_bta2dp_set_auto_reconnect(int enable);
 int RK_bta2dp_disconnect();
 

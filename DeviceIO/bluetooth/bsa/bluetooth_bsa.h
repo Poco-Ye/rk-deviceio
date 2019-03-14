@@ -27,8 +27,6 @@ void RK_ble_test(void *data);
 int RK_bt_open(const char *bt_name);
 void RK_bt_close(void);
 void RK_get_bt_mac(char *bt_mac);
-int RK_bta2dp_volume_up(void);
-int RK_bta2dp_volume_down(void);
 int rk_bt_control(DeviceIOFramework::BtControl cmd, void *data, int len);
 
 #endif

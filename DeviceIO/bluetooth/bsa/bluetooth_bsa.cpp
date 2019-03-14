@@ -132,7 +132,7 @@ static void bt_print_cmd(DeviceIOFramework::BtControl cmd)
             break;
         case DeviceIOFramework::BtControl::BT_HFP_RECORD:
             APP_DEBUG0("bluetooth receive command: BT_HFP_RECORD");
-            break; 
+            break;
         case DeviceIOFramework::BtControl::BT_BLE_OPEN:
             APP_DEBUG0("bluetooth receive command: BT_BLE_OPEN");
             break;
@@ -178,7 +178,7 @@ static void bt_mgr_notify_callback(tBSA_MGR_EVT evt)
 		case BT_PAIR_FAILED_EVT:
 			APP_DEBUG0("BT_PAIR_FAILED_EVT\n");
 			break;
-	}    
+	}
 }
 
 static int get_ps_pid(const char Name[])
@@ -225,7 +225,7 @@ static void check_bsa_server()
             APP_DEBUG0("bsa_server has been opened.");
             break;
         }
-        
+
         sleep(1);
         APP_DEBUG0("wait bsa_server open.");
     }
@@ -297,7 +297,7 @@ int RK_bt_open(const char *bt_name)
         APP_DEBUG0("app_manager init failed.");
         return -1;
     }
-    
+
     g_bt_control.is_bt_open = true;
     return 0;
 }
@@ -378,7 +378,7 @@ int RK_bta2dp_open(char* name)
         APP_DEBUG0("app_avk_start failed");
         return -1;
     }
-    
+
     //RK_bta2dp_setVisibility(1, 1);
     g_bt_control.is_a2dp_sink_open = true;
     return 0 ;
@@ -390,7 +390,7 @@ int RK_bta2dp_close()
         APP_DEBUG0("a2dp sink has been closed.");
         return 0;
     }
-    
+
     app_avk_stop();
 
     //RK_bta2dp_setVisibility(0, 0);
@@ -560,7 +560,7 @@ int RK_bsa_ble_start(Ble_Gatt_Content_t ble_content)
         APP_DEBUG0("ble open failed");
         return -1;
     }
-    
+
     g_bt_control.is_ble_open = true;
     return 0;
 }
@@ -588,7 +588,7 @@ int RK_bleaduio_stop(void)
 }
 
 int RK_blewifi_getState(RK_BLEWIFI_State_e *pState)
-{   
+{
     APP_DEBUG0("get wifi connect status");
     APP_DEBUG0("Please implement wifi connection in the application layer and register the interface");
     return 0;
@@ -657,7 +657,7 @@ int RK_btmaster_connect_start(void *userdata, RK_btmaster_callback cb)
         APP_DEBUG0("a2dp sink has been opened, close a2dp sink");
         RK_bta2dp_close();
     }
-    
+
     if (a2dp_source_is_open()) {
         APP_DEBUG0("a2dp source has been opened.");
         return 0;
@@ -667,7 +667,7 @@ int RK_btmaster_connect_start(void *userdata, RK_btmaster_callback cb)
         APP_DEBUG0("app_av_connect_start failed");
         return -1;
     }
-    
+
     g_bt_control.is_a2dp_source_open = true;
     return 0;
 }
@@ -680,7 +680,7 @@ int RK_btmaster_stop(void)
     }
 
     app_av_disconnect_stop();
-    
+
     g_bt_control.is_a2dp_source_open = false;
     return 0;
 }
@@ -692,7 +692,7 @@ int RK_btmaster_getDeviceName(char *name, int len)
 
     memset(name, 0, len);
     app_mgr_get_bt_config(name, len, NULL, 0);
-    
+
     return 0;
 }
 
@@ -703,7 +703,7 @@ int RK_btmaster_getDeviceAddr(char *addr, int len)
 
     memset(addr, 0, len);
     RK_get_bt_mac(addr);
-    
+
     return 0;
 }
 
@@ -718,10 +718,10 @@ void RK_get_bt_mac(char *bt_mac)
 
     if(!bt_mac)
         return;
-    
+
     app_mgr_get_bt_config(NULL, 0, (char *)bd_addr, BD_ADDR_LEN);
     sprintf(bt_mac, "%02x:%02x:%02x:%02x:%02x:%02x",
-             bd_addr[0], bd_addr[1], bd_addr[2], 
+             bd_addr[0], bd_addr[1], bd_addr[2],
              bd_addr[3], bd_addr[4], bd_addr[5]);
 }
 
@@ -732,14 +732,14 @@ static bool spp_is_open()
 {
     return g_bt_control.is_spp_open;
 }
- 
+
 int RK_btspp_open(RK_btspp_callback cb)
 {
     if(!bt_is_open()) {
         APP_DEBUG0("bluetooth is not inited, please init");
         return -1;
     }
-    
+
     if(spp_is_open()) {
         APP_DEBUG0("bt spp has been opened.");
         return 0;
@@ -760,7 +760,7 @@ int RK_btspp_close(void)
         APP_DEBUG0("bt spp has been closed.");
         return 0;
     }
-    
+
     app_dg_spp_close();
 
     g_bt_control.is_spp_open = false;
@@ -806,28 +806,28 @@ int rk_bt_control(DeviceIOFramework::BtControl cmd, void *data, int len)
 	case DeviceIOFramework::BtControl::BT_SINK_OPEN:
         ret = RK_bta2dp_open(NULL);
 		break;
-    
+
 	case DeviceIOFramework::BtControl::BT_SINK_CLOSE:
         ret = RK_bta2dp_close();
 		break;
-    
+
 	case DeviceIOFramework::BtControl::BT_SINK_IS_OPENED:
         ret = (int)a2dp_sink_is_open();
 		break;
 
-	case DeviceIOFramework::BtControl::BT_BLE_OPEN: 
+	case DeviceIOFramework::BtControl::BT_BLE_OPEN:
         ble_content = *((Ble_Gatt_Content_t *)data);
         ret = RK_bsa_ble_start(ble_content);
 		break;
-        
+
 	case DeviceIOFramework::BtControl::BT_BLE_COLSE:
         ret = RK_bsa_ble_stop();
 		break;
-    
+
 	case DeviceIOFramework::BtControl::BT_BLE_IS_OPENED:
         ret = (int)ble_is_open();
 		break;
-    
+
 	case DeviceIOFramework::BtControl::BT_BLE_WRITE:
         ble_cfg = (rk_ble_config *)data;
         RK_ble_write(ble_cfg->uuid, (unsigned char *)ble_cfg->data, ble_cfg->len);
@@ -836,11 +836,11 @@ int rk_bt_control(DeviceIOFramework::BtControl cmd, void *data, int len)
 	case DeviceIOFramework::BtControl::BT_SOURCE_OPEN:
         ret = RK_btmaster_connect_start(data, a2dp_source_callback);
 		break;
-    
+
 	case DeviceIOFramework::BtControl::BT_SOURCE_CLOSE:
         RK_btmaster_stop();
 		break;
-    
+
 	case DeviceIOFramework::BtControl::BT_SOURCE_IS_OPENED:
         ret = a2dp_source_is_open();
 		break;

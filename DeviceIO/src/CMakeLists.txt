@@ -33,6 +33,8 @@ target_link_libraries (DeviceIo ${DBUS_LIBRARIES})
 
 elseif(BSA)
 
+file(GLOB_RECURSE DeviceIo_BSA_API_CXX "${DeviceIo_SOURCE_DIR}/bluetooth/bsa/bluetooth_bsa.cpp")
+
 if(CYPRESS)
 message("build cypress bsa...")
 file(GLOB_RECURSE DeviceIo_BSA_CYPRESS_CXX "${DeviceIo_SOURCE_DIR}/bluetooth/bsa/cypress/*.cpp")
@@ -44,15 +46,36 @@ add_library(DeviceIo SHARED
 		${DeviceIo_wifi}
 		${DeviceIo_netlink}
 		${DeviceIo_encode}
+		${DeviceIo_BSA_API_CXX}
 		${DeviceIo_BSA_CYPRESS_CXX}
 		${DeviceIo_BSA_CYPRESS_C}
 		)
 target_include_directories(DeviceIo PUBLIC
+		"${DeviceIo_SOURCE_DIR}/bluetooth/bsa"
 		"${DeviceIo_SOURCE_DIR}/bluetooth/bsa/cypress/include")
 target_link_libraries (DeviceIo libbsa.so libasound.so)
 add_definitions(-DCYPRESS_BSA -DBUILDCFG -DPCM_ALSA -DPCM_ALSA_OPEN_BLOCKING)
+
 elseif(BROADCOM)
 message("build broadcom bsa...")
+file(GLOB_RECURSE DeviceIo_BSA_BROADCOM_CXX "${DeviceIo_SOURCE_DIR}/bluetooth/bsa/broadcom/*.cpp")
+file(GLOB_RECURSE DeviceIo_BSA_BROADCOM_C "${DeviceIo_SOURCE_DIR}/bluetooth/bsa/broadcom/*.c")
+add_library(DeviceIo SHARED
+                ${DeviceIo_SRC}
+                ${DeviceIo_SRC_C}
+                ${DeviceIo_Properties}
+                ${DeviceIo_wifi}
+                ${DeviceIo_netlink}
+                ${DeviceIo_encode}
+		${DeviceIo_BSA_API_CXX}
+                ${DeviceIo_BSA_BROADCOM_CXX}
+                ${DeviceIo_BSA_BROADCOM_C}
+                )
+target_include_directories(DeviceIo PUBLIC
+		"${DeviceIo_SOURCE_DIR}/bluetooth/bsa"
+                "${DeviceIo_SOURCE_DIR}/bluetooth/bsa/broadcom/include")
+target_link_libraries (DeviceIo libbsa.so libasound.so)
+add_definitions(-DBROADCOM_BSA -DBUILDCFG -DPCM_ALSA -DPCM_ALSA_OPEN_BLOCKING)
 endif()
 
 endif()

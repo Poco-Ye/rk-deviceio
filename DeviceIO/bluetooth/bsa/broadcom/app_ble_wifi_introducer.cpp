@@ -1,0 +1,1312 @@
+/*****************************************************************************
+**
+**  Name:           app_ble_wifi_introducer.c
+**
+**  Description:    Bluetooth BLE WiFi Introducer main application
+**
+**  Copyright (c) 2014, Cypress Corp., All Rights Reserved.
+**  Cypress Bluetooth Core. Proprietary and confidential.
+**
+*****************************************************************************/
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
+#include <sys/time.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include "bsa_api.h"
+#include "app_ble.h"
+#include "app_thread.h"
+#include "app_mutex.h"
+#include "app_xml_param.h"
+#include "app_utils.h"
+#include "app_dm.h"
+#include "app_manager.h"
+#include "app_ble_wifi_introducer.h"
+
+/*
+* Defines
+*/
+#define APP_BLE_WIFI_INTRODUCER_UUID        0xFEAA
+//#define BSA_BLE_GAP_ADV_SLOW_INT           2048         /* Tgap(adv_slow_interval) = 1.28 s= 512 * 0.625 ms */
+#define BSA_BLE_GAP_ADV_SLOW_INT            2056
+#define BSA_BLE_CONNECT_EVT                 BTA_BLE_CONNECT_EVT
+#define BTM_BLE_ADVERT_TYPE_NAME_COMPLETE   0x09
+
+/*
+ * Global Variables
+ */
+
+/*
+ * Local Variables
+ */
+#define WIFI_CONFIG_DESCRIPTOR_UUID     0x2902
+#define WIFI_CONFIG_DESCRIPTOR_STRING_UUID     "2902"
+
+static BD_NAME app_ble_device_name;
+static tAPP_BLE_WIFI_INTRODUCER_CB app_ble_wifi_introducer_cb;
+static RK_ble_recv_data ble_recv_data_cb = NULL;
+
+/*
+ * Local functions
+ */
+static int app_ble_wifi_introducer_register(void);
+static int app_ble_wifi_introducer_set_advertisement_data(const char *ble_name);
+static int app_ble_wifi_introducer_create_gatt_database(Ble_Gatt_Content_t ble_content);
+static int app_ble_wifi_introducer_create_service(tBT_UUID *service_uuid,
+               UINT16 num_handle);
+static int app_ble_wifi_introducer_start_service(UINT16 service_id);
+static int app_ble_wifi_introducer_add_char(tAPP_BLE_WIFI_INTRODUCER_ATTRIBUTE *attr);
+static void app_ble_wifi_introducer_profile_cback(tBSA_BLE_EVT event,
+                    tBSA_BLE_MSG *p_data);
+static int app_ble_wifi_introducer_find_free_attr(void);
+static int app_ble_wifi_introducer_find_attr_index_by_attr_id(UINT16 attr_id);
+static int app_ble_wifi_introducer_send_notification(const char *uuid, UINT8 * data, UINT16 len);
+static void app_ble_wifi_introducer_send_data(int attr_index, unsigned char *data, int len);
+
+/*
+ * BLE common functions
+ */
+static int string_to_uuid16(UINT16 *uuid, const char *string)
+{
+	if (sscanf(string, "%04hx", uuid) != 6)
+		return -EINVAL;
+    return 0;
+}
+
+static int string_to_uuid128(UINT8 *uuid, const char *string, BOOLEAN kg_manufacture_data)
+{
+	UINT32 data0, data4;
+	UINT16 data1, data2, data3, data5;
+	UINT8 u128[MAX_UUID_SIZE];
+
+	if (sscanf(string, "%08x-%04hx-%04hx-%04hx-%08x%04hx",
+				&data0, &data1, &data2,
+				&data3, &data4, &data5) != 6)
+		return -EINVAL;
+
+	memset(uuid, 0, MAX_UUID_SIZE);
+
+	data0 = htonl(data0);
+	data1 = htons(data1);
+	data2 = htons(data2);
+	data3 = htons(data3);
+	data4 = htonl(data4);
+	data5 = htons(data5);
+
+	memcpy(&uuid[0], &data0, 4);
+	memcpy(&uuid[4], &data1, 2);
+	memcpy(&uuid[6], &data2, 2);
+	memcpy(&uuid[8], &data3, 2);
+	memcpy(&uuid[10], &data4, 4);
+	memcpy(&uuid[14], &data5, 2);
+
+	memcpy(u128, uuid, MAX_UUID_SIZE);
+
+    if(!kg_manufacture_data) {
+        for (int i = 0; i < MAX_UUID_SIZE; i++)
+        uuid[15 - i] = u128[i];
+    }
+
+	return 0;
+}
+
+static void app_ble_set_device_name(const char *ble_name)
+{
+    memset((char *)app_ble_device_name, 0, BD_NAME_LEN + 1);
+    if(ble_name) {
+        sprintf((char *)app_ble_device_name, "%s%02X%02X", ble_name,
+            app_xml_config.bd_addr[4], app_xml_config.bd_addr[5]);
+    } else {
+        strcpy((char *)app_ble_device_name, (char *)app_xml_config.name);
+    }
+
+    app_ble_device_name[sizeof(app_ble_device_name) - 1] = '\0';
+    APP_DEBUG1("app_ble_device_name: %s", app_ble_device_name);
+}
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_wifi_introducer_register
+ **
+ ** Description     Register app
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+static int app_ble_wifi_introducer_register()
+{
+    tBSA_STATUS status;
+    tBSA_BLE_SE_REGISTER ble_register_param;
+
+    status = BSA_BleSeAppRegisterInit(&ble_register_param);
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_BleSeAppRegisterInit failed status = %d", status);
+        return -1;
+    }
+
+    ble_register_param.uuid.len = LEN_UUID_16;
+    ble_register_param.uuid.uu.uuid16 = APP_BLE_WIFI_INTRODUCER_UUID;
+    ble_register_param.p_cback = app_ble_wifi_introducer_profile_cback;
+
+    status = BSA_BleSeAppRegister(&ble_register_param);
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_BleSeAppRegister failed status = %d", status);
+        return -1;
+    }
+    app_ble_wifi_introducer_cb.server_if = ble_register_param.server_if;
+    APP_INFO1("server_if:%d", app_ble_wifi_introducer_cb.server_if);
+    return 0;
+}
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_wifi_introducer_deregister
+ **
+ ** Description     Register app
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+static int app_ble_wifi_introducer_deregister()
+{
+    tBSA_STATUS status;
+    tBSA_BLE_SE_DEREGISTER ble_deregister_param;
+
+    status = BSA_BleSeAppDeregisterInit(&ble_deregister_param);
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_BleSeAppDeregisterInit failed status = %d", status);
+        return -1;
+    }
+
+    ble_deregister_param.server_if = app_ble_wifi_introducer_cb.server_if;
+
+    status = BSA_BleSeAppDeregister(&ble_deregister_param);
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_BleSeAppDeregister failed status = %d", status);
+        return -1;
+    }
+
+    return 0;
+}
+
+/************************************* ******************************************
+ **
+ ** Function        app_ble_wifi_introducer_set_advertisement_data
+ **
+ ** Description     Setup advertisement data with 16 byte UUID and device name
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+static int app_ble_wifi_introducer_set_advertisement_data(const char *ble_name)
+{
+    int i, service_uuid_len = 0;
+    tBSA_DM_BLE_AD_MASK data_mask;
+    tBSA_DM_SET_CONFIG bt_config;
+    tBSA_DM_SET_CONFIG bt_scan_rsp;
+    tBSA_STATUS bsa_status;
+    //UINT8 len = 0;
+
+    APP_DEBUG1("ble_name: %s", ble_name);
+
+    for (i = 0; i < APP_BLE_WIFI_INTRODUCER_ATTRIBUTE_MAX; i++) {
+        if (app_ble_wifi_introducer_cb.attr[i].attr_type == BSA_GATTC_ATTR_TYPE_SRVC) {
+            APP_DEBUG1("attr_UUID %d is service uuid, service_uuid_len: %d", i, service_uuid_len);
+            service_uuid_len = app_ble_wifi_introducer_cb.attr[i].attr_UUID.len;
+            break;
+        }
+    }
+
+    if(i >= APP_BLE_WIFI_INTRODUCER_ATTRIBUTE_MAX) {
+        APP_ERROR0("No valid service was found");
+        return -1;
+    }
+
+    /* Set Bluetooth configuration */
+    BSA_DmSetConfigInit(&bt_config);
+
+    /* Obviously */
+    bt_config.enable = TRUE;
+
+    /* Configure the Advertisement Data parameters */
+    bt_config.config_mask = BSA_DM_CONFIG_BLE_ADV_CONFIG_MASK;
+
+    bt_config.adv_config.is_scan_rsp = FALSE;
+
+    /* Use services flag to show above services if required on the peer device */
+    if(service_uuid_len == LEN_UUID_16)
+        data_mask = BSA_DM_BLE_AD_BIT_FLAGS | BSA_DM_BLE_AD_BIT_PROPRIETARY | BSA_DM_BLE_AD_BIT_SERVICE;
+    else if (service_uuid_len == LEN_UUID_128)
+        data_mask = BSA_DM_BLE_AD_BIT_FLAGS | BSA_DM_BLE_AD_BIT_SERVICE_128;
+    bt_config.adv_config.adv_data_mask = data_mask;
+
+    bt_config.adv_config.flag = BSA_DM_BLE_GEN_DISC_FLAG | BSA_DM_BLE_BREDR_NOT_SPT;
+    //len += 2;
+
+    if(service_uuid_len == LEN_UUID_16) {
+        bt_config.adv_config.num_service = 1;
+        bt_config.adv_config.uuid_val[0] = app_ble_wifi_introducer_cb.attr[i].attr_UUID.uu.uuid16;
+        //len += (bt_config.adv_config.num_service * sizeof(UINT16) + 1);
+
+        bt_config.adv_config.proprietary.num_elem = 1;
+        bt_config.adv_config.proprietary.elem[0].adv_type = BTM_BLE_ADVERT_TYPE_NAME_COMPLETE;
+        bt_config.adv_config.proprietary.elem[0].len = strlen(ble_name);
+        strcpy((char *)bt_config.adv_config.proprietary.elem[0].val, ble_name);
+        //len += (bt_config.adv_config.proprietary.elem[0].len + 1);
+
+        //bt_config.adv_config.len = len;
+
+        bsa_status = BSA_DmSetConfig(&bt_config);
+        if (bsa_status != BSA_SUCCESS)
+        {
+            APP_ERROR1("BSA_DmSetConfig failed status:%d ", bsa_status);
+            return -1;
+        }
+    } else if (service_uuid_len == LEN_UUID_128) {
+        memcpy(bt_config.adv_config.services_128b.uuid128,
+                       app_ble_wifi_introducer_cb.attr[i].attr_UUID.uu.uuid128, LEN_UUID_128);
+        bt_config.adv_config.services_128b.list_cmpl = TRUE;
+        //len += (LEN_UUID_128 + 1);
+
+        bsa_status = BSA_DmSetConfig(&bt_config);
+        if (bsa_status != BSA_SUCCESS)
+        {
+            APP_ERROR1("BSA_DmSetConfig failed status:%d ", bsa_status);
+            return -1;
+        }
+
+        /*set scan response*/
+        //len = 0;
+
+        /* Set Bluetooth configuration */
+        BSA_DmSetConfigInit(&bt_scan_rsp);
+
+        /* Obviously */
+        bt_scan_rsp.enable = TRUE;
+
+        /* Configure the Advertisement Data parameters */
+        bt_scan_rsp.config_mask = BSA_DM_CONFIG_BLE_ADV_CONFIG_MASK;
+
+        bt_scan_rsp.adv_config.is_scan_rsp = TRUE;
+
+        /* Use services flag to show above services if required on the peer device */
+        data_mask = BSA_DM_BLE_AD_BIT_PROPRIETARY;
+        bt_scan_rsp.adv_config.adv_data_mask = data_mask;
+
+        bt_scan_rsp.adv_config.proprietary.num_elem = 1;
+        bt_scan_rsp.adv_config.proprietary.elem[0].adv_type = BTM_BLE_ADVERT_TYPE_NAME_COMPLETE;
+        bt_scan_rsp.adv_config.proprietary.elem[0].len = strlen(ble_name);
+        strcpy((char *)bt_scan_rsp.adv_config.proprietary.elem[0].val, ble_name);
+        //len += (bt_scan_rsp.adv_config.proprietary.elem[0].len + 1);
+
+        //bt_scan_rsp.adv_config.len = len;
+
+        bsa_status = BSA_DmSetConfig(&bt_scan_rsp);
+        if (bsa_status != BSA_SUCCESS)
+        {
+            APP_ERROR1("BSA_DmSetConfig failed status:%d ", bsa_status);
+            return -1;
+        }
+    }
+    APP_INFO0("app_ble_wifi_introducer_set_advertisement_data");
+
+    return 0;
+}
+
+static int app_ble_kugou_set_advertisement_data(AdvDataKgContent adv_kg)
+{
+    tBSA_DM_BLE_AD_MASK data_mask;
+    tBSA_DM_SET_CONFIG bt_config;
+    tBSA_DM_SET_CONFIG bt_scan_rsp;
+    tBSA_STATUS bsa_status;
+    tAPP_BLE_KG_MANUFACTURE_DATA manufacture_data;
+    tAPP_BLE_KG_RESP_DATA resp_data;
+    //UINT8 len = 0;
+
+    APP_DEBUG0("app_ble_kugou_set_advertisement_data");
+
+    /* Set Bluetooth configuration */
+    BSA_DmSetConfigInit(&bt_config);
+
+    /* Obviously */
+    bt_config.enable = TRUE;
+
+    /* Configure the Advertisement Data parameters */
+    bt_config.config_mask = BSA_DM_CONFIG_BLE_ADV_CONFIG_MASK;
+
+    bt_config.adv_config.is_scan_rsp = FALSE;
+
+    /* Use services flag to show above services if required on the peer device */
+    data_mask = BSA_DM_BLE_AD_BIT_FLAGS | BSA_DM_BLE_AD_BIT_PROPRIETARY;
+    bt_config.adv_config.adv_data_mask = data_mask;
+
+    bt_config.adv_config.flag = BSA_DM_BLE_GEN_DISC_FLAG | BSA_DM_BLE_BREDR_NOT_SPT;
+    //len += 2;
+
+    bt_config.adv_config.proprietary.num_elem = 1;
+
+    manufacture_data.company_id = adv_kg.iCompany_id;
+    manufacture_data.beacon = adv_kg.iBeacon;
+    manufacture_data.major_id = adv_kg.Major_id;
+    manufacture_data.minor_id = adv_kg.Minor_id;
+    manufacture_data.measured_power = adv_kg.Measured_Power;
+    string_to_uuid128(manufacture_data.proximity_uuid, adv_kg.Proximity_uuid, TRUE);
+
+    bt_config.adv_config.proprietary.elem[0].adv_type = adv_kg.ManufacturerData_flag;
+    bt_config.adv_config.proprietary.elem[0].len = sizeof(tAPP_BLE_KG_MANUFACTURE_DATA);
+    memcpy((char *)bt_config.adv_config.proprietary.elem[0].val, (char *)&manufacture_data, sizeof(tAPP_BLE_KG_MANUFACTURE_DATA));
+    //len += (bt_config.adv_config.proprietary.elem[0].len + 1);
+
+    //bt_config.adv_config.len = len;
+
+    bsa_status = BSA_DmSetConfig(&bt_config);
+    if (bsa_status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_DmSetConfig failed status:%d ", bsa_status);
+        return -1;
+    }
+
+    /*set scan response*/
+    //len = 0;
+
+    /* Set Bluetooth configuration */
+    BSA_DmSetConfigInit(&bt_scan_rsp);
+
+    /* Obviously */
+    bt_scan_rsp.enable = TRUE;
+
+    /* Configure the Advertisement Data parameters */
+    bt_scan_rsp.config_mask = BSA_DM_CONFIG_BLE_ADV_CONFIG_MASK;
+
+    bt_scan_rsp.adv_config.is_scan_rsp = TRUE;
+
+    /* Use services flag to show above services if required on the peer device */
+    data_mask = BSA_DM_BLE_AD_BIT_PROPRIETARY;
+    bt_scan_rsp.adv_config.adv_data_mask = data_mask;
+
+    bt_scan_rsp.adv_config.proprietary.num_elem = 2;
+
+    bt_scan_rsp.adv_config.proprietary.elem[0].adv_type = adv_kg.local_name_flag;
+    if(adv_kg.local_name_value) {
+        bt_scan_rsp.adv_config.proprietary.elem[0].len = strlen(adv_kg.local_name_value);
+        strcpy((char *)bt_scan_rsp.adv_config.proprietary.elem[0].val, adv_kg.local_name_value);
+    } else {
+        bt_scan_rsp.adv_config.proprietary.elem[0].len = strlen((char *)app_ble_device_name);
+        strcpy((char *)bt_scan_rsp.adv_config.proprietary.elem[0].val, (char *)app_ble_device_name);
+    }
+    //len += (bt_scan_rsp.adv_config.proprietary.elem[0].len + 1);
+
+    resp_data.service_uuid_value = adv_kg.service_uuid_value;
+    resp_data.company_id = adv_kg.Company_id;
+    resp_data.pid = adv_kg.pid;
+    resp_data.version = adv_kg.version;
+    app_mgr_get_bt_config(NULL, 0, (char *)resp_data.mac_addr, BD_ADDR_LEN);
+
+    bt_scan_rsp.adv_config.proprietary.elem[1].adv_type = adv_kg.service_uuid_flag;
+    bt_scan_rsp.adv_config.proprietary.elem[1].len = sizeof(tAPP_BLE_KG_RESP_DATA);
+    memcpy((char *)bt_scan_rsp.adv_config.proprietary.elem[1].val, (char *)&resp_data, sizeof(tAPP_BLE_KG_RESP_DATA));
+    //len += (bt_scan_rsp.adv_config.proprietary.elem[1].len + 1);
+
+    //bt_scan_rsp.adv_config.len = len;
+
+    bsa_status = BSA_DmSetConfig(&bt_scan_rsp);
+    if (bsa_status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_DmSetConfig failed status:%d ", bsa_status);
+        return -1;
+    }
+    return 0;
+}
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_wifi_introducer_create_gatt_database
+ **
+ ** Description     This is the GATT database for the WiFi Introducer Sensor application.
+ **                       It defines services, characteristics and descriptors supported by the sensor.
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+static int app_ble_wifi_introducer_set_uuid(tBT_UUID *app_ble_uuid, Ble_Uuid_Type_t uu)
+{
+    APP_DEBUG1("len: %d, uuid: %s", uu.len, uu.uuid);
+    app_ble_uuid->len = uu.len;
+    if(uu.len == LEN_UUID_16) {
+        //"1111"
+        string_to_uuid16(&app_ble_uuid->uu.uuid16, uu.uuid);
+        APP_DEBUG1("uu.uuid16: 0x%x", app_ble_uuid->uu.uuid16);
+    } else if (uu.len == LEN_UUID_128) {
+        //"0000180A-0000-1000-8000-00805F9B34FB"
+        string_to_uuid128(app_ble_uuid->uu.uuid128, uu.uuid, FALSE);
+
+        printf("uu.uuid128: ");
+        for (int i = 0; i < MAX_UUID_SIZE; i++)
+            printf("0x%x ", app_ble_uuid->uu.uuid128[i]);
+        printf("\n");
+    } else {
+        APP_ERROR1("not support, uuid len: %d\n", uu.len);
+        return -1;
+    }
+
+    return 0;
+}
+
+static int app_ble_wifi_introducer_create_gatt_database(Ble_Gatt_Content_t ble_content)
+{
+    int i;
+    int srvc_attr_index, char_attr_index;
+    tBT_UUID service_uuid;
+    tAPP_BLE_WIFI_INTRODUCER_ATTRIBUTE attr;
+
+    //service count * 2 + characteristics count * 2
+    UINT16 num_handle = 2 + (ble_content.chr_cnt + 1) * 2;
+
+    APP_INFO0("app_ble_wifi_introducer_create_gatt_database");
+
+    if(app_ble_wifi_introducer_set_uuid(&service_uuid, ble_content.server_uuid) < 0) {
+        APP_ERROR0("set service uuid failed");
+        return -1;
+    }
+    srvc_attr_index = app_ble_wifi_introducer_create_service(&service_uuid, num_handle);
+    if (srvc_attr_index < 0) {
+        APP_ERROR0("Wifi Config Service Create Fail");
+        return -1;
+    }
+    APP_DEBUG1("srvc_attr_index: %d", srvc_attr_index);
+    //save service uuid string
+    strcpy((char *)app_ble_wifi_introducer_cb.attr[srvc_attr_index].uuid_string, ble_content.server_uuid.uuid);
+
+    for(i = 0; i < ble_content.chr_cnt; i++) {
+        memset(&attr, 0, sizeof(tAPP_BLE_WIFI_INTRODUCER_ATTRIBUTE));
+        if(app_ble_wifi_introducer_set_uuid(&attr.attr_UUID, ble_content.chr_uuid[i]) < 0) {
+            APP_ERROR0("set characteristic uuid failed");
+            return -1;
+        }
+
+        attr.service_id = app_ble_wifi_introducer_cb.attr[srvc_attr_index].service_id;
+        attr.perm = BSA_GATT_PERM_READ | BSA_GATT_PERM_WRITE; //17
+        attr.prop = BSA_GATT_CHAR_PROP_BIT_READ | BSA_GATT_CHAR_PROP_BIT_WRITE |
+                        BSA_GATT_CHAR_PROP_BIT_NOTIFY | BSA_GATT_CHAR_PROP_BIT_INDICATE |
+                        BSA_GATT_CHAR_PROP_BIT_WRITE_NR;
+        attr.attr_type = BSA_GATTC_ATTR_TYPE_CHAR;
+        char_attr_index = app_ble_wifi_introducer_add_char(&attr);
+        if (char_attr_index < 0) {
+            APP_ERROR0("add characteristic failed");
+            return -1;
+        }
+        //save char uuid string
+        strcpy((char *)app_ble_wifi_introducer_cb.attr[char_attr_index].uuid_string, ble_content.chr_uuid[i].uuid);
+
+        /* Declare client characteristic configuration descriptor
+         * Value of the descriptor can be modified by the client
+         * Value modified shall be retained during connection and across connection
+         * for bonded devices.  Setting value to 1 tells this application to send notification
+         * when value of the characteristic changes.  Value 2 is to allow indications.
+         */
+        memset(&attr, 0, sizeof(tAPP_BLE_WIFI_INTRODUCER_ATTRIBUTE));
+        attr.attr_UUID.len = LEN_UUID_16;
+        attr.attr_UUID.uu.uuid16 = WIFI_CONFIG_DESCRIPTOR_UUID;
+        attr.service_id = app_ble_wifi_introducer_cb.attr[srvc_attr_index].service_id;
+        attr.perm = BSA_GATT_PERM_READ | BSA_GATT_PERM_WRITE; //17
+        attr.attr_type = BSA_GATTC_ATTR_TYPE_CHAR_DESCR;
+        char_attr_index = app_ble_wifi_introducer_add_char(&attr);
+        if (char_attr_index < 0) {
+            APP_ERROR0("add descriptor failed");
+            return -1;
+        }
+        //save descriptor uuid string
+        strcpy((char *)app_ble_wifi_introducer_cb.attr[char_attr_index].uuid_string, WIFI_CONFIG_DESCRIPTOR_STRING_UUID);
+    }
+
+    return 0;
+}
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_wifi_introducer_create_service
+ **
+ ** Description     create service
+ **
+ ** Parameters     service UUID
+ **                       number of handle for reserved
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+static int app_ble_wifi_introducer_create_service(tBT_UUID *service_uuid,
+               UINT16 num_handle)
+{
+    tBSA_STATUS status;
+    tBSA_BLE_SE_CREATE ble_create_param;
+    int attr_index = -1;
+    UINT32 timeout = APP_BLE_WIFI_INTRODUCER_TIMEOUT;
+
+    attr_index = app_ble_wifi_introducer_find_free_attr();
+    if (attr_index < 0)
+    {
+        APP_ERROR1("Wrong attr number! = %d", attr_index);
+        return -1;
+    }
+
+    status = BSA_BleSeCreateServiceInit(&ble_create_param);
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_BleSeCreateServiceInit failed status = %d", status);
+        return -1;
+    }
+
+    memcpy(&ble_create_param.service_uuid, service_uuid, sizeof(tBT_UUID));
+    ble_create_param.server_if = app_ble_wifi_introducer_cb.server_if;
+    ble_create_param.num_handle = num_handle;
+    ble_create_param.is_primary = TRUE;
+
+    app_ble_wifi_introducer_cb.attr[attr_index].wait_flag = TRUE;
+
+    if ((status = BSA_BleSeCreateService(&ble_create_param)) == BSA_SUCCESS)
+    {
+        while (app_ble_wifi_introducer_cb.attr[attr_index].wait_flag && timeout)
+        {
+            GKI_delay(100);
+            timeout--;
+        }
+    }
+    if ((status != BSA_SUCCESS) || (timeout == 0))
+    {
+        APP_ERROR1("BSA_BleSeCreateService failed status = %d", status);
+        app_ble_wifi_introducer_cb.attr[attr_index].wait_flag = FALSE;
+        return -1;
+    }
+
+    /* store information on control block */
+    memcpy(&app_ble_wifi_introducer_cb.attr[attr_index].attr_UUID, service_uuid,
+                    sizeof(tBT_UUID));
+    app_ble_wifi_introducer_cb.attr[attr_index].is_pri = ble_create_param.is_primary;
+    app_ble_wifi_introducer_cb.attr[attr_index].attr_type = BSA_GATTC_ATTR_TYPE_SRVC;
+
+    //APP_DEBUG1("service attr_index: %d", attr_index);
+    return attr_index;
+}
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_wifi_introducer_start_service
+ **
+ ** Description     Start Service
+ **
+ ** Parameters      service_id : attr id
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+static int app_ble_wifi_introducer_start_service(UINT16 service_id)
+{
+    tBSA_STATUS status;
+    tBSA_BLE_SE_START ble_start_param;
+
+    status = BSA_BleSeStartServiceInit(&ble_start_param);
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_BleSeStartServiceInit failed status = %d", status);
+        return -1;
+    }
+
+    ble_start_param.service_id = service_id;
+    ble_start_param.sup_transport = BSA_BLE_GATT_TRANSPORT_LE;
+
+    APP_INFO1("service_id:%d", ble_start_param.service_id);
+
+    status = BSA_BleSeStartService(&ble_start_param);
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_BleSeStartService failed status = %d", status);
+        return -1;
+    }
+    return 0;
+}
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_wifi_introducer_stop_service
+ **
+ ** Description     Stop Service
+ **
+ ** Parameters      service_id : attr id
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+static int app_ble_wifi_introducer_stop_service(UINT16 service_id)
+{
+    tBSA_STATUS status;
+    tBSA_BLE_SE_STOP ble_stop_param;
+
+    status = BSA_BleSeStopServiceInit(&ble_stop_param);
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_BleSeStopServiceInit failed status = %d", status);
+        return -1;
+    }
+
+    ble_stop_param.service_id = service_id;
+
+    status = BSA_BleSeStopService(&ble_stop_param);
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_BleSeStopService failed status = %d", status);
+        return -1;
+    }
+    return 0;
+}
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_wifi_introducer_add_char
+ **
+ ** Description     Add character to service
+ **
+ ** Parameters      tAPP_BLE_WIFI_INTRODUCER_ATTRIBUTE
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+static int app_ble_wifi_introducer_add_char(tAPP_BLE_WIFI_INTRODUCER_ATTRIBUTE *attr)
+{
+    tBSA_STATUS status;
+    tBSA_BLE_SE_ADDCHAR ble_addchar_param;
+    int attr_index = -1;
+    UINT32 timeout = APP_BLE_WIFI_INTRODUCER_TIMEOUT;
+
+    attr_index = app_ble_wifi_introducer_find_free_attr();
+    if (attr_index < 0)
+    {
+        APP_ERROR1("Wrong attr index! = %d", attr_index);
+        return -1;
+    }
+
+    APP_DEBUG1("attr_type: %d, attr_index: %d", attr->attr_type, attr_index);
+
+    status = BSA_BleSeAddCharInit(&ble_addchar_param);
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_BleSeAddCharInit failed status = %d", status);
+        return -1;
+    }
+
+    /* characteristic */
+    ble_addchar_param.service_id = attr->service_id;
+    ble_addchar_param.is_descr = (attr->attr_type == BSA_GATTC_ATTR_TYPE_CHAR_DESCR);
+    memcpy(&ble_addchar_param.char_uuid, &attr->attr_UUID, sizeof(tBT_UUID));
+    ble_addchar_param.perm = attr->perm;
+    ble_addchar_param.property = attr->prop;
+
+    //APP_INFO1("app_ble_wifi_introducer_add_char service_id:%d", ble_addchar_param.service_id);
+    app_ble_wifi_introducer_cb.attr[attr_index].wait_flag = TRUE;
+
+    if ((status = BSA_BleSeAddChar(&ble_addchar_param)) == BSA_SUCCESS)
+    {
+        while (app_ble_wifi_introducer_cb.attr[attr_index].wait_flag && timeout)
+        {
+            GKI_delay(100);
+            timeout--;
+        }
+    }
+    if ((status != BSA_SUCCESS) || (timeout == 0))
+    {
+        APP_ERROR1("BSA_BleSeAddChar failed status = %d", status);
+        return -1;
+    }
+
+    /* store information on control block */
+    memcpy(&app_ble_wifi_introducer_cb.attr[attr_index].attr_UUID, &attr->attr_UUID,
+                    sizeof(tBT_UUID));
+    app_ble_wifi_introducer_cb.attr[attr_index].prop = attr->prop;
+    app_ble_wifi_introducer_cb.attr[attr_index].attr_type = attr->attr_type;
+    return attr_index;
+}
+
+static void send_data_test(const char *uuid) {
+    static char ble_test[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    int i, offset = 0;
+    int len = strlen(ble_test);
+    char buf[20];
+
+    //APP_DEBUG1("ble bt len: %d\n", len);
+    for (i=1; ; i++) {
+        memset(buf, 0, 20);
+
+        if(offset + i < len) {
+            strncpy(buf, ble_test + offset, i);
+            //APP_DEBUG1("buf: %s\n", buf);
+            app_ble_wifi_introducer_send_message(uuid, (UINT8 *)buf, i);
+            offset += i;
+        } else {
+            strncpy(buf, ble_test + offset, len - offset);
+            //APP_DEBUG1("buf: %s\n", buf);
+            app_ble_wifi_introducer_send_message(uuid, (UINT8 *)buf, len - offset);
+            offset = 0;
+            break;
+        }
+
+        //wait for 1s
+        sleep(1);
+    }
+}
+
+/*******************************************************************************
+**
+** Function         app_ble_wifi_introducer_profile_cback
+**
+** Description      APP BLE wifi introducer Profile callback.
+**
+** Returns          void
+**
+*******************************************************************************/
+static void app_ble_wifi_introducer_profile_cback(tBSA_BLE_EVT event,
+                   tBSA_BLE_MSG *p_data)
+{
+    int attr_index;
+    tBSA_BLE_SE_SENDRSP send_server_resp;
+    tBSA_DM_BLE_ADV_PARAM adv_param;
+    UINT8 attribute_value[BSA_BLE_MAX_ATTR_LEN]={0x11,0x22,0x33,0x44};
+
+    APP_DEBUG1("event = %d ", event);
+
+    switch (event)
+    {
+    case BSA_BLE_SE_DEREGISTER_EVT:
+        APP_INFO1("BSA_BLE_SE_DEREGISTER_EVT server_if:%d status:%d",
+            p_data->ser_deregister.server_if, p_data->ser_deregister.status);
+        if (p_data->ser_deregister.server_if != app_ble_wifi_introducer_cb.server_if)
+        {
+            APP_ERROR0("wrong deregister interface!!");
+            break;
+        }
+
+        app_ble_wifi_introducer_cb.server_if = BSA_BLE_INVALID_IF;
+        for (attr_index = 0; attr_index < APP_BLE_WIFI_INTRODUCER_ATTRIBUTE_MAX; attr_index++)
+        {
+            memset(&app_ble_wifi_introducer_cb.attr[attr_index], 0,
+                              sizeof(tAPP_BLE_WIFI_INTRODUCER_ATTRIBUTE));
+        }
+        break;
+
+    case BSA_BLE_SE_CREATE_EVT:
+        APP_INFO1("BSA_BLE_SE_CREATE_EVT server_if:%d status:%d service_id:%d",
+            p_data->ser_create.server_if, p_data->ser_create.status, p_data->ser_create.service_id);
+
+        /* search interface number */
+        if (p_data->ser_create.server_if != app_ble_wifi_introducer_cb.server_if)
+        {
+            APP_ERROR0("interface wrong!!");
+            break;
+        }
+
+        /* search attribute number */
+        for (attr_index = 0; attr_index < APP_BLE_WIFI_INTRODUCER_ATTRIBUTE_MAX; attr_index++)
+        {
+            if (app_ble_wifi_introducer_cb.attr[attr_index].wait_flag == TRUE)
+            {
+                APP_INFO1("BSA_BLE_SE_CREATE_EVT attr_index:%d", attr_index);
+                if (p_data->ser_create.status == BSA_SUCCESS)
+                {
+                    app_ble_wifi_introducer_cb.attr[attr_index].service_id = p_data->ser_create.service_id;
+                    app_ble_wifi_introducer_cb.attr[attr_index].attr_id = p_data->ser_create.service_id;
+                    app_ble_wifi_introducer_cb.attr[attr_index].wait_flag = FALSE;
+                    break;
+                }
+                else  /* if CREATE fail */
+                {
+                    memset(&app_ble_wifi_introducer_cb.attr[attr_index], 0, sizeof(tAPP_BLE_WIFI_INTRODUCER_ATTRIBUTE));
+                    break;
+                }
+            }
+        }
+        if (attr_index >= APP_BLE_WIFI_INTRODUCER_ATTRIBUTE_MAX)
+        {
+            APP_ERROR0("BSA_BLE_SE_CREATE_EVT no waiting!!");
+            break;
+        }
+        break;
+
+    case BSA_BLE_SE_ADDCHAR_EVT:
+        APP_INFO1("BSA_BLE_SE_ADDCHAR_EVT status:%d", p_data->ser_addchar.status);
+        APP_INFO1("attr_id:0x%x", p_data->ser_addchar.attr_id);
+
+        /* search attribute number */
+        for (attr_index = 0; attr_index < APP_BLE_WIFI_INTRODUCER_ATTRIBUTE_MAX; attr_index++)
+        {
+            if (app_ble_wifi_introducer_cb.attr[attr_index].wait_flag == TRUE)
+            {
+                APP_INFO1("BSA_BLE_SE_ADDCHAR_EVT attr_index:%d", attr_index);
+                if (p_data->ser_addchar.status == BSA_SUCCESS)
+                {
+                    app_ble_wifi_introducer_cb.attr[attr_index].service_id = p_data->ser_addchar.service_id;
+                    app_ble_wifi_introducer_cb.attr[attr_index].attr_id = p_data->ser_addchar.attr_id;
+                    app_ble_wifi_introducer_cb.attr[attr_index].wait_flag = FALSE;
+                    break;
+                }
+                else  /* if ADD fail */
+                {
+                    memset(&app_ble_wifi_introducer_cb.attr[attr_index], 0, sizeof(tAPP_BLE_WIFI_INTRODUCER_ATTRIBUTE));
+                    break;
+                }
+            }
+        }
+        if (attr_index >= APP_BLE_WIFI_INTRODUCER_ATTRIBUTE_MAX)
+        {
+            APP_ERROR0("BSA_BLE_SE_ADDCHAR_EVT no waiting!!");
+            break;
+        }
+        break;
+
+    case BSA_BLE_SE_START_EVT:
+        APP_INFO1("BSA_BLE_SE_START_EVT status:%d", p_data->ser_start.status);
+        break;
+
+    case BSA_BLE_SE_STOP_EVT:
+        APP_INFO1("BSA_BLE_SE_STOP_EVT status:%d", p_data->ser_stop.status);
+        break;
+
+    case BSA_BLE_SE_READ_EVT:
+        APP_INFO1("BSA_BLE_SE_READ_EVT status:%d, handle:%d", p_data->ser_read.status, p_data->ser_read.handle);
+        BSA_BleSeSendRspInit(&send_server_resp);
+        send_server_resp.conn_id = p_data->ser_read.conn_id;
+        send_server_resp.trans_id = p_data->ser_read.trans_id;
+        send_server_resp.status = p_data->ser_read.status;
+        send_server_resp.handle = p_data->ser_read.handle;
+        send_server_resp.offset = p_data->ser_read.offset;
+        send_server_resp.len = 4;
+        send_server_resp.auth_req = GATT_AUTH_REQ_NONE;
+        memcpy(send_server_resp.value, attribute_value, BSA_BLE_MAX_ATTR_LEN);
+        //APP_INFO1("BSA_BLE_SE_READ_EVT: send_server_resp.conn_id:%d, send_server_resp.trans_id:%d, send_server_resp.status:%d", send_server_resp.conn_id, send_server_resp.trans_id, send_server_resp.status);
+        //APP_INFO1("BSA_BLE_SE_READ_EVT: send_server_resp.status:%d,send_server_resp.auth_req:%d", send_server_resp.status,send_server_resp.auth_req);
+        //APP_INFO1("BSA_BLE_SE_READ_EVT: send_server_resp.handle:%d, send_server_resp.offset:%d, send_server_resp.len:%d", send_server_resp.handle,send_server_resp.offset,send_server_resp.len );
+        BSA_BleSeSendRsp(&send_server_resp);
+        break;
+
+    case BSA_BLE_SE_WRITE_EVT:
+        APP_INFO1("BSA_BLE_SE_WRITE_EVT status:%d", p_data->ser_write.status);
+        APP_DUMP("Write value", p_data->ser_write.value, p_data->ser_write.len);
+        APP_INFO1("BSA_BLE_SE_WRITE_EVT trans_id:%d, conn_id:%d, handle:%d",
+            p_data->ser_write.trans_id, p_data->ser_write.conn_id, p_data->ser_write.handle);
+
+	    attr_index = app_ble_wifi_introducer_find_attr_index_by_attr_id(p_data->ser_read.handle);
+        APP_INFO1("BSA_BLE_SE_WRITE_EVT attr_index:%d", attr_index);
+        if (attr_index < 0)
+        {
+            APP_ERROR0("Cannot find matched attr_id");
+	        break;
+        }
+
+        if (p_data->ser_write.need_rsp)
+        {
+            BSA_BleSeSendRspInit(&send_server_resp);
+            send_server_resp.conn_id = p_data->ser_write.conn_id;
+            send_server_resp.trans_id = p_data->ser_write.trans_id;
+            send_server_resp.status = p_data->ser_write.status;
+            send_server_resp.handle = p_data->ser_write.handle;
+            send_server_resp.len = 0;
+            APP_INFO1("BSA_BLE_SE_WRITE_EVT: send_server_resp.conn_id:%d, send_server_resp.trans_id:%d, send_server_resp.status:%d", send_server_resp.conn_id, send_server_resp.trans_id, send_server_resp.status);
+            APP_INFO1("BSA_BLE_SE_WRITE_EVT: send_server_resp.status:%d,send_server_resp.auth_req:%d", send_server_resp.status,send_server_resp.auth_req);
+            APP_INFO1("BSA_BLE_SE_WRITE_EVT: send_server_resp.handle:%d, send_server_resp.offset:%d, send_server_resp.len:%d", send_server_resp.handle,send_server_resp.offset,send_server_resp.len);
+            BSA_BleSeSendRsp(&send_server_resp);
+        }
+
+        app_ble_wifi_introducer_send_data(attr_index, p_data->ser_write.value, p_data->ser_write.len);
+
+        //only test
+        //send_data_test((char *)app_ble_wifi_introducer_cb.attr[attr_index].uuid_string);
+        break;
+
+    case BSA_BLE_SE_EXEC_WRITE_EVT:
+        APP_INFO1("BSA_BLE_SE_EXEC_WRITE_EVT status:%d", p_data->ser_exec_write.status);
+        APP_INFO1("BSA_BLE_SE_EXEC_WRITE_EVT trans_id:%d, conn_id:%d, flag:%d",
+            p_data->ser_exec_write.trans_id, p_data->ser_exec_write.conn_id,
+            p_data->ser_exec_write.flag);
+
+#if 0
+        BSA_BleSeSendRspInit(&send_server_resp);
+        send_server_resp.conn_id = p_data->ser_exec_write.conn_id;
+        send_server_resp.trans_id = p_data->ser_exec_write.trans_id;
+        send_server_resp.status = p_data->ser_exec_write.status;
+        send_server_resp.handle = p_data->ser_exec_write.handle;
+        send_server_resp.len = 0;
+        APP_INFO1("conn_id:%d, trans_id:%d",
+            send_server_resp.conn_id, send_server_resp.trans_id);
+        APP_INFO1("status:%d, auth_req:%d",
+            send_server_resp.status,send_server_resp.auth_req);
+        APP_INFO1("handle:%d, offset:%d, len:%d",
+            send_server_resp.handle,send_server_resp.offset,send_server_resp.len );
+        BSA_BleSeSendRsp(&send_server_resp);
+#endif
+        break;
+
+
+    case BSA_BLE_SE_OPEN_EVT:
+        APP_INFO1("BSA_BLE_SE_OPEN_EVT status:%d", p_data->ser_open.reason);
+        if (p_data->ser_open.reason == BSA_SUCCESS)
+        {
+            APP_INFO1("app_ble_wifi_introducer_conn_up conn_id:0x%x", p_data->ser_open.conn_id);
+            app_ble_wifi_introducer_cb.conn_id = p_data->ser_open.conn_id;
+
+            APP_INFO1("app_ble_wifi_introducer_conn_up connected to [%02X:%02X:%02X:%02X:%02X:%02X]",
+                          p_data->ser_open.remote_bda[0],
+                          p_data->ser_open.remote_bda[1],
+                          p_data->ser_open.remote_bda[2],
+                          p_data->ser_open.remote_bda[3],
+                          p_data->ser_open.remote_bda[4],
+                          p_data->ser_open.remote_bda[5]);
+
+            /* Stop advertising */
+            app_dm_set_ble_visibility(FALSE, FALSE);
+            APP_INFO0("Stopping Advertisements");
+        }
+        break;
+
+    case BSA_BLE_SE_CONGEST_EVT:
+        APP_INFO1("BSA_BLE_SE_CONGEST_EVT  :conn_id:0x%x, congested:%d",
+            p_data->ser_congest.conn_id, p_data->ser_congest.congested);
+        break;
+
+    case BSA_BLE_SE_CLOSE_EVT:
+        APP_INFO1("BSA_BLE_SE_CLOSE_EVT status:%d", p_data->ser_close.reason);
+        APP_INFO1("conn_id:0x%x", p_data->ser_close.conn_id);
+        APP_INFO1("app_ble_wifi_introducer_connection_down  conn_id:%d reason:%d", p_data->ser_close.conn_id, p_data->ser_close.reason);
+
+        app_ble_wifi_introducer_cb.conn_id = BSA_BLE_INVALID_CONN;
+
+        /* start low advertisements */
+        /* Set ADV params */
+        memset(&adv_param, 0, sizeof(tBSA_DM_BLE_ADV_PARAM));
+        adv_param.adv_type = BSA_BLE_CONNECT_EVT;
+        adv_param.adv_int_min = BSA_BLE_GAP_ADV_SLOW_INT;
+        adv_param.adv_int_max = BSA_BLE_GAP_ADV_SLOW_INT;
+        app_dm_set_ble_adv_param(&adv_param);
+        /* Set visisble and connectable */
+        app_dm_set_ble_visibility(TRUE, TRUE);
+        break;
+
+    case BSA_BLE_SE_CONF_EVT:
+        APP_INFO1("BSA_BLE_SE_CONFIRM_EVT  :conn_id:0x%x, status:%d",
+            p_data->ser_conf.conn_id, p_data->ser_conf.status);
+        break;
+
+    default:
+        break;
+    }
+}
+
+/*******************************************************************************
+ **
+ ** Function         app_ble_wifi_introducer_init
+ **
+ ** Description     APP BLE wifi introducer control block init
+ **
+ ** Parameters     None
+ **
+ ** Returns          None
+ **
+ *******************************************************************************/
+void app_ble_wifi_introducer_init(void)
+{
+    memset(&app_ble_wifi_introducer_cb, 0, sizeof(app_ble_wifi_introducer_cb));
+    app_ble_wifi_introducer_cb.conn_id = BSA_BLE_INVALID_CONN;
+}
+
+/*******************************************************************************
+ **
+ ** Function         app_ble_wifi_introducer_gatt_server_init
+ **
+ ** Description     APP BLE wifi introducer GATT Server init
+ **
+ ** Parameters     None
+ **
+ ** Returns          None
+ **
+ *******************************************************************************/
+int app_ble_wifi_introducer_gatt_server_init(Ble_Gatt_Content_t ble_content)
+{
+    int ret, index;
+
+    APP_INFO0("wifi_introducer_gatt_server_init");
+    /* register BLE server app */
+    /* Register with stack to receive GATT callback */
+    ret = app_ble_wifi_introducer_register();
+    if(ret < 0) {
+        APP_ERROR0("register BLE server app failed");
+        return -1;
+    }
+    GKI_delay(1000);
+
+    ret = app_ble_wifi_introducer_create_gatt_database(ble_content);
+    if(ret < 0) {
+        APP_ERROR0("create gatt database failed");
+        return -1;
+    }
+
+    /* start service */
+    for (index = 0; index < APP_BLE_WIFI_INTRODUCER_ATTRIBUTE_MAX; index++)
+    {
+        if (app_ble_wifi_introducer_cb.attr[index].attr_type == BSA_GATTC_ATTR_TYPE_SRVC)
+        {
+            app_ble_wifi_introducer_start_service(app_ble_wifi_introducer_cb.attr[index].service_id);
+        }
+    }
+
+    GKI_delay(1000);
+
+    /* Set the advertising parameters */
+    if(ble_content.adv_kg.pid == 0x0102)
+        ret = app_ble_kugou_set_advertisement_data(ble_content.adv_kg);
+    else
+        ret = app_ble_wifi_introducer_set_advertisement_data((char *)app_ble_device_name);
+    if(ret < 0) {
+        APP_ERROR0("Set the advertising parameters failed");
+        return -1;
+    }
+
+    /* Set visisble and connectable */
+    //app_dm_set_visibility(FALSE, FALSE);
+    app_dm_set_ble_visibility(TRUE, TRUE);
+    return 0;
+}
+
+/*******************************************************************************
+ **
+ ** Function         app_ble_wifi_introducer_find_free_attr
+ **
+ ** Description      find free attr for APP BLE wifi introducer application
+ **
+ ** Parameters
+ **
+ ** Returns          positive number(include 0) if successful, error code otherwise
+ **
+ *******************************************************************************/
+static int app_ble_wifi_introducer_find_free_attr(void)
+{
+    int index;
+
+    for (index = 0; index < APP_BLE_WIFI_INTRODUCER_ATTRIBUTE_MAX; index++)
+    {
+        //APP_DEBUG1("index: %d, uuid16: 0x%x", index, app_ble_wifi_introducer_cb.attr[index].attr_UUID.uu.uuid16);
+        if (!app_ble_wifi_introducer_cb.attr[index].attr_UUID.uu.uuid16)
+        {
+            return index;
+        }
+    }
+    return -1;
+}
+
+/*******************************************************************************
+ **
+ ** Function         app_ble_wifi_introducer_find_free_attr
+ **
+ ** Description      find free attr for APP BLE wifi introducer application
+ **
+ ** Parameters     attr_id
+ **
+ ** Returns          positive number(include 0) if successful, error code otherwise
+ **
+ *******************************************************************************/
+static int app_ble_wifi_introducer_find_attr_index_by_attr_id(UINT16 attr_id)
+{
+    int index;
+
+    for (index = 0; index < APP_BLE_WIFI_INTRODUCER_ATTRIBUTE_MAX; index++)
+    {
+        if (app_ble_wifi_introducer_cb.attr[index].attr_id == attr_id)
+        {
+            return index;
+        }
+    }
+    return -1;
+}
+
+/*******************************************************************************
+ **
+ ** Function         app_ble_wifi_introducer_send_message
+ **
+ ** Description     Check if client has registered for notification/indication
+ **                       and send message if appropriate
+ **
+ ** Parameters     None
+ **
+ ** Returns          None
+ **
+ *******************************************************************************/
+void app_ble_wifi_introducer_send_message(const char *uuid, UINT8 * data, UINT16 len)
+{
+    APP_DEBUG1("conn id : 0x%x",  app_ble_wifi_introducer_cb.conn_id);
+    /* If no client connectted or client has not registered for indication or notification, no action */
+    if (app_ble_wifi_introducer_cb.conn_id != BSA_BLE_INVALID_CONN) {
+        APP_INFO0("Sending Notification");
+        if (app_ble_wifi_introducer_send_notification(uuid, data, len) == -1)
+            APP_ERROR0("Sent Notification Fail");
+    } else {
+        APP_INFO0("No Action");
+    }
+    return;
+}
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_wifi_introducer_send_notification
+ **
+ ** Description     Send notification to client
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+static int app_ble_wifi_introducer_send_notification(const char *uuid, UINT8 * data, UINT16 len)
+{
+    int i;
+    UINT8 attr_index_notify = APP_BLE_WIFI_INTRODUCER_ATTRIBUTE_MAX;
+    tBSA_STATUS status;
+    tBSA_BLE_SE_SENDIND ble_sendind_param;
+
+    APP_INFO0("app_ble_wifi_introducer_send_notification");
+    status = BSA_BleSeSendIndInit(&ble_sendind_param);
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_BleSeSendIndInit failed status = %d", status);
+        return -1;
+    }
+
+    ble_sendind_param.conn_id = app_ble_wifi_introducer_cb.conn_id;
+
+    APP_DEBUG1("uuid: %s", uuid);
+    for (i = 0; i < APP_BLE_WIFI_INTRODUCER_ATTRIBUTE_MAX; i++) {
+        APP_DEBUG1("uuid_string: %s", app_ble_wifi_introducer_cb.attr[i].uuid_string);
+        if (strcmp((char *)app_ble_wifi_introducer_cb.attr[i].uuid_string, uuid) == 0) {
+            attr_index_notify = i;
+            break;
+        }
+    }
+
+    APP_DEBUG1("attr_index_notify: %d", attr_index_notify);
+
+    if (attr_index_notify >= APP_BLE_WIFI_INTRODUCER_ATTRIBUTE_MAX) {
+        APP_ERROR0("Wrong attr_index_notify");
+        return -1;
+    }
+
+    ble_sendind_param.attr_id = app_ble_wifi_introducer_cb.attr[attr_index_notify].attr_id;
+    if (len > BSA_BLE_SE_WRITE_MAX) {
+        APP_ERROR1("Wrong Notification Value Length %d", len);
+        return -1;
+    }
+
+    ble_sendind_param.data_len = len;
+    memcpy(ble_sendind_param.value, data, len);
+    ble_sendind_param.need_confirm = FALSE; // Notification
+
+    APP_DUMP("send notification", (UINT8*)ble_sendind_param.value, ble_sendind_param.data_len);
+
+    status = BSA_BleSeSendInd(&ble_sendind_param);
+    if (status != BSA_SUCCESS) {
+        APP_ERROR1("BSA_BleSeSendInd failed status = %d", status);
+        return -1;
+    }
+
+    return 0;
+}
+
+int app_ble_wifi_introducer_open(Ble_Gatt_Content_t ble_content)
+{
+    int ret;
+
+    APP_DEBUG0("app_ble_wifi_introducer_open");
+
+    /* Initialize BLE application */
+    ret = app_ble_init();
+    if (ret < 0) {
+       APP_ERROR0("Couldn't Initialize BLE app");
+       return -1;
+    }
+
+    /* Start BLE application */
+    ret = app_ble_start();
+    if (ret < 0) {
+        APP_ERROR0("Couldn't Start BLE app");
+        return -1;
+    }
+
+    app_ble_wifi_introducer_init();
+
+    app_ble_set_device_name(ble_content.ble_name);
+
+    ret = app_ble_wifi_introducer_gatt_server_init(ble_content);
+    if (ret < 0) {
+        APP_ERROR0("Couldn't Init gatt server");
+        return -1;
+    }
+
+    return 0;
+}
+
+void app_ble_wifi_introducer_close()
+{
+    int index;
+
+    /* stop service */
+    for (index = 0; index < APP_BLE_WIFI_INTRODUCER_ATTRIBUTE_MAX; index++) {
+        if (app_ble_wifi_introducer_cb.attr[index].attr_type == BSA_GATTC_ATTR_TYPE_SRVC)
+            app_ble_wifi_introducer_stop_service(app_ble_wifi_introducer_cb.attr[index].service_id);
+    }
+
+    app_ble_wifi_introducer_deregister();
+
+    /* Exit BLE mode */
+    app_ble_exit();
+}
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_wifi_introducer_send_data
+ **
+ ** Description     Send receive data
+ **
+ ** Parameters
+ **
+ ** Returns         None
+ **
+ *******************************************************************************/
+static void app_ble_wifi_introducer_send_data(int attr_index, unsigned char *data, int len)
+{
+    if(ble_recv_data_cb) {
+        APP_DEBUG1("uuid_string: %s", (char *)app_ble_wifi_introducer_cb.attr[attr_index].uuid_string);
+        ble_recv_data_cb((char *)app_ble_wifi_introducer_cb.attr[attr_index].uuid_string, data, len);
+    }
+}
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_wifi_introducer_recv_data_callback
+ **
+ ** Description     register send data callback
+ **
+ ** Parameters      None
+ **
+ ** Returns
+ **
+ *******************************************************************************/
+void app_ble_wifi_introducer_recv_data_callback(RK_ble_recv_data cb)
+{
+    ble_recv_data_cb = cb;
+}
