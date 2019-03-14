@@ -29,7 +29,7 @@
 #define BSA_ALSA_DEV_NAME  "default"
 #endif
 
-static char *alsa_device = BSA_ALSA_DEV_NAME; /* ALSA default device */
+static const  char *alsa_device = BSA_ALSA_DEV_NAME; /* ALSA default device */
 #ifdef APP_AV_BCST_PLAY_LOOPDRV_INCLUDED
 static char *alsa_device_loopback = "loop"; /* ALSA loopback device */
 #endif

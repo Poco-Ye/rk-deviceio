@@ -1893,7 +1893,19 @@ void app_avk_volume_up(UINT8 rc_handle)
 
     if ((connection->peer_features & BSA_RC_FEAT_RCTG) && connection->is_rc_open)
     {
-        app_avk_rc_send_click(BSA_AVK_RC_VOL_UP, rc_handle);
+        /* If abs vol is not supported, send vol pass thru command */
+        if (connection->m_bAbsVolumeSupported == FALSE) {
+            app_avk_rc_send_click(BSA_AVK_RC_VOL_UP, rc_handle);
+        } else {
+            /* increase vol by 10% */
+            UINT8 vol = app_avk_cb.volume + (UINT8)(BSA_MAX_ABS_VOLUME/10);
+            app_avk_cb.volume = (vol <= BSA_MAX_ABS_VOLUME) ? vol : BSA_MAX_ABS_VOLUME;
+            APP_DEBUG1("app_avk_cb.volume: %d", app_avk_cb.volume);
+
+            /* send abs vol change notification */
+            app_avk_reg_notfn_rsp(app_avk_cb.volume, rc_handle,
+                connection->volChangeLabel, AVRC_EVT_VOLUME_CHANGE, BSA_AVK_RSP_CHANGED);
+        }
     }
     else
     {
@@ -1923,7 +1935,19 @@ void app_avk_volume_down(UINT8 rc_handle)
 
     if ((connection->peer_features & BSA_RC_FEAT_RCTG) && connection->is_rc_open)
     {
-        app_avk_rc_send_click(BSA_AVK_RC_VOL_DOWN, rc_handle);
+        /* If abs vol is not supported, send vol pass thru command */
+        if (connection->m_bAbsVolumeSupported == FALSE) {
+            app_avk_rc_send_click(BSA_AVK_RC_VOL_DOWN, rc_handle);
+        } else {
+            /* decrease vol by 10% */
+            UINT8 voldown = (UINT8)(BSA_MAX_ABS_VOLUME/10);
+            app_avk_cb.volume = (app_avk_cb.volume <= voldown) ? BSA_MIN_ABS_VOLUME : app_avk_cb.volume-voldown;
+            APP_DEBUG1("app_avk_cb.volume: %d", app_avk_cb.volume);
+
+            /* send abs vol change notification */
+            app_avk_reg_notfn_rsp(app_avk_cb.volume, rc_handle,
+                connection->volChangeLabel, AVRC_EVT_VOLUME_CHANGE, BSA_AVK_RSP_CHANGED);
+        }
     }
     else
     {

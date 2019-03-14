@@ -4893,7 +4893,7 @@ static int app_av_check_empty_folder(tBSA_UID uid)
 
 static int app_av_find_strongest_sink_device()
 {
-    int index = 0, target_index = 0;
+    int index = 0, target_index = -1;
     int max_rssi = -100;
 
     for (index = 0; index < APP_DISC_NB_DEVICES; index++) {
@@ -4971,8 +4971,8 @@ int app_av_connect_start(void *userdata, RK_btmaster_callback cb)
     }
 
     index = app_av_find_strongest_sink_device();
-    if(index >= APP_DISC_NB_DEVICES) {
-        APP_ERROR0("not find sink device.");
+    if(index < 0 || index >= APP_DISC_NB_DEVICES) {
+        APP_ERROR1("not find sink device, index: %d", index);
         app_av_send_event(RK_BtMasterEvent_Connect_Failed);
         return -1;
     }
@@ -4983,6 +4983,7 @@ int app_av_connect_start(void *userdata, RK_btmaster_callback cb)
         app_av_send_event(RK_BtMasterEvent_Connect_Failed);
         return -1;
     }
+
     return 0;
 }
 
@@ -4992,7 +4993,7 @@ int app_av_connect_start(void *userdata, RK_btmaster_callback cb)
  **
  ** Description      disconnected deregister close
  **
- ** Returns          
+ ** Returns 
  **
  *******************************************************************************/
 void app_av_disconnect_stop()
@@ -5009,11 +5010,4 @@ void app_av_disconnect_stop()
         app_av_deregister(index);
 
     app_av_end();
-}
-
-void app_av_get_device_name(char *name, int len)
-{
-    if(!name)
-        return;
-    
 }
