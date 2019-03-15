@@ -693,8 +693,7 @@ static void* wifi_connect_state_check(void *arg)
 	isconnected = check_wifi_isconnected();
 
 	if (isconnected == 1) {
-		exec1("wpa_cli enable_network all");
-		exec1("wpa_cli save_config");
+		save_configuration();
 		state = RK_WIFI_State_CONNECTED;
 	} else {
 		if (wifi_wrong_key)
