@@ -43,33 +43,15 @@
 #include <glib.h>
 #include <dbus/dbus.h>
 
-#include "gdbus/gdbus.h"
-
 #include "error.h"
-#include "DeviceIo/BtsrcParameter.h"
+#include "gdbus/gdbus.h"
+#include "DeviceIo/BtParameter.h"
 
-#define GATT_MGR_IFACE			"org.bluez.GattManager1"
-#define GATT_SERVICE_IFACE		"org.bluez.GattService1"
-#define GATT_CHR_IFACE			"org.bluez.GattCharacteristic1"
+#define GATT_MGR_IFACE				"org.bluez.GattManager1"
+#define GATT_SERVICE_IFACE			"org.bluez.GattService1"
+#define GATT_CHR_IFACE				"org.bluez.GattCharacteristic1"
 #define GATT_DESCRIPTOR_IFACE		"org.bluez.GattDescriptor1"
 
-/* Immediate wifi Service UUID */
-#define WIFI_SERVICES_UUID       "1B7E8251-2877-41C3-B46E-CF057C562023"
-#define SECURITY_CHAR_UUID       "CAC2ABA4-EDBB-4C4A-BBAF-0A84A5CD93A1"
-#define HIDE_CHAR_UUID           "CAC2ABA4-EDBB-4C4A-BBAF-0A84A5CD26C7"
-#define SSID_CHAR_UUID           "ACA0EF7C-EEAA-48AD-9508-19A6CEF6B356"
-#define PASSWORD_CHAR_UUID       "40B7DE33-93E4-4C8B-A876-D833B415A6CE"
-#define CHECKDATA_CHAR_UUID      "40B7DE33-93E4-4C8B-A876-D833B415C759"
-#define NOTIFY_CHAR_UUID         "8AC32D3f-5CB9-4D44-BEC2-EE689169F626"
-#define NOTIFY_DESC_UUID         "00002902-0000-1000-8000-00805f9b34fb"
-#define WIFILIST_CHAR_UUID       "8AC32D3f-5CB9-4D44-BEC2-EE689169F627"
-#define DEVICECONTEXT_CHAR_UUID  "8AC32D3f-5CB9-4D44-BEC2-EE689169F628"
-
-//
-#define BLE_UUID_SERVICE	"0000180A-0000-1000-8000-00805F9B34FB"
-#define BLE_UUID_WIFI_CHAR	"00009999-0000-1000-8000-00805F9B34FB"
-
-#define BT_NAME                  "Yami"
 static char reconnect_path[66];
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
@@ -105,35 +87,6 @@ struct AdvRespDataContent {
 	uint8_t local_name_value[29];
 };
 
-struct AdvDataContent_KG {
-	uint8_t adv_length;
-	uint8_t flag_length;
-	uint8_t flag;
-	uint8_t flag_value;
-	uint8_t ManufacturerData_length;
-	uint8_t ManufacturerData_flag;
-	uint16_t iCompany_id;
-	uint16_t iBeacon;
-	uuid128_t Proximity_uuid;
-	uint16_t Major_id;
-	uint16_t Minor_id;
-	uint8_t Measured_Power;
-};
-
-struct AdvRespDataContent_KG {
-	uint8_t adv_resp_length;
-	uint8_t local_name_length;
-	uint8_t local_name_flag;
-	uint8_t local_name_value[13];
-	uint8_t service_uuid_length;
-	uint8_t service_uuid_flag;
-	uint16_t service_uuid_value;
-	uint16_t Company_id;
-	uint16_t pid;
-	uint8_t version;
-	mac_t mac_addr;
-};
-
 ble_content_t *ble_content_internal;
 ble_content_t ble_content_internal_bak;
 static int gid = 0;
@@ -156,17 +109,10 @@ struct adapter {
 	GList *devices;
 };
 
-static GSList *services;
 extern volatile bool BLE_FLAG;
 extern struct adapter *default_ctrl;
 extern DBusConnection *dbus_conn;
 extern volatile GDBusProxy *ble_dev;
-static GList *ctrl_list;
-static GDBusProxy *default_dev;
-static GDBusProxy *default_attr;
-
-struct characteristic *temp_chr;
-struct characteristic *ble_char_chr;
 
 struct characteristic {
 	char *service;
@@ -844,7 +790,7 @@ static char *register_service(const char *uuid)
 	return path;
 }
 
-static void create_wifi_services(void)
+static void gatt_create_services(void)
 {
 	char *service_path;
 	uint8_t level = ' ';
@@ -875,7 +821,6 @@ static void create_wifi_services(void)
 		}
 	}
 
-	services = g_slist_prepend(services, service_path);
 	printf("Registered service: %s\n", service_path);
 }
 
@@ -1101,127 +1046,67 @@ static int bt_string_to_uuid128(uuid128_t *uuid, const char *string, int rever)
 	return 0;
 }
 
-static void kg_ble_adv_set(Bt_Content_t *bt_content, ble_content_t *ble_content)
+static int ble_adv_set(Bt_Content_t *bt_content, ble_content_t *ble_content)
 {
 	char hostname[HOSTNAME_MAX_LEN + 1];
-	int i, name_len;
-	struct AdvDataContent_KG advdata;
-	struct AdvRespDataContent_KG advdataresp;
-	uuid128_t uuid;
-
-	printf("[KG] %s\n", __func__);
-	printf("[KG] %s [%d:%d]\n", __func__, sizeof(struct AdvDataContent_KG), sizeof(struct AdvRespDataContent_KG));
-
-	advdata.flag_length = 2;
-	advdata.flag = bt_content->ble_content.adv_kg.flag;
-	advdata.flag_value = bt_content->ble_content.adv_kg.flag_value;
-	advdata.iBeacon = bt_content->ble_content.adv_kg.iBeacon;
-	advdata.iCompany_id = bt_content->ble_content.adv_kg.iCompany_id;
-	advdata.Major_id = bt_content->ble_content.adv_kg.Major_id;
-	advdata.Minor_id = bt_content->ble_content.adv_kg.Minor_id;
-	advdata.ManufacturerData_flag = bt_content->ble_content.adv_kg.ManufacturerData_flag;
-	advdata.Measured_Power = bt_content->ble_content.adv_kg.Measured_Power;
-	advdata.ManufacturerData_length = 26;
-
-	bt_string_to_uuid128(&(advdata.Proximity_uuid), bt_content->ble_content.adv_kg.Proximity_uuid, 0);
-	memcpy(ble_content->server_uuid, bt_content->ble_content.server_uuid.uuid, strlen(bt_content->ble_content.server_uuid.uuid));
-
-	// adv
-	advdata.adv_length = sizeof(struct AdvDataContent_KG) - 2;
-	ble_content->advDataLen = sizeof(struct AdvDataContent_KG);
-	memset(ble_content->advData, 0, sizeof(ble_content->advData));
-	memcpy(ble_content->advData, (uint8_t *)(&advdata), sizeof(struct AdvDataContent_KG));
-
-	//ble name
-	if (bt_content->ble_content.adv_kg.local_name_value) {
-		name_len = strlen(bt_content->ble_content.adv_kg.local_name_value);
-		if (name_len > sizeof(advdataresp.local_name_value))
-			name_len = sizeof(advdataresp.local_name_value);
-		advdataresp.local_name_length = name_len + 1;
-	} else {
-		bt_gethostname(hostname);
-		name_len = strlen(hostname);
-		if (name_len > sizeof(advdataresp.local_name_value))
-			name_len = sizeof(advdataresp.local_name_value);
-		advdataresp.local_name_length = name_len + 1;
-	}
-	advdataresp.local_name_flag = AD_COMPLETE_LOCAL_NAME;
-
-	for (i = 0; i < name_len; i++) {
-		if (bt_content->ble_content.adv_kg.local_name_value)
-			advdataresp.local_name_value[i] = bt_content->ble_content.adv_kg.local_name_value[i];
-		else
-			advdataresp.local_name_value[i] = hostname[i];
-	}
-
-	advdataresp.Company_id = bt_content->ble_content.adv_kg.Company_id;
-	advdataresp.pid = bt_content->ble_content.adv_kg.pid;
-	advdataresp.service_uuid_flag = bt_content->ble_content.adv_kg.service_uuid_flag;
-	advdataresp.service_uuid_length = 0x0e;
-	advdataresp.service_uuid_value = bt_content->ble_content.adv_kg.service_uuid_value;
-	advdataresp.version = bt_content->ble_content.adv_kg.version;
-	memcpy(advdataresp.mac_addr.data, le_random_addr, sizeof(advdataresp.mac_addr.data));
-
-	//adv resp
-	advdataresp.adv_resp_length = sizeof(struct AdvRespDataContent_KG) - 2;
-	ble_content->respDataLen = sizeof(struct AdvRespDataContent_KG);
-	memset(ble_content->respData, 0, sizeof(ble_content->respData));
-	memcpy(ble_content->respData, (uint8_t *)(&advdataresp), ble_content->respDataLen);
-
-	/* set chr uuid */
-	for (i = 0; i < bt_content->ble_content.chr_cnt; i++)
-		strcpy(ble_content->char_uuid[i], bt_content->ble_content.chr_uuid[i].uuid);
-
-	ble_content->char_cnt = bt_content->ble_content.chr_cnt;
-	ble_content->cb_ble_recv_fun = bt_content->ble_content.cb_ble_recv_fun;
-	ble_content->cb_ble_request_data = bt_content->ble_content.cb_ble_request_data;
-}
-
-static void ble_adv_set(Bt_Content_t *bt_content, ble_content_t *ble_content)
-{
-	char hostname[HOSTNAME_MAX_LEN + 1];
-	int i, name_len;
+	int i, name_len, uuid_len;
 	struct AdvDataContent advdata;
 	struct AdvRespDataContent advdataresp;
 	uuid128_t uuid;
 
-	advdata.adv_length = 0x15;
-	advdata.flag_length = 2;
-	advdata.flag = AD_FLAGS;
-	advdata.flag_value = 0x1a;
-	advdata.service_uuid_length = 0x10 + 1;
-	advdata.service_uuid_flag = AD_COMPLETE_128_SERVICE_UUID;
-	bt_string_to_uuid128(&(advdata.service_uuid_value), bt_content->ble_content.server_uuid.uuid, 1);
-	memcpy(ble_content->server_uuid, bt_content->ble_content.server_uuid.uuid, strlen(bt_content->ble_content.server_uuid.uuid));
+	if (bt_content->ble_content.advDataType == BLE_ADVDATA_TYPE_USER) {
+		if (bt_content->ble_content.advDataLen == 0) {
+			printf("ERROR:Under the premise that advDataType is BLE_ADVDATA_TYPE_USER,"
+				"the user must set the correct advData");
+			return -1;
+		}
 
-	ble_content->advDataLen = sizeof(struct AdvDataContent);
-	memcpy(ble_content->advData, (uint8_t *)(&advdata), sizeof(struct AdvDataContent));
-
-	//============================================================================
-	if (bt_content->ble_content.ble_name) {
-		name_len = strlen(bt_content->ble_content.ble_name);
-		if (name_len > sizeof(advdataresp.local_name_value))
-			name_len = sizeof(advdataresp.local_name_value);
-		advdataresp.local_name_length = name_len + 1;
+		memcpy(ble_content->advData, bt_content->ble_content.advData, bt_content->ble_content.advDataLen);
+		ble_content->advDataLen = bt_content->ble_content.advDataLen;
+		if (bt_content->ble_content.respDataLen) {
+			memcpy(ble_content->respData, bt_content->ble_content.respData, bt_content->ble_content.respDataLen);
+			ble_content->respDataLen = bt_content->ble_content.respDataLen;
+		}
 	} else {
-		bt_gethostname(hostname);
-		name_len = strlen(hostname);
-		if (name_len > sizeof(advdataresp.local_name_value))
-			name_len = sizeof(advdataresp.local_name_value);
-		advdataresp.local_name_length = name_len + 1;
-	}
-	advdataresp.local_name_flag = AD_COMPLETE_LOCAL_NAME;
-	advdataresp.adv_resp_length = advdataresp.local_name_length + 1;
+		advdata.adv_length = 0x15;
+		advdata.flag_length = 2;
+		advdata.flag = AD_FLAGS;
+		advdata.flag_value = 0x1a;
+		advdata.service_uuid_length = 0x10 + 1;
+		advdata.service_uuid_flag = AD_COMPLETE_128_SERVICE_UUID;
+		bt_string_to_uuid128(&(advdata.service_uuid_value), bt_content->ble_content.server_uuid.uuid, 1);
+		ble_content->advDataLen = sizeof(struct AdvDataContent);
+		memcpy(ble_content->advData, (uint8_t *)(&advdata), sizeof(struct AdvDataContent));
 
-	for (i = 0; i < name_len; i++) {
-		if (bt_content->ble_content.ble_name)
-			advdataresp.local_name_value[i] = bt_content->ble_content.ble_name[i];
-		else
-			advdataresp.local_name_value[i] = hostname[i];
+		//============================================================================
+		if (bt_content->ble_content.ble_name) {
+			name_len = strlen(bt_content->ble_content.ble_name);
+			if (name_len > sizeof(advdataresp.local_name_value))
+				name_len = sizeof(advdataresp.local_name_value);
+			advdataresp.local_name_length = name_len + 1;
+		} else {
+			bt_gethostname(hostname);
+			name_len = strlen(hostname);
+			if (name_len > sizeof(advdataresp.local_name_value))
+				name_len = sizeof(advdataresp.local_name_value);
+			advdataresp.local_name_length = name_len + 1;
+		}
+		advdataresp.local_name_flag = AD_COMPLETE_LOCAL_NAME;
+		advdataresp.adv_resp_length = advdataresp.local_name_length + 1;
+
+		for (i = 0; i < name_len; i++) {
+			if (bt_content->ble_content.ble_name)
+				advdataresp.local_name_value[i] = bt_content->ble_content.ble_name[i];
+			else
+				advdataresp.local_name_value[i] = hostname[i];
+		}
+
+		ble_content->respDataLen = advdataresp.adv_resp_length + 1;
+		memcpy(ble_content->respData, (uint8_t *)(&advdataresp), ble_content->respDataLen);
 	}
 
-	ble_content->respDataLen = advdataresp.adv_resp_length + 1;
-	memcpy(ble_content->respData, (uint8_t *)(&advdataresp), ble_content->respDataLen);
+	uuid_len = strlen(bt_content->ble_content.server_uuid.uuid);
+	memcpy(ble_content->server_uuid, bt_content->ble_content.server_uuid.uuid, uuid_len);
 
 	/* set chr uuid */
 	for (i = 0; i < bt_content->ble_content.chr_cnt; i++)
@@ -1245,9 +1130,6 @@ int gatt_init(Bt_Content_t *bt_content)
 	int i;
 
 	default_ctrl = NULL;
-	ctrl_list = NULL;
-	default_dev = NULL;
-	default_attr = NULL;
 	characteristic_id = 1;
 	service_id = 1;
 	gid = 0;
@@ -1265,17 +1147,13 @@ int gatt_init(Bt_Content_t *bt_content)
 		strcat(CMD_RA, temp_addr);
 	}
 
-	//adv
-	if (bt_content->ble_content.adv_kg.pid == 0x0102)
-		kg_ble_adv_set(bt_content, &ble_content_internal_bak);
-	else
-		ble_adv_set(bt_content, &ble_content_internal_bak);
-
+	//save random addr
+	memcpy(bt_content->ble_content.le_random_addr, le_random_addr, sizeof(le_random_addr));
+	//adv data set
+	ble_adv_set(bt_content, &ble_content_internal_bak);
 	printf("gatt_init server_uuid: %s\n", ble_content_internal_bak.server_uuid);
-
 	ble_content_internal = &ble_content_internal_bak;
-
-	create_wifi_services();
+	gatt_create_services();
 
 	return 1;
 }

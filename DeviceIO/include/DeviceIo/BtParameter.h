@@ -44,25 +44,6 @@ typedef struct BLE_CONTENT_T
 } ble_content_t;
 
 typedef struct {
-	uint8_t flag;
-	uint8_t flag_value;
-	uint8_t ManufacturerData_flag;
-	uint16_t iCompany_id;
-	uint16_t iBeacon;
-	const char *Proximity_uuid;
-	uint16_t Major_id;
-	uint16_t Minor_id;
-	uint8_t Measured_Power;
-	uint8_t local_name_flag;
-	const char *local_name_value;
-	uint8_t service_uuid_flag;
-	uint16_t service_uuid_value;
-	uint16_t Company_id;
-	uint16_t pid;
-	uint8_t version;
-} AdvDataKgContent;
-
-typedef struct {
 #define UUID_16     2
 #define UUID_32     4
 #define UUID_128    16
@@ -71,16 +52,27 @@ typedef struct {
 	const char *uuid;
 } Ble_Uuid_Type_t;
 
+enum {
+	BLE_ADVDATA_TYPE_USER = 0,
+	BLE_ADVDATA_TYPE_SYSTEM
+};
+
 typedef struct {
 	Ble_Uuid_Type_t server_uuid;
 	Ble_Uuid_Type_t chr_uuid[12];
 	uint8_t chr_cnt;
 	const char *ble_name;
-	AdvDataKgContent adv_kg;
+	uint8_t advData[256];
+	uint8_t advDataLen;
+	uint8_t respData[256];
+	uint8_t respDataLen;
+	uint8_t advDataType;
+	//AdvDataKgContent adv_kg;
+	char le_random_addr[6];
 	/* recevice data */
-	void (*cb_ble_recv_fun)(char *uuid, unsigned char *data, int len);
+	void (*cb_ble_recv_fun)(const char *uuid, unsigned char *data, int len);
 	/* full data */
-	void (*cb_ble_request_data)(char *uuid);
+	void (*cb_ble_request_data)(const char *uuid);
 } Ble_Gatt_Content_t;
 
 typedef struct {

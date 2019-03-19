@@ -20,7 +20,7 @@
 #include "agent.h"
 #include "gatt.h"
 #include "advertising.h"
-#include "DeviceIo/BtsrcParameter.h"
+#include "DeviceIo/BtParameter.h"
 #include "DeviceIo/DeviceIo.h"
 #include "DeviceIo/RkBle.h"
 
@@ -76,8 +76,8 @@ volatile bool BLE_FLAG;
 static RK_btmaster_callback g_btmaster_cb;
 static void *g_btmaster_userdata;
 
-extern RK_ble_audio_state_callback ble_audio_status_callback;
-extern RK_BLE_State_e g_ble_audio_status;
+extern RK_ble_state_callback ble_status_callback;
+extern RK_BLE_State_e g_ble_status;
 
 #ifdef __cplusplus
 extern "C" {
@@ -715,9 +715,9 @@ static void proxy_added(GDBusProxy *proxy, void *user_data)
 
 		if (ble_service_cnt == 0) {
 			report_btsrc_event(DeviceInput::BT_BLE_ENV_CONNECT, NULL, 0);
-			if (ble_audio_status_callback)
-				ble_audio_status_callback(RK_BLE_State_SUCCESS);
-			g_ble_audio_status = RK_BLE_State_SUCCESS;
+			if (ble_status_callback)
+				ble_status_callback(RK_BLE_State_SUCCESS);
+			g_ble_status = RK_BLE_State_SUCCESS;
 			ble_wifi_clean();
 			printf("[D: %s]: BLE DEVICE BT_BLE_ENV_CONNECT\n", __func__);
 		}
@@ -836,9 +836,9 @@ static void proxy_removed(GDBusProxy *proxy, void *user_data)
 		if (ble_service_cnt == 0) {
 			ble_dev = NULL;
 			report_btsrc_event(DeviceInput::BT_BLE_ENV_DISCONNECT, NULL, 0);
-			if (ble_audio_status_callback)
-				ble_audio_status_callback(RK_BLE_State_DISCONNECT);
-			g_ble_audio_status = RK_BLE_State_DISCONNECT;
+			if (ble_status_callback)
+				ble_status_callback(RK_BLE_State_DISCONNECT);
+			g_ble_status = RK_BLE_State_DISCONNECT;
 			printf("[BLE: %s]: BLE DEVICE DISCONNECTED [BF: %d]\n", __func__, BLE_FLAG);
 			sleep(1);
 			ble_wifi_clean();

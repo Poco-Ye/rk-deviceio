@@ -21,7 +21,7 @@
 #include <stdint.h>
 #include <string>
 
-#include "BtsrcParameter.h"
+#include "BtParameter.h"
 
 namespace DeviceIOFramework {
 

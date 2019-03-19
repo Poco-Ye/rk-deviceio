@@ -25,12 +25,15 @@
 #define BLE_UUID_SEND		"dfd4416e-1810-47f7-8248-eb8be3dc47f9"
 #define BLE_UUID_RECV		"9884d812-1810-4a24-94d3-b2c11a851fac"
 
+static void RK_ble_recv_data_test(const char *uuid, unsigned char *data, int len);
+static void RK_ble_request_data_test(const char *uuid);
+
 /* have to initialize */
 static Bt_Content_t bt_content;
 
 void bt_init_open(void *data)
 {
-	printf("---------------BT_OPEN----------------\n");
+	printf("---------------BT INIT OPEN----------------\n");
 	bt_content.bt_name = "KUGOU_AUDIO";
 	bt_content.ble_content.ble_name = NULL; // "KUGOU_BLE_888";
 	bt_content.ble_content.server_uuid.uuid = BLE_UUID_SERVICE;
@@ -42,23 +45,9 @@ void bt_init_open(void *data)
 	bt_content.ble_content.chr_uuid[2].uuid = BLE_UUID_RECV;
     bt_content.ble_content.chr_uuid[2].len = UUID_128;
 	bt_content.ble_content.chr_cnt = 3;
-
-	bt_content.ble_content.adv_kg.flag = 0x1;
-	bt_content.ble_content.adv_kg.flag_value = 0x06;
-	bt_content.ble_content.adv_kg.Company_id = 0x00a5;
-	bt_content.ble_content.adv_kg.iBeacon = 0x1502;
-	bt_content.ble_content.adv_kg.iCompany_id = 0x004c;
-	bt_content.ble_content.adv_kg.local_name_flag = 0x09;
-	bt_content.ble_content.adv_kg.local_name_value = "KUGOU W2 8888";
-	bt_content.ble_content.adv_kg.Major_id = 0x0049;
-	bt_content.ble_content.adv_kg.Minor_id = 0x000a;
-	bt_content.ble_content.adv_kg.ManufacturerData_flag = 0xff;
-	bt_content.ble_content.adv_kg.Measured_Power = 0xc5;
-	bt_content.ble_content.adv_kg.pid = 0x0102;
-	bt_content.ble_content.adv_kg.Proximity_uuid = BLE_UUID_PROXIMITY;
-	bt_content.ble_content.adv_kg.service_uuid_flag = 0x16;
-	bt_content.ble_content.adv_kg.service_uuid_value = 0x180a;
-	bt_content.ble_content.adv_kg.version = 0x1;
+	bt_content.ble_content.advDataType = BLE_ADVDATA_TYPE_SYSTEM;
+	bt_content.ble_content.cb_ble_recv_fun = RK_ble_recv_data_test;
+	bt_content.ble_content.cb_ble_request_data = RK_ble_request_data_test;
 
 	RK_bt_init(&bt_content);
 }
@@ -236,84 +225,80 @@ void bt_api2_master_status(void *data)
 /******************************************/
 /*                  BLE                   */
 /******************************************/
-static int Setup_wifi_status_callback(RK_BLEWIFI_State_e state)
+static int ble_status_callback_test(RK_BLE_State_e state)
 {
 	printf("%s: status: %d.\n", __func__, state);
 
 	switch (state) {
-	case RK_BLEWIFI_State_IDLE:
-		printf("RK_BLEWIFI_State_IDLE.\n");
-	break;
-	case RK_BLEWIFI_State_CONNECTTING:
-		printf("RK_BLEWIFI_State_CONNECTTING.\n");
-	break;
-	case RK_BLEWIFI_State_SUCCESS:
-		printf("RK_BLEWIFI_State_SUCCESS.\n");
-	break;
-	case RK_BLEWIFI_State_FAIL:
-		printf("RK_BLEWIFI_State_FAIL.\n");
-	break;
-	case RK_BLEWIFI_State_DISCONNECT:
-		printf("RK_BLEWIFI_State_DISCONNECT.\n");
-	break;
+		case RK_BLE_State_IDLE:
+			printf("+++++ RK_BLE_State_IDLE +++++\n");
+			break;
+		case RK_BLE_State_CONNECTTING:
+			printf("+++++ RK_BLE_State_CONNECTTING +++++\n");
+			break;
+		case RK_BLE_State_SUCCESS:
+			printf("+++++ RK_BLE_State_SUCCESS +++++\n");
+			break;
+		case RK_BLE_State_FAIL:
+			printf("+++++ RK_BLE_State_FAIL +++++\n");
+			break;
+		case RK_BLE_State_DISCONNECT:
+			printf("+++++ RK_BLE_State_DISCONNECT +++++\n");
+			break;
 	}
 }
 
-static int RK_ble_recv_data_test(const char *uuid, unsigned char *data, int len)
+static void RK_ble_recv_data_test(const char *uuid, unsigned char *data, int len)
 {
 	char data_t[512];
 
 	printf("=== %s uuid: %s===\n", __func__, uuid);
 	memcpy(data_t, data, len);
-
-	return 1;
-}
-
-static int Setup_ble_audio_status_callback(RK_BLE_State_e state)
-{
-	printf("%s: status: %d.\n", __func__, state);
-
-	switch (state) {
-	case RK_BLE_State_IDLE:
-		printf("RK_BLE_State_IDLE.\n");
-	break;
-	case RK_BLE_State_CONNECTTING:
-		printf("RK_BLE_State_CONNECTTING.\n");
-	break;
-	case RK_BLE_State_SUCCESS:
-		printf("RK_BLE_State_SUCCESS.\n");
-	break;
-	case RK_BLE_State_FAIL:
-		printf("RK_BLE_State_FAIL.\n");
-	break;
-	case RK_BLE_State_DISCONNECT:
-		printf("RK_BLE_State_DISCONNECT.\n");
-	break;
+	for (int i = 0 ; i < len; i++) {
+		printf("%02x ", data_t[i]);
 	}
+	printf("\n");
 }
 
-static int RK_ble_audio_recv_data_test(const char *uuid, unsigned char *data, int len)
+static void RK_ble_request_data_test(const char *uuid)
 {
-	char data_t[512];
-
-	printf("=== %s uuid: %s, data: %s ===\n", __func__, uuid, data);
-	memcpy(data_t, data, len);
-
-	return 1;
-}
-
-void RK_ble_audio_test(void *data)
-{
-	RK_ble_audio_register_callback(Setup_ble_audio_status_callback);
-	RK_ble_audio_recv_data_callback(RK_ble_audio_recv_data_test);
-	RK_bleaudio_start(NULL);
+	printf("=== %s uuid: %s===\n", __func__, uuid);
 }
 
 void RK_ble_test(void *data) {
-	printf("---------------kg_ble_open----------------\n");
-	RK_blewifi_register_callback(Setup_wifi_status_callback);
-	RK_ble_recv_data_callback(RK_ble_recv_data_test);
-	RK_blewifi_start((char *)bt_content.bt_name);
+	RK_ble_register_callback(ble_status_callback_test);
+	RK_ble_start(bt_content.ble_content);
+}
+
+void RK_ble_write_test(void *data) {
+	unsigned char write_buf[6] = {"12345"};
+
+	RK_ble_write(BLE_UUID_SEND, write_buf, 5);
+}
+
+void RK_ble_status_test(void *data)
+{
+	RK_BLE_State_e state;
+
+	printf("RK_ble_status_test: ");
+	RK_ble_getState(&state);
+	switch (state) {
+		case RK_BLE_State_IDLE:
+			printf("RK_BLE_State_IDLE.\n");
+			break;
+		case RK_BLE_State_CONNECTTING:
+			printf("RK_BLE_State_CONNECTTING.\n");
+			break;
+		case RK_BLE_State_SUCCESS:
+			printf("RK_BLE_State_SUCCESS.\n");
+			break;
+		case RK_BLE_State_FAIL:
+			printf("RK_BLE_State_FAIL.\n");
+			break;
+		case RK_BLE_State_DISCONNECT:
+			printf("RK_BLE_State_DISCONNECT.\n");
+			break;
+	}
 }
 
 /* SPP */

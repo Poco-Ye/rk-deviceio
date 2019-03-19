@@ -5,7 +5,7 @@
 #include <DeviceIo/RkBtSink.h>
 #include <DeviceIo/RkBle.h>
 #include <DeviceIo/RkBtSpp.h>
-#include <DeviceIo/BtsrcParameter.h>
+#include <DeviceIo/BtParameter.h>
 
 int RK_bt_init(Bt_Content_t *p_bt_content);
 bool bt_get_link_state(void);
@@ -13,7 +13,8 @@ bool bt_get_link_state(void);
 /*                    BLE                 */
 /******************************************/
 void RK_ble_test(void *data);
-void RK_ble_audio_test(void *data);
+void RK_ble_write_test(void *data);
+void RK_ble_status_test(void *data);
 /******************************************/
 /*               A2DP SINK                */
 /******************************************/

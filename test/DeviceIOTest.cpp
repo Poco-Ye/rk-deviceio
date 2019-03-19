@@ -30,7 +30,7 @@
 #include <DeviceIo/WifiInfo.h>
 #include <DeviceIo/WifiManager.h>
 #include <DeviceIo/RK_mediaplayer.h>
-#include <DeviceIo/BtsrcParameter.h>
+#include <DeviceIo/BtParameter.h>
 #include <DeviceIo/bt_hal.h>
 
 using DeviceIOFramework::DeviceIo;
@@ -328,12 +328,13 @@ static test_command_t process_command_table[] = {
 	{"bt_api2_sink_reconnect_en1", bt_api2_sink_reconnect_en1},
 	{"bt_api2_sink_disconnect", bt_api2_sink_disconnect},
 	{"bt_api2_sink_close", bt_api2_sink_close},
-	{"RK_blewifi_start", RK_ble_test},
+	{"RK_ble_start", RK_ble_test},
+	{"RK_ble_write_test", RK_ble_write_test},
+	{"RK_ble_status_test", RK_ble_status_test},
 	{"bt_api2_spp_open", bt_api2_spp_open},
 	{"bt_api2_spp_write", bt_api2_spp_write},
 	{"bt_api2_spp_close", bt_api2_spp_close},
 	{"bt_api2_spp_status", bt_api2_spp_status},
-	{"RK_ble_audio_start", RK_ble_audio_test},
 };
 
 static void show_help() {
