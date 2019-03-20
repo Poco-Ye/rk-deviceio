@@ -1,8 +1,11 @@
 #include <ctype.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include "DeviceIo/RK_property.h"
+#include "DeviceIo/RK_log.h"
 
 #define LEN_MAX_KEY		32+1
 #define LEN_MAX_VALUE	128+1
@@ -17,6 +20,7 @@ typedef struct RK_property_map {
 
 static const char* LOCAL_PATH = "/data/local.prop";
 static RK_property_map *m_property_map_head;
+static pthread_mutex_t m_property_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static char *ltrim(char *str) {
 	if (str == NULL || *str == '\0') {
@@ -158,11 +162,13 @@ int RK_property_get(const char *key, char *value, const char *def)
 	RK_property_map* prop;
 	int len = 0;
 
+	pthread_mutex_lock(&m_property_mutex);
 	prop = m_property_map_head;
 	while (prop) {
 		if (0 == strcmp(prop->key, key)) {
 			strncpy(value, prop->value, strlen(prop->value) + 1);
 			value[strlen(prop->value)] = '\0';
+			pthread_mutex_unlock(&m_property_mutex);
 			return strlen(prop->value);
 		}
 		prop = prop->next;
@@ -173,6 +179,7 @@ int RK_property_get(const char *key, char *value, const char *def)
 		memcpy(value, def, len);
 		value[len] = '\0';
 	}
+	pthread_mutex_unlock(&m_property_mutex);
 
 	return len;
 }
@@ -182,6 +189,7 @@ int RK_property_set(const char *key, const char *value)
 	RK_property_map* prop;
 	int len;
 
+	pthread_mutex_lock(&m_property_mutex);
 	prop = m_property_map_head;
 	while (prop) {
 		if (0 == strcmp(prop->key, key)) {
@@ -203,24 +211,24 @@ int RK_property_set(const char *key, const char *value)
 		const int LEN = 1024;
 		int size = LEN;
 
-		str = (char*) malloc(sizeof(char) * size);
+		str = (char*) calloc(size, sizeof(char));
 		fp = fopen(LOCAL_PATH, "r");
 		if (fp) {
 			while (fgets(line, sizeof(line), fp)) {
 				trim(line);
-				if (strstr(line, prop->key) && 0 == strncmp(strstr(line, prop->key), prop->key, strlen(prop->key))) {
+				if (strstr(line, prop->key) && 0 == strncmp(line, prop->key, strlen(prop->key))) {
 					memset(str_prop, 0, sizeof(str_prop));
 					snprintf(str_prop, sizeof(str_prop), "%s = %s\n", prop->key, prop->value);
 
 					if (size <= (strlen(str) + strlen(str_prop) + 1)) {
 						size += LEN;
-						size = (char*) realloc(str, sizeof(char) * size);
+						str = (char*) realloc(str, sizeof(char) * size);
 					}
 					strncat(str, str_prop, strlen(str_prop));
 				} else {
 					if (size <= (strlen(str) + strlen(line) + 2)) {
 						size += LEN;
-						size = (char*) realloc(str, sizeof(char) * size);
+						str = (char*) realloc(str, sizeof(char) * size);
 					}
 					strncat(str, line, strlen(line));
 					strncat(str, "\n", 1);
@@ -233,8 +241,8 @@ int RK_property_set(const char *key, const char *value)
 				fputs(str, fp);
 				fclose(fp);
 			}
-			free(str);
 		}
+		free(str);
 	} else {
 		prop = (RK_property_map*) malloc(sizeof(RK_property_map));
 		memset(prop->key, 0, sizeof(prop->key));
@@ -260,6 +268,7 @@ int RK_property_set(const char *key, const char *value)
 		}
 	}
 	system("sync");
+	pthread_mutex_unlock(&m_property_mutex);
 
 	return 0;
 }
@@ -269,9 +278,11 @@ void RK_property_print(void)
 	RK_property_map *prop;
 	prop = m_property_map_head;
 
+	pthread_mutex_lock(&m_property_mutex);
 	while (prop) {
-		printf("%s = %s\n", prop->key, prop->value);
+		RK_LOGD("%s = %s\n", prop->key, prop->value);
 
 		prop = prop->next;
 	}
+	pthread_mutex_unlock(&m_property_mutex);
 }
