@@ -16,6 +16,8 @@
 #include "DeviceIo/RK_log.h"
 #include "DeviceIo/Rk_wifi.h"
 
+static char retry_connect_cmd[128];
+
 typedef struct RK_WIFI_encode_gbk {
 	char ori[128];
 	char utf8[128];
@@ -549,7 +551,9 @@ static int select_network(const int id)
 
 	memset(str, 0, sizeof(str));
 	memset(cmd, 0, sizeof(cmd));
+	memset(retry_connect_cmd, 0, sizeof(retry_connect_cmd));
 	snprintf(cmd, sizeof(cmd), "wpa_cli -iwlan0 select_network %d", id);
+	snprintf(retry_connect_cmd, sizeof(retry_connect_cmd), "wpa_cli -iwlan0 select_network %d", id);
 	ret = exec(cmd, str);
 
 	if (0 != ret || 0 == strlen(str) || 0 != strncmp(str, "OK", 2))
@@ -584,13 +588,12 @@ static bool check_wifi_isconnected(void) {
 	int connect_retry_count = WIFI_CONNECT_RETRY;
 	RK_WIFI_INFO_Connection_s wifiinfo;
 
+retry:
 	// udhcpc network
 	exec1("dhcpcd -k wlan0");
 	usleep(200000);
 	exec1("killall dhcpcd");
 	usleep(300000);
-
-retry:
 	exec1("dhcpcd -L -f /etc/dhcpcd.conf");
 	memset(ret_buff, 0, 256);
 	exec("pidof dhcpcd", ret_buff);
@@ -610,7 +613,17 @@ retry:
 				break;
 			}
 		}
-		printf("Check wifi state with none state. try more %d/%d, \n", i + 1, WIFI_CONNECT_RETRY);
+
+		printf("Check wifi state with none state. try more %d/%d, \n", i + 1, WIFI_CONNECT_RETRY / 2);
+
+		if (i >= (WIFI_CONNECT_RETRY / 2)) {
+			connect_retry_count = WIFI_CONNECT_RETRY / 2;
+			system(retry_connect_cmd);
+			goto retry;
+		}
+
+		if (wifi_wrong_key == true)
+			break;
 	}
 
 	if (!isWifiConnected)
@@ -697,7 +710,7 @@ static void* wifi_connect_state_check(void *arg)
 		state = RK_WIFI_State_CONNECTED;
 	} else {
 		if (wifi_wrong_key)
-			state = RK_WIFI_State_CONNECTFAILED;
+			state = RK_WIFI_State_CONNECTFAILED_WRONG_KEY;
 		else
 			state = RK_WIFI_State_CONNECTFAILED;
 		exec1("wpa_cli flush");
