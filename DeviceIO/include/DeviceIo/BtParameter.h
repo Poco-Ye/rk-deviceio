@@ -1,9 +1,11 @@
-#ifndef __A2DP_SOURCE_SCAN_P__
-#define __A2DP_SOURCE_SCAN_P__
+#ifndef __BT_PARAMETER_H__
+#define __BT_PARAMETER_H__
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include <stdbool.h>
 
 typedef unsigned char	  uint8_t;
 typedef unsigned short uint16_t;
@@ -107,4 +109,4 @@ typedef struct {
 }
 #endif
 
-#endif /* __A2DP_SOURCE_SCAN_P__ */
+#endif /* __BT_PARAMETER_H__ */
