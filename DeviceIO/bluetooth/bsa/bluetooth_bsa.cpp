@@ -22,6 +22,7 @@
 #include "app_av.h"
 #include "app_dg.h"
 #include "app_ble_wifi_introducer.h"
+#include "app_hs.h"
 #include "bluetooth_bsa.h"
 
 enum class BtControlType {
@@ -39,9 +40,11 @@ typedef struct {
 	bool is_a2dp_sink_open;
 	bool is_a2dp_source_open;
     bool is_spp_open;
+    bool is_handsfree_open;
 } bt_control_t;
 
 volatile bt_control_t g_bt_control = {
+	false,
 	false,
 	false,
 	false,
@@ -54,6 +57,7 @@ static bool ble_is_open();
 static bool a2dp_sink_is_open();
 static bool a2dp_source_is_open();
 static bool spp_is_open();
+static bool handsfree_is_open();
 
 static void bt_print_cmd(DeviceIOFramework::BtControl cmd)
 {
@@ -780,6 +784,63 @@ int RK_btspp_write(char *data, int len)
     }
 
     return 0;
+}
+
+/*****************************************************************
+ *                     BLUETOOTH HEADSET API                     *
+ *****************************************************************/
+static bool handsfree_is_open()
+{
+    return g_bt_control.is_handsfree_open;
+}
+
+void RK_bt_handsfree_register_callback(RK_bt_handsfree_callback cb)
+{
+    app_hs_register_cb(cb);
+}
+
+int RK_bt_handsfree_open(void)
+{
+    if(!bt_is_open()) {
+        APP_DEBUG0("bluetooth is not inited, please init");
+        return -1;
+    }
+
+    if(handsfree_is_open()) {
+        APP_DEBUG0("bt handsfree has been opened.");
+        return 0;
+    }
+
+    if(app_hs_initialize() < 0) {
+        APP_DEBUG0("app_hs_initialize failed");
+        return -1;
+    }
+
+    g_bt_control.is_handsfree_open = true;
+    return 0;
+}
+
+int RK_bt_handsfree_close(void)
+{
+    if(!handsfree_is_open()) {
+        APP_DEBUG0("bt handsfree has been closed.");
+        return 0;
+    }
+
+    app_hs_deinitialize();
+
+    g_bt_control.is_handsfree_open = false;
+    return 0;
+}
+
+void RK_bt_handsfree_pickup(void)
+{
+    app_hs_pick_up();
+}
+
+void RK_bt_handsfree_hangup(void)
+{
+    app_hs_hang_up();
 }
 
 int rk_bt_control(DeviceIOFramework::BtControl cmd, void *data, int len)

@@ -20,6 +20,7 @@
 #include "DeviceIo/RkBtSink.h"
 #include "DeviceIo/RkBle.h"
 #include "DeviceIo/RkBtSpp.h"
+#include "DeviceIo/RkBtHandsfree.h"
 #include "DeviceIo/Rk_bt.h"
 
 int RK_bt_init(Bt_Content_t *p_bt_content);
