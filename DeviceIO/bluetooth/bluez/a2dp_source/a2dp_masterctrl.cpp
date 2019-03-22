@@ -1,17 +1,19 @@
 #include <stdio.h>
-#include <stdbool.h>
 #include <errno.h>
+#include <glib.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <stdbool.h>
 #include <wordexp.h>
+#include <sys/un.h>
 #include <sys/signalfd.h>
 #include <sys/socket.h>
-#include <sys/un.h>
-
 #include <readline/readline.h>
 #include <readline/history.h>
-#include <glib.h>
+
+#include "DeviceIo/DeviceIo.h"
+#include "DeviceIo/RkBle.h"
 
 #include "a2dp_masterctrl.h"
 #include "../gdbus/gdbus.h"
@@ -20,9 +22,7 @@
 #include "agent.h"
 #include "gatt.h"
 #include "advertising.h"
-#include "DeviceIo/BtParameter.h"
-#include "DeviceIo/DeviceIo.h"
-#include "DeviceIo/RkBle.h"
+#include "../gatt_config.h"
 
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
@@ -58,8 +58,6 @@ volatile GDBusProxy *ble_dev = NULL;
 GDBusClient *btsrc_client;
 static GMainLoop *btsrc_main_loop;
 /* For scan cmd */
-static BtDeviceInfo **btsrc_scan_list;
-static int btsrc_scan_cnt;
 #define BTSRC_SCAN_PROFILE_INVALID 0
 #define BTSRC_SCAN_PROFILE_SOURCE  1
 #define BTSRC_SCAN_PROFILE_SINK    2
@@ -73,11 +71,11 @@ volatile bool A2DP_SINK_FLAG;
 volatile bool A2DP_SRC_FLAG;
 volatile bool BLE_FLAG;
 
-static RK_btmaster_callback g_btmaster_cb;
+static RK_BT_SOURCE_CALLBACK g_btmaster_cb;
 static void *g_btmaster_userdata;
 
-extern RK_ble_state_callback ble_status_callback;
-extern RK_BLE_State_e g_ble_status;
+extern RK_BLE_STATE_CALLBACK ble_status_callback;
+extern RK_BLE_STATE g_ble_status;
 
 #ifdef __cplusplus
 extern "C" {
@@ -124,11 +122,6 @@ static const char *ad_arguments[] = {
 };
 
 static int a2dp_master_save_status(char *address);
-
-static void report_btsrc_event(DeviceInput event, void *data, int len) {
-	if (DeviceIo::getInstance()->getNotify())
-		DeviceIo::getInstance()->getNotify()->callback(event, data, len);
-}
 
 static void proxy_leak(gpointer data)
 {
@@ -178,7 +171,7 @@ static void print_adapter(GDBusProxy *proxy, const char *description)
 
 }
 
-static void btsrc_scan_save_device(GDBusProxy *proxy, const char *description)
+static void btsrc_scan_save_device(GDBusProxy *proxy, BtScanParam *param)
 {
 	DBusMessageIter iter;
 	const char *address, *name;
@@ -194,20 +187,15 @@ static void btsrc_scan_save_device(GDBusProxy *proxy, const char *description)
 		dbus_message_iter_get_basic(&iter, &name);
 	else
 		name = "<unknown>";
-	printf("---DEVICES: Address: %s, Name: %s\n", address, name);
-	if (btsrc_scan_list) {
-		device_info = (BtDeviceInfo *) malloc(sizeof(BtDeviceInfo));
-		if (device_info) {
-			memset(device_info, 0, sizeof(BtDeviceInfo));
-			cplen = sizeof(device_info->name);
-			cplen = (strlen(name) > cplen) ? cplen : strlen(name);
-			memcpy(device_info->name, name, cplen);
-			memcpy(device_info->address, address, sizeof(device_info->address));
-			*btsrc_scan_list = device_info;
-			btsrc_scan_list = &device_info->next;
-			btsrc_scan_cnt++;
-		} else
-			printf("ERROR:%s malloc scan device info failed!\n", __func__);
+
+	if (param && (param->item_cnt < BT_SOURCE_SCAN_DEVICES_CNT)) {
+		device_info = &(param->devices[param->item_cnt]);
+		memset(device_info, 0, sizeof(BtDeviceInfo));
+		cplen = sizeof(device_info->name);
+		cplen = (strlen(name) > cplen) ? cplen : strlen(name);
+		memcpy(device_info->name, name, cplen);
+		memcpy(device_info->address, address, sizeof(device_info->address));
+		param->item_cnt++;
 	}
 }
 
@@ -566,10 +554,8 @@ static void set_source_device(GDBusProxy *proxy)
 	if (proxy == NULL) {
 		default_src_dev = NULL;
 		a2dp_master_save_status(NULL);
-		printf("[D: %s]: BT_SRC_DEVICE DISCONNECTED\n", __func__);
-		report_btsrc_event(DeviceInput::BT_SRC_ENV_DISCONNECT, NULL, 0);
 		if (g_btmaster_cb)
-			(*g_btmaster_cb)(g_btmaster_userdata, RK_BtMasterEvent_Disconnected);
+			(*g_btmaster_cb)(g_btmaster_userdata, BT_SOURCE_EVENT_DISCONNECTED);
 		return;
 	}
 
@@ -584,10 +570,8 @@ static void set_source_device(GDBusProxy *proxy)
 		printf("%s address: %s\n", __func__, address);
 	}
 
-	printf("[D: %s]: BT_SRC_DEVICE CONNECTED\n", __func__);
-	report_btsrc_event(DeviceInput::BT_SRC_ENV_CONNECT, NULL, 0);
 	if (g_btmaster_cb)
-		(*g_btmaster_cb)(g_btmaster_userdata, RK_BtMasterEvent_Connected);
+		(*g_btmaster_cb)(g_btmaster_userdata, BT_SOURCE_EVENT_CONNECTED);
 	a2dp_master_save_status(address);
 }
 
@@ -714,10 +698,9 @@ static void proxy_added(GDBusProxy *proxy, void *user_data)
 			gatt_add_service(proxy);
 
 		if (ble_service_cnt == 0) {
-			report_btsrc_event(DeviceInput::BT_BLE_ENV_CONNECT, NULL, 0);
 			if (ble_status_callback)
-				ble_status_callback(RK_BLE_State_SUCCESS);
-			g_ble_status = RK_BLE_State_SUCCESS;
+				ble_status_callback(RK_BLE_STATE_SUCCESS);
+			g_ble_status = RK_BLE_STATE_SUCCESS;
 			ble_wifi_clean();
 			printf("[D: %s]: BLE DEVICE BT_BLE_ENV_CONNECT\n", __func__);
 		}
@@ -835,19 +818,16 @@ static void proxy_removed(GDBusProxy *proxy, void *user_data)
 
 		if (ble_service_cnt == 0) {
 			ble_dev = NULL;
-			report_btsrc_event(DeviceInput::BT_BLE_ENV_DISCONNECT, NULL, 0);
 			if (ble_status_callback)
-				ble_status_callback(RK_BLE_State_DISCONNECT);
-			g_ble_status = RK_BLE_State_DISCONNECT;
+				ble_status_callback(RK_BLE_STATE_DISCONNECT);
+			g_ble_status = RK_BLE_STATE_DISCONNECT;
 			printf("[BLE: %s]: BLE DEVICE DISCONNECTED [BF: %d]\n", __func__, BLE_FLAG);
 			sleep(1);
-			ble_wifi_clean();
 			if (BLE_FLAG)
 				gatt_set_on_adv();
 			else
 				ble_disable_adv();
 		}
-
 	} else if (!strcmp(interface, "org.bluez.GattCharacteristic1")) {
 		gatt_remove_characteristic(proxy);
 
@@ -1166,17 +1146,16 @@ static void cmd_select(int argc, char *argv[])
 	return bt_shell_noninteractive_quit(EXIT_SUCCESS);
 }
 
-static void cmd_devices(int argc, char *argv[])
+static void cmd_devices(BtScanParam *param)
 {
 	GList *ll;
 
 	if (check_default_ctrl() == FALSE)
 		return bt_shell_noninteractive_quit(EXIT_SUCCESS);
 
-	for (ll = g_list_first(default_ctrl->devices);
-			ll; ll = g_list_next(ll)) {
+	for (ll = g_list_first(default_ctrl->devices); ll; ll = g_list_next(ll)) {
 		GDBusProxy *proxy = (GDBusProxy *)ll->data;
-		btsrc_scan_save_device(proxy, NULL);
+		btsrc_scan_save_device(proxy, param);
 	}
 
 	return bt_shell_noninteractive_quit(EXIT_SUCCESS);
@@ -2694,11 +2673,9 @@ static void connect_reply(DBusMessage *message, void *user_data)
 			return;
 		}
 
-		if (g_btmaster_cb)
-			(*g_btmaster_cb)(g_btmaster_userdata, RK_BtMasterEvent_Connect_Failed);
+		if (g_btmaster_cb && (dist_dev_class(proxy) == BT_Device_Class::BT_SINK_DEVICE))
+			(*g_btmaster_cb)(g_btmaster_userdata, BT_SOURCE_EVENT_CONNECT_FAILED);
 
-		if (dist_dev_class(proxy) == BT_Device_Class::BT_SINK_DEVICE)
-			report_btsrc_event(DeviceInput::BT_SRC_ENV_CONNECT_FAIL, NULL, 0);
 		conn_count = 2;
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
@@ -2748,8 +2725,6 @@ static void a2dp_source_clean(void)
 
 	btsrc_client = NULL;
 	btsrc_main_loop = NULL;
-	btsrc_scan_list = NULL;
-	btsrc_scan_cnt = 0;
 
 	A2DP_SRC_FLAG = 0;
 	A2DP_SINK_FLAG = 0;
@@ -2762,7 +2737,7 @@ void *init_a2dp_master(void *)
 	return 0;
 }
 
-void bluetooth_open(Bt_Content_t *bt_content)
+void bluetooth_open(RkBtContent *bt_content)
 {
 	bt_shell_printf("init_a2dp_master start A2DP_SRC_FLAG: %d\n", A2DP_SRC_FLAG);
 	a2dp_source_clean();
@@ -2806,7 +2781,7 @@ void bluetooth_open(Bt_Content_t *bt_content)
 }
 
 static pthread_t bt_thread = 0;
-int bt_open(Bt_Content_t *bt_content)
+int bt_open(RkBtContent *bt_content)
 {
 	printf("init_a2dp_master_ctrl start pid: 0x%x, A2DP_SRC_FLAG: %d\n", bt_thread, A2DP_SRC_FLAG);
 
@@ -2908,6 +2883,7 @@ int a2dp_master_scan(void *arg, int len)
 	BtDeviceInfo *start = NULL;
 	GDBusProxy *proxy;
 	int ret = 0;
+	int i;
 
 	if (check_default_ctrl() == FALSE)
 		return -1;
@@ -2918,21 +2894,23 @@ int a2dp_master_scan(void *arg, int len)
 		return -1;
 	}
 
+	printf("=== scan prepare ===\n");
 	cmd_scan("off");
 	sleep(1);
+	printf("=== scan on ===\n");
 	cmd_scan("on");
-	printf("Waiting for Scan(%d ms)...\n", param->mseconds);
-	usleep(param->mseconds * 1000);
-
-	btsrc_scan_list = &param->device_list;
-	btsrc_scan_cnt = 0;
-	cmd_devices(0, NULL);
-	btsrc_scan_list = NULL;
-	btsrc_scan_cnt = 0;
-
-	printf("== parse scan device ===\n");
-	start = param->device_list;
-	while (start) {
+	if (param->mseconds > 100) {
+		printf("Waiting for Scan(%d ms)...\n", param->mseconds);
+		usleep(param->mseconds * 1000);
+	} else {
+		printf("warning:%dms is too short, scan time is changed to 2000 milliseconds.\n",
+			param->mseconds);
+		usleep(2000 * 1000);
+	}
+	cmd_devices(param);
+	printf("=== parse scan device (cnt:%d) ===\n", param->item_cnt);
+	for (i = 0; i < param->item_cnt; i++) {
+		start = &param->devices[i];
 		proxy = find_device_by_address(start->address);
 		if (!proxy) {
 			printf("%s find_device_by_address failed!\n", __func__);
@@ -2952,9 +2930,6 @@ int a2dp_master_scan(void *arg, int len)
 			memcpy(start->playrole, "AudioSource", strlen("AudioSource"));
 		else
 			memcpy(start->playrole, "Unknow", strlen("Unknow"));
-		printf("=== Addr: %s, playrole: %s ===\n", start->address, start->playrole);
-
-		start = start->next;
 	}
 
 	printf("=== scan off ===\n");
@@ -2970,14 +2945,14 @@ int a2dp_master_connect(char *t_address)
 	if (!t_address || (strlen(t_address) < 17)) {
 		printf("ERROR: %s(len:%d) address error!\n", address, strlen(t_address));
 		if (g_btmaster_cb)
-			(*g_btmaster_cb)(g_btmaster_userdata, RK_BtMasterEvent_Connect_Failed);
+			(*g_btmaster_cb)(g_btmaster_userdata, BT_SOURCE_EVENT_CONNECT_FAILED);
 		return -1;
 	}
 	memcpy(address, t_address, 17);
 
 	if (check_default_ctrl() == FALSE) {
 		if (g_btmaster_cb)
-			(*g_btmaster_cb)(g_btmaster_userdata, RK_BtMasterEvent_Connect_Failed);
+			(*g_btmaster_cb)(g_btmaster_userdata, BT_SOURCE_EVENT_CONNECT_FAILED);
 		return -1;
 	}
 
@@ -2985,7 +2960,7 @@ int a2dp_master_connect(char *t_address)
 	if (!proxy) {
 		printf("Device %s not available\n", address);
 		if (g_btmaster_cb)
-			(*g_btmaster_cb)(g_btmaster_userdata, RK_BtMasterEvent_Connect_Failed);
+			(*g_btmaster_cb)(g_btmaster_userdata, BT_SOURCE_EVENT_CONNECT_FAILED);
 		return -1;
 	}
 
@@ -2993,7 +2968,7 @@ int a2dp_master_connect(char *t_address)
 							proxy, NULL) == FALSE) {
 		printf("Failed to connect\n");
 		if (g_btmaster_cb)
-			(*g_btmaster_cb)(g_btmaster_userdata, RK_BtMasterEvent_Connect_Failed);
+			(*g_btmaster_cb)(g_btmaster_userdata, BT_SOURCE_EVENT_CONNECT_FAILED);
 		return -1;
 	}
 
@@ -3084,7 +3059,6 @@ int a2dp_master_status(char *addr_buf, char *name_buf)
 			printf("WARING: Bluetooth connected, but can't get address!\n");
 			return 0;
 		}
-
 		dbus_message_iter_get_basic(&iter, &address);
 		memset(addr_buf, 0, sizeof(*addr_buf));
 		memcpy(addr_buf, address, strlen(address));
@@ -3167,7 +3141,7 @@ static int a2dp_master_save_status(char *address)
 	return 0;
 }
 
-void a2dp_master_register_cb(void *userdata, RK_btmaster_callback cb)
+void a2dp_master_register_cb(void *userdata, RK_BT_SOURCE_CALLBACK cb)
 {
 	g_btmaster_cb = cb;
 	g_btmaster_userdata = userdata;

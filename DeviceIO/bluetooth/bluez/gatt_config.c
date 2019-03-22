@@ -42,10 +42,11 @@
 
 #include <glib.h>
 #include <dbus/dbus.h>
+#include <DeviceIo/RkBtBase.h>
 
 #include "error.h"
 #include "gdbus/gdbus.h"
-#include "DeviceIo/BtParameter.h"
+#include "gatt_config.h"
 
 #define GATT_MGR_IFACE				"org.bluez.GattManager1"
 #define GATT_SERVICE_IFACE			"org.bluez.GattService1"
@@ -86,6 +87,20 @@ struct AdvRespDataContent {
 	uint8_t local_name_flag;
 	uint8_t local_name_value[29];
 };
+
+#define GATT_MAX_CHR 10
+typedef struct BLE_CONTENT_T
+{
+	uint8_t advData[32];
+	uint8_t advDataLen;
+	uint8_t respData[32];
+	uint8_t respDataLen;
+	uint8_t server_uuid[38];
+	uint8_t char_uuid[GATT_MAX_CHR][38];
+	uint8_t char_cnt;
+	int (*cb_ble_recv_fun)(char *uuid, char *data, int len);
+	void (*cb_ble_request_data)(char *uuid);
+} ble_content_t;
 
 ble_content_t *ble_content_internal;
 ble_content_t ble_content_internal_bak;
@@ -606,7 +621,7 @@ static DBusMessage *chr_write_value(DBusConnection *conn, DBusMessage *msg,
 
 	if (ble_content_internal->cb_ble_recv_fun) {
 		printf("cb_ble_recv_fun enter \n");
-		ble_content_internal->cb_ble_recv_fun(chr->uuid, chr->value, len);
+		ble_content_internal->cb_ble_recv_fun(chr->uuid, (char *)chr->value, len);
 		printf("cb_ble_recv_fun exit \n");
 	} else {
 		printf("cb_ble_recv_fun is null !!! \n");
@@ -1046,7 +1061,7 @@ static int bt_string_to_uuid128(uuid128_t *uuid, const char *string, int rever)
 	return 0;
 }
 
-static int ble_adv_set(Bt_Content_t *bt_content, ble_content_t *ble_content)
+static int ble_adv_set(RkBtContent *bt_content, ble_content_t *ble_content)
 {
 	char hostname[HOSTNAME_MAX_LEN + 1];
 	int i, name_len, uuid_len;
@@ -1123,7 +1138,7 @@ unsigned int gatt_mtu(void)
 	return (unsigned int)rk_gatt_mtu;
 }
 
-int gatt_init(Bt_Content_t *bt_content)
+int gatt_init(RkBtContent *bt_content)
 {
 	//creat random address
 	char temp_addr[256];

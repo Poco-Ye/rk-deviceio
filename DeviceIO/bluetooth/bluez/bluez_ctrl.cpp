@@ -49,7 +49,7 @@ volatile bt_control_t bt_control = {
 	BtControlType::BT_NONE
 };
 
-Bt_Content_t GBt_Content;
+RkBtContent GBt_Content;
 
 /* as same as APP_BLE_WIFI_INTRODUCER_GATT_ATTRIBUTE_SIZE */
 #define BLE_SOCKET_RECV_LEN 22
@@ -485,19 +485,19 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 {
 	using BtControl_rep_type = std::underlying_type<BtControl>::type;
 	int ret = 0;
-	rk_ble_config *ble_cfg;
+	RkBleConfig *ble_cfg;
 	bool scan;
 
 	RK_LOGD("controlBt, cmd: %d\n", cmd);
 
 	switch (cmd) {
 	case BtControl::BT_OPEN:
-		GBt_Content = *((Bt_Content_t *)data);
+		GBt_Content = *((RkBtContent *)data);
 		_bt_close_server();
 		_bt_open_server(GBt_Content.bt_name);
 
 		//FOR HISENSE
-		//bt_adv_set((Bt_Content_t *)data);
+		//bt_adv_set((RkBtContent *)data);
 		bt_open(&GBt_Content);
 
 		bt_control.is_bt_open = 1;
@@ -604,6 +604,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		break;
 
 	case BtControl::BT_BLE_COLSE:
+		ble_disconnect();
 		ble_close_server();
 		break;
 
@@ -674,7 +675,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		break;
 
 	case BtControl::BT_BLE_WRITE:
-		ble_cfg = (rk_ble_config *)data;
+		ble_cfg = (RkBleConfig *)data;
 		ret = gatt_write_data(ble_cfg->uuid, ble_cfg->data, ble_cfg->len);
 
 		break;

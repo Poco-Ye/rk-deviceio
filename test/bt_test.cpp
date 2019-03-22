@@ -1,22 +1,16 @@
-#include <string>
-#include <fstream>
 #include <unistd.h>
-#include <cstring>
-#include <algorithm>
-#include <netdb.h>
-#include <sys/ioctl.h>
-#include <net/if.h>
-#include <arpa/inet.h>
-#include <sys/time.h>
-#include <netinet/ip.h>
-#include <netinet/ip_icmp.h>
-#include <csignal>
+#include <stdio.h>
+#include <string.h>
 #include <errno.h>
-#include <paths.h>
-#include <sys/wait.h>
 
-#include "DeviceIo/DeviceIo.h"
-#include <DeviceIo/bt_hal.h>
+#include <DeviceIo/DeviceIo.h>
+#include <DeviceIo/RkBtBase.h>
+#include <DeviceIo/RkBtSink.h>
+#include <DeviceIo/RkBtSource.h>
+#include <DeviceIo/RkBle.h>
+#include <DeviceIo/RkBtSpp.h>
+
+#include "bt_test.h"
 
 /* Immediate wifi Service UUID */
 #define BLE_UUID_SERVICE	"0000180A-0000-1000-8000-00805F9B34FB"
@@ -25,232 +19,242 @@
 #define BLE_UUID_SEND		"dfd4416e-1810-47f7-8248-eb8be3dc47f9"
 #define BLE_UUID_RECV		"9884d812-1810-4a24-94d3-b2c11a851fac"
 
-static void RK_ble_recv_data_test(const char *uuid, unsigned char *data, int len);
-static void RK_ble_request_data_test(const char *uuid);
+static void bt_test_ble_recv_data_callback(const char *uuid, char *data, int len);
+static void bt_test_ble_request_data_callback(const char *uuid);
 
-/* have to initialize */
-static Bt_Content_t bt_content;
+/* Must be initialized before using Bluetooth ble */
+static RkBtContent bt_content;
 
-void bt_init_open(void *data)
+/******************************************/
+/*        BT base server init             */
+/******************************************/
+/*
+ * The Bluetooth basic service is turned on and the function
+ * must be called before using the Bluetooth function.
+ */
+void bt_test_init_open(void *data)
 {
 	printf("---------------BT INIT OPEN----------------\n");
 	bt_content.bt_name = "KUGOU_AUDIO";
 	bt_content.ble_content.ble_name = NULL; // "KUGOU_BLE_888";
 	bt_content.ble_content.server_uuid.uuid = BLE_UUID_SERVICE;
-    bt_content.ble_content.server_uuid.len = UUID_128;
+	bt_content.ble_content.server_uuid.len = UUID_128;
 	bt_content.ble_content.chr_uuid[0].uuid = BLE_UUID_WIFI_CHAR;
-    bt_content.ble_content.chr_uuid[0].len = UUID_128;
+	bt_content.ble_content.chr_uuid[0].len = UUID_128;
 	bt_content.ble_content.chr_uuid[1].uuid = BLE_UUID_SEND;
-    bt_content.ble_content.chr_uuid[1].len = UUID_128;
+	bt_content.ble_content.chr_uuid[1].len = UUID_128;
 	bt_content.ble_content.chr_uuid[2].uuid = BLE_UUID_RECV;
-    bt_content.ble_content.chr_uuid[2].len = UUID_128;
+	bt_content.ble_content.chr_uuid[2].len = UUID_128;
 	bt_content.ble_content.chr_cnt = 3;
 	bt_content.ble_content.advDataType = BLE_ADVDATA_TYPE_SYSTEM;
-	bt_content.ble_content.cb_ble_recv_fun = RK_ble_recv_data_test;
-	bt_content.ble_content.cb_ble_request_data = RK_ble_request_data_test;
+	bt_content.ble_content.cb_ble_recv_fun = bt_test_ble_recv_data_callback;
+	bt_content.ble_content.cb_ble_request_data = bt_test_ble_request_data_callback;
 
-	RK_bt_init(&bt_content);
+	rk_bt_init(&bt_content);
 }
 
 /******************************************/
 /*               A2DP SINK                */
 /******************************************/
-int bt_sink_callback(RK_BTA2DP_State_e state)
+int bt_sink_callback(RK_BT_SINK_STATE state)
 {
 	switch(state) {
-		case RK_BTA2DP_State_IDLE:
+		case RK_BT_SINK_STATE_IDLE:
 			printf("++++++++++++ BT SINK EVENT: idle ++++++++++\n");
 			break;
-		case RK_BTA2DP_State_CONNECT:
+		case RK_BT_SINK_STATE_CONNECT:
 			printf("++++++++++++ BT SINK EVENT: connect sucess ++++++++++\n");
 			break;
-		case RK_BTA2DP_State_PLAY:
+		case RK_BT_SINK_STATE_PLAY:
 			printf("++++++++++++ BT SINK EVENT: playing ++++++++++\n");
 			break;
-		case RK_BTA2DP_State_PAUSE:
+		case RK_BT_SINK_STATE_PAUSE:
 			printf("++++++++++++ BT SINK EVENT: paused ++++++++++\n");
 			break;
-		case RK_BTA2DP_State_STOP:
+		case RK_BT_SINK_STATE_STOP:
 			printf("++++++++++++ BT SINK EVENT: stoped ++++++++++\n");
 			break;
-		case RK_BTA2DP_State_DISCONNECT:
+		case RK_BT_SINK_STATE_DISCONNECT:
 			printf("++++++++++++ BT SINK EVENT: disconnected ++++++++++\n");
 			break;
 	}
 }
 
-void bt_api2_sink_open(void *data)
+void bt_test_sink_open(void *data)
 {
-	RK_bta2dp_register_callback(bt_sink_callback);
-	RK_bta2dp_open((char *)bt_content.bt_name);
+	rk_bt_sink_register_callback(bt_sink_callback);
+	rk_bt_sink_open();
 }
 
-void bt_api2_sink_visibility00(void *data)
+void bt_test_sink_visibility00(void *data)
 {
-	RK_bta2dp_setVisibility(0, 0);
+	rk_bt_sink_set_visibility(0, 0);
 }
 
-void bt_api2_sink_visibility01(void *data)
+void bt_test_sink_visibility01(void *data)
 {
-	RK_bta2dp_setVisibility(0, 1);
+	rk_bt_sink_set_visibility(0, 1);
 }
 
-void bt_api2_sink_visibility10(void *data)
+void bt_test_sink_visibility10(void *data)
 {
-	RK_bta2dp_setVisibility(1, 0);
+	rk_bt_sink_set_visibility(1, 0);
 }
 
-void bt_api2_sink_visibility11(void *data)
+void bt_test_sink_visibility11(void *data)
 {
-	RK_bta2dp_setVisibility(1, 1);
+	rk_bt_sink_set_visibility(1, 1);
 }
 
-void bt_api2_sink_status(void *data)
+void bt_test_sink_status(void *data)
 {
-	RK_BTA2DP_State_e pState;
+	RK_BT_SINK_STATE pState;
 
-	RK_bta2dp_getState(&pState);
+	rk_bt_sink_get_state(&pState);
 	switch(pState) {
-		case RK_BTA2DP_State_IDLE:
+		case RK_BT_SINK_STATE_IDLE:
 			printf("++++++++++++ BT MASTER EVENT: idle ++++++++++\n");
 			break;
-		case RK_BTA2DP_State_CONNECT:
+		case RK_BT_SINK_STATE_CONNECT:
 			printf("++++++++++++ BT MASTER EVENT: connect sucess ++++++++++\n");
 			break;
-		case RK_BTA2DP_State_PLAY:
+		case RK_BT_SINK_STATE_PLAY:
 			printf("++++++++++++ BT MASTER EVENT: playing ++++++++++\n");
 			break;
-		case RK_BTA2DP_State_PAUSE:
+		case RK_BT_SINK_STATE_PAUSE:
 			printf("++++++++++++ BT MASTER EVENT: paused ++++++++++\n");
 			break;
-		case RK_BTA2DP_State_STOP:
+		case RK_BT_SINK_STATE_STOP:
 			printf("++++++++++++ BT MASTER EVENT: stoped ++++++++++\n");
 			break;
-		case RK_BTA2DP_State_DISCONNECT:
+		case RK_BT_SINK_STATE_DISCONNECT:
 			printf("++++++++++++ BT MASTER EVENT: disconnected ++++++++++\n");
 			break;
 	}
 }
 
-void bt_api2_sink_play(void *data)
+void bt_test_sink_music_play(void *data)
 {
-	RK_bta2dp_play();
+	rk_bt_sink_play();
 }
 
-void bt_api2_sink_pause(void *data)
+void bt_test_sink_music_pause(void *data)
 {
-	RK_bta2dp_pause();
+	rk_bt_sink_pause();
 }
 
-void bt_api2_sink_next(void *data)
+void bt_test_sink_music_next(void *data)
 {
-	RK_bta2dp_next();
+	rk_bt_sink_next();
 }
 
-void bt_api2_sink_previous(void *data)
+void bt_test_sink_music_previous(void *data)
 {
-	RK_bta2dp_prev();
+	rk_bt_sink_prev();
 }
 
-void bt_api2_sink_stop(void *data)
+void bt_test_sink_music_stop(void *data)
 {
-	RK_bta2dp_stop();
+	rk_bt_sink_stop();
 }
 
-void bt_api2_sink_reconnect_en0(void *data)
+void bt_test_sink_reconnect_disenable(void *data)
 {
-	RK_bta2dp_set_auto_reconnect(0);
+	rk_bt_sink_set_auto_reconnect(0);
 }
 
-void bt_api2_sink_reconnect_en1(void *data)
+void bt_test_sink_reconnect_enable(void *data)
 {
-	RK_bta2dp_set_auto_reconnect(1);
+	rk_bt_sink_set_auto_reconnect(1);
 }
 
-void bt_api2_sink_disconnect(void *data)
+void bt_test_sink_disconnect(void *data)
 {
-	RK_bta2dp_disconnect();
+	rk_bt_sink_disconnect();
 }
 
-void bt_api2_sink_close(void *data)
+void bt_test_sink_close(void *data)
 {
-	RK_bta2dp_close();
+	rk_bt_sink_close();
 }
 
 /******************************************/
 /*              A2DP SOURCE               */
 /******************************************/
-void bt_master_callback(void *userdata, const RK_BtMasterEvent_e enEvent)
+void bt_test_source_status_callback(void *userdata, const RK_BT_SOURCE_EVENT enEvent)
 {
 	char address[17], name[100];
 
 	switch(enEvent)
 	{
-		case RK_BtMasterEvent_Connect_Failed:
-			printf("++++++++++++ BT MASTER EVENT: connect failed ++++++++++\n");
-			RK_btmaster_getDeviceName(name, 100);
-			RK_btmaster_getDeviceAddr(address, 17);
+		case BT_SOURCE_EVENT_CONNECT_FAILED:
+			printf("++++++++++++ BT SOURCE EVENT:connect failed ++++++++++\n");
+			break;
+		case BT_SOURCE_EVENT_CONNECTED:
+			printf("++++++++++++ BT SOURCE EVENT:connect sucess ++++++++++\n");
+			rk_bt_source_get_device_name(name, 100);
+			rk_bt_source_get_device_addr(address, 17);
 			printf("DeviceName:%s. Address:%s\n", name, address);
 			break;
-		case RK_BtMasterEvent_Connected:
-			printf("++++++++++++ BT MASTER EVENT: connect sucess ++++++++++\n");
-			break;
-		case RK_BtMasterEvent_Disconnected:
-			printf("++++++++++++ BT MASTER EVENT: disconnect ++++++++++\n");
+		case BT_SOURCE_EVENT_DISCONNECTED:
+			printf("++++++++++++ BT SOURCE EVENT:disconnect ++++++++++\n");
 			break;
 	}
 }
 
-void bt_api2_master_start(void *data)
+void bt_test_source_auto_start(void *data)
 {
-	RK_btmaster_connect_start(NULL, bt_master_callback);
+	rk_bt_source_auto_connect_start(NULL, bt_test_source_status_callback);
 }
 
-void bt_api2_master_stop(void *data)
+void bt_test_source_auto_stop(void *data)
 {
-	RK_btmaster_stop();
+	rk_bt_source_auto_connect_stop();
 }
 
-void bt_api2_master_status(void *data)
+void bt_test_source_connect_status(void *data)
 {
-	RK_BtMasterStatus status;
+	RK_BT_SOURCE_STATUS status;
+	char *name, *address;
 
-	RK_btmaster_getStatus(&status);
-	if (status == RK_BtMasterStatus_Connected)
-		printf("++++++++++++ BT MASTER STATUS: connected ++++++++++++\n");
-	else
-		printf("++++++++++++ BT MASTER STATUS: disconnected ++++++++++++\n");
+	rk_bt_source_get_status(&status, name, address);
+	if (status == BT_SOURCE_STATUS_CONNECTED) {
+		printf("++++++++++++ BT SOURCE STATUS: connected ++++++++++++\n");
+		printf("\t name:%s, address:%s\n", name, address);
+	} else
+		printf("++++++++++++ BT SOURCE STATUS: disconnected ++++++++++++\n");
 }
 
 /******************************************/
 /*                  BLE                   */
 /******************************************/
-static int ble_status_callback_test(RK_BLE_State_e state)
+static void ble_status_callback_test(RK_BLE_STATE state)
 {
 	printf("%s: status: %d.\n", __func__, state);
 
 	switch (state) {
-		case RK_BLE_State_IDLE:
-			printf("+++++ RK_BLE_State_IDLE +++++\n");
+		case RK_BLE_STATE_IDLE:
+			printf("+++++ RK_BLE_STATE_IDLE +++++\n");
 			break;
-		case RK_BLE_State_CONNECTTING:
-			printf("+++++ RK_BLE_State_CONNECTTING +++++\n");
+		case RK_BLE_STATE_CONNECTTING:
+			printf("+++++ RK_BLE_STATE_CONNECTTING +++++\n");
 			break;
-		case RK_BLE_State_SUCCESS:
-			printf("+++++ RK_BLE_State_SUCCESS +++++\n");
+		case RK_BLE_STATE_SUCCESS:
+			printf("+++++ RK_BLE_STATE_SUCCESS +++++\n");
 			break;
-		case RK_BLE_State_FAIL:
-			printf("+++++ RK_BLE_State_FAIL +++++\n");
+		case RK_BLE_STATE_FAIL:
+			printf("+++++ RK_BLE_STATE_FAIL +++++\n");
 			break;
-		case RK_BLE_State_DISCONNECT:
-			printf("+++++ RK_BLE_State_DISCONNECT +++++\n");
+		case RK_BLE_STATE_DISCONNECT:
+			printf("+++++ RK_BLE_STATE_DISCONNECT +++++\n");
 			break;
 	}
 }
 
-static void RK_ble_recv_data_test(const char *uuid, unsigned char *data, int len)
+static void bt_test_ble_recv_data_callback(const char *uuid, char *data, int len)
 {
 	char data_t[512];
+	char reply_buf[512] = {"My name is rk3308"};
 
 	printf("=== %s uuid: %s===\n", __func__, uuid);
 	memcpy(data_t, data, len);
@@ -258,105 +262,133 @@ static void RK_ble_recv_data_test(const char *uuid, unsigned char *data, int len
 		printf("%02x ", data_t[i]);
 	}
 	printf("\n");
+
+	if (strstr(data_t, "Hello RockChip") || strstr(data_t, "HelloRockChip") ||
+		strstr(data_t, "HELLO ROCKCHIP") || strstr(data_t, "HELLOROCKCHIP") ||
+		strstr(data_t, "hello rockchip") || strstr(data_t, "hellorockchip")) {
+		printf("=== %s Reply:%s ===\n", __func__, reply_buf);
+		rk_ble_write(uuid, reply_buf, 17);
+	}
 }
 
-static void RK_ble_request_data_test(const char *uuid)
+static void bt_test_ble_request_data_callback(const char *uuid)
 {
 	printf("=== %s uuid: %s===\n", __func__, uuid);
 }
 
-void RK_ble_test(void *data) {
-	RK_ble_register_callback(ble_status_callback_test);
-	RK_ble_start(bt_content.ble_content);
+void bt_test_ble_start(void *data) {
+	rk_ble_register_status_callback(ble_status_callback_test);
+	rk_ble_register_recv_callback(bt_test_ble_recv_data_callback);
+	rk_ble_start(&bt_content.ble_content);
 }
 
-void RK_ble_write_test(void *data) {
-	unsigned char write_buf[6] = {"12345"};
+void bt_test_ble_write(void *data) {
+	char write_buf[134];
+	int i = 0;
 
-	RK_ble_write(BLE_UUID_SEND, write_buf, 5);
+	/* Construct the content of the sent data */
+	for (i = 0; i < 134; i++)
+		write_buf[i] = '0' + i % 10;
+
+	rk_ble_write(BLE_UUID_SEND, write_buf, 134);
 }
 
-void RK_ble_status_test(void *data)
+void bt_test_ble_get_status(void *data)
 {
-	RK_BLE_State_e state;
+	RK_BLE_STATE state;
 
 	printf("RK_ble_status_test: ");
-	RK_ble_getState(&state);
+	rk_ble_get_state(&state);
 	switch (state) {
-		case RK_BLE_State_IDLE:
-			printf("RK_BLE_State_IDLE.\n");
+		case RK_BLE_STATE_IDLE:
+			printf("RK_BLE_STATE_IDLE.\n");
 			break;
-		case RK_BLE_State_CONNECTTING:
-			printf("RK_BLE_State_CONNECTTING.\n");
+		case RK_BLE_STATE_CONNECTTING:
+			printf("RK_BLE_STATE_CONNECTTING.\n");
 			break;
-		case RK_BLE_State_SUCCESS:
-			printf("RK_BLE_State_SUCCESS.\n");
+		case RK_BLE_STATE_SUCCESS:
+			printf("RK_BLE_STATE_SUCCESS.\n");
 			break;
-		case RK_BLE_State_FAIL:
-			printf("RK_BLE_State_FAIL.\n");
+		case RK_BLE_STATE_FAIL:
+			printf("RK_BLE_STATE_FAIL.\n");
 			break;
-		case RK_BLE_State_DISCONNECT:
-			printf("RK_BLE_State_DISCONNECT.\n");
+		case RK_BLE_STATE_DISCONNECT:
+			printf("RK_BLE_STATE_DISCONNECT.\n");
 			break;
 	}
+}
+
+void bt_test_ble_stop(void *data) {
+	rk_ble_register_status_callback(NULL);
+	rk_ble_register_recv_callback(NULL);
+	rk_ble_stop();
 }
 
 /* SPP */
-void _btspp_callback(int type, char *data, int len)
+void _btspp_status_callback(RK_BT_SPP_STATE type)
 {
 	switch(type) {
-		case RK_BTSPP_Event_DATA:
-			printf("+++++++ RK_BTSPP_Event_DATA +++++\n");
-			printf("\tRECVED(%d):%s\n", len, data);
+		case RK_BT_SPP_STATE_IDLE:
+			printf("+++++++ RK_BT_SPP_STATE_IDLE +++++\n");
 			break;
-		case RK_BTSPP_Event_CONNECT:
-			printf("+++++++ RK_BTSPP_Event_CONNECT +++++\n");
+		case RK_BT_SPP_STATE_CONNECT:
+			printf("+++++++ RK_BT_SPP_EVENT_CONNECT +++++\n");
 			break;
-		case RK_BTSPP_Event_DISCONNECT:
-			printf("+++++++ RK_BTSPP_Event_DISCONNECT +++++\n");
+		case RK_BT_SPP_STATE_DISCONNECT:
+			printf("+++++++ RK_BT_SPP_EVENT_DISCONNECT +++++\n");
 			break;
 		default:
-			printf("+++++++ BTSPP NO TYPE SUPPORT! +++++\n");
+			printf("+++++++ BT SPP NOT SUPPORT TYPE! +++++\n");
 			break;
 	}
 }
 
-void bt_api2_spp_open(void *data)
+void _btspp_recv_callback(char *data, int len)
 {
-	RK_btspp_open(_btspp_callback);
+	if (len) {
+		printf("+++++++ RK BT SPP RECV DATA: +++++\n");
+		printf("\tRECVED(%d):%s\n", len, data);
+	}
 }
 
-void bt_api2_spp_write(void *data)
+void bt_test_spp_open(void *data)
+{
+	rk_bt_spp_open();
+	rk_bt_spp_register_status_cb(_btspp_status_callback);
+	rk_bt_spp_register_recv_cb(_btspp_recv_callback);
+}
+
+void bt_test_spp_write(void *data)
 {
 	int ret = 0;
 	char buff[100] = {"This is a message from rk3308 board!"};
 
-	ret = RK_btspp_write(buff, strlen(buff));
+	ret = rk_bt_spp_write(buff, strlen(buff));
 	if (ret != strlen(buff)) {
 		printf("%s failed, ret<%d> != strlen(buff)<%d>\n",
 				__func__, ret, strlen(buff));
 	}
 }
 
-void bt_api2_spp_close(void *data)
+void bt_test_spp_close(void *data)
 {
-	RK_bta2dp_close();
+	rk_bt_sink_close();
 }
 
-void bt_api2_spp_status(void *data)
+void bt_test_spp_status(void *data)
 {
-	RK_BTSPP_State status;
+	RK_BT_SPP_STATE status;
 
-	RK_btspp_getState(&status);
+	rk_bt_spp_get_state(&status);
 	switch(status) {
-		case RK_BTSPP_State_IDLE:
-			printf("+++++++ RK_BTSPP_State_IDLE +++++\n");
+		case RK_BT_SPP_STATE_IDLE:
+			printf("+++++++ RK_BT_SPP_STATE_IDLE +++++\n");
 			break;
-		case RK_BTSPP_State_CONNECT:
-			printf("+++++++ RK_BTSPP_State_CONNECT +++++\n");
+		case RK_BT_SPP_STATE_CONNECT:
+			printf("+++++++ RK_BT_SPP_STATE_CONNECT +++++\n");
 			break;
-		case RK_BTSPP_State_DISCONNECT:
-			printf("+++++++ RK_BTSPP_State_DISCONNECT +++++\n");
+		case RK_BT_SPP_STATE_DISCONNECT:
+			printf("+++++++ RK_BT_SPP_STATE_DISCONNECT +++++\n");
 			break;
 		default:
 			printf("+++++++ BTSPP NO STATUS SUPPORT! +++++\n");

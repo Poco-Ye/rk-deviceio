@@ -80,11 +80,11 @@ static int first_ctrl = 1;
 extern volatile bool A2DP_SINK_FLAG;
 extern GDBusClient *btsrc_client;
 
-static int g_btsrc_connect_status = RK_BTA2DP_State_IDLE;
+static int g_btsrc_connect_status = RK_BT_SINK_STATE_IDLE;
 
 extern void print_iter(const char *label, const char *name, DBusMessageIter *iter);
 
-static RK_bta2dp_callback g_btsink_cb;
+static RK_BT_SINK_CALLBACK g_btsink_cb;
 static int g_btsink_auto_reconnect = 1; /* Default for auto reconnect */
 
 void report_avrcp_event(DeviceInput event, void *data, int len) {
@@ -95,22 +95,22 @@ void report_avrcp_event(DeviceInput event, void *data, int len) {
 
 	switch(event) {
 		case DeviceInput::BT_SINK_ENV_CONNECT:
-			g_btsrc_connect_status = RK_BTA2DP_State_CONNECT;
+			g_btsrc_connect_status = RK_BT_SINK_STATE_CONNECT;
 			if (g_btsink_cb)
-				(*g_btsink_cb)(RK_BTA2DP_State_CONNECT);
+				(*g_btsink_cb)(RK_BT_SINK_STATE_CONNECT);
 			break;
 		case DeviceInput::BT_SINK_ENV_DISCONNECT:
-			g_btsrc_connect_status = RK_BTA2DP_State_DISCONNECT;
+			g_btsrc_connect_status = RK_BT_SINK_STATE_DISCONNECT;
 			if (g_btsink_cb)
-				(*g_btsink_cb)(RK_BTA2DP_State_DISCONNECT);
+				(*g_btsink_cb)(RK_BT_SINK_STATE_DISCONNECT);
 			break;
 		case DeviceInput::BT_START_PLAY:
 			if (g_btsink_cb)
-				(*g_btsink_cb)(RK_BTA2DP_State_PLAY);
+				(*g_btsink_cb)(RK_BT_SINK_STATE_PLAY);
 			break;
 		case DeviceInput::BT_PAUSE_PLAY:
 			if (g_btsink_cb)
-				(*g_btsink_cb)(RK_BTA2DP_State_PAUSE);
+				(*g_btsink_cb)(RK_BT_SINK_STATE_PAUSE);
 			break;
 		default:
 			break;
@@ -861,7 +861,7 @@ extern volatile bool A2DP_SRC_FLAG;
 int a2dp_sink_open(void)
 {
 	printf("call avrcp_thread init_avrcp\n");
-	g_btsrc_connect_status = RK_BTA2DP_State_IDLE;
+	g_btsrc_connect_status = RK_BT_SINK_STATE_IDLE;
 	A2DP_SINK_FLAG = true;
 	A2DP_SRC_FLAG = 0;
 	system("hciconfig hci0 piscan");
@@ -884,7 +884,7 @@ int release_avrcp_ctrl(void)
 	if (disconn_device())
 		sleep(3);
 	A2DP_SINK_FLAG = false;
-	g_btsrc_connect_status = RK_BTA2DP_State_IDLE;
+	g_btsrc_connect_status = RK_BT_SINK_STATE_IDLE;
 	system("hciconfig hci0 noscan");
 	system("hciconfig hci0 noscan");
 	return 0;
@@ -1176,7 +1176,7 @@ int getstatus_avrcp(void)
 	return AVRCP_PLAY_STATUS_ERROR;
 }
 
-void a2dp_sink_register_cb(RK_bta2dp_callback cb)
+void a2dp_sink_register_cb(RK_BT_SINK_CALLBACK cb)
 {
 	g_btsink_cb = cb;
 }
@@ -1191,7 +1191,7 @@ void a2dp_sink_set_auto_reconnect(int enable)
 	g_btsink_auto_reconnect = (enable ? 1 : 0);
 }
 
-int a2dp_sink_status(RK_BTA2DP_State_e *pState)
+int a2dp_sink_status(RK_BT_SINK_STATE *pState)
 {
 	int avrcp_status;
 
@@ -1201,21 +1201,21 @@ int a2dp_sink_status(RK_BTA2DP_State_e *pState)
 	avrcp_status = getstatus_avrcp();
 	switch (avrcp_status) {
 		case AVRCP_PLAY_STATUS_STOPPED:
-			*pState = RK_BTA2DP_State_STOP;
+			*pState = RK_BT_SINK_STATE_STOP;
 			break;
 		case AVRCP_PLAY_STATUS_REV_SEEK:
 		case AVRCP_PLAY_STATUS_FWD_SEEK:
 		case AVRCP_PLAY_STATUS_PLAYING:
-			*pState = RK_BTA2DP_State_PLAY;
+			*pState = RK_BT_SINK_STATE_PLAY;
 			break;
 		case AVRCP_PLAY_STATUS_PAUSED:
-			*pState = RK_BTA2DP_State_PAUSE;
+			*pState = RK_BT_SINK_STATE_PAUSE;
 			break;
 		default:
-			if (g_btsrc_connect_status == RK_BTA2DP_State_CONNECT)
-				*pState = RK_BTA2DP_State_CONNECT;
+			if (g_btsrc_connect_status == RK_BT_SINK_STATE_CONNECT)
+				*pState = RK_BT_SINK_STATE_CONNECT;
 			else
-				*pState = RK_BTA2DP_State_IDLE;
+				*pState = RK_BT_SINK_STATE_IDLE;
 			break;
 	}
 

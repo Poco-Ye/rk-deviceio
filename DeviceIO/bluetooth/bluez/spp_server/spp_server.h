@@ -13,7 +13,9 @@
 extern "C" {
 #endif
 
-int bt_spp_server_open(RK_btspp_callback callback);
+int bt_spp_server_open();
+void bt_spp_register_recv_callback(RK_BT_SPP_RECV_CALLBACK cb);
+void bt_spp_register_status_callback(RK_BT_SPP_STATUS_CALLBACK cb);
 void bt_spp_server_close();
 int bt_spp_write(char *data, int len);
 int bt_spp_get_status();

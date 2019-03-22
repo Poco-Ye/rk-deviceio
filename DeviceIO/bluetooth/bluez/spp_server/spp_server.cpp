@@ -38,9 +38,10 @@ using DeviceIOFramework::DeviceInput;
 static bool g_spp_server_running;
 static int g_client_sk;
 static int g_server_sk;
-static RK_btspp_callback g_callback;
+static RK_BT_SPP_STATUS_CALLBACK g_status_callback;
+static RK_BT_SPP_RECV_CALLBACK g_recv_callback;
 static int g_spp_server_channel = 1;
-static int g_spp_server_status = RK_BTSPP_State_IDLE;
+static int g_spp_server_status = RK_BT_SPP_STATE_IDLE;
 
 static void report_spp_event(DeviceInput event, void *data, int len) {
 	if (DeviceIo::getInstance()->getNotify())
@@ -101,25 +102,25 @@ REPEAT:
 	/* Get remote device addr */
 	ba2str(&rem_addr.rc_bdaddr, rem_addr_str);
 	fprintf(stderr, "accepted connection from %s \n", rem_addr_str);
-	g_spp_server_status = RK_BTSPP_State_CONNECT;
+	g_spp_server_status = RK_BT_SPP_STATE_CONNECT;
 	report_spp_event(DeviceInput::SPP_CLIENT_CONNECT, (void *)rem_addr_str,
 					 strlen(rem_addr_str));
-	if (g_callback)
-		(*g_callback)(RK_BTSPP_Event_CONNECT, NULL, 0);
+	if (g_status_callback)
+		(*g_status_callback)(RK_BT_SPP_STATE_CONNECT);
 
 	while(g_spp_server_running) {
 		bytes_read = read(g_client_sk, buf,sizeof(buf));
 		if(bytes_read > 0){
 			printf("received:%s\n", buf);
-			if (g_callback)
-				(*g_callback)(RK_BTSPP_Event_DATA, buf, bytes_read);
+			if (g_recv_callback)
+				(*g_recv_callback)(buf, bytes_read);
 
 			memset(buf, 0, bytes_read);
 		} else {
-			g_spp_server_status = RK_BTSPP_State_DISCONNECT;
+			g_spp_server_status = RK_BT_SPP_STATE_DISCONNECT;
 			report_spp_event(DeviceInput::SPP_CLIENT_DISCONNECT, NULL, 0);
-			if (g_callback)
-				(*g_callback)(RK_BTSPP_Event_DISCONNECT, NULL, 0);
+			if (g_status_callback)
+				(*g_status_callback)(RK_BT_SPP_STATE_DISCONNECT);
 			close(g_client_sk);
 			g_client_sk = 0;
 			if (g_spp_server_running)
@@ -127,11 +128,11 @@ REPEAT:
 		}
 	}
 
-	g_spp_server_status = RK_BTSPP_State_IDLE;
+	g_spp_server_status = RK_BT_SPP_STATE_IDLE;
 	close(g_server_sk);
 }
 
-int bt_spp_server_open(RK_btspp_callback callback)
+int bt_spp_server_open()
 {
 	int ret = 0;
 	char cmd[128] = {'\0'};
@@ -139,17 +140,25 @@ int bt_spp_server_open(RK_btspp_callback callback)
 
 	sprintf(cmd, "sdptool add --channel=%d SP", g_spp_server_channel);
 	system(cmd);
-	g_callback = callback;
 
 	ret = pthread_create(&bt_spp_server_thread, NULL, init_bt_spp_server, NULL);
 	if (ret < 0) {
-		g_spp_server_status = RK_BTSPP_State_IDLE;
-		g_callback = NULL;
+		g_spp_server_status = RK_BT_SPP_STATE_IDLE;
 		printf("%s failed!\n", __func__);
 		return -1;
 	}
 
 	return 0;
+}
+
+void bt_spp_register_recv_callback(RK_BT_SPP_RECV_CALLBACK cb)
+{
+	g_recv_callback = cb;
+}
+
+void bt_spp_register_status_callback(RK_BT_SPP_STATUS_CALLBACK cb)
+{
+	g_status_callback = cb;
 }
 
 void bt_spp_server_close()
@@ -166,8 +175,7 @@ void bt_spp_server_close()
 		g_server_sk = 0;
 	}
 
-	g_callback = NULL;
-	g_spp_server_status = RK_BTSPP_State_IDLE;
+	g_spp_server_status = RK_BT_SPP_STATE_IDLE;
 }
 
 int bt_spp_write(char *data, int len)

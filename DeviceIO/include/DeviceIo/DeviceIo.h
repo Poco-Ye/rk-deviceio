@@ -21,7 +21,7 @@
 #include <stdint.h>
 #include <string>
 
-#include "BtParameter.h"
+#include <DeviceIo/RkBtBase.h>
 
 namespace DeviceIOFramework {
 
@@ -318,7 +318,7 @@ struct wifi_config {
 }
 #endif
 
-//void bt_adv_set(Bt_Content_t *p_bt_content);
+//void bt_adv_set(RkBtContent *p_bt_content);
 
 class INetLinkWrapperCallback {
 public:
@@ -550,14 +550,6 @@ public:
     void initBTForHis();
 
     NetLinkNetworkStatus getNetworkStatus() const;
-
-    /**
-     * @brief Automatically connect to the AudioSink device,
-     *        which has the largest rssi value.
-     * @paremeter address:target device address; msec:scanning takes time.
-     * @return true if started succeed.
-     */
-    bool a2dpSourceAutoConnect(char *address, unsigned short msec);
 
     /**
      * @brief system ctl

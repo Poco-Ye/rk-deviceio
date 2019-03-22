@@ -2,10 +2,11 @@
 #define __BLUEZ_CTRL_P__
 
 #include "avrcpctrl.h"
+#include "gatt_config.h"
 #include "a2dp_source/a2dp_masterctrl.h"
 #include "a2dp_source/shell.h"
 #include "DeviceIo/DeviceIo.h"
-#include "DeviceIo/RkBtMaster.h"
+#include "DeviceIo/RkBtSource.h"
 #include "DeviceIo/RkBtSink.h"
 
 using DeviceIOFramework::BtControl;

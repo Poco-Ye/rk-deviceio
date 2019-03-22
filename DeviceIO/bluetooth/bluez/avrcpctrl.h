@@ -91,9 +91,9 @@ bool reconn_last(void);
 bool disconn_device(void);
 int a2dp_sink_open(void);
 void rkbt_inquiry_scan(bool scan);
-void a2dp_sink_register_cb(RK_bta2dp_callback cb);
+void a2dp_sink_register_cb(RK_BT_SINK_CALLBACK cb);
 void a2dp_sink_clear_cb();
 void a2dp_sink_set_auto_reconnect(int enable);
-int a2dp_sink_status(RK_BTA2DP_State_e *pState);
+int a2dp_sink_status(RK_BT_SINK_STATE *pState);
 
 #endif

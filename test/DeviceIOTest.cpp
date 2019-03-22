@@ -30,8 +30,9 @@
 #include <DeviceIo/WifiInfo.h>
 #include <DeviceIo/WifiManager.h>
 #include <DeviceIo/RK_mediaplayer.h>
-#include <DeviceIo/BtParameter.h>
-#include <DeviceIo/bt_hal.h>
+#include <DeviceIo/RkBtBase.h>
+
+#include "bt_test.h"
 
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
@@ -263,18 +264,6 @@ static void leds_test(void *data) {
 	led_test(0, NULL);
 }
 
-static void bt_sink_test(void *data) {
-	printf("---------------bt sink ----------------\n");
-	DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_CLOSE);
-	DeviceIo::getInstance()->controlBt(BtControl::BT_SINK_OPEN);
-}
-
-static void bt_auto_source_test(void *data) {
-	char address[17] = {0};
-	printf("--------------- ble wifi ----------------\n");
-	DeviceIo::getInstance()->a2dpSourceAutoConnect(address, 10000);
-}
-
 static void ble_wifi_manual_test(void *data) {
 	printf("--------------- ble wifi ----------------\n");
 	DeviceIo::getInstance()->startNetworkConfig(600);
@@ -289,59 +278,47 @@ static void ble_wifi_close(void *data) {
 	DeviceIo::getInstance()->controlBt(BtControl::BT_BLE_COLSE);
 }
 
-static void bt_sink_close(void *data) {
-	printf("---------------BT_SINK_CLOSE----------------\n");
-	DeviceIo::getInstance()->controlBt(BtControl::BT_SINK_CLOSE);
-}
-static void bt_source_close(void *data) {
-	printf("---------------BT_SINK_CLOSE----------------\n");
-	DeviceIo::getInstance()->controlBt(BtControl::BT_SOURCE_CLOSE);
-}
-
 static test_command_t process_command_table[] = {
 	{"suspend", suspend_test},
 	{"factoryReset", factoryReset_test},
 	{"ota", ota_test},
 	{"leds", leds_test},
-	{"bt_sink", bt_sink_test},
-	{"bt_auto_source", bt_auto_source_test},
 	{"ble_wifi", ble_wifi_test},
 	{"ble_manual_wifi", ble_wifi_manual_test},
-	{"bt_sink_close", bt_sink_close},
-	{"bt_source_close", bt_source_close},
-	{"bt_open", bt_init_open},
-	{"bt_api2_master_start", bt_api2_master_start},
-	{"bt_api2_master_status", bt_api2_master_status},
-	{"bt_api2_master_stop", bt_api2_master_stop},
-	{"bt_api2_sink_open", bt_api2_sink_open},
-	{"bt_api2_sink_visibility00", bt_api2_sink_visibility00},
-	{"bt_api2_sink_visibility01", bt_api2_sink_visibility01},
-	{"bt_api2_sink_visibility10", bt_api2_sink_visibility10},
-	{"bt_api2_sink_visibility11", bt_api2_sink_visibility11},
-	{"bt_api2_sink_status", bt_api2_sink_status},
-	{"bt_api2_sink_play", bt_api2_sink_play},
-	{"bt_api2_sink_pause", bt_api2_sink_pause},
-	{"bt_api2_sink_next", bt_api2_sink_next},
-	{"bt_api2_sink_previous", bt_api2_sink_previous},
-	{"bt_api2_sink_stop", bt_api2_sink_stop},
-	{"bt_api2_sink_reconnect_en0", bt_api2_sink_reconnect_en0},
-	{"bt_api2_sink_reconnect_en1", bt_api2_sink_reconnect_en1},
-	{"bt_api2_sink_disconnect", bt_api2_sink_disconnect},
-	{"bt_api2_sink_close", bt_api2_sink_close},
-	{"RK_ble_start", RK_ble_test},
-	{"RK_ble_write_test", RK_ble_write_test},
-	{"RK_ble_status_test", RK_ble_status_test},
-	{"bt_api2_spp_open", bt_api2_spp_open},
-	{"bt_api2_spp_write", bt_api2_spp_write},
-	{"bt_api2_spp_close", bt_api2_spp_close},
-	{"bt_api2_spp_status", bt_api2_spp_status},
+	{"bt_server_open", bt_test_init_open},
+	{"bt_test_source_auto_start", bt_test_source_auto_start},
+	{"bt_test_source_connect_status", bt_test_source_connect_status},
+	{"bt_test_source_auto_stop", bt_test_source_auto_stop},
+	{"bt_test_sink_open", bt_test_sink_open},
+	{"bt_test_sink_visibility00", bt_test_sink_visibility00},
+	{"bt_test_sink_visibility01", bt_test_sink_visibility01},
+	{"bt_test_sink_visibility10", bt_test_sink_visibility10},
+	{"bt_test_sink_visibility11", bt_test_sink_visibility11},
+	{"bt_test_sink_status", bt_test_sink_status},
+	{"bt_test_sink_music_play", bt_test_sink_music_play},
+	{"bt_test_sink_music_pause", bt_test_sink_music_pause},
+	{"bt_test_sink_music_next", bt_test_sink_music_next},
+	{"bt_test_sink_music_previous", bt_test_sink_music_previous},
+	{"bt_test_sink_music_stop", bt_test_sink_music_stop},
+	{"bt_test_sink_reconnect_disenable", bt_test_sink_reconnect_disenable},
+	{"bt_test_sink_reconnect_enable", bt_test_sink_reconnect_enable},
+	{"bt_test_sink_disconnect", bt_test_sink_disconnect},
+	{"bt_test_sink_close", bt_test_sink_close},
+	{"bt_test_ble_start", bt_test_ble_start},
+	{"bt_test_ble_write", bt_test_ble_write},
+	{"bt_test_ble_stop", bt_test_ble_stop},
+	{"bt_test_ble_get_status", bt_test_ble_get_status},
+	{"bt_test_spp_open", bt_test_spp_open},
+	{"bt_test_spp_write", bt_test_spp_write},
+	{"bt_test_spp_close", bt_test_spp_close},
+	{"bt_test_spp_status", bt_test_spp_status},
 };
 
 static void show_help() {
 	int i;
 	printf("#### Please Input Your Test Command Index ####\n");
 	for (i = 0; i < sizeof(process_command_table) / sizeof(process_command_table[0]); i++) {
-		printf("%d.  %s \n", i, process_command_table[i].cmd);
+		printf("%02d.  %s \n", i, process_command_table[i].cmd);
 	}
 	printf("Which would you like: ");
 }
@@ -352,7 +329,7 @@ int main(int argc, char *argv[])
 	bool ret;
 	char sn[128] = {0};
 	char hostname[64] = {0};
-	#define HOST_NAME_PREFIX "小聚音箱mini-"
+	#define HOST_NAME_PREFIX "RK3308-"
 
 	DeviceIOFramework::Properties* properties;
 	properties = DeviceIOFramework::Properties::getInstance();

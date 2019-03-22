@@ -182,7 +182,7 @@ static char wifi_security[256];
 static char wifi_hide[256];
 static char check_data[256];
 static int priority = 0;
-static rk_ble_config ble_cfg;
+static RkBleConfig ble_cfg;
 static struct wifi_config wifi_cfg;
 
 #define HOSTNAME_MAX_LEN	250	/* 255 - 3 (FQDN) - 2 (DNS enc) */
@@ -369,12 +369,12 @@ void ble_callback(char *uuid, void *data, int len)
 	}
 }
 
-static Bt_Content_t bt_content;
+static RkBtContent bt_content;
 
-//void bt_adv_set(Bt_Content_t *p_bt_content)
+//void bt_adv_set(RkBtContent *p_bt_content)
 static bt_init_for_hisense(void)
 {
-	Bt_Content_t *p_bt_content;
+	RkBtContent *p_bt_content;
 
 	p_bt_content = &bt_content;
 	p_bt_content->bt_name = NULL;//"HISENSE_AUDIO";
@@ -404,97 +404,6 @@ static bt_init_for_hisense(void)
 	p_bt_content->ble_content.chr_cnt = 9;
 	p_bt_content->ble_content.cb_ble_recv_fun = ble_callback;
 	p_bt_content->ble_content.cb_ble_request_data = ble_request_data;
-}
-
-void bt_adv_set_old(ble_content_t *ble_content)
-{
-	char hostname[HOSTNAME_MAX_LEN + 1];
-	size_t buf_len;
-	int i;
-
-	buf_len = sizeof(hostname);
-	if (gethostname(hostname, buf_len) != 0)
-		printf("gethostname error !!!!!!!!\n");
-	hostname[buf_len - 1] = '\0';
-
-	/* Deny sending of these local hostnames */
-	if (hostname[0] == '\0' || hostname[0] == '.' || strcmp(hostname, "(none)") == 0)
-		printf("gethostname format error !!!\n");
-	else
-		printf("gethostname: %s, len: %d \n", hostname, strlen(hostname));
-	//#define SERVICES_UUID            "23 20 56 7c 05 cf 6e b4 c3 41 77 28 51 82 7e 1b"
-	ble_content->advData[0] = 0x15;
-	ble_content->advData[1] = 0x02;
-	ble_content->advData[2] = 0x01;
-	ble_content->advData[3] = 0x1a;
-	ble_content->advData[4] = 0x11;
-	ble_content->advData[5] = 0x07;
-	ble_content->advData[6] = 0x23;
-	ble_content->advData[7] = 0x20;
-	ble_content->advData[8] = 0x56;
-	ble_content->advData[9] = 0x7c;
-	ble_content->advData[10] = 0x05;
-	ble_content->advData[11] = 0xcf;
-	ble_content->advData[12] = 0x6e;
-	ble_content->advData[13] = 0xb4;
-	ble_content->advData[14] = 0xc3;
-	ble_content->advData[15] = 0x41;
-	ble_content->advData[16] = 0x77;
-	ble_content->advData[17] = 0x28;
-	ble_content->advData[18] = 0x51;
-	ble_content->advData[19] = 0x82;
-	ble_content->advData[20] = 0x7e;
-	ble_content->advData[21] = 0x1b;
-
-	ble_content->advDataLen = 0x16;
-
-	/*
-	 * respdata devices name
-	 * hcitool -i hci0 cmd 0x08 0x0009 08 07 09 52 4b 5f 42 4c 45
-	 */
-	ble_content->respData[0] = 1 + 1 + strlen(hostname) + 4;//0x07;
-	ble_content->respData[1] = ble_content->respData[0] - 1;
-	ble_content->respData[2] = 0x09;
-
-	for (i = 0; i < strlen(hostname); i++) {
-		ble_content->respData[3 + i] = hostname[i];
-	}
-	//hostname_BLE
-	ble_content->respData[3 + i] = 0x5F;
-	ble_content->respData[4 + i] = 0x42;
-	ble_content->respData[5 + i] = 0x4C;
-	ble_content->respData[6 + i] = 0x45;
-	ble_content->respDataLen = ble_content->respData[0] + 1;
-
-	/* set uuid */
-	memcpy(ble_content->server_uuid, WIFI_SERVICES_UUID, 36);
-	ble_content->server_uuid[36] = '\0';
-	memcpy(ble_content->char_uuid[0], SECURITY_CHAR_UUID, 36);
-	ble_content->char_uuid[0][36] = '\0';
-	memcpy(ble_content->char_uuid[1], HIDE_CHAR_UUID, 36);
-	ble_content->char_uuid[1][36] = '\0';
-	memcpy(ble_content->char_uuid[2], SSID_CHAR_UUID, 36);
-	ble_content->char_uuid[2][36] = '\0';
-	memcpy(ble_content->char_uuid[3], PASSWORD_CHAR_UUID, 36);
-	ble_content->char_uuid[3][36] = '\0';
-	memcpy(ble_content->char_uuid[4], CHECKDATA_CHAR_UUID, 36);
-	ble_content->char_uuid[4][36] = '\0';
-	memcpy(ble_content->char_uuid[5], NOTIFY_CHAR_UUID, 36);
-	ble_content->char_uuid[5][36] = '\0';
-	memcpy(ble_content->char_uuid[6], NOTIFY_DESC_UUID, 36);
-	ble_content->char_uuid[6][36] = '\0';
-	memcpy(ble_content->char_uuid[7], WIFILIST_CHAR_UUID, 36);
-	ble_content->char_uuid[7][36] = '\0';
-	memcpy(ble_content->char_uuid[8], DEVICECONTEXT_CHAR_UUID, 36);
-	ble_content->char_uuid[8][36] = '\0';
-
-	//printf("server_uuid: %s, c0: %s, c1: %s\n", ble_content.server_uuid, ble_content.char_uuid[0], ble_content.char_uuid[1]);
-
-	ble_content->char_cnt = 9;
-	ble_content->cb_ble_recv_fun = ble_callback;
-	ble_content->cb_ble_request_data = ble_request_data;
-
-	wifi_cfg.wifi_status_callback = wifi_status_callback;
 }
 
 bool NetLinkWrapper::start_network_config() {
