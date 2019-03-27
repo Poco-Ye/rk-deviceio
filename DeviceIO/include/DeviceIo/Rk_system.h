@@ -6,6 +6,8 @@ extern "C" {
 #endif
 
 /*
+ *Version 1.1.0 Release 2019/03/27
+  1.rewrite the bt api include ble/a2dp/spp
  *Version 1.0.4 Release 2019/01/29
   1.ble_wifi
     1. add config timeout to discon ble
@@ -36,7 +38,7 @@ extern "C" {
  *Version 1.0.0 Release 2018/12/22
  */
 
-#define DEVICEIO_VERSION "V1.0.4"
+#define DEVICEIO_VERSION "V1.1.0"
 
 int RK_read_chip_id(char *buffer, const int size);
 int RK_read_version(char *buffer, const int size);
