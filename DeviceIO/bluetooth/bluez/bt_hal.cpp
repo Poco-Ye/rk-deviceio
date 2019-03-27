@@ -515,22 +515,21 @@ int rk_bt_init(RkBtContent *p_bt_content)
  *      > ACL 64:A2:F9:68:1E:7E handle 1 state 1 lm SLAVE AUTH ENCRYPT
  *      > LE 60:9C:59:31:7F:B9 handle 16 state 1 lm SLAVE
  */
-bool rk_bt_get_link_state(void)
+int rk_bt_is_connected(void)
 {
+	int ret;
 	char buf[1024];
-	bool state = false;
 
 	memset(buf, 0, 1024);
 	RK_shell_exec("hcitool con", buf, 1024);
 	usleep(300000);
 
-	//printf("[BT LINK]: %s\n", buf);
-	if (strstr(buf, "ACL") || strstr(buf, "LE"))
-		state = true;
-	else
-		state = false;
+	if (strstr(buf, "ACL") || strstr(buf, "LE")) {
+		ret = 1;
+	} else {
+		ret = 0;
+	}
 
-	return state;
+	return ret;
 }
-
 

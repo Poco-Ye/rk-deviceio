@@ -47,6 +47,7 @@ typedef struct {
 
 int rk_bt_init(RkBtContent *p_bt_content);
 int rk_bt_deinit(void);
+int rk_bt_is_connected(void);
 
 #ifdef __cplusplus
 }
