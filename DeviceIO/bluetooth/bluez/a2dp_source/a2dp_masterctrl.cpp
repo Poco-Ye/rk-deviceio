@@ -2925,9 +2925,9 @@ int a2dp_master_scan(void *arg, int len)
 		/* Get bluetooth AudioProfile */
 		ret = a2dp_master_get_playrole(proxy);
 		if (ret == BTSRC_SCAN_PROFILE_SINK)
-			memcpy(start->playrole, "AudioSink", strlen("AudioSink"));
+			memcpy(start->playrole, "Audio Sink", strlen("Audio Sink"));
 		else if (ret == BTSRC_SCAN_PROFILE_SOURCE)
-			memcpy(start->playrole, "AudioSource", strlen("AudioSource"));
+			memcpy(start->playrole, "Audio Source", strlen("Audio Source"));
 		else
 			memcpy(start->playrole, "Unknow", strlen("Unknow"));
 	}

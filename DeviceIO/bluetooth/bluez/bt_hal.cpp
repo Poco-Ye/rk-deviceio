@@ -185,11 +185,11 @@ scan_retry:
 	 * Find the audioSink device from the device list,
 	 * which has the largest rssi value.
 	 */
-	max_rssi = -100;	
+	max_rssi = -100;
 	for (i = 0; i < scan_param.item_cnt; i++) {
 		start = &scan_param.devices[i];
 		if (start->rssi_valid && (start->rssi > max_rssi) &&
-			(!strcmp(start->playrole, "AudioSink"))) {
+			(!strcmp(start->playrole, "Audio Sink"))) {
 			printf("#%02d Name:%s\n", i, start->name);
 			printf("\tAddress:%s\n", start->address);
 			printf("\tRSSI:%d\n", start->rssi);
@@ -202,7 +202,7 @@ scan_retry:
 	}
 
 	if (!target_vaild) {
-		printf("=== Cannot find audioSink devices. ===\n");
+		printf("=== Cannot find audio Sink devices. ===\n");
 		_btmaster_send_event(BT_SOURCE_EVENT_CONNECT_FAILED);
 		g_btmaster_thread = 0;
 		return;
