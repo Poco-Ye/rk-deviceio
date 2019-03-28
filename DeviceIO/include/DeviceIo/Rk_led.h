@@ -22,6 +22,7 @@ typedef struct RK_Led_Effect {
 	int timeout;              // 超时时间，<=0 表示无限大
 	int colors;
 	int colors_blink;
+	int priority;             // 灯效优先级
 	char name[64];
 	RK_Led_Effect_type_e type;
 	RK_Led_Effect_layer_e layer;

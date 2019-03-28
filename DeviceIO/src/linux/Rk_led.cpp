@@ -383,9 +383,24 @@ int RK_set_led_effect(RK_Led_Effect_t *effect)
 			stable = stable->next;
 		}
 
-		// insert into head, first in last out
-		ins->next = m_led_manager.stable;
-		m_led_manager.stable = ins;
+		// Find a suitable insert position
+		stable = m_led_manager.stable;
+		prev = NULL;
+		while (stable) {
+			if (stable->effect->priority <= effect->priority) {
+				break;
+			}
+			prev = stable;
+			stable = stable->next;
+		}
+
+		if (!prev) { // empty stck or highest priority, insert into head
+			ins->next = m_led_manager.stable;
+			m_led_manager.stable = ins;
+		} else {
+			prev->next = ins;
+			ins->next = stable;
+		}
 		m_led_manager.new_command_reached = 0;
 	} else if (led->layer == Led_Effect_layer_REALTIME) {
 		// if already exit, release first
