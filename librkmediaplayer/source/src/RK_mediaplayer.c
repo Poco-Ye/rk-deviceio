@@ -253,9 +253,9 @@ int RK_mediaplayer_play(int iHandle, const char *uri)
 	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
 	int err = 0;
 	pthread_attr_t attr;
-	//gchar *cur_uri = NULL;
+	gchar *cur_uri = NULL;
 
-	g_printerr ("#### %s, %x\n",__func__, iHandle);
+	g_printerr ("#### %s, %x uil: %s\n", __func__, iHandle, uri);
 
 	if (!c_player || !c_player->playbin || !uri)
 		return -EINVAL;
@@ -296,10 +296,10 @@ int RK_mediaplayer_play(int iHandle, const char *uri)
 
 	/* Set the URI to play */
 	g_object_set (c_player->playbin, "uri", uri, NULL);
-	//g_object_get (c_player->playbin, "uri", &cur_uri, NULL);
-	//printf(">>>>> Set Uri:%s\n", uri);
-	//printf(">>>>> Aft Uri:%s\n", cur_uri);
-	//g_free(cur_uri);
+	g_object_get (c_player->playbin, "uri", &cur_uri, NULL);
+	printf(">>>>> Set Uri:%s\n", uri);
+	printf(">>>>> Aft Uri:%s\n", cur_uri);
+	g_free(cur_uri);
 
 	/* Start playing */
 	ret = gst_element_set_state (c_player->playbin, GST_STATE_PLAYING);
@@ -316,9 +316,9 @@ int RK_mediaplayer_play(int iHandle, const char *uri)
 	}
 	c_player->stoped = FALSE;
 
-	//g_object_get (c_player->playbin, "current-uri", &cur_uri, NULL);
-	//printf(">>>>> Cur Uri0:%s\n", cur_uri);
-	//g_free(cur_uri);
+	g_object_get (c_player->playbin, "current-uri", &cur_uri, NULL);
+	printf(">>>>> Cur Uri0:%s\n", cur_uri);
+	g_free(cur_uri);
 
 	if (c_player->thread_id == 0) {
 		/* Set thread joineable. */
@@ -457,7 +457,7 @@ int RK_mediaplayer_seek(int iHandle, int iMs)
 
 int RK_mediaplayer_stop(int iHandle)
 {
-	g_printerr ("#### %s, %x\n",__func__, iHandle);
+	g_printerr ("#### %s, %x\n" ,__func__, iHandle);
 	GstStateChangeReturn ret;
 	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
 
@@ -496,6 +496,8 @@ int RK_mediaplayer_add_music(int iHandle, char *title, char *url)
 	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
 	RkPlayerInfo *new_music = NULL;
 	int mem_size = 0;
+
+	g_printerr ("#### %s, %x\n",__func__, iHandle);
 
 	if (!c_player || !url || !strlen(url))
 		return -EINVAL;
@@ -570,6 +572,8 @@ int RK_mediaplayer_clear_playlist(int iHandle)
 	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
 	RkPlayerInfo *tmp_music = NULL;
 
+	g_printerr ("#### %s, %x\n",__func__, iHandle);
+
 	if (!c_player)
 		return -EINVAL;
 
@@ -606,6 +610,8 @@ int RK_mediaplayer_next(int iHandle)
 	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
 	RkPlayerInfo *cur_music = NULL;
 	int rand_step = 0;
+
+	g_printerr ("#### %s, %x\n",__func__, iHandle);
 
 	if (!c_player)
 		return -EINVAL;
@@ -740,6 +746,8 @@ int RK_mediaplayer_start_playlist(int iHandle)
 	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
 	RkPlayerInfo *cur_music = NULL;
 	int rand_step = 0;
+
+	g_printerr ("#### %s, %x\n",__func__, iHandle);
 
 	if (!c_player)
 		return -EINVAL;
