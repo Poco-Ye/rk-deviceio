@@ -84,7 +84,7 @@ static void handle_message (GstMessage *msg, RkMediaPlayer *c_player)
 					(*c_player->callback)(c_player->userdata, RK_MediaEvent_BufferStart);
 					c_player->is_buffering = TRUE;
 					gst_element_set_state (c_player->playbin, GST_STATE_PAUSED);
-				} else if (percent >= 100) {
+				} else if ((percent >= 100) && c_player->is_buffering) {
 					(*c_player->callback)(c_player->userdata, RK_MediaEvent_BufferEnd);
 					c_player->is_buffering = FALSE;
 					gst_element_set_state (c_player->playbin, GST_STATE_PLAYING);
@@ -105,7 +105,7 @@ static void handle_message (GstMessage *msg, RkMediaPlayer *c_player)
 						break;
 					case GST_STATE_PAUSED:
 						/* Send MediaEvent by callback */
-						if (c_player->callback)
+						if (!c_player->is_buffering && c_player->callback)
 							(*c_player->callback)(c_player->userdata, RK_MediaEvent_Pause);
 						break;
 					case GST_STATE_READY:
@@ -347,6 +347,9 @@ int RK_mediaplayer_pause(int iHandle)
 
 	if (!c_player || !c_player->playbin)
 		return -EINVAL;
+
+	/* Stop buffering status. */
+	c_player->is_buffering = FALSE;
 
 	/* Check current status */
 	ret = gst_element_get_state (c_player->playbin, &cur_state, &pending_state, NULL);
@@ -644,8 +647,13 @@ int RK_mediaplayer_next(int iHandle)
 	cur_music = c_player->playlist_current;
 	pthread_mutex_unlock(&c_player->playlist_mutex);
 
-	if (!cur_music)
+	if (!cur_music) {
+		printf(">>>>> %s PlayList is null, Stop player! <<<<<\n", __func__);
+		if (c_player->callback)
+			(*c_player->callback)(c_player->userdata, RK_MediaEvent_Stop);
+
 		return -1;
+	}
 
 	printf(">>>>> %s cur_music title:%s, url:%s <<<<<\n",
 			__func__, cur_music->title, cur_music->url);
