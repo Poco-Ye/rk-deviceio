@@ -236,14 +236,8 @@ static void ble_status_callback_test(RK_BLE_STATE state)
 		case RK_BLE_STATE_IDLE:
 			printf("+++++ RK_BLE_STATE_IDLE +++++\n");
 			break;
-		case RK_BLE_STATE_CONNECTTING:
-			printf("+++++ RK_BLE_STATE_CONNECTTING +++++\n");
-			break;
-		case RK_BLE_STATE_SUCCESS:
-			printf("+++++ RK_BLE_STATE_SUCCESS +++++\n");
-			break;
-		case RK_BLE_STATE_FAIL:
-			printf("+++++ RK_BLE_STATE_FAIL +++++\n");
+		case RK_BLE_STATE_CONNECT:
+			printf("+++++ RK_BLE_STATE_CONNECT +++++\n");
 			break;
 		case RK_BLE_STATE_DISCONNECT:
 			printf("+++++ RK_BLE_STATE_DISCONNECT +++++\n");
@@ -303,14 +297,8 @@ void bt_test_ble_get_status(void *data)
 		case RK_BLE_STATE_IDLE:
 			printf("RK_BLE_STATE_IDLE.\n");
 			break;
-		case RK_BLE_STATE_CONNECTTING:
-			printf("RK_BLE_STATE_CONNECTTING.\n");
-			break;
-		case RK_BLE_STATE_SUCCESS:
-			printf("RK_BLE_STATE_SUCCESS.\n");
-			break;
-		case RK_BLE_STATE_FAIL:
-			printf("RK_BLE_STATE_FAIL.\n");
+		case RK_BLE_STATE_CONNECT:
+			printf("RK_BLE_STATE_CONNECT.\n");
 			break;
 		case RK_BLE_STATE_DISCONNECT:
 			printf("RK_BLE_STATE_DISCONNECT.\n");

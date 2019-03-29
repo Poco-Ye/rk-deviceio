@@ -9,9 +9,7 @@ extern "C" {
 
 typedef enum {
 	RK_BLE_STATE_IDLE = 0,
-	RK_BLE_STATE_CONNECTTING,
-	RK_BLE_STATE_SUCCESS,
-	RK_BLE_STATE_FAIL,
+	RK_BLE_STATE_CONNECT,
 	RK_BLE_STATE_DISCONNECT
 } RK_BLE_STATE;
 
@@ -29,7 +27,6 @@ int rk_ble_register_recv_callback(RK_BLE_RECV_CALLBACK cb);
 int rk_ble_start(RkBleContent *ble_content);
 int rk_ble_stop(void);
 int rk_ble_get_state(RK_BLE_STATE *p_state);
-int rk_ble_get_exdata(char *buffer, int *length);
 int rk_ble_write(const char *uuid, char *data, int len);
 
 #ifdef __cplusplus

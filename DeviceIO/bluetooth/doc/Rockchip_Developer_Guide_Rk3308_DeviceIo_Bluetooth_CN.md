@@ -97,9 +97,7 @@ RK3308
 
 	    typedef enum {
     		RK_BLE_STATE_IDLE = 0, //空闲状态
-    		RK_BLE_STATE_CONNECTTING, //正在连接中
-    		RK_BLE_STATE_SUCCESS, //连接成功
-    		RK_BLE_STATE_FAIL, // 连接失败
+		RK_BLE_STATE_CONNECT, //连接成功
     		RK_BLE_STATE_DISCONNECT //断开连接
     	} RK_BLE_STATE;
 
@@ -164,7 +162,6 @@ RK3308
 - `int rk_bt_spp_register_status_cb(RK_BT_SPP_STATUS_CALLBACK cb)`
 
 	注册状态回调函数。
-
 
 - `int rk_bt_spp_register_recv_cb(RK_BT_SPP_RECV_CALLBACK cb)`
 

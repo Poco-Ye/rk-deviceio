@@ -699,8 +699,8 @@ static void proxy_added(GDBusProxy *proxy, void *user_data)
 
 		if (ble_service_cnt == 0) {
 			if (ble_status_callback)
-				ble_status_callback(RK_BLE_STATE_SUCCESS);
-			g_ble_status = RK_BLE_STATE_SUCCESS;
+				ble_status_callback(RK_BLE_STATE_CONNECT);
+			g_ble_status = RK_BLE_STATE_CONNECT;
 			ble_wifi_clean();
 			printf("[D: %s]: BLE DEVICE BT_BLE_ENV_CONNECT\n", __func__);
 		}
