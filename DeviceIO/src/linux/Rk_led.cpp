@@ -245,6 +245,8 @@ static void led_handle_new_command(void)
 {
 	pthread_mutex_lock(&m_led_manager.mutex);
 	if (m_led_manager.new_command_reached >= 0) {
+	// No need to free TEMP or REALTIME while new commond comming
+#if 0
 		if (m_led_manager.new_command_reached == 0) {
 			if (m_led_manager.temp) {
 				free(m_led_manager.temp->effect);
@@ -264,6 +266,7 @@ static void led_handle_new_command(void)
 				m_led_manager.temp = NULL;
 			}
 		}
+#endif
 		m_led_manager.new_command_reached = -1;
 	}
 	pthread_mutex_unlock(&m_led_manager.mutex);
@@ -460,9 +463,12 @@ int RK_set_led_effect_off(const RK_Led_Effect_layer_e layer, const char *name)
             m_led_manager.realtime = NULL;
         }
 	} else if (Led_Effect_layer_TEMP == layer) {
-		free(m_led_manager.temp->effect);
-		free(m_led_manager.temp);
-		m_led_manager.temp = NULL;
+		if (m_led_manager.temp != NULL) {
+			if (m_led_manager.temp->effect != NULL)
+				free(m_led_manager.temp->effect);
+			free(m_led_manager.temp);
+			m_led_manager.temp = NULL;
+		}
 	}
 	if (!m_led_manager.stable && !m_led_manager.realtime && !m_led_manager.temp) {
 		RK_set_all_led_off();
@@ -500,8 +506,8 @@ int RK_set_all_led_effect_off(void)
 	}
 	m_led_manager.stable = NULL;
 
-	pthread_mutex_unlock(&m_led_manager.mutex);
 	pthread_cond_signal(&m_led_manager.cond);
+	pthread_mutex_unlock(&m_led_manager.mutex);
 	return 0;
 }
 
