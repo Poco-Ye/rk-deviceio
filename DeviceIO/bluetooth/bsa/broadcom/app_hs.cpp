@@ -179,8 +179,8 @@ static int app_hs_close_alsa_duplex(void);
 #endif
 #endif /* PCM_ALSA */
 
-static RK_bt_handsfree_callback app_hs_send_cb = NULL;
-static void app_hs_send_event(RK_BT_HANDSFREE_EVENT event) {
+static RK_BT_HFP_CALLBACK app_hs_send_cb = NULL;
+static void app_hs_send_event(RK_BT_HFP_EVENT event) {
     if(app_hs_send_cb)
         app_hs_send_cb(event);
 }
@@ -199,7 +199,7 @@ static void app_hs_send_event(RK_BT_HANDSFREE_EVENT event) {
 ** Returns          void
 **
 *******************************************************************************/
-void app_hs_register_cb(RK_bt_handsfree_callback cb)
+void app_hs_register_cb(RK_BT_HFP_CALLBACK cb)
 {
 	app_hs_send_cb = cb;
 }

@@ -16,18 +16,14 @@
 #include <string.h>
 
 #include "DeviceIo/DeviceIo.h"
-#include "DeviceIo/RkBtMaster.h"
+#include "DeviceIo/RkBtBase.h"
+#include "DeviceIo/RkBtSource.h"
 #include "DeviceIo/RkBtSink.h"
 #include "DeviceIo/RkBle.h"
 #include "DeviceIo/RkBtSpp.h"
-#include "DeviceIo/RkBtHandsfree.h"
+#include "DeviceIo/RkBtHfp.h"
 #include "DeviceIo/Rk_bt.h"
 
-int RK_bt_init(Bt_Content_t *p_bt_content);
-void RK_ble_test(void *data);
-int RK_bt_open(const char *bt_name);
-void RK_bt_close(void);
-void RK_get_bt_mac(char *bt_mac);
 int rk_bt_control(DeviceIOFramework::BtControl cmd, void *data, int len);
 
 #endif

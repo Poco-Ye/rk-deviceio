@@ -576,7 +576,7 @@ int app_hs_mute_unmute_microphone(BOOLEAN bMute);
 ** Returns          void
 **
 *******************************************************************************/
-void app_hs_register_cb(RK_bt_handsfree_callback cb);
+void app_hs_register_cb(RK_BT_HFP_CALLBACK cb);
 
 /*******************************************************************************
 **

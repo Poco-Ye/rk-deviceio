@@ -95,7 +95,7 @@ typedef struct
 ** Returns          void
 **
 *******************************************************************************/
-void app_av_register_cb(RK_btmaster_callback cb);
+void app_av_register_cb(void *userdata, RK_BT_SOURCE_CALLBACK cb);
 
 /*******************************************************************************
 **
@@ -176,7 +176,7 @@ int app_av_open(BD_ADDR *bda /* = NULL */);
  ** Returns          0 if successful, error code otherwise
  **
  *******************************************************************************/
-int app_av_close(void);
+int app_av_close(int index);
 
 /*******************************************************************************
  **
@@ -691,24 +691,38 @@ int app_av_rc_play_item_meta_response(int index, tBSA_AV_META_MSG_MSG *pMetaMsg)
 
 /*******************************************************************************
  **
- ** Function         app_av_connect_start
+ ** Function         app_av_auto_connect_start
  **
  ** Description      discovery devices, automatically connected the strongest sink device
  **
  ** Returns
  **
  *******************************************************************************/
-int app_av_connect_start(void *userdata, RK_btmaster_callback cb);
+int app_av_auto_connect_start(void *userdata, RK_BT_SOURCE_CALLBACK cb);
 
 /*******************************************************************************
  **
- ** Function         app_av_disconnect_stop
+ ** Function         app_av_auto_connect_stop
  **
  ** Description      disconnected deregister close
  **
  ** Returns
  **
  *******************************************************************************/
-void app_av_disconnect_stop(void);
+void app_av_auto_connect_stop(void);
+
+int app_av_initialize(void);
+
+int app_av_deinitialize(void);
+
+int app_av_scan(BtScanParam *data);
+
+int app_av_connect(char *address);
+
+int app_av_disconnect(char *address);
+
+int app_av_remove(char *address);
+
+void app_av_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, char *address);
 
 #endif /* APP_AV_H_ */

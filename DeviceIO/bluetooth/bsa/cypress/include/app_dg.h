@@ -240,7 +240,37 @@ int app_dg_get_service_list_with_dev(UINT8 device);
  *******************************************************************************/
 void app_dg_disc_and_get_service_list();
 
-int app_dg_spp_open(RK_btspp_callback cb);
+/*******************************************************************************
+**
+** Function         app_dg_register_cb
+**
+** Description      Register DG callback
+**
+** Parameters       callback
+**
+** Returns          void
+**
+*******************************************************************************/
+void app_dg_register_cb(RK_BT_SPP_STATUS_CALLBACK cb);
+
+/*******************************************************************************
+**
+** Function         app_dg_register_cb
+**
+** Description      DeRegister DG callback
+**
+** Parameters
+**
+** Returns          void
+**
+*******************************************************************************/
+void app_dg_deregister_cb();
+
+void app_dg_register_recv_cb(RK_BT_SPP_RECV_CALLBACK cb);
+
+void app_dg_deregister_recv_cb();
+
+int app_dg_spp_open(void);
 
 void app_dg_spp_close(void);
 

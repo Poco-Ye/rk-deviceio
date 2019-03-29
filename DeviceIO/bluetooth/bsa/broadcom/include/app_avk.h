@@ -102,7 +102,7 @@ typedef struct
 ** Returns          void
 **
 *******************************************************************************/
-void app_avk_register_cb(RK_bta2dp_callback cb);
+void app_avk_register_cb(RK_BT_SINK_CALLBACK cb);
 
 /*******************************************************************************
 **
@@ -777,7 +777,7 @@ void app_avk_display_connections(void);
  *******************************************************************************/
 void app_avk_send_delay_report(UINT16 delay);
 
-int app_avk_get_status(RK_BTA2DP_State_e *pState);
+int app_avk_get_status(RK_BT_SINK_STATE *pState);
 
 int app_avk_start(void);
 

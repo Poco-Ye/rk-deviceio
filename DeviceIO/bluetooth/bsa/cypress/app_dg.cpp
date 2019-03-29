@@ -101,13 +101,20 @@ static void *app_dg_read_proc( void *ptr );
 
 /* Common UIPC Callback function */
 void app_dg_uipc_cback(BT_HDR *p_msg);
- 
+
 static int app_dg_connection_index = APP_DG_NB_CON_MAX;
-static int app_dg_connection_status = RK_BTSPP_State_IDLE;
-static RK_btspp_callback app_dg_send_cb = NULL;
-static void app_dg_send_event(int type, char *data, int len) {
+static int app_dg_connection_status = RK_BT_SPP_STATE_IDLE;
+static RK_BT_SPP_STATUS_CALLBACK app_dg_send_cb = NULL;
+static RK_BT_SPP_RECV_CALLBACK app_dg_recv_cb = NULL;
+
+static void app_dg_send_event(RK_BT_SPP_STATE status) {
     if(app_dg_send_cb)
-        app_dg_send_cb(type, data, len);
+        app_dg_send_cb(status);
+}
+
+static void app_dg_recv_data(char *data, int len) {
+    if(app_dg_recv_cb)
+        app_dg_recv_cb(data, len);
 }
 
 /*******************************************************************************
@@ -121,7 +128,7 @@ static void app_dg_send_event(int type, char *data, int len) {
 ** Returns          void
 **
 *******************************************************************************/
-void app_dg_register_cb(RK_btspp_callback cb)
+void app_dg_register_cb(RK_BT_SPP_STATUS_CALLBACK cb)
 {
 	app_dg_send_cb = cb;
 }
@@ -214,8 +221,8 @@ void app_dg_rx_close_evt(tBSA_DG_MSG *p_data)
     }
 
     app_dg_connection_index = APP_DG_NB_CON_MAX;
-    app_dg_connection_status = RK_BTSPP_State_DISCONNECT;
-    app_dg_send_event(RK_BTSPP_Event_DISCONNECT, NULL, 0);
+    app_dg_connection_status = RK_BT_SPP_STATE_DISCONNECT;
+    app_dg_send_event(RK_BT_SPP_STATE_DISCONNECT);
 
     APP_DEBUG0("app_dg_cback unlock mutex");
     status = app_unlock_mutex(&app_dg_cb.app_dg_tx_mutex[connection]);
@@ -251,7 +258,7 @@ void app_dg_rx_close_evt(tBSA_DG_MSG *p_data)
         }
         app_dg_con_free(connection);
     }
-    app_dg_con_display_debug();
+    //app_dg_con_display_debug();
 }
 
 /*******************************************************************************
@@ -330,9 +337,9 @@ void app_dg_rx_open_evt(tBSA_DG_MSG *p_data)
         }
 
         app_dg_connection_index = connection;
-        app_dg_connection_status = RK_BTSPP_State_CONNECT;
-        app_dg_send_event(RK_BTSPP_Event_CONNECT, NULL, 0);
-        
+        app_dg_connection_status = RK_BT_SPP_STATE_CONNECT;
+        app_dg_send_event(RK_BT_SPP_STATE_CONNECT);
+
         /* Read the Remote device xml file to have a fresh view */
         app_read_xml_remote_devices();
         /* Add SPP, DUN services for this devices in XML database */
@@ -362,7 +369,7 @@ void app_dg_rx_open_evt(tBSA_DG_MSG *p_data)
     }
     /* Display all DG connections */
     app_dg_con_display();
-    app_dg_con_display_debug();
+    //app_dg_con_display_debug();
 }
 
 /*******************************************************************************
@@ -528,7 +535,7 @@ void app_dg_uipc_cback(BT_HDR *p_msg)
 
                 app_dg_sendto_vtty((char *)rx_buffer,length,connection);
 
-                app_dg_send_event(RK_BTSPP_Event_DATA, (char *)rx_buffer, length);
+                app_dg_recv_data((char *)rx_buffer, length);
 
                 //Just test sending data
                 //app_dg_write_data((char *)rx_buffer, length);
@@ -2567,7 +2574,7 @@ void app_dg_disc_and_get_service_list()
     app_dg_cb.disc_get_srv_list_start = TRUE;
     app_dg_cb.disc_index = 0;
     /* start regular discovery */
-    app_disc_start_regular(app_dg_disc_cback);
+    app_disc_start_regular(app_dg_disc_cback, 0);
 }
 
 
@@ -2729,9 +2736,9 @@ int app_dg_get_service_list_with_dev(UINT8 device)
     return 0;
 }
 
-int app_dg_spp_open(RK_btspp_callback cb)
+int app_dg_spp_open()
 {
-    app_dg_register_cb(cb);
+    app_dg_send_event(RK_BT_SPP_STATE_IDLE);
 
     /* Initialize DG application */
     if (app_dg_init() < 0){
@@ -2758,17 +2765,22 @@ int app_dg_spp_open(RK_btspp_callback cb)
 
 void app_dg_spp_close()
 {
-    app_dg_connection_index = APP_DG_NB_CON_MAX;
-    app_dg_connection_status = RK_BTSPP_State_IDLE;
-    app_dg_deregister_cb();
-
     app_dg_close_all();
+    GKI_delay(1000);
+
     app_dg_shutdown_all();
 
     /* Disable DG service */
     app_dg_stop();
-    
+
     //app_dg_deinit();
+
+    app_dg_connection_index = APP_DG_NB_CON_MAX;
+    app_dg_connection_status = RK_BT_SPP_STATE_IDLE;
+    app_dg_send_event(RK_BT_SPP_STATE_IDLE);
+
+    app_dg_deregister_cb();
+    app_dg_deregister_recv_cb();
 }
 
 int app_dg_get_status()
@@ -2789,4 +2801,14 @@ int app_dg_write_data(char *data, int len)
     }
 
     return 0;
+}
+
+void app_dg_register_recv_cb(RK_BT_SPP_RECV_CALLBACK cb)
+{
+    app_dg_recv_cb = cb;
+}
+
+void app_dg_deregister_recv_cb()
+{
+    app_dg_recv_cb = NULL;
 }

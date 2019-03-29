@@ -117,8 +117,8 @@ static void app_avk_close_wave_file(tAPP_AVK_CONNECTION *connection);
 static void app_avk_create_wave_file(void);
 static void app_avk_uipc_cback(BT_HDR *p_msg);
 
-static RK_bta2dp_callback app_avk_notify_cb = NULL;
-static void app_avk_notify_status(RK_BTA2DP_State_e state) {
+static RK_BT_SINK_CALLBACK app_avk_notify_cb = NULL;
+static void app_avk_notify_status(RK_BT_SINK_STATE state) {
     if(app_avk_notify_cb)
         app_avk_notify_cb(state);
 }
@@ -134,7 +134,7 @@ static void app_avk_notify_status(RK_BTA2DP_State_e state) {
 ** Returns          void
 **
 *******************************************************************************/
-void app_avk_register_cb(RK_bta2dp_callback cb)
+void app_avk_register_cb(RK_BT_SINK_CALLBACK cb)
 {
 	app_avk_notify_cb = cb;
 }
@@ -478,7 +478,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
 
             /* Set disvisisble and disconnectable */
             //app_dm_set_visibility(FALSE, FALSE);
-            app_avk_notify_status(RK_BTA2DP_State_CONNECT);
+            app_avk_notify_status(RK_BT_SINK_STATE_CONNECT);
         }
 
         app_avk_cb.open_pending = FALSE;
@@ -495,7 +495,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
 
         /* Set visisble and connectable */
         //app_dm_set_visibility(TRUE, TRUE);
-        app_avk_notify_status(RK_BTA2DP_State_DISCONNECT);
+        app_avk_notify_status(RK_BT_SINK_STATE_DISCONNECT);
 
         connection = app_avk_find_connection_by_bd_addr(p_data->sig_chnl_close.bd_addr);
         if(connection == NULL)
@@ -795,7 +795,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
                     }
                     pthread_mutex_unlock(&ps_mutex);
                     if (do_it)
-                        app_avk_notify_status(RK_BTA2DP_State_PLAY);
+                        app_avk_notify_status(RK_BT_SINK_STATE_PLAY);
                     break;
 
                 case AVRC_PLAYSTATE_PAUSED:
@@ -812,9 +812,9 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
                     pthread_mutex_unlock(&ps_mutex);
                     if (do_it) {
                         if(p_data->reg_notif_rsp.rsp.param.play_status == AVRC_PLAYSTATE_PAUSED)
-                            app_avk_notify_status(RK_BTA2DP_State_PAUSE);
+                            app_avk_notify_status(RK_BT_SINK_STATE_PAUSE);
                         else
-                            app_avk_notify_status(RK_BTA2DP_State_STOP);
+                            app_avk_notify_status(RK_BT_SINK_STATE_STOP);
                     }
                     break;
                 default:
@@ -1320,11 +1320,6 @@ void app_avk_close(BD_ADDR bda)
     {
         APP_ERROR1("Unable to Close AVK connection with status %d", status);
     }
-    else
-    {
-        app_avk_reset_connection(bda);
-    }
-
 }
 
 /*******************************************************************************
@@ -3488,33 +3483,33 @@ void app_avk_send_abort_req(BD_ADDR bd_addr)
     }
 }
 
-int app_avk_get_status(RK_BTA2DP_State_e *pState)
+int app_avk_get_status(RK_BT_SINK_STATE *pState)
 {
 	if (!pState)
 		return -1;
-    
+
     tAPP_AVK_CONNECTION *connection = app_avk_find_streaming_connection();
     if(!connection) {
         APP_ERROR0("Unable to find connection!!!!!!");
-        *pState = RK_BTA2DP_State_IDLE;
+        *pState = RK_BT_SINK_STATE_IDLE;
         return -1;
     }
 
     APP_DEBUG1("----- connection->index: %d -----\n", connection->index);
 	switch (play_status[connection->index]) {
 		case AVRC_PLAYSTATE_STOPPED:
-			*pState = RK_BTA2DP_State_STOP;
+			*pState = RK_BT_SINK_STATE_STOP;
 			break;
 		case AVRC_PLAYSTATE_FWD_SEEK:
 		case AVRC_PLAYSTATE_REV_SEEK:
 		case AVRC_PLAYSTATE_PLAYING:
-			*pState = RK_BTA2DP_State_PLAY;
+			*pState = RK_BT_SINK_STATE_PLAY;
 			break;
 		case AVRC_PLAYSTATE_PAUSED:
-			*pState = RK_BTA2DP_State_PAUSE;
+			*pState = RK_BT_SINK_STATE_PAUSE;
 			break;
 		default:
-			*pState = RK_BTA2DP_State_IDLE;
+			*pState = RK_BT_SINK_STATE_IDLE;
 			break;
 	}
 
@@ -3523,6 +3518,8 @@ int app_avk_get_status(RK_BTA2DP_State_e *pState)
 
 int app_avk_start()
 {
+    app_avk_notify_status(RK_BT_SINK_STATE_IDLE);
+
     if (app_avk_init(NULL) < 0) {
         printf("app_avk_init failed\n");
         return -1;
@@ -3541,11 +3538,11 @@ int app_avk_start()
 
 void app_avk_stop()
 {
-    app_avk_deregister_cb();
-
     app_avk_close_all();
-
+    GKI_delay(1000);
     app_avk_deregister();
-
     app_avk_deinit();
+
+    app_avk_notify_status(RK_BT_SINK_STATE_IDLE);
+    app_avk_deregister_cb();
 }

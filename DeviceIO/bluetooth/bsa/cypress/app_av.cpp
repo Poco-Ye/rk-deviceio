@@ -41,6 +41,7 @@
 #include "app_xml_utils.h"
 #include "app_dm.h"
 #include "app_av_file_info.h"
+#include "app_manager.h"
 
 #ifdef PCM_ALSA
 #include "app_alsa.h"
@@ -298,6 +299,12 @@ struct
     tAPP_THREAD app_uipc_tx_thread_struct;
 } app_av_cb;
 
+typedef struct
+{
+    BD_ADDR             bd_addr;
+    BD_NAME             device_name;
+    RK_BT_SOURCE_STATUS status;
+} tAPP_AV_CONNECT_STATUS;
 
 tBSA_AV_META_PLAYSTAT playst =
 {
@@ -306,9 +313,17 @@ tBSA_AV_META_PLAYSTAT playst =
     BSA_AVRC_PLAYSTATE_STOPPED,
 };
 
+tAPP_AV_CONNECT_STATUS app_av_status =
+{
+    NULL,
+    NULL,
+    BT_SOURCE_STATUS_DISCONNECTED,
+};
+
+//static RK_BT_SOURCE_STATUS app_av_status = BT_SOURCE_STATUS_DISCONNECTED;
 static void *app_av_user_data = NULL;
-static RK_btmaster_callback app_av_send_cb = NULL;
-static void app_av_send_event(const RK_BtMasterEvent_e event) {
+static RK_BT_SOURCE_CALLBACK app_av_send_cb = NULL;
+static void app_av_send_event(const RK_BT_SOURCE_EVENT event) {
     if(app_av_send_cb)
         app_av_send_cb(app_av_user_data, event);
 }
@@ -338,9 +353,10 @@ static int app_av_check_empty_folder(tBSA_UID uid);
 ** Returns          void
 **
 *******************************************************************************/
-void app_av_register_cb(RK_btmaster_callback cb)
+void app_av_register_cb(void *userdata, RK_BT_SOURCE_CALLBACK cb)
 {
-	app_av_send_cb = cb;
+    app_av_send_cb = cb;
+    app_av_user_data = userdata;
 }
 
 /*******************************************************************************
@@ -357,7 +373,9 @@ void app_av_register_cb(RK_btmaster_callback cb)
 void app_av_deregister_cb()
 {
     app_av_send_cb = NULL;
+    app_av_user_data = NULL;
 }
+
 
 /*******************************************************************************
  **
@@ -462,6 +480,26 @@ static tAPP_AV_CONNECTION *app_av_find_connection_by_bd_addr(BD_ADDR bd_addr)
             return &app_av_cb.connections[index];
     }
     return NULL;
+}
+
+/*******************************************************************************
+ **
+ ** Function         app_av_find_index_by_bd_addr
+ **
+ ** Description      This function finds the connection index by its handle
+ **
+ ** Returns          Pointer to the found index or -1
+ **
+ *******************************************************************************/
+static int app_av_find_index_by_bd_addr(BD_ADDR bd_addr)
+{
+    int index;
+    for (index = 0; index < APP_AV_MAX_CONNECTIONS; index++)
+    {
+        if (bdcmp(app_av_cb.connections[index].bd_addr, bd_addr) == 0)
+            return index;
+    }
+    return -1;
 }
 
 /*******************************************************************************
@@ -592,6 +630,8 @@ void app_av_cback(tBSA_AV_EVT event, tBSA_AV_MSG *p_data)
                         app_xml_update_cod_db(app_xml_remote_devices_db,
                                 APP_NUM_ELEMENTS(app_xml_remote_devices_db), connection->bd_addr,
                                 app_discovery_cb.devs[index].device.class_of_device);
+
+                        memcpy(app_av_status.device_name, app_discovery_cb.devs[index].device.name, BD_NAME_LEN + 1);
                         break;
                     }
                 }
@@ -601,8 +641,10 @@ void app_av_cback(tBSA_AV_EVT event, tBSA_AV_MSG *p_data)
                     APP_ERROR1("app_av_write_remote_devices failed: %d", status);
                 }
 
-                app_av_send_event(RK_BtMasterEvent_Connected);
-                
+                app_av_status.status = BT_SOURCE_STATUS_CONNECTED;
+                bdcpy(app_av_status.bd_addr, p_data->open.bd_addr);
+                app_av_send_event(BT_SOURCE_EVENT_CONNECTED);
+
                 /* Check if autoplay is needed */
 #if defined (APP_AV_AUTOPLAY)
                 if (app_av_cb.play_state == APP_AV_PLAY_STOPPED)
@@ -643,8 +685,9 @@ void app_av_cback(tBSA_AV_EVT event, tBSA_AV_MSG *p_data)
         {
             connection->is_open = FALSE;
         }
-        
-        app_av_send_event(RK_BtMasterEvent_Disconnected);
+
+        app_av_status.status = BT_SOURCE_STATUS_DISCONNECTED;
+        app_av_send_event(BT_SOURCE_EVENT_DISCONNECTED);
         break;
 
     case BSA_AV_DELAY_RPT_EVT:
@@ -1218,31 +1261,19 @@ int app_av_open(BD_ADDR *bd_addr_in)
  ** Returns          0 if successful, error code otherwise
  **
  *******************************************************************************/
-int app_av_close(void)
+int app_av_close(int index)
 {
     int status;
-    int choice;
     tAPP_AV_CONNECTION *p_con;
     tBSA_AV_CLOSE close_param;
 
-    choice = 0;
-#ifndef QT_APP
-    app_av_display_connections();
-    choice = app_get_choice("Select the connection to close");
-    /* Sanity check */
-    if ((choice < 0) || (choice >= APP_NUM_ELEMENTS(app_av_cb.connections)))
-    {
-        APP_ERROR0("Connection index out of bounds");
-        return -1;
-    }
-#endif
-
-    p_con = &app_av_cb.connections[choice];
+    p_con = &app_av_cb.connections[index];
     if (!p_con->is_open)
     {
-        APP_ERROR0("not connected");
+        APP_ERROR1("not connected, index: %d", index);
         return -1;
     }
+
     /* Close av connection */
     status = BSA_AvCloseInit(&close_param);
     close_param.handle = p_con->handle;
@@ -2654,7 +2685,7 @@ int app_av_rc_get_folder_items(int index, tBSA_AV_META_MSG_MSG *pMetaMsg)
     p_items_rsp->scope = pMetaMsg->param.get_folder_items.scope;
     p_items_rsp->opcode = pMetaMsg->opcode;
 
-    APP_INFO1("app_av_rc_get_folder_items sizeof(tBSA_AV_META_RSP_CMD):%ld",
+    APP_INFO1("app_av_rc_get_folder_items sizeof(tBSA_AV_META_RSP_CMD):%d",
         sizeof(tBSA_AV_META_RSP_CMD));
 
     item_count = 0;
@@ -4926,38 +4957,35 @@ static int app_av_find_strongest_sink_device()
 
 /*******************************************************************************
  **
- ** Function         app_av_connect_start
+ ** Function         app_av_auto_connect_start
  **
  ** Description      discovery devices, automatically connected the strongest sink device
  **
- ** Returns          
+ ** Returns
  **
  *******************************************************************************/
-int app_av_connect_start(void *userdata, RK_btmaster_callback cb)
+int app_av_auto_connect_start(void *userdata, RK_BT_SOURCE_CALLBACK cb)
 {
     int index;
 
-    app_av_user_data = userdata;
-    app_av_register_cb(cb);
+    app_av_register_cb(userdata, cb);
 
     if(app_av_init(TRUE) < 0) {
         APP_ERROR0("app_av_init failed");
-        app_av_send_event(RK_BtMasterEvent_Connect_Failed);
+        app_av_send_event(BT_SOURCE_EVENT_CONNECT_FAILED);
         return -1;
     }
 
-    for (index = 0; index < APP_AV_MAX_CONNECTIONS; index++) {
-        if(app_av_register() < 0) {        
-            APP_ERROR1("app_av_register failed, index = %d", index);
-            app_av_send_event(RK_BtMasterEvent_Connect_Failed);
-            return -1;
-        }
+    if(app_av_register() < 0) {
+        APP_ERROR0("app_av_register failed");
+        app_av_send_event(BT_SOURCE_EVENT_CONNECT_FAILED);
+        return -1;
     }
 
     /* Example to perform Device discovery (in blocking mode) */
-    if(app_disc_start_regular(NULL)) {
+    if(app_disc_start_regular(NULL, 0)) {
         APP_ERROR0("app_disc_start_regular failed");
-        app_av_send_event(RK_BtMasterEvent_Connect_Failed);
+        app_av_send_event(BT_SOURCE_EVENT_CONNECT_FAILED);
         return -1;
     }
 
@@ -4973,14 +5001,15 @@ int app_av_connect_start(void *userdata, RK_btmaster_callback cb)
     index = app_av_find_strongest_sink_device();
     if(index < 0 || index >= APP_DISC_NB_DEVICES) {
         APP_ERROR1("not find sink device, index: %d", index);
-        app_av_send_event(RK_BtMasterEvent_Connect_Failed);
+        app_av_send_event(BT_SOURCE_EVENT_CONNECT_FAILED);
+        app_av_end();
         return -1;
     }
 
     /* Example to Open AV connection (connect device) */
     if(app_av_open(&app_discovery_cb.devs[index].device.bd_addr) < 0) {
         APP_ERROR0("app_av_open failed");
-        app_av_send_event(RK_BtMasterEvent_Connect_Failed);
+        app_av_send_event(BT_SOURCE_EVENT_CONNECT_FAILED);
         return -1;
     }
 
@@ -4989,25 +5018,219 @@ int app_av_connect_start(void *userdata, RK_btmaster_callback cb)
 
 /*******************************************************************************
  **
- ** Function         app_av_disconnect_stop
+ ** Function         app_av_auto_connect_stop
  **
  ** Description      disconnected deregister close
  **
- ** Returns 
+ ** Returns
  **
  *******************************************************************************/
-void app_av_disconnect_stop()
+void app_av_auto_connect_stop()
+{
+    app_av_deinitialize();
+}
+
+int app_av_initialize()
+{
+    if(app_av_init(TRUE) < 0) {
+        APP_ERROR0("app_av_init failed");
+        app_av_send_event(BT_SOURCE_EVENT_CONNECT_FAILED);
+        return -1;
+    }
+
+    if(app_av_register() < 0) {
+        APP_ERROR0("app_av_register failed");
+        app_av_send_event(BT_SOURCE_EVENT_CONNECT_FAILED);
+        return -1;
+    }
+
+    return 0;
+}
+
+int app_av_deinitialize()
 {
     int index;
-    
-    app_av_deregister_cb();
 
     if(app_disc_complete() == APP_DISCOVERYING)
         app_disc_abort();
 
-    app_av_close();
     for (index = 0; index < APP_AV_MAX_CONNECTIONS; index++)
-        app_av_deregister(index);
+        app_av_close(index);
+    GKI_delay(1000);
 
     app_av_end();
+    app_av_deregister_cb();
+}
+
+int app_av_scan(BtScanParam *data)
+{
+    int index;
+
+    memset((char *)data, 0, sizeof(BtScanParam));
+
+    /* Example to perform Device discovery (in blocking mode) */
+    if(app_disc_start_regular(NULL, data->mseconds)) {
+        APP_ERROR0("app_disc_start_regular failed");
+        app_av_send_event(BT_SOURCE_EVENT_CONNECT_FAILED);
+        return -1;
+    }
+
+    while(1) {
+        APP_DEBUG0("device discovery...");
+        if(app_disc_complete() == APP_DISCOVERY_COMPLETE) {
+            APP_DEBUG0("device discovery complete!");
+            break;
+        }
+        sleep(1);
+    }
+
+    for (index = 0; index < APP_DISC_NB_DEVICES; index++) {
+        if(app_discovery_cb.devs[index].in_use == TRUE) {
+            sprintf(data->devices[index].address, "%02X:%02X:%02X:%02X:%02X:%02X",
+                app_discovery_cb.devs[index].device.bd_addr[0],
+                app_discovery_cb.devs[index].device.bd_addr[1],
+                app_discovery_cb.devs[index].device.bd_addr[2],
+                app_discovery_cb.devs[index].device.bd_addr[3],
+                app_discovery_cb.devs[index].device.bd_addr[4],
+                app_discovery_cb.devs[index].device.bd_addr[5]);
+
+            memcpy(data->devices[index].name, app_discovery_cb.devs[index].device.name, 128);
+            memcpy(data->devices[index].playrole, app_discovery_cb.devs[index].device.playrole, 48);
+            data->devices[index].rssi = app_discovery_cb.devs[index].device.rssi;
+            data->devices[index].rssi_valid = TRUE;
+
+            data->item_cnt++;
+            if(data->item_cnt == BT_SOURCE_SCAN_DEVICES_CNT) {
+                APP_DEBUG1("room is full, data->item_cnt: %d", data->item_cnt);
+                break;
+            }
+        }
+    }
+
+    return 0;
+}
+
+int app_av_connect(char *address)
+{
+    BD_ADDR bd_addr;
+
+    if(address == NULL) {
+        APP_ERROR0("address is null");
+        return -1;
+    }
+
+	if (sscanf(address, "%02X:%02X:%02X:%02X:%02X:%02X",
+			&bd_addr[0], &bd_addr[1], &bd_addr[2],
+			&bd_addr[3], &bd_addr[4], &bd_addr[5]) != 6)
+	return -EINVAL;
+
+    APP_ERROR1("connect bd_addr: %02X:%02X:%02X:%02X:%02X:%02X",
+        bd_addr[0], bd_addr[1], bd_addr[2],
+        bd_addr[3], bd_addr[4], bd_addr[5]);
+
+    /* Example to Open AV connection (connect device) */
+    if(app_av_open(&bd_addr) < 0) {
+        APP_ERROR0("app_av_open failed");
+        app_av_send_event(BT_SOURCE_EVENT_CONNECT_FAILED);
+        return -1;
+    }
+
+    return 0;
+}
+
+int app_av_disconnect(char *address)
+{
+    int index = -1;
+    BD_ADDR bd_addr;
+    tAPP_AV_CONNECTION *connection;
+
+    if(address == NULL) {
+        APP_ERROR0("address is null");
+        return -1;
+    }
+
+	if (sscanf(address, "%02X:%02X:%02X:%02X:%02X:%02X",
+			&bd_addr[0], &bd_addr[1], &bd_addr[2],
+			&bd_addr[3], &bd_addr[4], &bd_addr[5]) != 6)
+	return -EINVAL;
+
+    index = app_av_find_index_by_bd_addr(bd_addr);
+    if (index < 0 || index >= APP_AV_MAX_CONNECTIONS) {
+        APP_ERROR1("unknown connection bd addr for %02X:%02X:%02X:%02X:%02X:%02X",
+            bd_addr[0], bd_addr[1], bd_addr[2],
+            bd_addr[3], bd_addr[4], bd_addr[5]);
+        return -1;
+    }
+
+    app_av_close(index);
+    return 0;
+}
+
+int app_av_remove(char *address)
+{
+    int index, device_num;
+    BD_ADDR bd_addr;
+
+    if(address == NULL) {
+        APP_ERROR0("address is null");
+        return -1;
+    }
+
+	if (sscanf(address, "%02X:%02X:%02X:%02X:%02X:%02X",
+			&bd_addr[0], &bd_addr[1], &bd_addr[2],
+			&bd_addr[3], &bd_addr[4], &bd_addr[5]) != 6)
+	return -EINVAL;
+
+    app_av_disconnect(address);
+
+    device_num = APP_NUM_ELEMENTS(app_xml_remote_devices_db);
+
+    /* Read the Remote device xml file to have a fresh view */
+    app_mgr_read_remote_devices();
+    for(index = 0; index < device_num; index++) {
+        if((app_xml_remote_devices_db[index].in_use != FALSE)
+            && (bdcmp(app_xml_remote_devices_db[index].bd_addr, bd_addr) == 0)) {
+            APP_DEBUG1("remove device: %02x:%02x:%02x:%02x:%02x:%02x",
+                    bd_addr[0], bd_addr[1], bd_addr[2],
+                    bd_addr[3], bd_addr[4], bd_addr[5]);
+
+            app_xml_remote_devices_db[index].in_use = FALSE;
+            break;
+        }
+    }
+
+    if(index >= device_num) {
+        APP_ERROR1("no matching device was found: %02x:%02x:%02x:%02x:%02x:%02x",
+                    bd_addr[0], bd_addr[1], bd_addr[2],
+                    bd_addr[3], bd_addr[4], bd_addr[5]);
+        return -1;
+    }
+
+    if (app_mgr_write_remote_devices() < 0) {
+        APP_ERROR0("app_mgr_write_remote_devices failed");
+        return -1;
+    }
+
+    return 0;
+}
+
+void app_av_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, char *address)
+{
+	if (!pstatus)
+		return;
+
+    *pstatus = app_av_status.status;
+
+    if(app_av_status.device_name) {
+        strncpy(name, (char *) app_av_status.device_name, sizeof(name) - 1);
+        name[sizeof(name) - 1] = '\0';
+    }
+
+    if(app_av_status.bd_addr)
+        sprintf(address, "%02x:%02x:%02x:%02x:%02x:%02x",
+                 app_av_status.bd_addr[0], app_av_status.bd_addr[1],
+                 app_av_status.bd_addr[2], app_av_status.bd_addr[3],
+                 app_av_status.bd_addr[4], app_av_status.bd_addr[5]);
+
+    APP_DEBUG1("name: %s, address: %s" ,name, address);
 }

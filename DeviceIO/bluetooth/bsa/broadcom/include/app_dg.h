@@ -185,7 +185,37 @@ void app_dg_loopback_toggle(void);
  *******************************************************************************/
 void app_dg_con_display(void);
 
-int app_dg_spp_open(RK_btspp_callback cb);
+/*******************************************************************************
+**
+** Function         app_dg_register_cb
+**
+** Description      Register DG callback
+**
+** Parameters       callback
+**
+** Returns          void
+**
+*******************************************************************************/
+void app_dg_register_cb(RK_BT_SPP_STATUS_CALLBACK cb);
+
+/*******************************************************************************
+**
+** Function         app_dg_register_cb
+**
+** Description      DeRegister DG callback
+**
+** Parameters
+**
+** Returns          void
+**
+*******************************************************************************/
+void app_dg_deregister_cb();
+
+void app_dg_register_recv_cb(RK_BT_SPP_RECV_CALLBACK cb);
+
+void app_dg_deregister_recv_cb();
+
+int app_dg_spp_open(void);
 
 void app_dg_spp_close(void);
 
