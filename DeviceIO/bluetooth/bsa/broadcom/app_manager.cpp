@@ -1472,10 +1472,9 @@ int app_mgr_config(const char *bt_name, app_mgr_callback cb)
         app_mgr_get_bt_config(NULL, 0, (char *)app_xml_config.bd_addr, BD_ADDR_LEN);
 
         if(bt_name)
-            sprintf((char *)app_xml_config.name, "%s%02X%02X", bt_name,
-                app_xml_config.bd_addr[4], app_xml_config.bd_addr[5]);
+            sprintf((char *)app_xml_config.name, "%s", bt_name);
         else
-            sprintf((char *)app_xml_config.name, "%s%02X%02X", APP_DEFAULT_BT_NAME,
+            sprintf((char *)app_xml_config.name, "%s %02X%02X", APP_DEFAULT_BT_NAME,
                 app_xml_config.bd_addr[4], app_xml_config.bd_addr[5]);
 
 

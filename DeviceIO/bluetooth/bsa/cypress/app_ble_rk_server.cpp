@@ -153,8 +153,7 @@ static void app_ble_rk_server_set_device_name(const char *ble_name)
 {
     memset((char *)app_ble_device_name, 0, BD_NAME_LEN + 1);
     if(ble_name) {
-        sprintf((char *)app_ble_device_name, "%s%02X%02X", ble_name,
-            app_xml_config.bd_addr[4], app_xml_config.bd_addr[5]);
+        sprintf((char *)app_ble_device_name, "%s", ble_name);
     } else {
         strcpy((char *)app_ble_device_name, (char *)app_xml_config.name);
     }
