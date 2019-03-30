@@ -100,7 +100,7 @@ static void *app_dg_read_proc( void *ptr );
 void app_dg_uipc_cback(BT_HDR *p_msg);
 
 static int app_dg_connection_index = APP_DG_NB_CON_MAX;
-static int app_dg_connection_status = RK_BT_SPP_STATE_IDLE;
+static RK_BT_SPP_STATE app_dg_connection_status = RK_BT_SPP_STATE_IDLE;
 static RK_BT_SPP_STATUS_CALLBACK app_dg_send_cb = NULL;
 static RK_BT_SPP_RECV_CALLBACK app_dg_recv_cb = NULL;
 
@@ -2340,7 +2340,7 @@ void app_dg_spp_close()
     app_dg_deregister_recv_cb();
 }
 
-int app_dg_get_status()
+RK_BT_SPP_STATE app_dg_get_status()
 {
 	return app_dg_connection_status;
 }

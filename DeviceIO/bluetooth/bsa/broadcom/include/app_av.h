@@ -713,7 +713,7 @@ void app_av_auto_connect_stop(void);
 
 int app_av_initialize(void);
 
-int app_av_deinitialize(void);
+void app_av_deinitialize(void);
 
 int app_av_scan(BtScanParam *data);
 
@@ -723,6 +723,7 @@ int app_av_disconnect(char *address);
 
 int app_av_remove(char *address);
 
-void app_av_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, char *address);
+void app_av_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, int name_len,
+                                    char *address, int addr_len);
 
 #endif /* APP_AV_H_ */

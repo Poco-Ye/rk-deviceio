@@ -315,8 +315,8 @@ tBSA_AV_META_PLAYSTAT playst =
 
 tAPP_AV_CONNECT_STATUS app_av_status =
 {
-    NULL,
-    NULL,
+    "",
+    "",
     BT_SOURCE_STATUS_DISCONNECTED,
 };
 
@@ -5047,7 +5047,7 @@ int app_av_initialize()
     return 0;
 }
 
-int app_av_deinitialize()
+void app_av_deinitialize()
 {
     int index;
 
@@ -5142,7 +5142,6 @@ int app_av_disconnect(char *address)
 {
     int index = -1;
     BD_ADDR bd_addr;
-    tAPP_AV_CONNECTION *connection;
 
     if(address == NULL) {
         APP_ERROR0("address is null");
@@ -5214,23 +5213,34 @@ int app_av_remove(char *address)
     return 0;
 }
 
-void app_av_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, char *address)
+void app_av_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, int name_len,
+                                    char *address, int addr_len)
 {
-	if (!pstatus)
-		return;
+    if (!pstatus)
+        return;
 
     *pstatus = app_av_status.status;
 
-    if(app_av_status.device_name) {
-        strncpy(name, (char *) app_av_status.device_name, sizeof(name) - 1);
-        name[sizeof(name) - 1] = '\0';
+    if(name != NULL && name_len > 0) {
+        memset(name, 0, name_len);
+
+        strncpy(name, (char *) app_av_status.device_name,
+            (BD_NAME_LEN + 1) > name_len ? name_len : (BD_NAME_LEN + 1));
+        APP_DEBUG1("name: %s", name);
     }
 
-    if(app_av_status.bd_addr)
+    if(address != NULL && addr_len > 0) {
+        if(addr_len < 17) {
+            APP_ERROR1("address len too short, addr_len: %d", addr_len);
+            return;
+        }
+
+        memset(address, 0, addr_len);
+
         sprintf(address, "%02x:%02x:%02x:%02x:%02x:%02x",
                  app_av_status.bd_addr[0], app_av_status.bd_addr[1],
                  app_av_status.bd_addr[2], app_av_status.bd_addr[3],
                  app_av_status.bd_addr[4], app_av_status.bd_addr[5]);
-
-    APP_DEBUG1("name: %s, address: %s" ,name, address);
+        APP_DEBUG1("address: %s", address);
+    }
 }

@@ -214,7 +214,7 @@ scan_retry:
 	}
 
 	/* Connect target device */
-	if (!a2dp_master_status(NULL, NULL))
+	if (!a2dp_master_status(NULL, 0, NULL, 0))
 		a2dp_master_connect(target_address);
 
 	return NULL;
@@ -273,7 +273,7 @@ int rk_bt_source_auto_connect_start(void *userdata, RK_BT_SOURCE_CALLBACK cb)
 		bt_control.last_type = BtControlType::BT_SOURCE;
 	}
 	/* Already connected? */
-	if (a2dp_master_status(NULL, NULL)) {
+	if (a2dp_master_status(NULL, 0,  NULL, 0)) {
 		printf("=== BT SOURCE is connected!!! ===\n");
 		return 0;
 	}
@@ -309,7 +309,7 @@ int rk_bt_source_get_device_name(char *name, int len)
 	if (!name || (len <= 0))
 		return -1;
 
-	if (a2dp_master_status(NULL, name))
+	if (a2dp_master_status(NULL, 0,  name, len))
 		return 0;
 
 	return -1;
@@ -320,18 +320,19 @@ int rk_bt_source_get_device_addr(char *addr, int len)
 	if (!addr || (len < 17))
 		return -1;
 
-	if (a2dp_master_status(addr, NULL))
+	if (a2dp_master_status(addr, len, NULL, 0))
 		return 0;
 
 	return -1;
 }
 
-int rk_bt_source_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, char *address)
+int rk_bt_source_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, int name_len,
+                                    char *address, int addr_len)
 {
 	if (!pstatus)
 		return 0;
 
-	if (a2dp_master_status(name, address))
+	if (a2dp_master_status(address, addr_len, name, name_len))
 		*pstatus = BT_SOURCE_STATUS_CONNECTED;
 	else
 		*pstatus = BT_SOURCE_STATUS_DISCONNECTED;

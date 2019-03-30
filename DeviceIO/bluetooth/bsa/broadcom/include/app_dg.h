@@ -219,7 +219,7 @@ int app_dg_spp_open(void);
 
 void app_dg_spp_close(void);
 
-int app_dg_get_status(void);
+RK_BT_SPP_STATE app_dg_get_status(void);
 
 int app_dg_write_data(char *data, int len);
 

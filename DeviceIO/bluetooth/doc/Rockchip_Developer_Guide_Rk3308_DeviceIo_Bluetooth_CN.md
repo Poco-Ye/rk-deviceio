@@ -322,9 +322,9 @@ RK3308
 
 	获取本端设备地址。addr：存放地址的buffer，len：addr空间大小。
 
-- `int rk_bt_source_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, char *addr)`
+- `int rk_bt_source_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, int name_len, char *addr, int addr_len)`
 
-	获取A2DP Source连接状态。pstatus：保存当前状态值的指针。若当前处于连接状态，name和addr则保存对端设备（A2DP Sink）的名称和地址，这两个参数均可置空。
+	获取A2DP Source连接状态。pstatus：保存当前状态值的指针。若当前处于连接状态，name保存对端设备（A2DP Sink）的名称，name_len为name长度，addr保存对端设备（A2DP Sink）的地址，addr_len为addr长度。参数name和addr均可置空。
 
 - `int rk_bt_source_scan(BtScanParam *data)`
 

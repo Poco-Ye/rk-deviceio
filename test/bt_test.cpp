@@ -215,9 +215,9 @@ void bt_test_source_auto_stop(void *data)
 void bt_test_source_connect_status(void *data)
 {
 	RK_BT_SOURCE_STATUS status;
-	char *name, *address;
+	char name[256], address[256];
 
-	rk_bt_source_get_status(&status, name, address);
+	rk_bt_source_get_status(&status, name, 256, address, 256);
 	if (status == BT_SOURCE_STATUS_CONNECTED) {
 		printf("++++++++++++ BT SOURCE STATUS: connected ++++++++++++\n");
 		printf("\t name:%s, address:%s\n", name, address);

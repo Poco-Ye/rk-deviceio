@@ -546,9 +546,10 @@ int rk_bt_source_register_status_cb(void *userdata, RK_BT_SOURCE_CALLBACK cb)
     return 0;
 }
 
-int rk_bt_source_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, char *address)
+int rk_bt_source_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, int name_len,
+                                    char *address, int addr_len)
 {
-    app_av_get_status(pstatus, name, address);
+    app_av_get_status(pstatus, name, name_len, address, addr_len);
 	return 0;
 }
 
@@ -774,7 +775,8 @@ int rk_bt_spp_close()
 
 int rk_bt_spp_get_state(RK_BT_SPP_STATE *pState)
 {
-    return app_dg_get_status();
+    *pState = app_dg_get_status();
+    return 0;
 }
 
 int rk_bt_spp_write(char *data, int len)

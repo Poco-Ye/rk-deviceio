@@ -47,7 +47,7 @@ int rk_bt_source_open(void);
 int rk_bt_source_close(void);
 int rk_bt_source_get_device_name(char *name, int len);
 int rk_bt_source_get_device_addr(char *addr, int len);
-int rk_bt_source_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, char *addr);
+int rk_bt_source_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, int name_len, char *addr, int addr_len);
 int rk_bt_source_scan(BtScanParam *data);
 int rk_bt_source_connect(char *address);
 int rk_bt_source_disconnect(char *address);

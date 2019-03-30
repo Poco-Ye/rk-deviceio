@@ -3045,7 +3045,7 @@ int a2dp_master_disconnect(char *address)
  *    0-> not connected;
  *    1-> is connected;
  */
-int a2dp_master_status(char *addr_buf, char *name_buf)
+int a2dp_master_status(char *addr_buf, int addr_len, char *name_buf, int name_len)
 {
 	DBusMessageIter iter;
 	char *address;
@@ -3060,8 +3060,8 @@ int a2dp_master_status(char *addr_buf, char *name_buf)
 			return 0;
 		}
 		dbus_message_iter_get_basic(&iter, &address);
-		memset(addr_buf, 0, sizeof(*addr_buf));
-		memcpy(addr_buf, address, strlen(address));
+		memset(addr_buf, 0, addr_len);
+		memcpy(addr_buf, address, (strlen(address) > addr_len) ? addr_len : strlen(address));
 	}
 
 	if (name_buf) {
@@ -3071,8 +3071,8 @@ int a2dp_master_status(char *addr_buf, char *name_buf)
 		}
 
 		dbus_message_iter_get_basic(&iter, &name);
-		memset(name_buf, 0, sizeof(*name_buf));
-		memcpy(name_buf, name, (strlen(name) > sizeof(*name_buf)) ? sizeof(*name_buf) : strlen(name));
+		memset(name_buf, 0, name_len);
+		memcpy(name_buf, name, (strlen(name) > name_len) ? name_len : strlen(name));
 	}
 
 	return 1;

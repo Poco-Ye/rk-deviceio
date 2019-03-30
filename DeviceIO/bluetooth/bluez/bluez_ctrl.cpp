@@ -588,7 +588,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		break;
 
 	case BtControl::BT_SOURCE_STATUS:
-		ret = a2dp_master_status((char *)data, NULL);
+		ret = a2dp_master_status(NULL, 0, NULL, 0);
 		break;
 
 	case BtControl::BT_SOURCE_REMOVE:

@@ -361,10 +361,10 @@ static int app_ble_rk_server_set_advertisement_data(const char *ble_name)
     return 0;
 }
 
-static int app_ble_rk_server_set_adv_config(tBSA_DM_BLE_ADV_CONFIG *adv_config, char *adv_data, int data_len)
+static int app_ble_rk_server_set_adv_config(tBSA_DM_BLE_ADV_CONFIG *adv_config, UINT8 *adv_data, int data_len)
 {
     int i;
-    UINT8 len, type, value[32];
+    UINT8 len, type;
     tBSA_DM_BLE_AD_MASK data_mask = 0;
 
     if(adv_data == NULL || data_len == 0)
@@ -451,7 +451,7 @@ static int app_ble_rk_server_set_adv_config(tBSA_DM_BLE_ADV_CONFIG *adv_config, 
 
 static int app_ble_rk_server_set_user_adv_data(RkBleContent *ble_content)
 {
-    int i, j;
+    //int i, j;
     tBSA_DM_SET_CONFIG bt_config;
     tBSA_DM_SET_CONFIG bt_scan_rsp;
     tBSA_STATUS bsa_status;
