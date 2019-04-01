@@ -78,6 +78,8 @@ int bt_sink_callback(RK_BT_SINK_STATE state)
 			printf("++++++++++++ BT SINK EVENT: disconnected ++++++++++\n");
 			break;
 	}
+
+    return 0;
 }
 
 void bt_test_sink_open(void *data)

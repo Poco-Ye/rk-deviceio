@@ -68,7 +68,7 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
 static int app_ble_rk_server_find_free_attr(void);
 static int app_ble_rk_server_find_attr_index_by_attr_id(UINT16 attr_id);
 static int app_ble_rk_server_send_notification(const char *uuid, UINT8 * data, UINT16 len);
-static void app_ble_rk_server_send_data(int attr_index, unsigned char *data, int len);
+static void app_ble_rk_server_recv_data(int attr_index, unsigned char *data, int len);
 
 /*******************************************************************************
 **
@@ -288,7 +288,7 @@ static int app_ble_rk_server_set_advertisement_data(const char *ble_name)
         data_mask = BSA_DM_BLE_AD_BIT_FLAGS | BSA_DM_BLE_AD_BIT_SERVICE_128;
     bt_config.adv_config.adv_data_mask = data_mask;
 
-    bt_config.adv_config.flag = BSA_DM_BLE_GEN_DISC_FLAG | BSA_DM_BLE_BREDR_NOT_SPT;
+    bt_config.adv_config.flag = BSA_DM_BLE_ADV_FLAG_MASK;
     len += 2;
 
     if(service_uuid_len == LEN_UUID_16) {
@@ -633,6 +633,7 @@ static int app_ble_rk_server_create_gatt_database(RkBleContent *ble_content)
         //save char uuid string
         strcpy((char *)app_ble_rk_server_cb.attr[char_attr_index].uuid_string, ble_content->chr_uuid[i].uuid);
 
+#if 0
         /* Declare client characteristic configuration descriptor
          * Value of the descriptor can be modified by the client
          * Value modified shall be retained during connection and across connection
@@ -652,6 +653,7 @@ static int app_ble_rk_server_create_gatt_database(RkBleContent *ble_content)
         }
         //save descriptor uuid string
         strcpy((char *)app_ble_rk_server_cb.attr[char_attr_index].uuid_string, APP_BLE_RK_SERVER_DESCRIPTOR_STRING_UUID);
+#endif
     }
 
     return 0;
@@ -1048,7 +1050,7 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
             BSA_BleSeSendRsp(&send_server_resp);
         }
 
-        app_ble_rk_server_send_data(attr_index, p_data->ser_write.value, p_data->ser_write.len);
+        app_ble_rk_server_recv_data(attr_index, p_data->ser_write.value, p_data->ser_write.len);
 
         //only test
         //app_ble_rk_server_send_data_test((char *)app_ble_rk_server_cb.attr[attr_index].uuid_string);
@@ -1126,8 +1128,13 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
         break;
 
     case BSA_BLE_SE_CONF_EVT:
-        APP_INFO1("BSA_BLE_SE_CONFIRM_EVT  :conn_id:0x%x, status:%d",
+        APP_INFO1("BSA_BLE_SE_CONF_EVT  :conn_id:0x%x, status:%d",
             p_data->ser_conf.conn_id, p_data->ser_conf.status);
+        break;
+
+    case BSA_BLE_SE_MTU_EVT:
+        APP_INFO1("BSA_BLE_SE_MTU_EVT conn_id:0x%x, mtu:%d",
+                    p_data->ser_mtu.conn_id, p_data->ser_mtu.mtu);
         break;
 
     default:
@@ -1203,10 +1210,6 @@ int app_ble_rk_server_gatt_server_init(RkBleContent *ble_content)
         APP_ERROR0("Set the advertising parameters failed");
         return -1;
     }
-
-    /* Set visisble and connectable */
-    //app_dm_set_visibility(FALSE, FALSE);
-    app_dm_set_ble_visibility(TRUE, TRUE);
     return 0;
 }
 
@@ -1384,6 +1387,10 @@ int app_ble_rk_server_open(RkBleContent *ble_content)
         return -1;
     }
 
+    /* Set visisble and connectable */
+    app_dm_set_visibility(FALSE, FALSE);
+    app_dm_set_ble_visibility(TRUE, TRUE);
+
     return 0;
 }
 
@@ -1407,6 +1414,10 @@ void app_ble_rk_server_close()
     app_ble_state = RK_BLE_STATE_IDLE;
     app_ble_rk_server_send_state(RK_BLE_STATE_IDLE);
     app_ble_rk_server_deregister_cb();
+
+    /* Set visisble and connectable */
+    app_dm_set_visibility(TRUE, TRUE);
+    app_dm_set_ble_visibility(FALSE, FALSE);
 }
 
 /*******************************************************************************
@@ -1420,7 +1431,7 @@ void app_ble_rk_server_close()
  ** Returns         None
  **
  *******************************************************************************/
-static void app_ble_rk_server_send_data(int attr_index, unsigned char *data, int len)
+static void app_ble_rk_server_recv_data(int attr_index, unsigned char *data, int len)
 {
     if(app_ble_recv_data_cb) {
         APP_DEBUG1("uuid_string: %s", (char *)app_ble_rk_server_cb.attr[attr_index].uuid_string);

@@ -1888,6 +1888,7 @@ void app_avk_volume_up(UINT8 rc_handle)
 
     if ((connection->peer_features & BSA_RC_FEAT_RCTG) && connection->is_rc_open)
     {
+        APP_DEBUG1("connection->m_bAbsVolumeSupported: %d", connection->m_bAbsVolumeSupported);
         /* If abs vol is not supported, send vol pass thru command */
         if (connection->m_bAbsVolumeSupported == FALSE) {
             app_avk_rc_send_click(BSA_AVK_RC_VOL_UP, rc_handle);
@@ -1930,6 +1931,7 @@ void app_avk_volume_down(UINT8 rc_handle)
 
     if ((connection->peer_features & BSA_RC_FEAT_RCTG) && connection->is_rc_open)
     {
+        APP_DEBUG1("connection->m_bAbsVolumeSupported: %d", connection->m_bAbsVolumeSupported);
         /* If abs vol is not supported, send vol pass thru command */
         if (connection->m_bAbsVolumeSupported == FALSE) {
             app_avk_rc_send_click(BSA_AVK_RC_VOL_DOWN, rc_handle);

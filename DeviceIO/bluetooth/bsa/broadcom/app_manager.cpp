@@ -37,7 +37,7 @@
 #define APP_DEFAULT_BD_ADDR             {0xBE, 0xEF, 0xBE, 0xEF, 0x00, 0x01}
 
 /* Default local Name */
-#define APP_DEFAULT_BT_NAME             "My BSA Bluetooth Device"
+#define APP_DEFAULT_BT_NAME             "Rockchip BSA Device"
 
 /* Default COD SetTopBox (Major Service = none) (MajorDevclass = Audio/Video) (Minor=STB) */
 #define APP_DEFAULT_CLASS_OF_DEVICE     {0x00, 0x04, 0x24}
@@ -1469,6 +1469,7 @@ int app_mgr_config(const char *bt_name, app_mgr_callback cb)
         app_xml_config.enable = TRUE;
         app_xml_config.discoverable = TRUE;
         app_xml_config.connectable = TRUE;
+        memset((char *)app_xml_config.name, 0, BD_NAME_LEN + 1);
         app_mgr_get_bt_config(NULL, 0, (char *)app_xml_config.bd_addr, BD_ADDR_LEN);
 
         if(bt_name)
@@ -1919,6 +1920,5 @@ int app_manager_init(const char *bt_name, app_mgr_callback cb)
         APP_DEBUG1("Current DualStack mode:%s", app_mgr_get_dual_stack_mode_desc());
     }
 
-    app_dm_set_ble_visibility(FALSE, FALSE);
     return 0;
 }
