@@ -1023,6 +1023,7 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
 
     case BSA_BLE_SE_WRITE_EVT:
         APP_INFO1("BSA_BLE_SE_WRITE_EVT status:%d", p_data->ser_write.status);
+        APP_INFO1("p_data->ser_write.len: %d", p_data->ser_write.len);
         APP_DUMP("Write value", p_data->ser_write.value, p_data->ser_write.len);
         APP_INFO1("BSA_BLE_SE_WRITE_EVT trans_id:%d, conn_id:%d, handle:%d",
             p_data->ser_write.trans_id, p_data->ser_write.conn_id, p_data->ser_write.handle);
@@ -1382,8 +1383,7 @@ int app_ble_rk_server_open(RkBleContent *ble_content)
         return -1;
     }
 
-    /* Set visisble and connectable */
-    app_dm_set_visibility(FALSE, FALSE);
+    app_dm_set_ble_local_privacy(TRUE);
     app_dm_set_ble_visibility(TRUE, TRUE);
 
     return 0;
@@ -1410,8 +1410,7 @@ void app_ble_rk_server_close()
     app_ble_rk_server_send_state(RK_BLE_STATE_IDLE);
     app_ble_rk_server_deregister_cb();
 
-    /* Set visisble and connectable */
-    app_dm_set_visibility(TRUE, TRUE);
+    app_dm_set_ble_local_privacy(FALSE);
     app_dm_set_ble_visibility(FALSE, FALSE);
 }
 
