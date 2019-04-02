@@ -71,6 +71,7 @@ static void handle_message (GstMessage *msg, RkMediaPlayer *c_player)
 				(*c_player->callback)(c_player->userdata, RK_MediaEvent_Duration);
 
 			break;
+#if 0
 		case GST_MESSAGE_BUFFERING:
 		{
 			gint percent = 0;
@@ -92,6 +93,7 @@ static void handle_message (GstMessage *msg, RkMediaPlayer *c_player)
 			}
 			break;
 		}
+#endif
 		case GST_MESSAGE_STATE_CHANGED: {
 			GstState old_state, new_state, pending_state;
 			gst_message_parse_state_changed (msg, &old_state, &new_state, &pending_state);
@@ -150,7 +152,7 @@ static void handle_message (GstMessage *msg, RkMediaPlayer *c_player)
 		}
 		default:
 			/* We should not reach here */
-			g_printerr ("Unexpected message received.\n");
+			//g_printerr ("Unexpected message received.\n");
 			break;
 	}
 	gst_message_unref (msg);
@@ -373,18 +375,25 @@ int RK_mediaplayer_resume(int iHandle)
 	GstStateChangeReturn ret;
 	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
 	GstState cur_state, pending_state;
+	int retry_cnt = 10;
 
 	g_printerr ("#### %s, %x\n",__func__, iHandle);
 
 	if (!c_player || !c_player->playbin)
 		return -EINVAL;
 
+RETRY_CHECK:
 	/* Check current status */
 	ret = gst_element_get_state (c_player->playbin, &cur_state, &pending_state, NULL);
 	if (ret != GST_STATE_CHANGE_SUCCESS) {
-		g_print("Unable to get player status before performing a resume operation\n");
-		return -1;
-	} else if (cur_state != GST_STATE_PAUSED)
+		if (retry_cnt-- > 0) {
+			usleep(200000);//200ms
+			goto RETRY_CHECK;
+		} else {
+			g_print("Unable to get player status before performing a resume operation\n");
+			return -1;
+		}
+	} else if (cur_state == GST_STATE_PLAYING)
 		return 0;
 
 	ret = gst_element_set_state (c_player->playbin, GST_STATE_PLAYING);
@@ -436,6 +445,8 @@ int RK_mediaplayer_seek(int iHandle, int iMs)
 {
 	int ret;
 	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
+
+	g_printerr ("#### %s, %x ms:%d\n", __func__, iHandle, iMs);
 
 	if (!c_player || !c_player->playbin)
 		return -EINVAL;
@@ -677,8 +688,8 @@ int RK_mediaplayer_prev(int iHandle)
 
 	pthread_mutex_lock(&c_player->playlist_mutex);
 	if (!c_player->playlist_current) {
-		if (c_player->playlist_start)
-			c_player->playlist_current = c_player->playlist_start;
+		if (c_player->playlist_end)
+			c_player->playlist_current = c_player->playlist_end;
 	} else {
 		switch (c_player->playlist_mode) {
 			case RK_MIDEA_MODE_SEQ:
@@ -724,6 +735,8 @@ int RK_mediaplayer_prev(int iHandle)
 int RK_mediaplayer_set_mode(int iHandle, RK_MIDEA_MODE mode)
 {
 	RkMediaPlayer *c_player = (RkMediaPlayer *)iHandle;
+
+	g_printerr ("#### %s, %x, mode = %d\n", __func__, iHandle, mode);
 
 	if (!c_player)
 		return -EINVAL;
