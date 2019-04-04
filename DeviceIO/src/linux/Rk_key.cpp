@@ -1,3 +1,4 @@
+#include <dirent.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdarg.h>
@@ -15,6 +16,12 @@
 #define TIME_MULTIPLE        (500)
 
 typedef int BOOL;
+
+typedef struct dirents {
+	int event;
+	struct dirent file;
+	struct dirents *next;
+} Dirents;
 
 typedef struct RK_input_long_press_key {
 	int key_code;
@@ -115,9 +122,63 @@ static RK_input_timer_t m_input_timer;
 static pthread_mutex_t m_mutex_input;
 
 static pthread_t m_th;
-static int m_event0 = -1;
-static int m_event1 = -1;
-static int m_event2 = -1;
+static int m_maxfd = 0;
+static Dirents *dirents = NULL;
+
+static Dirents* list_input_events(const char *path)
+{
+	Dirents* head = NULL;
+
+	DIR *dir;
+	struct dirent *ptr;
+	char base[1000];
+
+	if ((dir = opendir(path)) == NULL) {
+		printf("Open dir \"%s\" error...", path);
+		return NULL;
+	}
+
+	while ((ptr=readdir(dir)) != NULL) {
+		if(strcmp(ptr->d_name, ".") == 0 || strcmp(ptr->d_name, "..") == 0) { ///current dir OR parrent dir
+		} else if(ptr->d_type == 8 || ptr->d_type == 2) { ///file
+			if (strncmp(ptr->d_name, "event", 5) != 0)
+				continue;
+
+			if (head == NULL) {
+				head = (Dirents*) calloc(1, sizeof(Dirents));
+				memcpy(&head->file, ptr, sizeof(struct dirent));
+			} else {
+				Dirents *tail = head;
+				while (tail->next != NULL) {
+					tail = tail->next;
+				}
+
+				Dirents *file = (Dirents*) calloc(1, sizeof(Dirents));
+				memcpy(&file->file, ptr, sizeof(struct dirent));
+				tail->next = file;
+			}
+		} else if(ptr->d_type == 10) { ///link file
+		} else if(ptr->d_type == 4) {    ///dir
+		}
+	}
+	closedir(dir);
+
+	return head;
+}
+
+void dirents_free(Dirents* dirents)
+{
+	Dirents *cur, *prev;
+	cur = dirents;
+
+	while (cur) {
+		prev = cur;
+		cur = cur->next;
+
+		free(prev);
+	}
+	dirents = NULL;
+}
 
 static uint64_t get_timestamp_ms(void)
 {
@@ -792,47 +853,40 @@ static void* thread_key_multiple(void *arg)
 
 static void* thread_key_monitor(void *arg)
 {
-	int max_fd;
 	fd_set rfds;
 
 	prctl(PR_SET_NAME,"thread_key_monitor");
 
-	max_fd = (m_event0 > m_event1 ? m_event0 : m_event1);
-	max_fd = (max_fd > m_event2 ? max_fd : m_event2);
-	max_fd = max_fd + 1;
+	m_maxfd = m_maxfd + 1;
 
 	RK_timer_init();
 	RK_Timer_t timer;
 
 	int ret;
 	struct input_event ev_key;
+	Dirents *event = NULL;
 	while (1) {
 		FD_ZERO(&rfds);
-		if (m_event0 > 0) {
-			FD_SET(m_event0, &rfds);
+		event = dirents;
+		while (event) {
+			if (event->event > 0) {
+				FD_SET(event->event, &rfds);
+			}
+			event = event->next;
 		}
+		select(m_maxfd, &rfds, NULL, NULL, NULL);
 
-		if (m_event1 > 0) {
-			FD_SET(m_event1, &rfds);
-		}
-
-		if (m_event2 > 0) {
-			FD_SET(m_event2, &rfds);
-		}
-		select(max_fd, &rfds, NULL, NULL, NULL);
-
-		if (FD_ISSET(m_event0, &rfds)) {
-			ret = read(m_event0, &ev_key, sizeof(ev_key));
-		} else if (FD_ISSET(m_event1, &rfds)) {
-			ret = read(m_event1, &ev_key, sizeof(ev_key));
-		} else if (FD_ISSET(m_event2, &rfds)) {
-			ret = read(m_event2, &ev_key, sizeof(ev_key));
-		} else {
-			continue;
+		event = dirents;
+		while (event) {
+			if (FD_ISSET(event->event, &rfds)) {
+				ret = read(event->event, &ev_key, sizeof(ev_key));
+				break;
+			}
+			event = event->next;
 		}
 
 		// ignore if error
-		if (ret == -1)
+		if (!event || ret == -1)
 			continue;
 
 		// ignore illegal key code
@@ -889,21 +943,23 @@ static int input_multiple_init(void)
 int RK_input_init(RK_input_callback input_callback_cb)
 {
 	int ret, ret1;
+	char input_event[64];
 
 	m_cb = input_callback_cb;
-	m_event0 = open("/dev/input/event0", O_RDONLY);
-	if (m_event0 < 0) {
-		printf("open /dev/input/event0 failed...\n");
-	}
 
-	m_event1 = open("/dev/input/event1", O_RDONLY);
-	if (m_event1 < 0) {
-		printf("open /dev/input/event1 failed...\n");
-	}
-
-	m_event2 = open("/dev/input/event2", O_RDONLY);
-	if (m_event2 < 0) {
-		printf("open /dev/input/event2 failed...\n");
+	dirents = list_input_events("/dev/input");
+	if (dirents) {
+		Dirents *event = dirents;
+		while (event) {
+			memset(input_event, 0, sizeof(input_event));
+			snprintf(input_event, sizeof(input_event), "/dev/input/%s", event->file.d_name);
+			event->event = open(input_event, O_RDONLY);
+			if (event->event <= 0) {
+				printf("open %s failed...\n", input_event);
+			}
+			m_maxfd = (m_maxfd > event->event ? m_maxfd : event->event);
+			event = event->next;
+		}
 	}
 
 	ret = pthread_mutex_init(&m_mutex_input, NULL);
@@ -1312,20 +1368,15 @@ int RK_input_exit(void)
 		m_tid_compose_long_press = 1;
 	}
 
-	if (m_event0 > 0) {
-		close(m_event0);
-		m_event0 = -1;
+	Dirents *event = dirents;
+	while (event) {
+		if (event->event > 0) {
+			close(event->event);
+		}
+		event = event->next;
 	}
-
-	if (m_event1 > 0) {
-		close(m_event1);
-		m_event1 = -1;
-	}
-
-	if (m_event2 > 0) {
-		close(m_event2);
-		m_event2 = -1;
-	}
+	dirents_free(dirents);
+	dirents = NULL;
 
 	return 0;
 }
