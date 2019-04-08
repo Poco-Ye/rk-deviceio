@@ -339,15 +339,16 @@ int RK_wifi_enable(const int enable)
 			system("dhcpcd -L -f /etc/dhcpcd.conf");
 			system("dhcpcd wlan0 -t 0 &");
 		}
+		if (start_wifi_monitor_threadId <= 0) {
+			pthread_create(&start_wifi_monitor_threadId, nullptr, RK_wifi_start_monitor, nullptr);
+			pthread_detach(start_wifi_monitor_threadId);
+		}
 	} else {
 		system("ifconfig wlan0 down");
 		system("killall wpa_supplicant");
+		if (start_wifi_monitor_threadId > 0)
+			pthread_cancel(start_wifi_monitor_threadId);
 	}
-
-	if (start_wifi_monitor_threadId > 0)
-		pthread_cancel(start_wifi_monitor_threadId);
-	pthread_create(&start_wifi_monitor_threadId, nullptr, RK_wifi_start_monitor, nullptr);
-	pthread_detach(start_wifi_monitor_threadId);
 
 	return 0;
 }
