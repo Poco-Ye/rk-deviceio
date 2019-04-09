@@ -23,9 +23,13 @@ typedef struct RK_WIFI_encode_gbk {
 	char utf8[128];
 	struct RK_WIFI_encode_gbk *next;
 } RK_WIFI_encode_gbk_t;
-static RK_WIFI_encode_gbk_t *m_gbk_head = NULL;
 
-static void encode_gbk_insert(const char *ori, const char *utf8)
+// GBK编码路由链表
+static RK_WIFI_encode_gbk_t *m_gbk_head = NULL;
+// 无密码路由链表
+static RK_WIFI_encode_gbk_t *m_nonpsk_head = NULL;
+
+static RK_WIFI_encode_gbk_t* encode_gbk_insert(RK_WIFI_encode_gbk_t *head, const char *ori, const char *utf8)
 {
 	if ((ori == NULL || strlen(ori) == 0) || (utf8 == NULL || strlen(utf8) == 0))
 		return;
@@ -42,28 +46,30 @@ static void encode_gbk_insert(const char *ori, const char *utf8)
 	strcat(gbk->ori, ori);
 	strcat(gbk->utf8, utf8);
 
-	gbk->next = m_gbk_head;
-	m_gbk_head = gbk;
+	gbk->next = head;
+	head = gbk;
 }
 
-static void encode_gbk_reset(void)
+static RK_WIFI_encode_gbk_t* encode_gbk_reset(RK_WIFI_encode_gbk_t *head)
 {
 	RK_WIFI_encode_gbk_t *gbk, *gbk_next;
 
-	gbk = m_gbk_head;
+	gbk = head;
 	while (gbk) {
 		gbk_next = gbk->next;
 		free(gbk);
 
 		gbk = gbk_next;
 	}
-	m_gbk_head = NULL;
+	head = NULL;
+
+	return head;
 }
 
-static char *get_encode_gbk_ori(const char* str, char* dst)
+static char* get_encode_gbk_ori(RK_WIFI_encode_gbk_t* head, const char* str, char* dst)
 {
 	int is_gbk = 0;
-	RK_WIFI_encode_gbk_t *gbk = m_gbk_head;
+	RK_WIFI_encode_gbk_t *gbk = head;
 
 	while (gbk) {
 		if (strcmp(gbk->utf8, str) == 0) {
@@ -78,6 +84,19 @@ static char *get_encode_gbk_ori(const char* str, char* dst)
 	}
 
 	return dst;
+}
+
+static int is_non_psk(const char* str)
+{
+	RK_WIFI_encode_gbk_t *nonpsk = m_nonpsk_head;
+	while (nonpsk) {
+		if (strcmp(nonpsk->utf8, str) == 0) {
+			return 1;
+		}
+		nonpsk = nonpsk->next;
+	}
+
+	return 0;
 }
 
 static RK_wifi_state_callback m_cb, m_ble_cb;
@@ -385,6 +404,7 @@ char* RK_wifi_scan_r_sec(const unsigned int cols)
 	static size_t UNIT_SIZE = 512;
 	FILE *fp = NULL;
 	int is_utf8;
+	int is_nonpsk;
 
 	if (!(cols & 0x1F)) {
 		scan_r = (char*) malloc(3 * sizeof(char));
@@ -408,16 +428,18 @@ char* RK_wifi_scan_r_sec(const unsigned int cols)
 	memset(scan_r, 0, size);
 	strcat(scan_r, "[");
 
-	encode_gbk_reset();
+	m_gbk_head = encode_gbk_reset(m_gbk_head);
+	m_nonpsk_head = encode_gbk_reset(m_nonpsk_head);
 	while (fgets(line, sizeof(line) - 1, fp)) {
 		index = 0;
+		is_nonpsk = 0;
 		p_strtok = strtok(line, "\t");
 		memset(item, 0, sizeof(item));
 		strcat(item, "{");
 		while (p_strtok) {
 			if (p_strtok[strlen(p_strtok) - 1] == '\n')
 				p_strtok[strlen(p_strtok) - 1] = '\0';
-			if (cols & (1 << index)) {
+			if ((cols & (1 << index)) || 3 == index) {
 				memset(col, 0, sizeof(col));
 				if (0 == index) {
 					snprintf(col, sizeof(col), "\"bssid\":\"%s\",", p_strtok);
@@ -426,7 +448,12 @@ char* RK_wifi_scan_r_sec(const unsigned int cols)
 				} else if (2 == index) {
 					snprintf(col, sizeof(col), "\"rssi\":%d,", atoi(p_strtok));
 				} else if (3 == index) {
-					snprintf(col, sizeof(col), "\"flags\":\"%s\",", p_strtok);
+					if (cols & (1 << index)) {
+						snprintf(col, sizeof(col), "\"flags\":\"%s\",", p_strtok);
+					}
+					if (!strstr(p_strtok, "WPA") && !strstr(p_strtok, "WEP")) {
+						is_nonpsk = 1;
+					}
 				} else if (4 == index) {
 					char utf8[strlen(p_strtok) + 1];
 					memset(utf8, 0, sizeof(utf8));
@@ -436,14 +463,19 @@ char* RK_wifi_scan_r_sec(const unsigned int cols)
 						memset(dst, 0, sizeof(dst));
 						spec_char_convers(p_strtok, dst);
 
+						// Strings that will send should retain escape characters
+						// Strings whether GBK or UTF8 that need save local should remove escape characters
+						// The ssid can't contains escape character while do connect
 						is_utf8 = RK_encode_is_utf8(dst, strlen(dst));
+						char utf8_noescape[sizeof(utf8)];
+						char dst_noescape[sizeof(utf8)];
+						memset(utf8_noescape, 0, sizeof(utf8_noescape));
+						memset(dst_noescape, 0, sizeof(dst_noescape));
 						if (!is_utf8) {
-							char act_utf8[sizeof(utf8)];
-							memset(act_utf8, 0, sizeof(act_utf8));
-
 							RK_encode_gbk_to_utf8(dst, strlen(dst), utf8);
-							remove_escape_character(utf8, act_utf8);
-							encode_gbk_insert(dst, act_utf8);
+							remove_escape_character(dst, dst_noescape);
+							remove_escape_character(utf8, utf8_noescape);
+							m_gbk_head = encode_gbk_insert(m_gbk_head, dst_noescape, utf8_noescape);
 
 							// if convert gbk to utf8 failed, ignore it
 							if (!RK_encode_is_utf8(utf8, strlen(utf8))) {
@@ -451,6 +483,13 @@ char* RK_wifi_scan_r_sec(const unsigned int cols)
 							}
 						} else {
 							strncpy(utf8, dst, strlen(dst));
+							remove_escape_character(dst, dst_noescape);
+							remove_escape_character(utf8, utf8_noescape);
+						}
+
+						// Decide whether encrypted or not
+						if (is_nonpsk) {
+							m_nonpsk_head = encode_gbk_insert(m_nonpsk_head, dst_noescape, utf8_noescape);
 						}
 					}
 					snprintf(col, sizeof(col), "\"ssid\":\"%s\",", utf8);
@@ -751,11 +790,25 @@ int RK_wifi_connect1(const char* ssid, const char* psk, const RK_WIFI_CONNECTION
 		return -1;
 
 	memset(ori, 0, sizeof(ori));
-	get_encode_gbk_ori(ssid, ori);
+	if (is_non_psk(ssid)) {
+		RK_LOGI("RK_wifi_connect is none psk. ssid:\"%s\"\n", ssid);
+		get_encode_gbk_ori(m_nonpsk_head, ssid, ori);
+
+		ret = set_network(id, ori, "", NONE);
+		if (0 != ret) {
+			RK_LOGE("RK_wifi_connect set_network failed. ssid:\"%s\", psk:\"%s\"\n", ssid, psk);
+			return -2;
+		}
+	} else {
+		get_encode_gbk_ori(m_gbk_head, ssid, ori);
+
+		ret = set_network(id, ori, psk, encryp);
+		if (0 != ret) {
+			RK_LOGE("RK_wifi_connect set_network failed. ssid:\"%s\", psk:\"%s\"\n", ssid, psk);
+			return -2;
+		}
+	}
 	RK_LOGI("RK_wifi_connect ssid:\"%s\" strlen(ssid):%lu; ori:\"%s\" strlen(ori):%lu; psk:\"%s\"\n", ssid, strlen(ssid), ori, strlen(ori), psk);
-	ret = set_network(id, ori, psk, encryp);
-	if (0 != ret)
-		return -2;
 
 	priority = id + 1;
 	set_priority_network(id, priority);
