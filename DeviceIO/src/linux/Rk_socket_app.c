@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include <DeviceIo/Rk_socket_app.h>
 
@@ -21,16 +22,6 @@
 #define log_dbg(format, ...) LOG_PRINTF(LOG_DEBUG_FLAG, format, ##__VA_ARGS__)
 #define log_warn(format, ...) LOG_PRINTF(LOG_WARING_FLAG, format, ##__VA_ARGS__)
 #define log_err(format, ...) LOG_PRINTF(LOG_ERROR_FLAG, format, ##__VA_ARGS__)
-
-struct rk_socket_app {
-	int server_sockfd;
-	int client_sockfd;
-	int server_len;
-	int client_len;
-	struct sockaddr_un server_address;
-	struct sockaddr_un client_address;
-	char sock_path[512];
-};
 
 int RK_socket_server_setup(struct rk_socket_app *app_socket) {
     unlink (app_socket->sock_path);
@@ -141,8 +132,9 @@ int RK_socket_recieve(int sockfd, char *msg, int len) {
 }
 
 int RK_socket_udp_send(char *socket_path, char *msg, int len) {
-	struct sockaddr_un serverAddr;
+	int bytes = 0;
 	int sockfd;
+	struct sockaddr_un serverAddr;
 
 	sockfd = socket(AF_UNIX, SOCK_DGRAM, 0);
 	if (sockfd < 0) {
@@ -153,9 +145,10 @@ int RK_socket_udp_send(char *socket_path, char *msg, int len) {
 	serverAddr.sun_family = AF_UNIX;
 	strcpy(serverAddr.sun_path, socket_path);
 
-	sendto(sockfd, msg, len, MSG_DONTWAIT, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
+	bytes = sendto(sockfd, msg, len, MSG_DONTWAIT, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
+	if(bytes < 0)
+		log_err("bytes: %d, errno: %s\n", bytes, strerror(errno));
 
 	close(sockfd);
-
+	return bytes;
 }
-

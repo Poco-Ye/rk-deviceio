@@ -268,6 +268,17 @@ int app_av_play_mic(void);
 
 /*******************************************************************************
  **
+ ** Function         app_av_play_pcm_data
+ **
+ ** Description      Example of function to play pcm data
+ **
+ ** Returns          0 if successful, error code otherwise
+ **
+ *******************************************************************************/
+int app_av_play_pcm_data(void);
+
+/*******************************************************************************
+ **
  ** Function         app_av_stop
  **
  ** Description      Stop playing

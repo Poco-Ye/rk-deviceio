@@ -19,6 +19,10 @@
 #include <unistd.h>
 /* for EINTR */
 #include <errno.h>
+/* for socket */
+#include <sys/un.h>
+#include <sys/signalfd.h>
+#include <sys/socket.h>
 
 #include "bsa_api.h"
 
@@ -148,12 +152,19 @@ const tBSA_AV_CODEC_INFO sec_caps =
     "\x09\x00\xFF\x75\x00\x00\x00\x01\x00\x7A"
 };
 
+/* Must be equal to READ_FRAME * num_channel * byte_per_sample(eq_drc_process/main.cpp) */
+#define APP_AV_PCM_DATA_LEN (1024 * 2 * 2)
+#define APP_AV_AUTOPLAY     APP_AV_PLAYTYPE_PCM_DATA
+static int app_uipc_pcm_tx_done = 0;
+static char app_av_sock_path[] = "/data/bsa/config/bsa_socket";
+
 /* Play states (we use define instead of enum to allow Makefile to use them) */
-#define APP_AV_PLAYTYPE_TONE    0   /* Play tone */
-#define APP_AV_PLAYTYPE_FILE    1   /* Play file */
-#define APP_AV_PLAYTYPE_MIC     2   /* Play Microphone */
-#define APP_AV_PLAYTYPE_TEST    3   /* Play test data */
-#define APP_AV_PLAYTYPE_AVK     4
+#define APP_AV_PLAYTYPE_TONE        0   /* Play tone */
+#define APP_AV_PLAYTYPE_FILE        1   /* Play file */
+#define APP_AV_PLAYTYPE_MIC         2   /* Play Microphone */
+#define APP_AV_PLAYTYPE_TEST        3   /* Play test data */
+#define APP_AV_PLAYTYPE_AVK         4
+#define APP_AV_PLAYTYPE_PCM_DATA    5   /* Play pcm data */
 
 /* Sample media players for peer browsing */
 #define BSA_AV_PLAYER_ID_INVALID           0
@@ -742,6 +753,7 @@ static int app_av_stop_current(void);
 static int app_av_build_notification_response(UINT8 event_id, tBSA_AV_META_RSP_CMD *bsa_av_meta_rsp_cmd);
 static void app_av_init_meta_data();
 static int app_av_rc_send_register_volume_change_notify_vd_command(UINT8 rc_handle);
+static int app_av_save_status(const RK_BT_SOURCE_EVENT event);
 
 /*******************************************************************************
 **
@@ -1046,6 +1058,7 @@ void app_av_cback(tBSA_AV_EVT event, tBSA_AV_MSG *p_data)
                 app_av_status.status = BT_SOURCE_STATUS_CONNECTED;
                 bdcpy(app_av_status.bd_addr, p_data->open.bd_addr);
                 app_av_send_event(BT_SOURCE_EVENT_CONNECTED);
+                app_av_save_status(BT_SOURCE_EVENT_CONNECTED);
 
                 /* Check if autoplay is needed */
 #if defined (APP_AV_AUTOPLAY)
@@ -1065,6 +1078,11 @@ void app_av_cback(tBSA_AV_EVT event, tBSA_AV_MSG *p_data)
                     APP_INFO0("Start Playing playlist");
                     app_av_play_playlist(APP_AV_START);
 #endif
+#if (APP_AV_AUTOPLAY==APP_AV_PLAYTYPE_PCM_DATA)
+                    APP_INFO0("Start Playing pcm data");
+                    app_av_play_pcm_data();
+#endif
+
                     APP_INFO1("SCMS-T: cp_supported = %s", p_data->open.cp_supported ? "TRUE" : "FALSE");
                 }
 #endif /* APP_AV_AUTOPLAY */
@@ -1090,6 +1108,7 @@ void app_av_cback(tBSA_AV_EVT event, tBSA_AV_MSG *p_data)
 
         app_av_status.status = BT_SOURCE_STATUS_DISCONNECTED;
         app_av_send_event(BT_SOURCE_EVENT_DISCONNECTED);
+        app_av_save_status(BT_SOURCE_EVENT_DISCONNECTED);
         break;
 
     case BSA_AV_DELAY_RPT_EVT:
@@ -1348,6 +1367,9 @@ void app_av_cback(tBSA_AV_EVT event, tBSA_AV_MSG *p_data)
                         break;
                     case APP_AV_PLAYTYPE_TEST:
                         app_av_test_sec_codec(TRUE);
+                        break;
+                    case APP_AV_PLAYTYPE_PCM_DATA:
+                        app_av_play_pcm_data();
                         break;
                     default:
                         APP_ERROR1("Unsupported play type (%d)", app_av_cb.play_type);
@@ -1619,8 +1641,6 @@ int app_av_open(BD_ADDR *bd_addr_in)
         bdcpy(bd_addr, *bd_addr_in);
         connect = TRUE;
     }
-
-
 
     if (connect)
     {
@@ -2193,6 +2213,54 @@ int app_av_play_mic(void)
     APP_ERROR0("Microphone input not supported on this target (see PCM_ALSA in makefile)");
     return -1;
 #endif
+}
+
+/*******************************************************************************
+ **
+ ** Function         app_av_play_pcm_data
+ **
+ ** Description      Example of function to play pcm data
+ **
+ ** Returns          0 if successful, error code otherwise
+ **
+ *******************************************************************************/
+int app_av_play_pcm_data()
+{
+    int status;
+    tBSA_AV_START start_param;
+
+    if (app_av_cb.play_state != APP_AV_PLAY_STOPPED)
+    {
+        APP_INFO0("Could not perform the play operation, please stop the stream first");
+        return -1;
+    }
+
+    APP_DEBUG0("app_av_play_pcm_data");
+
+    /* start Av stream */
+    BSA_AvStartInit(&start_param);
+    start_param.media_feeding.format = BSA_AV_CODEC_PCM;
+    start_param.media_feeding.cfg.pcm.sampling_freq = 48000;
+    start_param.media_feeding.cfg.pcm.num_channel = 2;
+    start_param.media_feeding.cfg.pcm.bit_per_sample = 16;
+    start_param.feeding_mode = app_av_cb.uipc_cfg.is_blocking? BSA_AV_FEEDING_ASYNCHRONOUS: BSA_AV_FEEDING_SYNCHRONOUS;
+    start_param.latency = app_av_cb.uipc_cfg.period/1000; /* convert us to ms, synchronous feeding mode only */
+
+    /* Content Protection */
+    start_param.cp_id = app_av_cb.cp_id;
+    start_param.scmst_flag = app_av_cb.cp_scms_flag;
+
+    app_av_cb.play_type = APP_AV_PLAYTYPE_PCM_DATA;
+    app_av_cb.play_list = FALSE;
+
+    status = BSA_AvStart(&start_param);
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_AvStart failed: %d", status);
+        return status;
+    }
+
+    return 0;
 }
 
 /*******************************************************************************
@@ -3736,6 +3804,103 @@ BOOLEAN app_av_check_feeding(const tAPP_WAV_FILE_FORMAT *p_format)
 
 /*******************************************************************************
  **
+ ** Function           app_uipc_pcm_tx_thread
+ **
+ ** Description        Thread in charge of feeding UIPC channel(pcm data)
+ **
+ ** Returns            nothing
+ **
+ *******************************************************************************/
+ static void app_uipc_pcm_tx_thread(void)
+{
+    int status, nb_bytes = 0;
+    UINT16 uipc_error = 0;
+    struct rk_socket_app socket_app;
+
+    memset(&socket_app, 0, sizeof(struct rk_socket_app));
+    strcpy(socket_app.sock_path, app_av_sock_path);
+
+    if ((RK_socket_server_setup(&socket_app)) < 0)
+        goto exit;
+
+    if (RK_socke_server_accpet(&socket_app) < 0)
+        goto exit;
+
+    APP_DEBUG0("Socket server connected");
+
+    while(app_uipc_pcm_tx_done) {
+        //APP_DEBUG0("Waiting for play start");
+        /* Check if we should lock on the mutex */
+        while (app_av_cb.play_state != APP_AV_PLAY_STARTED) {
+            /* coverity[LOCK] False-positive: MUTEX used to wait for AV_START event */
+            status = app_lock_mutex(&app_av_cb.app_stream_tx_mutex);
+            if (status < 0) {
+                APP_ERROR1("app_lock_mutex failed: %d", status);
+                break;
+            }
+        }
+        //APP_DEBUG0("Play started");
+
+        do {
+            memset(app_av_cb.audio_buf, 0, APP_AV_MAX_AUDIO_BUF_MAX);
+            nb_bytes = RK_socket_recieve(socket_app.client_sockfd, (char *)app_av_cb.audio_buf, app_av_cb.uipc_cfg.length);
+            //APP_DEBUG1("nb_bytes: %d", nb_bytes);
+            if (nb_bytes <= 0) {
+                if(nb_bytes < 0) {
+                    APP_DEBUG0("No more samples -> stopping current");
+                    app_av_stop_current();
+                } else {
+                    //APP_DEBUG0("socket recieve 0 bytes");
+                }
+            } else {
+                if(nb_bytes != app_av_cb.uipc_cfg.length)
+                    APP_DEBUG1("audio_buf size: %d, read size: %d", app_av_cb.uipc_cfg.length, nb_bytes);
+
+                /* Send the samples to the AV channel */
+                if (UIPC_Send(app_av_cb.stream_uipc_channel, 0, (UINT8 *) app_av_cb.audio_buf, nb_bytes) == FALSE) {
+                    if(UIPC_Ioctl(app_av_cb.stream_uipc_channel, UIPC_READ_ERROR, &uipc_error)) {
+                        if (uipc_error == UIPC_ENOMEM) {
+                            APP_DEBUG0("UIPC buffer full! Pause playing");
+                            app_av_pause();
+                            GKI_delay(3000);
+                            APP_DEBUG0("UIPC buffer full! Resume playing");
+                            app_av_resume();
+                        } else {
+                            APP_ERROR0("UIPC_Send failed");
+                        }
+                    }
+                }
+#if (defined(BSA_AV_DUMP_TX_DATA) && (BSA_AV_DUMP_TX_DATA == TRUE))
+                APP_DUMP("A2DP Data", (UINT8 *) app_av_cb.audio_buf, nb_bytes);
+#endif
+
+                /* Check if stream paused */
+                if (app_av_cb.play_state == APP_AV_PLAY_PAUSED) {
+                    APP_DEBUG0("Pausing (wait mutex)");
+                    status = app_lock_mutex(&app_av_cb.app_stream_tx_mutex);
+                    if (status < 0) {
+                        APP_ERROR1("app_lock_mutex failed: %d", status);
+                        break;
+                    }
+
+                    APP_DEBUG0("Un-pausing");
+                }
+            }
+        } while ((app_av_cb.play_state != APP_AV_PLAY_STOPPED) &&
+         (app_av_cb.play_state != APP_AV_PLAY_STOPPING));
+
+        /* Wait until stop has completed (could have happened before) */
+        while (app_av_cb.play_state != APP_AV_PLAY_STOPPED) GKI_delay(10);
+    }
+
+exit:
+    APP_DEBUG0("Exit app_uipc_pcm_tx_thread");
+    RK_socket_server_teardown(&socket_app);
+    pthread_exit(NULL);
+}
+
+/*******************************************************************************
+ **
  ** Function           app_uipc_tx_thread
  **
  ** Description        Thread in charge of feeding UIPC channel
@@ -3755,6 +3920,7 @@ static void app_uipc_tx_thread(void)
     UINT16 uipc_error = 0;
 
     APP_DEBUG0("Starting UIPC Tx thread");
+
     while(1)
     {
         APP_DEBUG0("Waiting for play start");
@@ -3829,7 +3995,6 @@ static void app_uipc_tx_thread(void)
             APP_DEBUG0("Playing test data");
         }
 
-
         /* Start the timer management */
         app_av_delay_start(&delay);
         elapsed = 0;
@@ -3889,10 +4054,9 @@ static void app_uipc_tx_thread(void)
             {
                 if (app_av_cb.play_type != APP_AV_PLAYTYPE_AVK)
                 {
-                APP_DEBUG0("No more samples -> stopping current");
-
-                app_av_stop_current();
-            }
+                    APP_DEBUG0("No more samples -> stopping current");
+                    app_av_stop_current();
+                }
             }
             else
             {
@@ -4130,13 +4294,20 @@ int app_av_init(BOOLEAN boot)
         {
             return -1;
         }
+
         status = app_lock_mutex(&app_av_cb.app_stream_tx_mutex);
         if (status < 0)
         {
             return -1;
         }
+
+#if (APP_AV_AUTOPLAY==APP_AV_PLAYTYPE_PCM_DATA)
+        status = app_create_thread(app_uipc_pcm_tx_thread, 0, 0,
+                    &app_av_cb.app_uipc_tx_thread_struct);
+#else
         status = app_create_thread(app_uipc_tx_thread, 0, 0,
                     &app_av_cb.app_uipc_tx_thread_struct);
+#endif
         if (status < 0)
         {
             APP_ERROR1("app_create_thread failed: %d", status);
@@ -4342,11 +4513,12 @@ int app_av_compute_uipc_param(tAPP_AV_UIPC *p_uipc_cfg, tBSA_AV_MEDIA_FEEDINGS *
 
     if (p_uipc_cfg->is_blocking)
     {
-
-
         /* restore default value */
-
+#if (APP_AV_AUTOPLAY==APP_AV_PLAYTYPE_PCM_DATA)
+        p_uipc_cfg->length = APP_AV_PCM_DATA_LEN;
+#else
         p_uipc_cfg->length = APP_AV_MAX_AUDIO_BUF * 2;
+#endif
 
         APP_DEBUG1("UIPC is in blocking mode, no need to compute UIPC params length=%d",
             p_uipc_cfg->length);
@@ -4945,7 +5117,7 @@ static int app_av_find_strongest_sink_device()
 
     for (index = 0; index < APP_DISC_NB_DEVICES; index++) {
         if(app_discovery_cb.devs[index].in_use == TRUE) {
-            if(strstr((char *)app_discovery_cb.devs[index].device.playrole, "Audio Sink")
+            if(strcmp((char *)app_discovery_cb.devs[index].device.playrole, "Audio Sink") == 0
                 && app_discovery_cb.devs[index].device.rssi > max_rssi) {
                 APP_INFO1("\tBdaddr:%02x:%02x:%02x:%02x:%02x:%02x",
                         app_discovery_cb.devs[index].device.bd_addr[0],
@@ -4984,6 +5156,8 @@ int app_av_auto_connect_start(void *userdata, RK_BT_SOURCE_CALLBACK cb)
 {
     int index;
 
+    app_uipc_pcm_tx_done = 1;
+
     app_av_register_cb(userdata, cb);
 
     if(app_av_init(TRUE) < 0) {
@@ -4998,10 +5172,8 @@ int app_av_auto_connect_start(void *userdata, RK_BT_SOURCE_CALLBACK cb)
         return -1;
     }
 
-    /* Set disvisisble and disconnectable */
-    //app_dm_set_visibility(FALSE, FALSE);
-
     /* Example to perform Device discovery (in blocking mode) */
+    APP_DEBUG0("device discovery, may take a few seconds...");
     if(app_disc_start_regular(NULL, 0)) {
         APP_ERROR0("app_disc_start_regular failed");
         app_av_send_event(BT_SOURCE_EVENT_CONNECT_FAILED);
@@ -5021,7 +5193,6 @@ int app_av_auto_connect_start(void *userdata, RK_BT_SOURCE_CALLBACK cb)
     if(index < 0 || index >= APP_DISC_NB_DEVICES) {
         APP_ERROR1("not find sink device, index: %d", index);
         app_av_send_event(BT_SOURCE_EVENT_CONNECT_FAILED);
-        app_av_end();
         return -1;
     }
 
@@ -5051,6 +5222,8 @@ void app_av_auto_connect_stop()
 
 int app_av_initialize()
 {
+    app_uipc_pcm_tx_done = 1;
+
     if(app_av_init(TRUE) < 0) {
         APP_ERROR0("app_av_init failed");
         app_av_send_event(BT_SOURCE_EVENT_CONNECT_FAILED);
@@ -5069,6 +5242,8 @@ int app_av_initialize()
 void app_av_deinitialize()
 {
     int index;
+
+    app_uipc_pcm_tx_done = 0;
 
     if(app_disc_complete() == APP_DISCOVERYING)
         app_disc_abort();
@@ -5262,4 +5437,31 @@ void app_av_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, int name_len,
                  app_av_status.bd_addr[4], app_av_status.bd_addr[5]);
         APP_DEBUG1("address: %s", address);
     }
+}
+
+static int app_av_save_status(const RK_BT_SOURCE_EVENT event)
+{
+    int ret;
+    int snd_cnt = 3;
+    char buff[100];
+
+    APP_DEBUG1("event: %d", event);
+
+    memset(buff, 0, 100);
+    if (event == BT_SOURCE_EVENT_CONNECTED)
+        sprintf(buff, "status:connect:bsa-source");
+    else
+        sprintf(buff, "status:disconnect;");
+
+    while(snd_cnt--) {
+        ret = RK_socket_udp_send("/tmp/a2dp_master_status", buff, strlen(buff));
+        if(ret == strlen(buff)) {
+            APP_DEBUG1("send a2dp source status OK, ret: %d", ret);
+            break;
+        }
+
+        usleep(1000);
+    }
+
+    return 0;
 }
