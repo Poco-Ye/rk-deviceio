@@ -11,7 +11,15 @@
 extern "C" {
 #endif
 
-struct rk_socket_app;
+struct rk_socket_app {
+	int server_sockfd;
+	int client_sockfd;
+	int server_len;
+	int client_len;
+	struct sockaddr_un server_address;
+	struct sockaddr_un client_address;
+	char sock_path[512];
+};
 
 /*server api*/
 int RK_socket_server_setup(struct rk_socket_app *app_socket);

@@ -22,6 +22,7 @@
 #include "DeviceIo/RkBle.h"
 #include "DeviceIo/RkBtSpp.h"
 #include "DeviceIo/RkBtHfp.h"
+#include <DeviceIo/Rk_socket_app.h>
 
 int rk_bt_control(DeviceIOFramework::BtControl cmd, void *data, int len);
 

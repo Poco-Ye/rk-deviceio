@@ -584,6 +584,7 @@ int rk_bt_source_auto_connect_start(void *userdata, RK_BT_SOURCE_CALLBACK cb)
 
     if(app_av_auto_connect_start(userdata, cb) < 0) {
         APP_DEBUG0("app_av_auto_connect_start failed");
+        app_av_auto_connect_stop();
         return -1;
     }
 
@@ -623,6 +624,7 @@ int rk_bt_source_open()
 
     if(app_av_initialize() < 0) {
         APP_DEBUG0("app_av_initialize failed");
+        app_av_deinitialize();
         return -1;
     }
 

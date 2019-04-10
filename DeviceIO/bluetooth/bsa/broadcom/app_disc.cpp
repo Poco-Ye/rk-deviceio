@@ -912,7 +912,7 @@ int app_disc_start_regular(tBSA_DISC_CBACK *p_custom_disc_cback, int duration)
     if(duration > 0)
         disc_start_param.duration = duration;
     else
-        disc_start_param.duration = 4;
+        disc_start_param.duration = 8;
 
 #if (defined(BLE_INCLUDED) && BLE_INCLUDED == TRUE)
     disc_start_param.mode |= BSA_BLE_GENERAL_INQUIRY;
