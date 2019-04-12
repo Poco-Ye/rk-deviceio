@@ -109,6 +109,7 @@ enum eAPP_AVK_PLAYSTATE {
 static enum eAPP_AVK_PLAYSTATE play_state[APP_AVK_MAX_CONNECTIONS];
 static pthread_mutex_t ps_mutex = PTHREAD_MUTEX_INITIALIZER;
 static tAVRC_PLAYSTATE play_status[APP_AVK_MAX_CONNECTIONS];
+static int app_avk_auto_reconnect = 1; /* Default for auto reconnect */
 
 /*
  * Local functions
@@ -1150,140 +1151,80 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
  **
  ** Description      Example of function to open AVK connection
  **
- ** Returns          void
+ ** Returns          0 success, 1 already trying to connect, -1 failed
  **
  *******************************************************************************/
-void app_avk_open(void)
+int app_avk_open(BD_ADDR bd_addr, BD_NAME name)
 {
     tBSA_STATUS status;
-    int choice;
-    BOOLEAN connect = FALSE;
-    BD_ADDR bd_addr;
-    UINT8 *p_name;
     tBSA_AVK_OPEN open_param;
     tAPP_AVK_CONNECTION *connection = NULL;
 
-    if (app_avk_cb.open_pending)
-    {
+    if (app_avk_cb.open_pending) {
         APP_ERROR0("already trying to connect");
-        return;
+        return 1;
     }
 
-    printf("Bluetooth AVK Open menu:\n");
-    printf("    0 Device from XML database (already paired)\n");
-    printf("    1 Device found in last discovery\n");
-    choice = app_get_choice("Select source");
+    /* Open AVK stream */
+    APP_DEBUG1("Connecting to AV device:%s", name);
 
-    switch(choice)
-    {
-    case 0:
-        /* Read the XML file which contains all the bonded devices */
-        app_read_xml_remote_devices();
+    app_avk_cb.open_pending = TRUE;
+    memcpy(app_avk_cb.open_pending_bda, bd_addr, sizeof(BD_ADDR));
 
-        app_xml_display_devices(app_xml_remote_devices_db, APP_NUM_ELEMENTS(app_xml_remote_devices_db));
-        choice = app_get_choice("Select device");
-        if ((choice >= 0) && (choice < APP_NUM_ELEMENTS(app_xml_remote_devices_db)))
-        {
-            if (app_xml_remote_devices_db[choice].in_use != FALSE)
-            {
-                bdcpy(bd_addr, app_xml_remote_devices_db[choice].bd_addr);
-                p_name = app_xml_remote_devices_db[choice].name;
-                connect = TRUE;
-            }
-            else
-            {
-                APP_ERROR0("Device entry not in use");
-            }
-        }
-        else
-        {
-            APP_ERROR0("Unsupported device number");
-        }
-        break;
-    case 1:
-        app_disc_display_devices();
-        choice = app_get_choice("Select device");
-        if ((choice >= 0) && (choice < APP_NUM_ELEMENTS(app_discovery_cb.devs)))
-        {
-            if (app_discovery_cb.devs[choice].in_use != FALSE)
-            {
-                bdcpy(bd_addr, app_discovery_cb.devs[choice].device.bd_addr);
-                p_name = app_discovery_cb.devs[choice].device.name;
-                connect = TRUE;
-            }
-            else
-            {
-                APP_ERROR0("Device entry not in use");
-            }
-        }
-        else
-        {
-            APP_ERROR0("Unsupported device number");
-        }
-        break;
-    default:
-        APP_ERROR0("Unsupported choice");
-        break;
-    }
+    BSA_AvkOpenInit(&open_param);
+    memcpy((char *) (open_param.bd_addr), bd_addr, sizeof(BD_ADDR));
 
-    if (connect != FALSE)
-    {
-        /* Open AVK stream */
-        printf("Connecting to AV device:%s \n", p_name);
+    open_param.sec_mask = BSA_SEC_NONE;
+    status = BSA_AvkOpen(&open_param);
+    if (status != BSA_SUCCESS) {
+        APP_ERROR1("Unable to connect to device %02X:%02X:%02X:%02X:%02X:%02X with status %d",
+                open_param.bd_addr[0], open_param.bd_addr[1], open_param.bd_addr[2],
+                open_param.bd_addr[3], open_param.bd_addr[4], open_param.bd_addr[5], status);
 
-        app_avk_cb.open_pending = TRUE;
-        memcpy(app_avk_cb.open_pending_bda, bd_addr, sizeof(BD_ADDR));
+        app_avk_cb.open_pending = FALSE;
+        memset(app_avk_cb.open_pending_bda, 0, sizeof(BD_ADDR));
 
-        BSA_AvkOpenInit(&open_param);
-        memcpy((char *) (open_param.bd_addr), bd_addr, sizeof(BD_ADDR));
-
-        open_param.sec_mask = BSA_SEC_NONE;
-        status = BSA_AvkOpen(&open_param);
-        if (status != BSA_SUCCESS)
-        {
-            APP_ERROR1("Unable to connect to device %02X:%02X:%02X:%02X:%02X:%02X with status %d",
-                    open_param.bd_addr[0], open_param.bd_addr[1], open_param.bd_addr[2],
-                    open_param.bd_addr[3], open_param.bd_addr[4], open_param.bd_addr[5], status);
-
+        return -1;
+    } else {
+        /* this is an active wait for demo purpose */
+        APP_DEBUG0("waiting for AV connection to open");
+#if 0
+        while (app_avk_cb.open_pending == TRUE);
+#else
+        GKI_delay(2000);
+        if(app_avk_cb.open_pending == TRUE) {
+            APP_ERROR0("after 2 seconds, app_avk_cback not return BSA_AVK_OPEN_EVT");
             app_avk_cb.open_pending = FALSE;
             memset(app_avk_cb.open_pending_bda, 0, sizeof(BD_ADDR));
+            return -1;
         }
-        else
-        {
-            /* this is an active wait for demo purpose */
-            printf("waiting for AV connection to open\n");
+#endif
+        connection = app_avk_find_connection_by_bd_addr(open_param.bd_addr);
+        if(connection == NULL || connection->is_open == FALSE) {
+            APP_ERROR0("failure opening AV connection");
+            return -1;
+        } else {
+            /* XML Database update should be done upon reception of AV OPEN event */
+            APP_DEBUG1("Connected to AV device:%s", name);
+            /* Read the Remote device xml file to have a fresh view */
+            app_read_xml_remote_devices();
 
-            while (app_avk_cb.open_pending == TRUE);
+            /* Add AV service for this devices in XML database */
+            app_xml_add_trusted_services_db(app_xml_remote_devices_db,
+                APP_NUM_ELEMENTS(app_xml_remote_devices_db), bd_addr,
+                BSA_A2DP_SERVICE_MASK | BSA_AVRCP_SERVICE_MASK);
 
-            connection = app_avk_find_connection_by_bd_addr(open_param.bd_addr);
-            if(connection == NULL || connection->is_open == FALSE)
-            {
-                printf("failure opening AV connection  \n");
-            }
-            else
-            {
-                /* XML Database update should be done upon reception of AV OPEN event */
-                APP_DEBUG1("Connected to AV device:%s", p_name);
-                /* Read the Remote device xml file to have a fresh view */
-                app_read_xml_remote_devices();
+            app_xml_update_name_db(app_xml_remote_devices_db,
+                APP_NUM_ELEMENTS(app_xml_remote_devices_db), bd_addr, name);
 
-                /* Add AV service for this devices in XML database */
-                app_xml_add_trusted_services_db(app_xml_remote_devices_db,
-                    APP_NUM_ELEMENTS(app_xml_remote_devices_db), bd_addr,
-                    BSA_A2DP_SERVICE_MASK | BSA_AVRCP_SERVICE_MASK);
-
-                app_xml_update_name_db(app_xml_remote_devices_db,
-                    APP_NUM_ELEMENTS(app_xml_remote_devices_db), bd_addr, p_name);
-
-                /* Update database => write to disk */
-                if (app_write_xml_remote_devices() < 0)
-                {
-                    APP_ERROR0("Failed to store remote devices database");
-                }
+            /* Update database => write to disk */
+            if (app_write_xml_remote_devices() < 0) {
+                APP_ERROR0("Failed to store remote devices database");
             }
         }
     }
 
+    return 0;
 }
 
 /*******************************************************************************
@@ -3518,19 +3459,55 @@ int app_avk_get_status(RK_BT_SINK_STATE *pState)
 	return 0;
 }
 
+static int app_avk_latest_connect()
+{
+    int ret = -1, index;
+
+    /* Read the XML file which contains all the bonded devices */
+    if(app_read_xml_remote_devices() < 0)
+        return -1;
+
+    app_xml_display_devices(app_xml_remote_devices_db, APP_NUM_ELEMENTS(app_xml_remote_devices_db));
+
+    for(index = 0; index < APP_MAX_NB_REMOTE_STORED_DEVICES; index++) {
+        if((app_xml_remote_devices_db[index].in_use != FALSE)
+            && (app_xml_remote_devices_db[index].latest_connect != FALSE)) {
+            APP_DEBUG1("Device%d %s is latest connected", index, app_xml_remote_devices_db[index].name);
+            ret = app_avk_open(app_xml_remote_devices_db[index].bd_addr, app_xml_remote_devices_db[index].name);
+            break;
+        }
+    }
+
+    if(index >= APP_MAX_NB_REMOTE_STORED_DEVICES) {
+        APP_DEBUG0("can't find latest connected device");
+        return -1;
+    }
+
+    return ret;
+}
+
 int app_avk_start()
 {
+    int connect_cnt = 2;
+
     app_avk_notify_status(RK_BT_SINK_STATE_IDLE);
 
     if (app_avk_init(NULL) < 0) {
-        printf("app_avk_init failed\n");
+        APP_DEBUG0("app_avk_init failed");
         return -1;
     }
 
     /* Example to register AVK connection end point*/
     if (app_avk_register() < 0) {
-        printf("app_avk_register failed\n");
+        APP_DEBUG0("app_avk_register failed");
         return -1;
+    }
+
+    if(app_avk_auto_reconnect) {
+        while(connect_cnt--) {
+            if(app_avk_latest_connect() == 0)
+                break;
+        }
     }
 
     app_dm_set_visibility(TRUE, TRUE);
@@ -3547,4 +3524,9 @@ void app_avk_stop()
 
     app_avk_notify_status(RK_BT_SINK_STATE_IDLE);
     app_avk_deregister_cb();
+}
+
+void app_avk_set_auto_reconnect(int enable)
+{
+    app_avk_auto_reconnect = (enable ? 1 : 0);
 }

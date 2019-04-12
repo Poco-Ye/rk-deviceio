@@ -496,6 +496,17 @@ void app_mgr_security_callback(tBSA_SEC_EVT event, tBSA_SEC_MSG *p_data)
         APP_DEBUG1("LinkType: %d", p_data->link_up.link_type);
 #endif
         app_mgr_notify_status(BT_LINK_UP_EVT);
+
+        /* Read the Remote device xml file to have a fresh view */
+        app_mgr_read_remote_devices();
+        app_xml_update_latest_connect_db(app_xml_remote_devices_db,
+                               APP_NUM_ELEMENTS(app_xml_remote_devices_db),
+                               p_data->link_up.bd_addr);
+
+        status = app_mgr_write_remote_devices();
+        if (status < 0)
+            APP_ERROR1("app_mgr_write_remote_devices failed:%d", status);
+
         break;
     case BSA_SEC_LINK_DOWN_EVT:     /* A device is physically disconnected (for info)*/
         APP_DEBUG1("BSA_SEC_LINK_DOWN_EVT bd_addr: %02x:%02x:%02x:%02x:%02x:%02x",
@@ -1086,10 +1097,9 @@ int app_mgr_sec_bond_cancel(void)
  ** Returns          0 if success / -1 if error
  **
  *******************************************************************************/
-int app_mgr_sec_unpair(void)
+int app_mgr_sec_unpair(BD_ADDR bd_addr)
 {
-    int status;
-    int device_index;
+    int status, index;
     tBSA_SEC_REMOVE_DEV sec_remove;
 
     APP_INFO0("app_mgr_sec_unpair");
@@ -1098,36 +1108,35 @@ int app_mgr_sec_unpair(void)
     BSA_SecRemoveDeviceInit(&sec_remove);
 
     /* Read the XML file which contains all the bonded devices */
-    app_read_xml_remote_devices();
+    if(app_read_xml_remote_devices() < 0)
+        return -1;
 
     /* Display them */
     app_xml_display_devices(app_xml_remote_devices_db,
             APP_MAX_NB_REMOTE_STORED_DEVICES);
 
-    device_index = app_get_choice("Select device to unpair");
-    if ((device_index >= 0) &&
-        (device_index < APP_MAX_NB_REMOTE_STORED_DEVICES) &&
-        (app_xml_remote_devices_db[device_index].in_use != FALSE))
-    {
-        bdcpy(sec_remove.bd_addr, app_xml_remote_devices_db[device_index].bd_addr);
-        status = BSA_SecRemoveDevice(&sec_remove);
+    for(index = 0; index < APP_MAX_NB_REMOTE_STORED_DEVICES; index++) {
+        if((app_xml_remote_devices_db[index].in_use != FALSE)
+            && (bdcmp(app_xml_remote_devices_db[index].bd_addr, bd_addr) == 0)) {
+            bdcpy(sec_remove.bd_addr, bd_addr);
+            status = BSA_SecRemoveDevice(&sec_remove);
+            break;
+        }
     }
-    else
-    {
-        APP_ERROR1("Wrong index [%d]",device_index);
+
+    if(index >= APP_MAX_NB_REMOTE_STORED_DEVICES) {
+        APP_ERROR1("no matching device was unpair: %02x:%02x:%02x:%02x:%02x:%02x",
+                    bd_addr[0], bd_addr[1], bd_addr[2],
+                    bd_addr[3], bd_addr[4], bd_addr[5]);
         return -1;
     }
 
-    if (status != BSA_SUCCESS)
-    {
+    if (status != BSA_SUCCESS) {
         APP_ERROR1("BSA_SecRemoveDevice Operation Failed with status [%d]",status);
-
         return -1;
-    }
-    else
-    {
+    } else {
         /* delete the device from database */
-        app_xml_remote_devices_db[device_index].in_use = FALSE;
+        app_xml_remote_devices_db[index].in_use = FALSE;
         app_write_xml_remote_devices();
     }
 

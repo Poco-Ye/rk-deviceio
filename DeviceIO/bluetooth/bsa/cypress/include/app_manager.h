@@ -153,7 +153,7 @@ int app_mgr_sec_bond_cancel(void);
  ** Returns          0 if success / -1 if error
  **
  *******************************************************************************/
-int app_mgr_sec_unpair(void);
+int app_mgr_sec_unpair(BD_ADDR bd_addr);
 
 /*******************************************************************************
  **

@@ -451,7 +451,7 @@ int rk_bt_sink_get_state(RK_BT_SINK_STATE *pState)
 
 int rk_bt_sink_set_auto_reconnect(int enable)
 {
-    APP_DEBUG0("auto reconnect not support");
+    app_avk_set_auto_reconnect(enable);
     return 0;
 }
 

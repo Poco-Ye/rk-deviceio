@@ -184,10 +184,10 @@ void app_avk_deregister(void);
 **
 ** Description      Function to open AV connection
 **
-** Returns          void
+** Returns          0 success, 1 already trying to connect, -1 failed
 **
 *******************************************************************************/
-void app_avk_open(void);
+int app_avk_open(BD_ADDR bd_addr, BD_NAME name);
 
 /*******************************************************************************
 **
@@ -867,5 +867,7 @@ int app_avk_get_status(RK_BT_SINK_STATE *pState);
 int app_avk_start(void);
 
 void app_avk_stop(void);
+
+void app_avk_set_auto_reconnect(int enable);
 
 #endif /* APP_AVK_H_ */
