@@ -5346,7 +5346,6 @@ int app_av_disconnect(char *address)
 
 int app_av_remove(char *address)
 {
-    int index, device_num;
     BD_ADDR bd_addr;
 
     if(address == NULL) {
@@ -5360,36 +5359,7 @@ int app_av_remove(char *address)
 	return -EINVAL;
 
     app_av_disconnect(address);
-
-    device_num = APP_NUM_ELEMENTS(app_xml_remote_devices_db);
-
-    /* Read the Remote device xml file to have a fresh view */
-    app_mgr_read_remote_devices();
-    for(index = 0; index < device_num; index++) {
-        if((app_xml_remote_devices_db[index].in_use != FALSE)
-            && (bdcmp(app_xml_remote_devices_db[index].bd_addr, bd_addr) == 0)) {
-            APP_DEBUG1("remove device: %02x:%02x:%02x:%02x:%02x:%02x",
-                    bd_addr[0], bd_addr[1], bd_addr[2],
-                    bd_addr[3], bd_addr[4], bd_addr[5]);
-
-            app_xml_remote_devices_db[index].in_use = FALSE;
-            break;
-        }
-    }
-
-    if(index >= device_num) {
-        APP_ERROR1("no matching device was found: %02x:%02x:%02x:%02x:%02x:%02x",
-                    bd_addr[0], bd_addr[1], bd_addr[2],
-                    bd_addr[3], bd_addr[4], bd_addr[5]);
-        return -1;
-    }
-
-    if (app_mgr_write_remote_devices() < 0) {
-        APP_ERROR0("app_mgr_write_remote_devices failed");
-        return -1;
-    }
-
-    return 0;
+    return app_mgr_sec_unpair(address);
 }
 
 void app_av_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, int name_len,
