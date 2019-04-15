@@ -6,6 +6,9 @@ extern "C" {
 #endif
 
 /*
+ *Version 1.2.0 Release 2019/04/15
+  1. bluethood api: add support for bsa.
+  2. add support for deviceio_test.
  *Version 1.1.0 Release 2019/03/27
   1.rewrite the bt api include ble/a2dp/spp
  *Version 1.0.4 Release 2019/01/29

@@ -35,8 +35,8 @@ static RkBtContent bt_content;
 void bt_test_init_open(void *data)
 {
 	printf("---------------BT INIT OPEN----------------\n");
-	bt_content.bt_name = "KUGOU_AUDIO";
-	bt_content.ble_content.ble_name = "KUGOU_AUDIO BLE";
+	bt_content.bt_name = "ROCKCHIP_AUDIO";
+	bt_content.ble_content.ble_name = "ROCKCHIP_AUDIO BLE";
 	bt_content.ble_content.server_uuid.uuid = BLE_UUID_SERVICE;
 	bt_content.ble_content.server_uuid.len = UUID_128;
 	bt_content.ble_content.chr_uuid[0].uuid = BLE_UUID_WIFI_CHAR;

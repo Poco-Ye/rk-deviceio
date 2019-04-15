@@ -3,8 +3,8 @@ cmake_minimum_required(VERSION 2.8.0 FATAL_ERROR)
 set(SRC_FILES
     DeviceIOTest.cpp
     bt_test.cpp
+    rk_ble_app.c
 )
-
 
 add_executable(deviceio_test ${SRC_FILES})
 target_include_directories(deviceio_test PUBLIC
