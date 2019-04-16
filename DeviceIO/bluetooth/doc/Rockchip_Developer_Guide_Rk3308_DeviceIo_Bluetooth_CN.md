@@ -2,7 +2,7 @@
 
 ---
 
-发布版本：1.0
+发布版本：1.1
 
 作者：francis.fan
 
@@ -28,13 +28,16 @@ RK3308
 
 软件开发工程师
 
+**对应DeviceIo库版本**
 
+V1.2.0
 
 **修订记录**
 
 | **日期**  | **版本** | **作者** | **修改说明** |
 | ---------| -------- | -------- | ---------- |
 | 2019-3-27 | V1.0     | francis.fan | 初始版本     |
+| 2019-4-16 | V1.1 | francis.fan | 新增BLE配网Demo<br />修复BtSource接口<br />修复文档排版 |
 
 ---
 
@@ -95,51 +98,53 @@ RK3308
 
 - `RK_BLE_STATE`说明
 
-	    typedef enum {
-    		RK_BLE_STATE_IDLE = 0, //空闲状态
-		RK_BLE_STATE_CONNECT, //连接成功
-    		RK_BLE_STATE_DISCONNECT //断开连接
-    	} RK_BLE_STATE;
+  ```
+  typedef enum {
+  	RK_BLE_STATE_IDLE = 0, //空闲状态
+  	RK_BLE_STATE_CONNECT, //连接成功
+    	RK_BLE_STATE_DISCONNECT //断开连接
+  } RK_BLE_STATE;
+  ```
 
 - `typedef void (*RK_BLE_STATE_CALLBACK)(RK_BLE_STATE state)`
 
-	BLE状态回调函数。
+  BLE状态回调函数。
 
-- `int RK_ble_register_callback(RK_ble_state_callback cb)`
-	
-	该接口用于注册获取BLE连接状态的回调函数。cb声明的类型为：
-	
+- `int rk_ble_register_status_callback(RK_BLE_STATE_CALLBACK cb)`
+
+  该接口用于注册获取BLE连接状态的回调函数。cb声明的类型为：
+
 - `typedef void (*RK_BLE_RECV_CALLBACK)(const char *uuid, char *data, int len)`
 
-	BLE接收回调函数。uuid：CHR UUID，data：数据指针，len：数据长度。
+  BLE接收回调函数。uuid：CHR UUID，data：数据指针，len：数据长度。
 
 - `int rk_ble_register_recv_callback(RK_BLE_RECV_CALLBACK cb)`
 
-	该接口用于注册接收BLE数据的回调函数。若是基于BlueZ架构，则接收回调函数在rk_bt_init中注册。
-	
+  该接口用于注册接收BLE数据的回调函数。若是基于BlueZ架构，则接收回调函数在rk_bt_init中注册。
+
 - `int rk_ble_start(RkBleContent *ble_content)`
 
-	开启BLE广播。ble_content：需与rk_bt_init(RkBtContent *p_bt_content)中p_bt_content->ble_content保持一致
+  开启BLE广播。ble_content：需与rk_bt_init(RkBtContent *p_bt_content)中p_bt_content->ble_content保持一致
 
 - `int rk_ble_stop(void)`
 
-	停止BLE广播。该函数执行后，BLE变为不可见并且不可连接。
+  停止BLE广播。该函数执行后，BLE变为不可见并且不可连接。
 
 - `int rk_ble_get_state(RK_BLE_STATE *p_state)`
 
-	主动获取BLE当前的连接状态。
+  主动获取BLE当前的连接状态。
 
 - `rk_ble_write(const char *uuid, char *data, int len)`
 
-	往对端发送数据。
-	
-	uuid：写入数据的CHR对象
+  往对端发送数据。
 
-	data：写入数据的指针
+  uuid：写入数据的CHR对象
 
-	len：写入数据的长度。特别说明：该长度受到BLE连接的MTU限制，超过MTU将被截断。
+  data：写入数据的指针
 
-	为保持良好的兼容性，当前MTU值默认为：134 Bytes
+  len：写入数据的长度。特别说明：该长度受到BLE连接的MTU限制，超过MTU将被截断。
+
+  为保持良好的兼容性，当前MTU值默认为：134 Bytes
 
 ## 2、SPP接口介绍（RkBtSpp.h） ##
 
@@ -187,112 +192,121 @@ RK3308
 
 - `RK_BT_SINK_STATE`介绍
 
-    	typedef enum {
-        		RK_BT_SINK_STATE_IDLE = 0, //空状态
-        		RK_BT_SINK_STATE_CONNECT,  //连接状态
-        		RK_BT_SINK_STATE_PLAY , //播放状态
-        		RK_BT_SINK_STATE_PAUSE, //暂停状态
-        		RK_BT_SINK_STATE_STOP, //停止状态
-        		RK_BT_SINK_STATE_DISCONNECT //断开连接
-        	} RK_BT_SINK_STATE;
+     ```
+     typedef enum {
+     	RK_BT_SINK_STATE_IDLE = 0, //空状态
+     	RK_BT_SINK_STATE_CONNECT,  //连接状态
+     	RK_BT_SINK_STATE_PLAY , //播放状态
+     	RK_BT_SINK_STATE_PAUSE, //暂停状态
+     	RK_BT_SINK_STATE_STOP, //停止状态
+     	RK_BT_SINK_STATE_DISCONNECT //断开连接
+     } RK_BT_SINK_STATE;
+     ```
 
 - `typedef int (*RK_BT_SINK_CALLBACK)(RK_BT_SINK_STATE state)`
 
-	状态回调函数。
+  状态回调函数。
 
 - `int rk_bt_sink_register_callback(RK_BT_SINK_CALLBACK cb)`
 
-	注册状态回调函数。
+  注册状态回调函数。
 
 - `int rk_bt_sink_open()`
 
-	打开A2DP Sink功能。
+  打开A2DP Sink功能。
 
 - `int rk_bt_sink_set_visibility(const int visiable, const int connectal)`
 
-	设置A2DP Sink可见/可连接特性。visiable：0表示不可见，1表示可见。connectal：0表示不可连接，1表示可连接。
+  设置A2DP Sink可见/可连接特性。visiable：0表示不可见，1表示可见。connectal：0表示不可连接，1表示可连接。
+
 - `int rk_bt_sink_close(void)`
 
-	关闭A2DP Sink功能。
+  关闭A2DP Sink功能。
 
 - `int rk_bt_sink_get_state(RK_BT_SINK_STATE *p_state)`
 
-	主动获取A2DP Sink连接状态。
+  主动获取A2DP Sink连接状态。
 
 - `int rk_bt_sink_play(void)`
 
-	反向控制：播放。
+  反向控制：播放。
 
 - `int rk_bt_sink_pause(void)`
 
-	反向控制：暂停。
+  反向控制：暂停。
 
 - `int rk_bt_sink_prev(void)`
 
-	反向控制：上一曲。
+  反向控制：上一曲。
 
 - `int rk_bt_sink_next(void)`
 
-	反向控制：下一曲。
+  反向控制：下一曲。
 
 - `int rk_bt_sink_stop(void)`
 
-	反向控制：停止播放。
+  反向控制：停止播放。
 
 - i`nt rk_bt_sink_volume_up(void)`
 
-	反向控制：音量增大。
+  反向控制：音量增大。
 
 - i`nt rk_bt_sink_volume_down(void)`
 
-	反向控制：银两减小。
+  反向控制：银两减小。
 
 - `int rk_bt_sink_set_auto_reconnect(int enable)`
 
-	设置A2DP Sink自动连接属性。enable：1表示可自动连接，0表示不可自动连接。
+  设置A2DP Sink自动连接属性。enable：1表示可自动连接，0表示不可自动连接。
 
 - `int rk_bt_sink_disconnect()`
 
-	断开A2DP Sink连接。
+  断开A2DP Sink连接。
 
 ## 4、A2DP SOURCE接口介绍（RkBtSource.h） ##
 
 - `BtDeviceInfo`介绍
 
-	    typedef struct _bt_device_info {
-	    	char name[128]; // bt name
-	    	char address[17]; // bt address
-	    	bool rssi_valid;
-	    	int rssi;
-	    	char playrole[12]; // Audio Sink? Audio Source? Unknown?
-    	} BtDeviceInfo;
-	上述结构用于保存扫描到的设备信息。name：设备名称。address：设备地址。rssi_valid：表示rssi是否有效值。rssi：信号强度。playrole：设备角色，取值为“Audio Sink”、“Audio Source”、“Unknown”
+  ```
+  typedef struct _bt_device_info {
+  	char name[128]; // bt name
+  	char address[17]; // bt address
+  	bool rssi_valid;
+  	int rssi;
+  	char playrole[12]; // Audio Sink? Audio Source? Unknown?
+  } BtDeviceInfo;
+  ```
+
+  上述结构用于保存扫描到的设备信息。name：设备名称。address：设备地址。rssi_valid：表示rssi是否有效值。rssi：信号强度。playrole：设备角色，取值为“Audio Sink”、“Audio Source”、“Unknown”
 
 - `BtScanParam`介绍
 
-	    typedef struct _bt_scan_parameter {
-	    	unsigned short mseconds;
-	    	unsigned char item_cnt;
-	    	BtDeviceInfo devices[BT_SOURCE_SCAN_DEVICES_CNT];
-    	} BtScanParam;
-	该结构用于保存rk_bt_source_scan(BtScanParam *data)接口中扫描到的设备列表。mseconds：扫描时长。item_cnt：扫描到的设备个数。devices：设备信息。BT_SOURCE_SCAN_DEVICES_CNT值为30个，表示该接口扫描到的设备最多为30个。
+  ```
+  typedef struct _bt_scan_parameter {
+  	unsigned short mseconds;
+  	unsigned char item_cnt;
+  	BtDeviceInfo devices[BT_SOURCE_SCAN_DEVICES_CNT];
+  } BtScanParam;
+  ```
+
+  该结构用于保存rk_bt_source_scan(BtScanParam *data)接口中扫描到的设备列表。mseconds：扫描时长。item_cnt：扫描到的设备个数。devices：设备信息。BT_SOURCE_SCAN_DEVICES_CNT值为30个，表示该接口扫描到的设备最多为30个。
 
 - `RK_BT_SOURCE_EVENT`介绍
 
-	    typedef enum {
-	    	BT_SOURCE_EVENT_CONNECT_FAILED, //连接A2DP Sink设备失败
-	    	BT_SOURCE_EVENT_CONNECTED, //连接A2DP Sink设备成功
-	    	BT_SOURCE_EVENT_DISCONNECTED, //断开连接
-	    } RK_BT_SOURCE_EVENT;
+      typedef enum {
+      	BT_SOURCE_EVENT_CONNECT_FAILED, //连接A2DP Sink设备失败
+      	BT_SOURCE_EVENT_CONNECTED, //连接A2DP Sink设备成功
+      	BT_SOURCE_EVENT_DISCONNECTED, //断开连接
+      } RK_BT_SOURCE_EVENT;
 
 - `RK_BT_SOURCE_STATUS`介绍
 
-		typedef enum {
-			BT_SOURCE_STATUS_CONNECTED, //连接状态
-			BT_SOURCE_STATUS_DISCONNECTED, //断开状态
-		} RK_BT_SOURCE_STATUS;
-
-
+   ```
+   typedef enum {
+   	BT_SOURCE_STATUS_CONNECTED, //连接状态
+   	BT_SOURCE_STATUS_DISCONNECTED, //断开状态
+   } RK_BT_SOURCE_STATUS;
+   ```
 
 - `typedef void (*RK_BT_SOURCE_CALLBACK)(void *userdata, const RK_BT_SOURCE_EVENT event)`
 
@@ -351,7 +365,21 @@ RK3308
 
 示例程序的路径为：external/deviceio/test。其中bluetooth相关的测试用例都实现在bt_test.cpp中，该测试用例涵盖了上述所有接口。函数调用在DeviceIOTest.cpp中。
 
-###  5.1 接口说明：  ###
+###5.1 编译说明###
+
+1、在SDK根目录下执行`make deviceio-dirclean && make deviceio -j4`，编译成功会提示如下log（截取部分）
+-- Installing: /home/rk3308/buildroot/output/target/usr/lib/librkmediaplayer.so
+-- Installing: /home/rk3308/buildroot/output/target/usr/lib/libDeviceIo.so
+-- Installing: /home/rk3308/buildroot/output/target/usr/include/DeviceIo/Rk_battery.h
+-- Installing: /home/rk3308/buildroot/output/target/usr/include/DeviceIo/RK_timer.h
+-- Installing: /home/rk3308/buildroot/output/target/usr/include/DeviceIo/Rk_wake_lock.h
+-- Installing: /home/rk3308/buildroot/output/target/usr/bin/deviceio_test
+
+2、执行./build.sh生成新固件，然后将新固件烧写到设备中。
+
+###  5.2 基础接口演示程序  ###
+
+#### 5.2.1 接口说明
 
 - void bt_test_init_open(void *data)
 
@@ -460,8 +488,69 @@ RK3308
 
 	查询SPP连接状态。
 
-### 5.2 测试步骤： ###
+#### 5.2.2 测试步骤 ####
 
-1、执行测试程序命令：`DeviceIOTest debug`
+1、执行测试程序命令：`DeviceIOTest bluetooth`显示如下界面：
 
-2、选择对应测试程序编号。
+```
+# deviceio_test bluethood
+version:V1.1.0
+#### Please Input Your Test Command Index ####
+00.   
+01.  bt_server_open 
+02.  bt_test_source_auto_start 
+03.  bt_test_source_connect_status 
+04.  bt_test_source_auto_stop 
+05.  bt_test_sink_open 
+06.  bt_test_sink_visibility00 
+07.  bt_test_sink_visibility01 
+08.  bt_test_sink_visibility10 
+09.  bt_test_sink_visibility11 
+10.  bt_test_sink_status 
+11.  bt_test_sink_music_play 
+12.  bt_test_sink_music_pause 
+13.  bt_test_sink_music_next 
+14.  bt_test_sink_music_previous 
+15.  bt_test_sink_music_stop 
+16.  bt_test_sink_reconnect_disenable 
+17.  bt_test_sink_reconnect_enable 
+18.  bt_test_sink_disconnect 
+19.  bt_test_sink_close 
+20.  bt_test_ble_start 
+21.  bt_test_ble_write 
+22.  bt_test_ble_stop 
+23.  bt_test_ble_get_status 
+24.  bt_test_spp_open 
+25.  bt_test_spp_write 
+26.  bt_test_spp_close 
+27.  bt_test_spp_status 
+Which would you like:
+```
+
+2、选择对应测试程序编号。首先要选择01进行初始化蓝牙基础服务。比如测试BT Source功能
+
+```
+Which would you like:01
+#注：等待执行结束，进入下一轮选择界面。
+Which would you like:02
+#注：选择02前，要开启一个BT Sink设备，该设备处于可发现并可连接状态。02功能会自动扫描BT Sink设备并连接信号最强的那个设备。
+```
+
+### 5.3 BLE配网演示程序
+
+1、手机端安装external/deviceio/test/apk/Rkble.apk
+
+2、设备端执行`DeviceIOTest blewifi`
+
+3、打开手机端Rkble.apk，直接点击“CONTINUE”按钮（默认为BLE配网）。
+
+4、点击“START SCAN”按钮，扫描ble设备。扫描到名为RockChipBle的设备，点击名称进行连接。
+
+5、BLE连接成功后，会进入密码提示窗口。当前APK默认选中手机已连接的WIFI名称，若要主动选择则需点击“>>”按钮，弹窗显示设备端扫描到的wifi列表。选择你想要设置的网络名称。
+
+6、输入密码，点击“Confirm”按钮，配网成功后APK界面下端会有弹窗提示配网成功或失败消息。
+
+*注：external/deviceio/test/apk/Rkble.zip为Rkble.apk源码*
+
+
+
