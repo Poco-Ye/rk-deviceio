@@ -22,6 +22,7 @@
 #include <DeviceIo/Rk_shell.h>
 #include <DeviceIo/RkBtBase.h>
 #include <DeviceIo/RkBle.h>
+#include <DeviceIo/RkBtSource.h>
 
 #include "avrcpctrl.h"
 #include "bluez_ctrl.h"
@@ -170,7 +171,7 @@ static void* _btmaster_autoscan_and_connect(void *data)
 
 scan_retry:
 	printf("=== BT_SOURCE_SCAN ===\n");
-	ret = a2dp_master_scan((void *)&scan_param, sizeof(scan_param));
+	ret = rk_bt_source_scan(&scan_param);
 	if (ret && (scan_cnt--)) {
 		sleep(1);
 		goto scan_retry;
@@ -249,34 +250,14 @@ int rk_bt_source_auto_connect_start(void *userdata, RK_BT_SOURCE_CALLBACK cb)
 	}
 
 	/* Register callback and userdata */
-	a2dp_master_register_cb(userdata, cb);
+	rk_bt_source_register_status_cb(userdata, cb);
 	g_btmaster_user_data = userdata;
 	g_btmaster_user_cb = cb;
 
-	/* Set bluetooth to master mode */
-	printf("=== BtControl::BT_SOURCE_OPEN ===\n");
-	bt_control.type = BtControlType::BT_SOURCE;
-	if (!bt_source_is_open()) {
-		if (bt_sink_is_open()) {
-			RK_LOGE("bt sink isn't coexist with source!!!\n");
-			bt_close_sink();
-		}
+	ret = rk_bt_source_open();
+	if (ret < 0)
+		return ret;
 
-		if (bt_interface(BtControl::BT_SOURCE_OPEN, NULL) < 0) {
-			bt_control.is_a2dp_source_open = 0;
-			bt_control.type = BtControlType::BT_NONE;
-			return -1;
-		}
-
-		bt_control.is_a2dp_source_open = true;
-		bt_control.type = BtControlType::BT_SOURCE;
-		bt_control.last_type = BtControlType::BT_SOURCE;
-	}
-	/* Already connected? */
-	if (a2dp_master_status(NULL, 0,  NULL, 0)) {
-		printf("=== BT SOURCE is connected!!! ===\n");
-		return 0;
-	}
 	/* Create thread to do connect task. */
 	ret = pthread_create(&g_btmaster_thread, NULL,
 						 _btmaster_autoscan_and_connect, NULL);
@@ -297,10 +278,72 @@ int rk_bt_source_auto_connect_stop(void)
 	return rk_bt_source_close();
 }
 
+int rk_bt_source_open(void)
+{
+	/* Init bluetooth */
+	if (!bt_control.is_bt_open) {
+		printf("Please open bt!!!\n");
+		return -1;
+	}
+
+	if (g_btmaster_thread) {
+		printf("The last operation is still in progress\n");
+		return -1;
+	}
+
+	/* Set bluetooth to master mode */
+	printf("=== BtControl::BT_SOURCE_OPEN ===\n");
+	bt_control.type = BtControlType::BT_SOURCE;
+	if (!bt_source_is_open()) {
+		if (bt_sink_is_open()) {
+			RK_LOGE("bt sink isn't coexist with source!!!\n");
+			bt_close_sink();
+		}
+
+		if (bt_interface(BtControl::BT_SOURCE_OPEN, NULL) < 0) {
+			bt_control.is_a2dp_source_open = 0;
+			bt_control.type = BtControlType::BT_NONE;
+			return -1;
+		}
+
+		bt_control.is_a2dp_source_open = true;
+		bt_control.type = BtControlType::BT_SOURCE;
+		bt_control.last_type = BtControlType::BT_SOURCE;
+	}
+
+	return 0;
+}
+
 int rk_bt_source_close(void)
 {
 	bt_close_source();
 	a2dp_master_clear_cb();
+	return 0;
+}
+
+int rk_bt_source_scan(BtScanParam *data)
+{
+	return a2dp_master_scan(data, sizeof(BtScanParam));
+}
+
+int rk_bt_source_connect(char *address)
+{
+	return a2dp_master_connect(address);
+}
+
+int rk_bt_source_disconnect(char *address)
+{
+	return a2dp_master_disconnect(address);
+}
+
+int rk_bt_source_remove(char *address)
+{
+	return a2dp_master_remove(address);
+}
+
+int rk_bt_source_register_status_cb(void *userdata, RK_BT_SOURCE_CALLBACK cb)
+{
+	a2dp_master_register_cb(userdata,  cb);
 	return 0;
 }
 
