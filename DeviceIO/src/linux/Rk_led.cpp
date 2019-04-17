@@ -126,7 +126,7 @@ static int led_wait_new_command(void)
 			pthread_cond_wait(&m_led_manager.cond, &m_led_manager.mutex);
 		} else {
 			struct timespec tout;
-			RK_Led_Effect_ins *effect;
+			RK_Led_Effect_ins *effect = NULL;
 			clock_gettime(CLOCK_REALTIME, &tout);
 			if (m_led_manager.temp) {
 				effect = m_led_manager.temp;
@@ -137,22 +137,35 @@ static int led_wait_new_command(void)
 			}
 
 			if (effect) {
-				if (effect->effect->type == Led_Effect_type_BREATH) {
-					tout.tv_nsec += 1000000 * TIMER_PERIOD;
-				} else if (effect->effect->type == Led_Effect_type_BLINK) {
-					tout.tv_nsec += 1000000 * effect->effect->period;
+				if (effect->effect->type == Led_Effect_type_NONE) {
+					if (effect->effect->timeout <= 0) {
+						pthread_cond_timedwait(&m_led_manager.cond, &m_led_manager.mutex, &tout);
+					} else {
+						tout.tv_nsec += 1000000 * effect->effect->period;
+						while (tout.tv_nsec > 1000000000) {
+							tout.tv_sec += 1;
+							tout.tv_nsec -= 1000000000;
+						}
+						pthread_cond_timedwait(&m_led_manager.cond, &m_led_manager.mutex, &tout);
+					}
 				} else {
-					tout.tv_nsec += 1000000 * 1;
+					if (effect->effect->type == Led_Effect_type_BREATH) {
+						tout.tv_nsec += 1000000 * TIMER_PERIOD;
+					} else if (effect->effect->type == Led_Effect_type_BLINK) {
+						tout.tv_nsec += 1000000 * effect->effect->period;
+					} else {
+						tout.tv_nsec += 1000000 * 1;
+					}
+
+					while (tout.tv_nsec > 1000000000) {
+						tout.tv_sec += 1;
+						tout.tv_nsec -= 1000000000;
+					}
+					pthread_cond_timedwait(&m_led_manager.cond, &m_led_manager.mutex, &tout);
 				}
 			} else {
-				tout.tv_nsec += 1000000 * 1;
+				pthread_cond_wait(&m_led_manager.cond, &m_led_manager.mutex);
 			}
-
-			while (tout.tv_nsec > 1000000000) {
-				tout.tv_sec += 1;
-				tout.tv_nsec -= 1000000000;
-			}
-			pthread_cond_timedwait(&m_led_manager.cond, &m_led_manager.mutex, &tout);
 		}
 	}
 
@@ -193,6 +206,8 @@ static void led_effect_task(void)
 				led_effect_breath(m_led_manager.temp);
 				m_led_manager.temp->time += TIMER_PERIOD;
 				m_led_manager.temp->count++;
+			} else {
+				m_led_manager.temp->time += m_led_manager.temp->effect->period;
 			}
 
 			led_write(m_led_manager.temp->colors);
@@ -216,6 +231,8 @@ static void led_effect_task(void)
 				led_effect_breath(m_led_manager.realtime);
 				m_led_manager.realtime->time += TIMER_PERIOD;
 				m_led_manager.realtime->count++;
+			} else {
+				m_led_manager.realtime->time += m_led_manager.realtime->effect->period;
 			}
 
 			led_write(m_led_manager.realtime->colors);
@@ -241,13 +258,16 @@ static void led_effect_task(void)
 
 		if (m_led_manager.stable->effect->type == Led_Effect_type_BLINK) {
 			led_effect_blink(m_led_manager.stable);
+			m_led_manager.stable->time += m_led_manager.stable->effect->period;
 			m_led_manager.stable->count++;
 		} else if (m_led_manager.stable->effect->type == Led_Effect_type_BREATH) {
 			led_effect_breath(m_led_manager.stable);
+			m_led_manager.stable->time += TIMER_PERIOD;
 			m_led_manager.stable->count++;
+		} else {
+			m_led_manager.stable->time += m_led_manager.stable->effect->period;
 		}
 
-		m_led_manager.stable->time += TIMER_PERIOD;
 		led_write(m_led_manager.stable->colors);
 	} else {
 		RK_set_all_led_off();
