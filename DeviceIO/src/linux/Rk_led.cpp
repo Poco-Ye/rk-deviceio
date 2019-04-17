@@ -139,7 +139,7 @@ static int led_wait_new_command(void)
 			if (effect) {
 				if (effect->effect->type == Led_Effect_type_NONE) {
 					if (effect->effect->timeout <= 0) {
-						pthread_cond_timedwait(&m_led_manager.cond, &m_led_manager.mutex, &tout);
+						pthread_cond_wait(&m_led_manager.cond, &m_led_manager.mutex, &tout);
 					} else {
 						tout.tv_nsec += 1000000 * effect->effect->period;
 						while (tout.tv_nsec > 1000000000) {
@@ -153,8 +153,6 @@ static int led_wait_new_command(void)
 						tout.tv_nsec += 1000000 * TIMER_PERIOD;
 					} else if (effect->effect->type == Led_Effect_type_BLINK) {
 						tout.tv_nsec += 1000000 * effect->effect->period;
-					} else {
-						tout.tv_nsec += 1000000 * 1;
 					}
 
 					while (tout.tv_nsec > 1000000000) {
