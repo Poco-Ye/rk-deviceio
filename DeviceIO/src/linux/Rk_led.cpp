@@ -50,6 +50,8 @@ static void led_effect_breath(RK_Led_Effect_ins_t *effect) {
 	int now_count = effect->count % timer_period_count;
 	int half_timer_period_count = timer_period_count / 2;
 
+	// 更新count，避免累加越界
+	effect->count = now_count;
 	if (now_count > half_timer_period_count) {
 		now_count = timer_period_count - now_count;
 	}
@@ -69,11 +71,21 @@ static void led_effect_blink(RK_Led_Effect_ins_t *effect)
 	} else {
 		effect->colors = effect->effect->colors;
 	}
+	// 没有用到该参数，置为0，避免累加越界
+	effect->count = 0;
 }
 
 static int led_write(const int color)
 {
 	int r, g, b;
+	static int color_last = -1;
+
+	if (color == color_last) {
+		//RK_LOGD("ignored because The color %d the same as last", color);
+		return 0;
+	}
+
+	color_last = color;
 	r = (color >> 16) & 0xFF;
 	g = (color >> 8) & 0xFF;
 	b = color & 0xFF;
@@ -176,12 +188,13 @@ static void led_effect_task(void)
 			if (m_led_manager.temp->effect->type == Led_Effect_type_BLINK) {
 				led_effect_blink(m_led_manager.temp);
 				m_led_manager.temp->time += m_led_manager.temp->effect->period;
+				m_led_manager.temp->count++;
 			} else if (m_led_manager.temp->effect->type == Led_Effect_type_BREATH) {
 				led_effect_breath(m_led_manager.temp);
 				m_led_manager.temp->time += TIMER_PERIOD;
+				m_led_manager.temp->count++;
 			}
 
-			m_led_manager.temp->count++;
 			led_write(m_led_manager.temp->colors);
 			pthread_mutex_unlock(&m_led_manager.mutex);
 			return;
@@ -198,12 +211,13 @@ static void led_effect_task(void)
 			if (m_led_manager.realtime->effect->type == Led_Effect_type_BLINK) {
 				led_effect_blink(m_led_manager.realtime);
 				m_led_manager.realtime->time += m_led_manager.realtime->effect->period;
+				m_led_manager.realtime->count++;
 			} else if (m_led_manager.realtime->effect->type == Led_Effect_type_BREATH) {
 				led_effect_breath(m_led_manager.realtime);
 				m_led_manager.realtime->time += TIMER_PERIOD;
+				m_led_manager.realtime->count++;
 			}
 
-			m_led_manager.realtime->count++;
 			led_write(m_led_manager.realtime->colors);
 			pthread_mutex_unlock(&m_led_manager.mutex);
 			return;
@@ -227,11 +241,12 @@ static void led_effect_task(void)
 
 		if (m_led_manager.stable->effect->type == Led_Effect_type_BLINK) {
 			led_effect_blink(m_led_manager.stable);
+			m_led_manager.stable->count++;
 		} else if (m_led_manager.stable->effect->type == Led_Effect_type_BREATH) {
 			led_effect_breath(m_led_manager.stable);
+			m_led_manager.stable->count++;
 		}
 
-		m_led_manager.stable->count++;
 		m_led_manager.stable->time += TIMER_PERIOD;
 		led_write(m_led_manager.stable->colors);
 	} else {
