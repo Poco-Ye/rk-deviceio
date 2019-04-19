@@ -30,6 +30,7 @@ include_directories(${GLIB2_INCLUDE_DIRS})
 include_directories(${DBUS_INCLUDE_DIRS})
 target_link_libraries (DeviceIo ${GLIB2_LIBRARIES})
 target_link_libraries (DeviceIo ${DBUS_LIBRARIES})
+target_link_libraries (DeviceIo libbluetooth.so)
 
 elseif(BSA)
 
@@ -82,7 +83,6 @@ endif()
 
 include_directories(${WPA_SUPPLICANT_INCLUDE_DIRS})
 target_link_libraries (DeviceIo libwpa_client.so)
-target_link_libraries (DeviceIo libbluetooth.so)
 
 target_include_directories(DeviceIo PUBLIC
 		"${DeviceIo_SOURCE_DIR}/include"
