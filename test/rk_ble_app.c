@@ -316,6 +316,8 @@ void rk_ble_wifi_init()
 	bt_content.ble_content.cb_ble_request_data = rk_ble_request_data_cb;
 	bt_content.ble_content.advDataType = BLE_ADVDATA_TYPE_SYSTEM;
 
+	//bsa ble must register data recv callback, can't delete
+	rk_ble_register_recv_callback(rk_ble_recv_data_cb);
 	rk_ble_register_status_callback(rk_ble_status_cb);
 	rk_bt_init(&bt_content);
 
