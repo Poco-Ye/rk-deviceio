@@ -28,12 +28,26 @@
 #include "bt_test.h"
 #include "rk_ble_app.h"
 
-typedef struct {
-	char *cmd;
-	void (*action)(void *userdata);
-} test_command_t;
+static void deviceio_test_bluetooth();
+static void deviceio_test_blewifi();
 
-static test_command_t process_command_table[] = {
+typedef struct {
+	const char *cmd;
+	const char *desc;
+	void (*action)(void);
+} menu_command_t;
+
+static menu_command_t menu_command_table[] = {
+	{"bluetooth", "show bluetooth test cmd menu", deviceio_test_bluetooth},
+	{"blewifi", "start ble wifi config", deviceio_test_blewifi},
+};
+
+typedef struct {
+	const char *cmd;
+	void (*action)(void *userdata);
+} bt_command_t;
+
+static bt_command_t bt_command_table[] = {
 	{"", NULL},
 	{"bt_server_open", bt_test_init_open},
 	{"bt_test_source_auto_start", bt_test_source_auto_start},
@@ -64,47 +78,84 @@ static test_command_t process_command_table[] = {
 	{"bt_test_spp_status", bt_test_spp_status},
 };
 
-static void show_help() {
-	int i;
+static void show_bt_cmd() {
+	unsigned int i;
 	printf("#### Please Input Your Test Command Index ####\n");
-	for (i = 0; i < sizeof(process_command_table) / sizeof(process_command_table[0]); i++) {
-		printf("%02d.  %s \n", i, process_command_table[i].cmd);
+	for (i = 0; i < sizeof(bt_command_table) / sizeof(bt_command_table[0]); i++) {
+		printf("%02d.  %s \n", i, bt_command_table[i].cmd);
 	}
 	printf("Which would you like: ");
+}
+
+static void show_help(char *bin_name) {
+	unsigned int i;
+	printf("%s [Usage]:\n", bin_name);
+	for (i = 0; i < sizeof(menu_command_table)/sizeof(menu_command_t); i++)
+		printf("\t\"%s %s\":%s.\n", bin_name, menu_command_table[i].cmd, menu_command_table[i].desc);
+}
+
+static void deviceio_test_bluetooth()
+{
+	int i, item_cnt;
+	char szBuf[64] = {0};
+
+	item_cnt = sizeof(bt_command_table) / sizeof(bt_command_t);
+	while(true) {
+		memset(szBuf, 0, sizeof(szBuf));
+		show_bt_cmd();
+		if(!std::cin.getline(szBuf, 64)) {
+			std::cout << "error" << std::endl;
+			continue;
+		}
+
+		i = atoi(szBuf);
+		if ((i >= 1) && (i < item_cnt))
+			bt_command_table[i].action(NULL);
+	}
+
+	return;
+}
+
+static void deviceio_test_blewifi()
+{
+	rk_ble_wifi_init();
 }
 
 int main(int argc, char *argv[])
 {
 	int i, item_cnt;
-	char szBuf[64] = {0};
 	char version[64] = {0};
 
 	RK_read_version(version, 64);
 	std::cout << "version:" << version << std::endl;
-	item_cnt = sizeof(process_command_table) / sizeof(test_command_t);
+	item_cnt = sizeof(menu_command_table) / sizeof(menu_command_t);
 
-	if (argc > 1 && !strncmp(argv[1], "blewifi", 5)) {
-		rk_ble_wifi_init();
+	if (argc < 2) {
+		printf("ERROR:invalid argument.\n");
+		show_help(argv[0]);
+		return -1;
 	}
 
-	while(true) {
-		if (argc > 1 && !strncmp(argv[1], "bluetooth", 5)) {
-			memset(szBuf, 0, sizeof(szBuf));
-			show_help();
-			if(!std::cin.getline(szBuf, 64)) {
-				std::cout << "error" << std::endl;
-				continue;
-			}
+	if ((!strncmp(argv[1], "-h", 2)) || (!strncmp(argv[1], "help", 4))) {
+		show_help(argv[0]);
+		return 0;
+	}
 
-			i = atoi(szBuf);
-			if ((i >= 1) && (i < item_cnt))
-				process_command_table[i].action(NULL);
+	for (i = 0; i < item_cnt; i++) {
+		if (!strncmp(argv[1], menu_command_table[i].cmd, strlen(menu_command_table[i].cmd)))
+			break;
+	}
 
-			continue;
-		}
+	if (i >= item_cnt) {
+		printf("ERROR:invalid menu cmd.\n");
+		show_help(argv[0]);
+		return -1;
+	}
 
+	menu_command_table[i].action();
+
+	while(true)
 		sleep(10);
-	}
 
 	return 0;
 }
