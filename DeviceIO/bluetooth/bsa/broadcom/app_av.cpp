@@ -738,6 +738,7 @@ tAPP_AV_CONNECT_STATUS app_av_status =
 static void *app_av_user_data = NULL;
 static RK_BT_SOURCE_CALLBACK app_av_send_cb = NULL;
 static void app_av_send_event(const RK_BT_SOURCE_EVENT event) {
+    APP_DEBUG1("event: %d", event);
     if(app_av_send_cb)
         app_av_send_cb(app_av_user_data, event);
 }
@@ -853,6 +854,21 @@ static const char *app_av_display_vendor_command(UINT8 command)
     return ("UNKNOWN");
 }
 
+/*******************************************************************************
+ **
+ ** Function         app_av_get_label
+ **
+ ** Description      get transaction label (used to distinguish transactions)
+ **
+ ** Returns          UINT8
+ **
+ *******************************************************************************/
+static UINT8 app_av_get_label()
+{
+    if(app_av_cb.label >= 15)
+        app_av_cb.label = 0;
+    return app_av_cb.label++;
+}
 
 /*******************************************************************************
  **
@@ -1352,6 +1368,7 @@ void app_av_cback(tBSA_AV_EVT event, tBSA_AV_MSG *p_data)
                 {
                 case APP_AV_PLAY_PAUSED:
                     app_av_resume();
+                    app_av_send_event(BT_SOURCE_EVENT_RC_PLAY);
                     break;
                 case APP_AV_PLAY_STOPPED:
                     switch (app_av_cb.play_type)
@@ -1375,6 +1392,7 @@ void app_av_cback(tBSA_AV_EVT event, tBSA_AV_MSG *p_data)
                         APP_ERROR1("Unsupported play type (%d)", app_av_cb.play_type);
                         break;
                     }
+                    app_av_send_event(BT_SOURCE_EVENT_RC_PLAY);
                     break;
                 case APP_AV_PLAY_STARTED:
                     /* Already started */
@@ -1391,23 +1409,31 @@ void app_av_cback(tBSA_AV_EVT event, tBSA_AV_MSG *p_data)
                 break;
             case APP_AV_STOP:
                 app_av_stop();
+                app_av_send_event(BT_SOURCE_EVENT_RC_STOP);
                 break;
             case APP_AV_PAUSE:
                 app_av_pause();
+                app_av_send_event(BT_SOURCE_EVENT_RC_PAUSE);
                 break;
             case APP_AV_FORWARD:
             case APP_AV_BACKWARD:
-                if (app_av_cb.play_state != APP_AV_PLAY_STOPPED)
-                    if (app_av_cb.play_type != APP_AV_PLAYTYPE_AVK)
-                    /* stop streaming */
-                    app_av_stop();
+                if ((app_av_cb.play_type) != APP_AV_PLAYTYPE_PCM_DATA) {
+                    if (app_av_cb.play_state != APP_AV_PLAY_STOPPED)
+                        if (app_av_cb.play_type != APP_AV_PLAYTYPE_AVK)
+                        /* stop streaming */
+                        app_av_stop();
 
-                /* Resume streaming in a different thread so we can wait for callback to confirm
-                 * that streaming has stopped */
-                app_av_cb.s_command = command;
-                status = app_create_thread(app_avk_rc_command_thread, 0, 0,
-                            &app_av_cb.t_app_rc_thread);
-
+                    /* Resume streaming in a different thread so we can wait for callback to confirm
+                     * that streaming has stopped */
+                    app_av_cb.s_command = command;
+                    status = app_create_thread(app_avk_rc_command_thread, 0, 0,
+                                &app_av_cb.t_app_rc_thread);
+                } else {
+                    if (command == APP_AV_FORWARD)
+                        app_av_send_event(BT_SOURCE_EVENT_RC_FORWARD);
+                    else
+                        app_av_send_event(BT_SOURCE_EVENT_RC_BACKWARD);
+                }
                 break;
             }
         }
@@ -2281,6 +2307,14 @@ static int app_av_stop_current(void)
     /* stopping state before calling BSA api, call back happens asynchronously */
     /* TODO : protect critical section */
     play_state = app_av_cb.play_state;
+
+    if((app_av_cb.play_state == APP_AV_PLAY_STOPPED) ||
+       (app_av_cb.play_state == APP_AV_PLAY_STOPPING))
+    {
+        APP_DEBUG1("stopping or already stopped, %d", app_av_cb.play_state);
+        return BSA_SUCCESS;
+    }
+
     app_av_cb.play_state = APP_AV_PLAY_STOPPING;
     app_av_rc_change_play_status(BSA_AVRC_PLAYSTATE_STOPPED);
 
@@ -2336,7 +2370,6 @@ int app_av_pause(void)
 
     if((app_av_cb.play_state == APP_AV_PLAY_STOPPED) ||
        (app_av_cb.play_state == APP_AV_PLAY_PAUSED))
-
     {
         APP_DEBUG1("app_av_pause - already paused or stopped, %d", app_av_cb.play_state);
         return BSA_SUCCESS;
@@ -2373,6 +2406,12 @@ int app_av_resume(void)
     int status;
     tBSA_AV_START start_param;
 
+    if (app_av_cb.play_state == APP_AV_PLAY_STARTED)
+    {
+        APP_DEBUG1("already started, %d", app_av_cb.play_state);
+        return BSA_SUCCESS;
+    }
+
     /* start Av stream */
     BSA_AvStartInit(&start_param);
     start_param.media_feeding = app_av_cb.media_feeding;
@@ -2395,6 +2434,93 @@ int app_av_resume(void)
 
 /*******************************************************************************
  **
+ ** Function         app_av_vol_up
+ **
+ ** Description      volume up
+ **
+ ** Returns          0 if successful, error code otherwise
+ **
+ *******************************************************************************/
+int app_av_vol_up()
+{
+    int index;
+    for (index = 0; index < APP_AV_MAX_CONNECTIONS; index++)
+    {
+        if (app_av_cb.connections[index].is_registered)
+        {
+            if (app_av_cb.connections[index].is_open)
+            {
+                APP_INFO1("Connection index %d:", index);
+                if (app_av_cb.connections[index].is_rc)
+                {
+                    APP_INFO1("RC -> handle %d", app_av_cb.connections[index].rc_handle);
+                    app_av_rc_send_click(index, BSA_AV_RC_VOL_UP);
+                    //app_av_rc_complete_notification(BSA_AVRC_EVT_VOLUME_CHANGE);
+                }
+                else
+                {
+                    APP_INFO0("does not have RC");
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+
+/*******************************************************************************
+ **
+ ** Function         app_av_vol_down
+ **
+ ** Description      volume down
+ **
+ ** Returns          0 if successful, error code otherwise
+ **
+ *******************************************************************************/
+int app_av_vol_down()
+{
+    int index;
+    for (index = 0; index < APP_AV_MAX_CONNECTIONS; index++)
+    {
+        if (app_av_cb.connections[index].is_registered)
+        {
+            if (app_av_cb.connections[index].is_open)
+            {
+                APP_INFO1("Connection index %d:", index);
+                if (app_av_cb.connections[index].is_rc)
+                {
+                    APP_INFO1("RC -> handle %d", app_av_cb.connections[index].rc_handle);
+                    app_av_rc_send_click(index, BSA_AV_RC_VOL_DOWN);
+                    //app_av_rc_complete_notification(BSA_AVRC_EVT_VOLUME_CHANGE);
+                }
+                else
+                {
+                    APP_INFO0("does not have RC");
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+/*******************************************************************************
+**
+** Function         app_av_rc_send_click
+**
+** Description      Send press and release states of a command
+**
+** Returns          void
+**
+*******************************************************************************/
+void app_av_rc_send_click(int index, int command)
+{
+    app_av_rc_send_command(index, command, BSA_AV_STATE_PRESS);
+    GKI_delay(300);
+    app_av_rc_send_command(index, command, BSA_AV_STATE_RELEASE);
+}
+
+/*******************************************************************************
+ **
  ** Function         app_av_rc_send_command
  **
  ** Description      Example of Send a RemoteControl command
@@ -2402,7 +2528,7 @@ int app_av_resume(void)
  ** Returns          0 if successful, error code otherwise
  **
  *******************************************************************************/
-int app_av_rc_send_command(int index, int command)
+int app_av_rc_send_command(int index, int command, tBSA_AV_STATE key_state)
 {
     int status;
     tBSA_AV_REM_CMD bsa_av_rc_cmd;
@@ -2417,9 +2543,9 @@ int app_av_rc_send_command(int index, int command)
     /* Send remote control command */
     status = BSA_AvRemoteCmdInit(&bsa_av_rc_cmd);
     bsa_av_rc_cmd.rc_handle = app_av_cb.connections[index].rc_handle;
-    bsa_av_rc_cmd.key_state = BSA_AV_STATE_PRESS;
+    bsa_av_rc_cmd.key_state = key_state;
     bsa_av_rc_cmd.rc_id = (tBSA_AV_RC)command;
-    bsa_av_rc_cmd.label = app_av_cb.label++; /* Just used to distinguish commands */
+    bsa_av_rc_cmd.label = app_av_get_label(); /* Just used to distinguish commands */
     status = BSA_AvRemoteCmd(&bsa_av_rc_cmd);
     if (status != BSA_SUCCESS)
     {
@@ -2448,7 +2574,7 @@ static int app_av_rc_send_register_volume_change_notify_vd_command(UINT8 rc_hand
     bsa_av_vd_cmd.data[7] = 0;
     bsa_av_vd_cmd.data[8] = 0;
     bsa_av_vd_cmd.length = 9;
-    bsa_av_vd_cmd.label = app_av_cb.label++; /* Just used to distinguish commands */
+    bsa_av_vd_cmd.label = app_av_get_label(); /* Just used to distinguish commands */
     status = BSA_AvVendorCmd(&bsa_av_vd_cmd);
     if (status != BSA_SUCCESS)
     {
@@ -2490,7 +2616,7 @@ int app_av_rc_send_absolute_volume_vd_command(int index, int volume)
     bsa_av_vd_cmd.data[3] = 1; /* length low*/
     bsa_av_vd_cmd.data[4] = volume; /* Absolute volume */
     bsa_av_vd_cmd.length = 5;
-    bsa_av_vd_cmd.label = app_av_cb.label++; /* Just used to distinguish commands */
+    bsa_av_vd_cmd.label = app_av_get_label(); /* Just used to distinguish commands */
     status = BSA_AvVendorCmd(&bsa_av_vd_cmd);
     if (status != BSA_SUCCESS)
     {
@@ -2541,7 +2667,7 @@ int app_av_rc_send_get_element_attributes_vd_command(int index)
     bsa_av_vd_cmd.data[20] = 0x7;
 
     bsa_av_vd_cmd.length = 21;
-    bsa_av_vd_cmd.label = app_av_cb.label++; /* Just used to distinguish commands */
+    bsa_av_vd_cmd.label = app_av_get_label(); /* Just used to distinguish commands */
     status = BSA_AvVendorCmd(&bsa_av_vd_cmd);
     if (status != BSA_SUCCESS)
     {
@@ -2647,7 +2773,7 @@ int app_av_rc_send_get_element_attributes_vd_response(int index)
 
     bsa_av_vd_rsp.length = 4 + len; /* Add the length of first four bytes to payload length */
 
-    bsa_av_vd_rsp.label = app_av_cb.label++; /* Just used to distinguish commands */
+    bsa_av_vd_rsp.label = app_av_get_label(); /* Just used to distinguish commands */
     status = BSA_AvVendorRsp(&bsa_av_vd_rsp);
     if (status != BSA_SUCCESS)
     {
@@ -3246,7 +3372,6 @@ int app_av_rc_play_item_meta_response(int index, tBSA_AV_META_MSG_MSG *pMetaMsg)
  ** Returns          0 if successful, error code otherwise
  **
  *******************************************************************************/
-
 int app_av_rc_register_notifications(int index, tBSA_AV_META_MSG_MSG *pMetaMsg)
 {
     UINT16  evt_mask = 1, index_x;
@@ -3261,7 +3386,6 @@ int app_av_rc_register_notifications(int index, tBSA_AV_META_MSG_MSG *pMetaMsg)
         APP_ERROR1("BSA_AvMetaRspInit failed: %d", status);
         return status;
     }
-
 
     /* Sanity check */
     if ((index < 0) || (index >= APP_NUM_ELEMENTS(app_av_cb.connections)))
@@ -3319,39 +3443,34 @@ void app_av_rc_complete_notification(UINT8 event_id)
     tBSA_AV_EVT_MASK evt_mask = 1;
     UINT8 rc_label;
 
-
     /* Check if it is one of the supported events  */
     evt_mask <<= (event_id - 1);
 
    if (p_bsa_av_cb->meta_info.registered_events.evt_mask & evt_mask)
-        {
+   {
         APPL_TRACE_DEBUG2("Event(0x%x) was registered(0x%x) evt_mask:0x%x",
                            event_id,
-                           p_bsa_av_cb->meta_info.registered_events.evt_mask );
+                           p_bsa_av_cb->meta_info.registered_events.evt_mask);
 
+        rc_label = p_bsa_av_cb->meta_info.registered_events.label[event_id - 1];
+        bsa_av_meta_rsp_cmd.param.notify_status.code = BTA_AV_RSP_CHANGED;
+        bsa_av_meta_rsp_cmd.rc_handle = app_av_cb.connections[0].rc_handle;
+        bsa_av_meta_rsp_cmd.label = app_av_cb.label;
 
-        rc_label = p_bsa_av_cb->meta_info.registered_events.label[event_id-1];
-            bsa_av_meta_rsp_cmd.param.notify_status.code = BTA_AV_RSP_CHANGED;
-            bsa_av_meta_rsp_cmd.rc_handle = app_av_cb.connections[0].rc_handle;
-            bsa_av_meta_rsp_cmd.label = app_av_cb.label;
+        app_av_build_notification_response(event_id, &bsa_av_meta_rsp_cmd);
 
-            app_av_build_notification_response(event_id, &bsa_av_meta_rsp_cmd);
-
-            /* De-register the event */
+        /* De-register the event */
         p_bsa_av_cb->meta_info.registered_events.evt_mask &= ~evt_mask;
-        p_bsa_av_cb->meta_info.registered_events.label[event_id-1] = 0xFF;
+        p_bsa_av_cb->meta_info.registered_events.label[event_id - 1] = 0xFF;
 
         APPL_TRACE_DEBUG3("EVENT NOTIF - Registered evt val after 0x%x clearing:0x%x label %d",
-                           p_bsa_av_cb->meta_info.registered_events.evt_mask, evt_mask, rc_label );
-
-
-
-        }
-        else
-        {
-        APPL_TRACE_DEBUG1("Not registered event rcvd:0x%x", event_id);
-        }
+                           p_bsa_av_cb->meta_info.registered_events.evt_mask, evt_mask, rc_label);
     }
+    else
+    {
+        APPL_TRACE_DEBUG1("Not registered event rcvd:0x%x", event_id);
+    }
+}
 
 /*******************************************************************************
  **
@@ -3465,8 +3584,6 @@ static int app_av_build_notification_response(UINT8 event_id, tBSA_AV_META_RSP_C
     default:
         p_bsa_av_meta_rsp_cmd->param.notify_status.status = BTA_AV_RSP_NOT_IMPL;
     }
-
-
 
     status = BSA_AvMetaRsp(p_bsa_av_meta_rsp_cmd);
     if (status != BSA_SUCCESS)

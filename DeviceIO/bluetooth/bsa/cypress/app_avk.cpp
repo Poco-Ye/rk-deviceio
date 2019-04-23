@@ -689,7 +689,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
         APP_DEBUG0("BSA_AVK_REMOTE_CMD_EVT");
         APP_DEBUG1(" label:0x%x", p_data->remote_cmd.label);
         APP_DEBUG1(" op_id:0x%x", p_data->remote_cmd.op_id);
-        APP_DEBUG1(" label:0x%x", p_data->remote_cmd.label);
+        APP_DEBUG1(" key_state:0x%x", p_data->remote_cmd.key_state);
         APP_DEBUG0(" avrc header");
         APP_DEBUG1("   ctype:0x%x", p_data->remote_cmd.hdr.ctype);
         APP_DEBUG1("   subunit_type:0x%x", p_data->remote_cmd.hdr.subunit_type);
@@ -697,6 +697,14 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
         APP_DEBUG1("   opcode:0x%x", p_data->remote_cmd.hdr.opcode);
         APP_DEBUG1(" len:0x%x", p_data->remote_cmd.len);
         APP_DUMP("data", p_data->remote_cmd.data, p_data->remote_cmd.len);
+
+        if(p_data->remote_cmd.key_state == BSA_AVK_STATE_PRESS) {
+            if (p_data->remote_cmd.op_id == BSA_AVK_RC_VOL_UP) {
+                APP_DEBUG0("BSA_AVK_RC_VOL_UP");
+            } else if(p_data->remote_cmd.op_id == BSA_AVK_RC_VOL_DOWN) {
+                APP_DEBUG0("BSA_AVK_RC_VOL_DOWN");
+            }
+        }
 
         BSA_AvkRemoteRspInit(&RemRsp);
         RemRsp.avrc_rsp = BSA_AVK_RSP_ACCEPT;
@@ -1044,7 +1052,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
 
 
     case BSA_AVK_REG_NOTIFICATION_CMD_EVT:
-        APP_DEBUG0("BSA_AVK_REG_NOTIFICATION_CMD_EVT");
+        APP_DEBUG1("BSA_AVK_REG_NOTIFICATION_CMD_EVT, event_id: %d", p_data->reg_notif_cmd.reg_notif_cmd.event_id);
         if (p_data->reg_notif_cmd.reg_notif_cmd.event_id == AVRC_EVT_VOLUME_CHANGE)
         {
             connection = app_avk_find_connection_by_rc_handle(p_data->reg_notif_cmd.handle);

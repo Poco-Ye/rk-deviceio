@@ -32,6 +32,13 @@ typedef enum {
 	BT_SOURCE_EVENT_CONNECT_FAILED,
 	BT_SOURCE_EVENT_CONNECTED,
 	BT_SOURCE_EVENT_DISCONNECTED,
+	BT_SOURCE_EVENT_RC_PLAY,    /* remote control command */
+	BT_SOURCE_EVENT_RC_STOP,
+	BT_SOURCE_EVENT_RC_PAUSE,
+	BT_SOURCE_EVENT_RC_FORWARD,
+	BT_SOURCE_EVENT_RC_BACKWARD,
+	BT_SOURCE_EVENT_RC_VOL_UP,
+	BT_SOURCE_EVENT_RC_VOL_DOWN,
 } RK_BT_SOURCE_EVENT;
 
 typedef enum {
@@ -53,6 +60,11 @@ int rk_bt_source_connect(char *address);
 int rk_bt_source_disconnect(char *address);
 int rk_bt_source_remove(char *address);
 int rk_bt_source_register_status_cb(void *userdata, RK_BT_SOURCE_CALLBACK cb);
+int rk_bt_source_resume(void);
+int rk_bt_source_stop(void);
+int rk_bt_source_pause(void);
+int rk_bt_source_vol_up(void);
+int rk_bt_source_vol_down(void);
 
 #ifdef __cplusplus
 }

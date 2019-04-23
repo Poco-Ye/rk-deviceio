@@ -721,6 +721,31 @@ int rk_bt_source_get_device_addr(char *addr, int len)
     return 0;
 }
 
+int rk_bt_source_resume()
+{
+    return app_av_resume();
+}
+
+int rk_bt_source_stop()
+{
+    return app_av_stop();
+}
+
+int rk_bt_source_pause()
+{
+    return app_av_pause();
+}
+
+int rk_bt_source_vol_up()
+{
+    return app_av_vol_up();
+}
+
+int rk_bt_source_vol_down()
+{
+    return app_av_vol_down();
+}
+
 /*****************************************************************
  *                     BLUETOOTH SPP API                         *
  *****************************************************************/
