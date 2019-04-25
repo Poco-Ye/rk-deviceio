@@ -2829,50 +2829,14 @@ static int a2dp_master_get_rssi(GDBusProxy *proxy)
 
 static int a2dp_master_get_playrole(GDBusProxy *proxy)
 {
-	DBusMessageIter iter, value;
-	const char *text;
-	char str[26];
-	unsigned int n;
-	char *uuid;
 	int ret = BTSRC_SCAN_PROFILE_INVALID;
+	enum BT_Device_Class device_class;
 
-	if (g_dbus_proxy_get_property(proxy, "UUIDs", &iter) == FALSE)
-		return ret;
-
-	dbus_message_iter_recurse(&iter, &value);
-
-	while (dbus_message_iter_get_arg_type(&value) == DBUS_TYPE_STRING) {
-		dbus_message_iter_get_basic(&value, &uuid);
-
-		text = bt_uuidstr_to_str(uuid);
-		if (text) {
-			str[sizeof(str) - 1] = '\0';
-
-			n = snprintf(str, sizeof(str), "%s", text);
-			if (n > sizeof(str) - 1) {
-				str[sizeof(str) - 2] = '.';
-				str[sizeof(str) - 3] = '.';
-				if (str[sizeof(str) - 4] == ' ')
-					str[sizeof(str) - 4] = '.';
-
-				n = sizeof(str) - 1;
-			}
-
-			if (strstr(str, "Audio Sink")) {
-				if (dist_dev_class(proxy) == BT_Device_Class::BT_SINK_DEVICE) {
-					ret = BTSRC_SCAN_PROFILE_SINK;
-					break;
-				}
-			} else if (strstr(str, "Audio Source")) {
-				if (dist_dev_class(proxy) == BT_Device_Class::BT_SOURCE_DEVICE) {
-			        ret = BTSRC_SCAN_PROFILE_SOURCE;
-					break;
-				}
-			}
-		}
-
-		dbus_message_iter_next(&value);
-	}
+	device_class = dist_dev_class(proxy);
+	if (device_class == BT_Device_Class::BT_SINK_DEVICE)
+		ret = BTSRC_SCAN_PROFILE_SINK;
+	else if (device_class == BT_Device_Class::BT_SOURCE_DEVICE)
+		ret = BTSRC_SCAN_PROFILE_SOURCE;
 
 	return ret;
 }
