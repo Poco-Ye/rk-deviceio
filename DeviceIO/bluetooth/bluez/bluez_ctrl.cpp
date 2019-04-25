@@ -119,7 +119,7 @@ static void _bt_close_server()
 	}
 }
 
-static void _bt_open_server(const char *bt_name)
+static int _bt_open_server(const char *bt_name)
 {
 	char hostname_buf[HOSTNAME_MAX_LEN];
 	char cmd_buf[64 + HOSTNAME_MAX_LEN]; /* 64 for "hciconfig hci0 name" */
@@ -128,25 +128,27 @@ static void _bt_open_server(const char *bt_name)
 	RK_shell_exec("pidof bluetoothd", ret_buff, 1024);
 	if (ret_buff[0]) {
 		RK_LOGD("_bt_open_server bt has already opened\n");
-		return;
+		return 0;
 	}
 
 	RK_LOGD("[BT_OPEN] _bt_open_server \n");
-	_bt_close_server();
-
 	RK_shell_system("echo 0 > /sys/class/rfkill/rfkill0/state && sleep 2");
 	RK_shell_system("echo 1 > /sys/class/rfkill/rfkill0/state && usleep 200000");
 
 	RK_shell_system("insmod /usr/lib/modules/hci_uart.ko && usleep 300000");
 	RK_shell_exec("lsmod", ret_buff, 1024);
-	while (!strstr(ret_buff, "hci_uart"))
-		msleep(10);
+	if (!strstr(ret_buff, "hci_uart")) {
+		RK_LOGE("open bt server failed! error: insmod hci_uart.ko failed!\n");
+		return -1;
+	}
 
 	RK_shell_system("rtk_hciattach -n -s 115200 /dev/ttyS4 rtk_h5 &");
 	sleep(2);
 	RK_shell_exec("pidof rtk_hciattach", ret_buff, 1024);
-	while (!ret_buff[0])
-		msleep(10);
+	if (!ret_buff[0]) {
+		RK_LOGE("open bt server failed! error: rtk_hciattach failed!\n");
+		return -1;
+	}
 
 	//RK_shell_system("hcidump -i hci0 -w /tmp/h.log &");
 	//sleep(1);
@@ -155,8 +157,10 @@ static void _bt_open_server(const char *bt_name)
 	RK_shell_system("/usr/libexec/bluetooth/bluetoothd -C -n -d -E &");
 	sleep(2);
 	RK_shell_exec("pidof bluetoothd", ret_buff, 1024);
-	while (!ret_buff[0])
-		msleep(10);
+	if (!ret_buff[0]) {
+		RK_LOGE("open bt server failed! error: bluetoothd failed!\n");
+		return -1;
+	}
 
 	RK_shell_system("hciconfig hci0 up");
 	msleep(10);
@@ -183,6 +187,8 @@ static void _bt_open_server(const char *bt_name)
 	RK_shell_system("hciconfig hci0 up");
 	RK_shell_system("hciconfig hci0 up");
 	msleep(200);
+
+	return 0;
 }
 
 static int bt_ble_open(void)
@@ -195,7 +201,7 @@ static int bt_ble_open(void)
 	return 1;
 }
 
-static void bt_start_a2dp_source()
+static int bt_start_a2dp_source()
 {
 	char ret_buff[1024];
 
@@ -205,16 +211,20 @@ static void bt_start_a2dp_source()
 	msleep(500);
 	RK_shell_system("bluealsa --profile=a2dp-source &");
 	RK_shell_exec("pidof bluealsa", ret_buff, 1024);
-	while (!ret_buff[0])
-		msleep(10);
+	if (!ret_buff[0]) {
+		RK_LOGE("start a2dp source profile failed!\n");
+		return -1;
+	}
 
 	RK_shell_system("hciconfig hci0 class 0x480400");
 	msleep(100);
 	RK_shell_system("hciconfig hci0 class 0x480400");
 	msleep(100);
+
+	return 0;
 }
 
-static void bt_start_a2dp_sink()
+static int bt_start_a2dp_sink()
 {
 	char ret_buff[1024];
 
@@ -224,19 +234,25 @@ static void bt_start_a2dp_sink()
 	msleep(500);
 	RK_shell_system("bluealsa --profile=a2dp-sink &");
 	RK_shell_exec("pidof bluealsa", ret_buff, 1024);
-	while (!ret_buff[0])
-		msleep(10);
+	if (!ret_buff[0]) {
+		RK_LOGE("start a2dp sink profile failed!\n");
+		return -1;
+	}
 
 	RK_shell_system("bluealsa-aplay --profile-a2dp 00:00:00:00:00:00 &");
 	RK_shell_exec("pidof bluealsa-aplay", ret_buff, 1024);
-	while (!ret_buff[0])
-		msleep(10);
+	if (!ret_buff[0]) {
+		RK_LOGE("start a2dp sink play server failed!\n");
+		return -1;
+	}
 
 	RK_shell_system("hciconfig hci0 class 0x240404");
 	msleep(100);
 	RK_shell_system("hciconfig hci0 class 0x240404");
 	msleep(200);
 	RK_LOGD("bt_start_a2dp_sink exit\n");
+
+	return 0;
 }
 
 static int get_ps_pid(const char Name[])
