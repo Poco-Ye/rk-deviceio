@@ -1204,3 +1204,138 @@ static void RK_wifi_start_monitor(void *arg)
 		}
 	}
 }
+
+static void execute(const char cmdline[], char recv_buff[], int len)
+{
+	//printf("[AIRKISS] execute: %s\n", cmdline);
+
+	FILE *stream = NULL;
+	char *tmp_buff = recv_buff;
+
+	if ((stream = popen(cmdline, "r")) == NULL) {
+		printf("[AIRKISS] execute: %s failed\n", cmdline);
+		return;
+	}
+
+	if (recv_buff == NULL) {
+		pclose(stream);
+		return;
+	}
+
+	memset(recv_buff, 0, len);
+	while (fgets(tmp_buff, len, stream)) {
+		tmp_buff += strlen(tmp_buff);
+		len -= strlen(tmp_buff);
+		if (len <= 1) {
+			printf("[AIRKISS] overflow, please enlarge recv_buff\n");
+			break;
+		}
+	}
+	pclose(stream);
+}
+
+static int start_airkiss()
+{
+	int ret = -1, cnt = 3;
+
+	while(cnt--) {
+		system("rm /tmp/airkiss.conf");
+		system("killall rk_airkiss");
+		usleep(500000);
+		system("rk_airkiss &");
+		usleep(500000);
+
+		if(get_pid("rk_airkiss") > 0) {
+			printf("[AIRKISS] start rk_airkiss success, cnt: %d\n", cnt);
+			ret = 0;
+			break;
+		}
+	}
+
+	return ret;
+}
+
+static bool check_airkiss_conf()
+{
+	int wait_cnt = 60;
+	bool file_exist = false;
+
+	while (wait_cnt--) {
+		printf("[AIRKISS] check airkiss conf, wait_cnt: %d\n", wait_cnt);
+		if (access("/tmp/airkiss.conf", F_OK) == 0) {
+			printf("[AIRKISS] geted airkiss data\n");
+			file_exist = true;
+			break;
+		}
+		sleep(1);
+	}
+
+	return file_exist;
+}
+
+static void get_airkiss_ssid_password(char *ssid, char *password)
+{
+	char *cp;
+	char ret_buf[1024];
+
+	/*
+	 * cat /tmp/airkiss.conf
+	 * rk_ssid=<unknown ssid>
+	 * rk_password=cccccc
+	 */
+	execute("cat /tmp/airkiss.conf | grep rk_ssid", ret_buf, 1024);
+	printf("[AIRKISS] ssid ret_buf: %s\n", ret_buf);
+	if (cp = strstr(ret_buf, "=")) {
+		strcpy(ssid, cp + 1);
+		ssid[strlen(ssid) - 1] = '\0';
+	}
+
+	execute("cat /tmp/airkiss.conf | grep rk_password", ret_buf, 1024);
+	printf("[AIRKISS] password ret_buf: %s\n", ret_buf);
+	if (cp = strstr(ret_buf, "=")) {
+		strcpy(password, cp + 1);
+		password[strlen(password) - 1] = '\0';
+	}
+
+	printf("[AIRKISS] SSID: %s[%d], PSK: %s[%d]\n", ssid, strlen(ssid), password, strlen(password));
+}
+
+static int RK_wifi_rtl_airkiss_config(char *ssid, char *password)
+{
+	int reset_cnt = 1;
+	bool file_exist = false;
+
+	printf("=== %s ===\n", __func__);
+
+retry:
+	if(start_airkiss() < 0) {
+		printf("[AIRKISS] start rk_airkiss failed\n");
+		return -1;
+	}
+
+	file_exist = check_airkiss_conf();
+
+	if ((!file_exist) && (--reset_cnt)) {
+		printf("[AIRKISS] geted airkiss data failed, reset_cnt: %d\n", reset_cnt);
+		goto retry;
+	}
+
+	if (!file_exist) {
+		printf("[AIRKISS] don't get airkiss data\n");
+		system("killall rk_airkiss");
+		return -1;
+	}
+
+	get_airkiss_ssid_password(ssid, password);
+	return 0;
+}
+
+int RK_wifi_airkiss_config(char *ssid, char *password)
+{
+#ifdef REALTEK
+	return RK_wifi_rtl_airkiss_config(ssid, password);
+#else
+	printf("Currently only supports realtek airkiss config\n");
+	return -1;
+#endif
+}

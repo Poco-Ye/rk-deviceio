@@ -53,6 +53,7 @@ int RK_wifi_get_hostname(char* name, int len);
 int RK_wifi_get_mac(char *wifi_mac);
 int RK_wifi_has_config(void);
 int RK_wifi_ping(void);
+int RK_wifi_airkiss_config(char *ssid, char *password);
 
 #ifdef __cplusplus
 }

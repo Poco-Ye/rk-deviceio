@@ -4,6 +4,7 @@ set(SRC_FILES
     DeviceIOTest.cpp
     bt_test.cpp
     rk_ble_app.c
+    rk_wifi_test.c
 )
 
 add_executable(deviceio_test ${SRC_FILES})
