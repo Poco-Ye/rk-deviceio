@@ -312,6 +312,39 @@ int app_av_resume(void);
 
 /*******************************************************************************
  **
+ ** Function         app_av_vol_up
+ **
+ ** Description      volume up
+ **
+ ** Returns          0 if successful, error code otherwise
+ **
+ *******************************************************************************/
+int app_av_vol_up(void);
+
+/*******************************************************************************
+ **
+ ** Function         app_av_vol_down
+ **
+ ** Description      volume down
+ **
+ ** Returns          0 if successful, error code otherwise
+ **
+ *******************************************************************************/
+int app_av_vol_down(void);
+
+/*******************************************************************************
+**
+** Function         app_av_rc_send_click
+**
+** Description      Send press and release states of a command
+**
+** Returns          void
+**
+*******************************************************************************/
+void app_av_rc_send_click(int index, int command);
+
+/*******************************************************************************
+ **
  ** Function         app_av_rc_send_command
  **
  ** Description      Example of Send a RemoteControl command
@@ -319,7 +352,7 @@ int app_av_resume(void);
  ** Returns          0 if successful, error code otherwise
  **
  *******************************************************************************/
-int app_av_rc_send_command(int index, int command);
+int app_av_rc_send_command(int index, int command, tBSA_AV_STATE key_state);
 
 /*******************************************************************************
  **
