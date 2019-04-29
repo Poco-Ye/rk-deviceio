@@ -5,6 +5,10 @@ file(GLOB_RECURSE DeviceIo_wifi "${DeviceIo_SOURCE_DIR}/src/linux/wifi/*.cpp")
 file(GLOB_RECURSE DeviceIo_netlink "${DeviceIo_SOURCE_DIR}/src/linux/netlink/*.cpp")
 file(GLOB_RECURSE DeviceIo_encode "${DeviceIo_SOURCE_DIR}/src/linux/encode/*.cpp")
 
+if(REALTEK)
+add_definitions(-DREALTEK)
+endif()
+
 if(BLUEZ)
 message("build bluez...")
 add_definitions(-DBLUEZ5_UTILS)
@@ -93,3 +97,9 @@ add_definitions("-Wall -g -O0 -fpermissive")
 
 # install target
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
+install(FILES "${DeviceIo_SOURCE_DIR}/src/linux/wifi/rk_airkiss"
+        DESTINATION bin
+        PERMISSIONS
+          OWNER_READ OWNER_WRITE OWNER_EXECUTE
+          GROUP_READ GROUP_EXECUTE
+          WORLD_READ WORLD_EXECUTE)

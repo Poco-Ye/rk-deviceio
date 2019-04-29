@@ -27,9 +27,11 @@
 
 #include "bt_test.h"
 #include "rk_ble_app.h"
+#include "rk_wifi_test.h"
 
 static void deviceio_test_bluetooth();
 static void deviceio_test_blewifi();
+static void deviceio_test_airkiss();
 
 typedef struct {
 	const char *cmd;
@@ -40,6 +42,7 @@ typedef struct {
 static menu_command_t menu_command_table[] = {
 	{"bluetooth", "show bluetooth test cmd menu", deviceio_test_bluetooth},
 	{"blewifi", "start ble wifi config", deviceio_test_blewifi},
+	{"airkiss", "start airkiss wifi config", deviceio_test_airkiss},
 };
 
 typedef struct {
@@ -119,6 +122,11 @@ static void deviceio_test_bluetooth()
 static void deviceio_test_blewifi()
 {
 	rk_ble_wifi_init();
+}
+
+static void deviceio_test_airkiss()
+{
+	rk_wifi_airkiss();
 }
 
 int main(int argc, char *argv[])
