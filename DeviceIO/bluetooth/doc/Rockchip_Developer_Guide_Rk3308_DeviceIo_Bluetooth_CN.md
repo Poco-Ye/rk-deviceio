@@ -28,16 +28,13 @@ RK3308
 
 软件开发工程师
 
-**对应DeviceIo库版本**
-
-V1.2.0
-
 **修订记录**
 
-| **日期**  | **版本** | **作者** | **修改说明** |
-| ---------| -------- | -------- | ---------- |
-| 2019-3-27 | V1.0     | francis.fan | 初始版本     |
-| 2019-4-16 | V1.1 | francis.fan | 新增BLE配网Demo<br />修复BtSource接口<br />修复文档排版 |
+| **日期**  | **文档版本** | 库版本 | **作者** | **修改说明** |
+| ---------| -------- | -------- | ---------- | ---------- |
+| 2019-3-27 | V1.0     | V1.0.x / V1.1.x | francis.fan | 初始版本（BLUEZ only） |
+| 2019-4-16 | V1.1 | V1.2.0 | francis.fan | 新增BLE配网Demo<br />修复BtSource接口<br />新增BSA库的支持<br />修复文档排版 |
+| 2019-4-29 | V1.2 | V1.2.1 | francis.fan | 修复BSA分支deviceio_test测试失败<br />修复BLUEZ初始化失败程序卡住的BUG<br />修改A2DP SOURCE 获取playrole方法 |
 
 ---
 
@@ -110,17 +107,17 @@ V1.2.0
 
   BLE状态回调函数。
 
-- `int rk_ble_register_status_callback(RK_BLE_STATE_CALLBACK cb)`
-
-  该接口用于注册获取BLE连接状态的回调函数。cb声明的类型为：
-
 - `typedef void (*RK_BLE_RECV_CALLBACK)(const char *uuid, char *data, int len)`
 
   BLE接收回调函数。uuid：CHR UUID，data：数据指针，len：数据长度。
 
+- `int rk_ble_register_status_callback(RK_BLE_STATE_CALLBACK cb)`
+
+  该接口用于注册获取BLE连接状态的回调函数。
+
 - `int rk_ble_register_recv_callback(RK_BLE_RECV_CALLBACK cb)`
 
-  该接口用于注册接收BLE数据的回调函数。若是基于BlueZ架构，则接收回调函数在rk_bt_init中注册。
+  该接口用于注册接收BLE数据的回调函数。存在两种注册接收回调函数的方法：一种是通过rk_bt_init()接口的RkBtContent 参数进行指定；另一种是调用该接口进行注册。BLUEZ两种方式均可用，而对BSA来说只能使用该接口注册接收回调函数。
 
 - `int rk_ble_start(RkBleContent *ble_content)`
 
@@ -383,110 +380,112 @@ V1.2.0
 
 - void bt_test_init_open(void *data)
 
-	蓝牙测试初始化，执行蓝牙测试前，先调用该接口。
+  蓝牙测试初始化，执行蓝牙测试前，先调用该接口。BLE的接收和数据请求回调函数的注册。
+
+  *注：BLE 读数据是通过注册回调函数实现。当BLE连接收到数据主动调用接收回调函数。具体请参见*RkBtContent 结构说明和rk_ble_register_recv_callback函数说明。
 
 - void bt_test_ble_start(void *data)
 
-	启动BLE。设备被动连接后，收到“Hello RockChip”，回应“My name is rk3308”。
+  启动BLE。设备被动连接后，收到“Hello RockChip”，回应“My name is rk3308”。
 
 - void bt_test_ble_write(void *data)
 
-	测试BLE写功能，发送134个‘0’-‘9’组成的字符串。
+  测试BLE写功能，发送134个‘0’-‘9’组成的字符串。
 
 - void bt_test_ble_get_status(void *data)
 
-	测试BLE状态接口。
+  测试BLE状态接口。
 
 - void bt_test_ble_stop(void *data)
 
-	停止BLE。
+  停止BLE。
 
 - void bt_test_sink_open(void *data)
 
-	打开 A2DP Sink 模式。
+  打开 A2DP Sink 模式。
 
 - void bt_test_sink_visibility00(void *data)
 
-	设置 A2DP Sink 不可见、不可连接。
+  设置 A2DP Sink 不可见、不可连接。
 
 - void bt_test_sink_visibility01(void *data)
 
-	设置 A2DP Sink 可见、不可连接。
+  设置 A2DP Sink 可见、不可连接。
 
 - void bt_test_sink_visibility10(void *data)
 
-	设置 A2DP Sink 不可见、可连接。
+  设置 A2DP Sink 不可见、可连接。
 
 - void bt_test_sink_visibility11(void *data)
 
-	设置 A2DP Sink 可见、可连接。
+  设置 A2DP Sink 可见、可连接。
 
 - void bt_test_sink_music_play(void *data)
 
-	反向控制设备播放。
+  反向控制设备播放。
 
 - void bt_test_sink_music_pause(void *data)
 
-	反向控制设备暂停。
+  反向控制设备暂停。
 
 - void bt_test_sink_music_next(void *data)
 
-	反向控制设备播放下一曲。
+  反向控制设备播放下一曲。
 
 - void bt_test_sink_music_previous(void *data)
 
-	反向控制设备播放上一曲。
+  反向控制设备播放上一曲。
 
 - void bt_test_sink_music_stop(void *data)
 
-	反向控制设备停止播放。
+  反向控制设备停止播放。
 
 - void bt_test_sink_reconnect_enable(void *data)
 
-	使能 A2DP Sink 自动连接功能。
+  使能 A2DP Sink 自动连接功能。
 
 - void bt_test_sink_reconnect_disenable(void *data)
 
-	禁用 A2DP Sink 自动连接功能。
+  禁用 A2DP Sink 自动连接功能。
 
 - void bt_test_sink_disconnect(void *data)
 
-	A2DP Sink 断开链接。
+  A2DP Sink 断开链接。
 
 - void bt_test_sink_close(void *data)
 
-	关闭 A2DP Sink 服务。
+  关闭 A2DP Sink 服务。
 
 - void bt_test_sink_status(void *data)
 
-	查询 A2DP Sink 连接状态。
+  查询 A2DP Sink 连接状态。
 
 - void bt_test_source_auto_start(void *data)
 
-	A2DP Source 自动扫描开始。
+  A2DP Source 自动扫描开始。
 
 - void bt_test_source_auto_stop(void *data)
 
-	A2DP Source 自动扫描接口停止。
+  A2DP Source 自动扫描接口停止。
 
 - void bt_test_source_connect_status(void *data)
-	获取 A2DP Source 连接状态。
+  获取 A2DP Source 连接状态。
 
 - void bt_test_spp_open(void *data)
 
-	打开SPP。
+  打开SPP。
 
 - void bt_test_spp_write(void *data)
 
-	测试SPP写功能。向对端发送“This is a message from rk3308 board！”字串。
+  测试SPP写功能。向对端发送“This is a message from rk3308 board！”字串。
 
 - void bt_test_spp_close(void *data)
 
-	关闭SPP。
+  关闭SPP。
 
 - void bt_test_spp_status(void *data)
 
-	查询SPP连接状态。
+  查询SPP连接状态。
 
 #### 5.2.2 测试步骤 ####
 

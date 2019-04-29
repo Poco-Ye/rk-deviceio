@@ -6,6 +6,10 @@ extern "C" {
 #endif
 
 /*
+ *Version 1.2.1 Release 2019/04/29
+  1.deviceio_test blewifi: register ble data recv callback(BSA)
+  2.fix bug with program stuck when starting bluetooth related service(BLUEZ)
+  3.fixed a bug that failed to get a bluetooth device role(BLUEZ)
  *Version 1.2.0 Release 2019/04/15
   1. bluethood api: add support for bsa.
   2. add support for deviceio_test.
@@ -41,7 +45,7 @@ extern "C" {
  *Version 1.0.0 Release 2018/12/22
  */
 
-#define DEVICEIO_VERSION "V1.2.0"
+#define DEVICEIO_VERSION "V1.2.1"
 
 int RK_read_chip_id(char *buffer, const int size);
 int RK_read_version(char *buffer, const int size);
