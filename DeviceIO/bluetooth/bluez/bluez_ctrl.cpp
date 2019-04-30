@@ -124,6 +124,7 @@ static int _bt_open_server(const char *bt_name)
 	char hostname_buf[HOSTNAME_MAX_LEN];
 	char cmd_buf[64 + HOSTNAME_MAX_LEN]; /* 64 for "hciconfig hci0 name" */
 	char ret_buff[1024];
+	char bt_buff[1024];
 
 	RK_shell_exec("pidof bluetoothd", ret_buff, 1024);
 	if (ret_buff[0]) {
@@ -135,19 +136,45 @@ static int _bt_open_server(const char *bt_name)
 	RK_shell_system("echo 0 > /sys/class/rfkill/rfkill0/state && sleep 2");
 	RK_shell_system("echo 1 > /sys/class/rfkill/rfkill0/state && usleep 200000");
 
-	RK_shell_system("insmod /usr/lib/modules/hci_uart.ko && usleep 300000");
-	RK_shell_exec("lsmod", ret_buff, 1024);
-	if (!strstr(ret_buff, "hci_uart")) {
-		RK_LOGE("open bt server failed! error: insmod hci_uart.ko failed!\n");
-		return -1;
+	if (access("/usr/bin/bt_init.sh", F_OK)) {
+		RK_LOGE("[BT_OPEN]  bt_init.sh not exist !!!\n");
+		if (access("/userdata/bt_pcba_test", F_OK)) {
+			RK_LOGE("[BT_OPEN] userdata bt_pcba_test not exist !!!\n");
+			return -1;
+		}
 	}
 
-	RK_shell_system("rtk_hciattach -n -s 115200 /dev/ttyS4 rtk_h5 &");
-	sleep(2);
-	RK_shell_exec("pidof rtk_hciattach", ret_buff, 1024);
-	if (!ret_buff[0]) {
-		RK_LOGE("open bt server failed! error: rtk_hciattach failed!\n");
-		return -1;
+	RK_shell_exec("cat /usr/bin/bt_init.sh | grep rtk_hciattach", bt_buff, 1024);
+	if (bt_buff[0]) {
+		RK_shell_system("insmod /usr/lib/modules/hci_uart.ko && usleep 300000");
+		RK_shell_exec("lsmod", ret_buff, 1024);
+		if (!strstr(ret_buff, "hci_uart")) {
+			RK_LOGE("open bt server failed! error: insmod hci_uart.ko failed!\n");
+			return -1;
+		}
+
+		RK_LOGE("bt_buff: %s \n", bt_buff);
+		RK_shell_system(bt_buff);
+
+		sleep(2);
+
+		RK_shell_exec("pidof rtk_hciattach", ret_buff, 1024);
+		if (!ret_buff[0]) {
+			RK_LOGE("open bt server failed! error: rtk_hciattach failed!\n");
+			return -1;
+		}
+	}
+
+	RK_shell_exec("cat /usr/bin/bt_init.sh | grep brcm_patchram_plus1", bt_buff, 1024);
+	if (bt_buff[0]) {
+		RK_LOGE("bt_buff: %s \n", bt_buff);
+		RK_shell_system(bt_buff);
+		sleep(2);
+		RK_shell_exec("pidof brcm_patchram_plus1", ret_buff, 1024);
+		if (!ret_buff[0]) {
+			RK_LOGE("open bt server failed! error: brcm_patchram_plus1 failed!\n");
+			return -1;
+		}
 	}
 
 	//RK_shell_system("hcidump -i hci0 -w /tmp/h.log &");
