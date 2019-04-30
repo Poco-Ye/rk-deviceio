@@ -1,4 +1,4 @@
-# Rk3308 WIFI Interface Documentation #
+# RockChip DeviceIo WIFI Interface Documentation #
 
 ---
 
@@ -14,11 +14,7 @@
 
 **概述**
 
-该文档旨在介绍RK3308 DeviceIo库中接口。
-
-**芯片名称**
-
-RK3308
+该文档旨在介绍RockChip DeviceIo库中WiFi相关接口。
 
 **读者对象**
 
@@ -27,8 +23,6 @@ RK3308
 技术支持工程师
 
 软件开发工程师
-
-
 
 **修订记录**
 

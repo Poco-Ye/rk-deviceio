@@ -1,12 +1,12 @@
-# Rk3308 Bluetooth Interface Documentation #
+# RockChip DeviceIo Bluetooth Interface Documentation #
 
 ---
 
-发布版本：1.1
+发布版本：1.2
 
 作者：francis.fan
 
-日期：2019.3.27
+日期：2019.4.29
 
 文件密级：公开资料
 
@@ -14,11 +14,7 @@
 
 **概述**
 
-该文档旨在介绍RK3308 DeviceIo库中蓝牙操作接口。
-
-**芯片名称**
-
-RK3308
+该文档旨在介绍RockChip DeviceIo库的蓝牙接口。
 
 **读者对象**
 
@@ -30,8 +26,8 @@ RK3308
 
 **修订记录**
 
-| **日期**  | **文档版本** | 库版本 | **作者** | **修改说明** |
-| ---------| -------- | -------- | ---------- | ---------- |
+| **日期**  | **文档版本** | 对应库版本 | **作者** | **修改说明** |
+| ---------| -------- | :------- | ---------- | ---------- |
 | 2019-3-27 | V1.0     | V1.0.x / V1.1.x | francis.fan | 初始版本（BLUEZ only） |
 | 2019-4-16 | V1.1 | V1.2.0 | francis.fan | 新增BLE配网Demo<br />修复BtSource接口<br />新增BSA库的支持<br />修复文档排版 |
 | 2019-4-29 | V1.2 | V1.2.1 | francis.fan | 修复BSA分支deviceio_test测试失败<br />修复BLUEZ初始化失败程序卡住的BUG<br />修改A2DP SOURCE 获取playrole方法 |
@@ -364,13 +360,13 @@ RK3308
 
 ###5.1 编译说明###
 
-1、在SDK根目录下执行`make deviceio-dirclean && make deviceio -j4`，编译成功会提示如下log（截取部分）
--- Installing: /home/rk3308/buildroot/output/target/usr/lib/librkmediaplayer.so
--- Installing: /home/rk3308/buildroot/output/target/usr/lib/libDeviceIo.so
--- Installing: /home/rk3308/buildroot/output/target/usr/include/DeviceIo/Rk_battery.h
--- Installing: /home/rk3308/buildroot/output/target/usr/include/DeviceIo/RK_timer.h
--- Installing: /home/rk3308/buildroot/output/target/usr/include/DeviceIo/Rk_wake_lock.h
--- Installing: /home/rk3308/buildroot/output/target/usr/bin/deviceio_test
+1、在SDK根目录下执行`make deviceio-dirclean && make deviceio -j4`，编译成功会提示如下log（注：仅截取部分，rk-xxxx对应具体的工程根目录）
+-- Installing: /home/rk-xxxx/buildroot/output/target/usr/lib/librkmediaplayer.so
+-- Installing: /home/rk-xxxx/buildroot/output/target/usr/lib/libDeviceIo.so
+-- Installing: /home/rk-xxxx/buildroot/output/target/usr/include/DeviceIo/Rk_battery.h
+-- Installing: /home/rk-xxxx/buildroot/output/target/usr/include/DeviceIo/RK_timer.h
+-- Installing: /home/rk-xxxx/buildroot/output/target/usr/include/DeviceIo/Rk_wake_lock.h
+-- Installing: /home/rk-xxxx/buildroot/output/target/usr/bin/deviceio_test
 
 2、执行./build.sh生成新固件，然后将新固件烧写到设备中。
 
@@ -386,7 +382,7 @@ RK3308
 
 - void bt_test_ble_start(void *data)
 
-  启动BLE。设备被动连接后，收到“Hello RockChip”，回应“My name is rk3308”。
+  启动BLE。设备被动连接后，收到“Hello RockChip”，回应“My name is rockchip”。
 
 - void bt_test_ble_write(void *data)
 
@@ -477,7 +473,7 @@ RK3308
 
 - void bt_test_spp_write(void *data)
 
-  测试SPP写功能。向对端发送“This is a message from rk3308 board！”字串。
+  测试SPP写功能。向对端发送“This is a message from rockchip board！”字串。
 
 - void bt_test_spp_close(void *data)
 
@@ -493,7 +489,7 @@ RK3308
 
 ```
 # deviceio_test bluethood
-version:V1.1.0
+version:V1.2.1
 #### Please Input Your Test Command Index ####
 00.   
 01.  bt_server_open 
@@ -537,17 +533,21 @@ Which would you like:02
 
 ### 5.3 BLE配网演示程序
 
-1、手机端安装external/deviceio/test/apk/Rkble.apk
+1、手机端安装external/deviceio/test/apk/Rkble.apk。
 
-2、设备端执行`DeviceIOTest blewifi`
+2、设备端执行`wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf &`
 
-3、打开手机端Rkble.apk，直接点击“CONTINUE”按钮（默认为BLE配网）。
+3、ps命令查看第2步进程在后台运行。
 
-4、点击“START SCAN”按钮，扫描ble设备。扫描到名为RockChipBle的设备，点击名称进行连接。
+4、设备端执行`DeviceIOTest blewifi`
 
-5、BLE连接成功后，会进入密码提示窗口。当前APK默认选中手机已连接的WIFI名称，若要主动选择则需点击“>>”按钮，弹窗显示设备端扫描到的wifi列表。选择你想要设置的网络名称。
+5、打开手机端Rkble.apk，直接点击“CONTINUE”按钮（默认为BLE配网）。
 
-6、输入密码，点击“Confirm”按钮，配网成功后APK界面下端会有弹窗提示配网成功或失败消息。
+6、点击“START SCAN”按钮，扫描ble设备。扫描到名为RockChipBle的设备，点击名称进行连接。
+
+7、BLE连接成功后，会进入密码提示窗口。当前APK默认选中手机已连接的WIFI名称，若要主动选择则需点击“>>”按钮，弹窗显示设备端扫描到的wifi列表。选择你想要设置的网络名称。
+
+8、输入密码，点击“Confirm”按钮，配网成功后APK界面下端会有弹窗提示配网成功或失败消息。
 
 *注：external/deviceio/test/apk/Rkble.zip为Rkble.apk源码*
 

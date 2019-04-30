@@ -250,7 +250,7 @@ static void ble_status_callback_test(RK_BLE_STATE state)
 static void bt_test_ble_recv_data_callback(const char *uuid, char *data, int len)
 {
 	char data_t[512];
-	char reply_buf[512] = {"My name is rk3308"};
+	char reply_buf[512] = {"My name is rockchip"};
 
 	printf("=== %s uuid: %s===\n", __func__, uuid);
 	memcpy(data_t, data, len);
@@ -351,7 +351,7 @@ void bt_test_spp_open(void *data)
 void bt_test_spp_write(void *data)
 {
 	int ret = 0;
-	char buff[100] = {"This is a message from rk3308 board!"};
+	char buff[100] = {"This is a message from rockchip board!"};
 
 	ret = rk_bt_spp_write(buff, strlen(buff));
 	if (ret != strlen(buff)) {
