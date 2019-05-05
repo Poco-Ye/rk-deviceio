@@ -94,12 +94,3 @@ target_include_directories(DeviceIo PUBLIC
 		"${RAPIDJSON_INCLUDE_DIR}")
 
 add_definitions("-Wall -g -O0 -fpermissive")
-
-# install target
-install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
-install(FILES "${DeviceIo_SOURCE_DIR}/src/linux/wifi/rk_airkiss"
-        DESTINATION bin
-        PERMISSIONS
-          OWNER_READ OWNER_WRITE OWNER_EXECUTE
-          GROUP_READ GROUP_EXECUTE
-          WORLD_READ WORLD_EXECUTE)
