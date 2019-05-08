@@ -441,7 +441,7 @@ int rk_bt_sink_close(void)
 {
 	bt_close_sink();
 
-	return 1;
+	return 0;
 }
 
 int rk_bt_sink_get_state(RK_BT_SINK_STATE *pState)
@@ -550,7 +550,13 @@ int rk_bt_init(RkBtContent *p_bt_content)
 	rk_bt_control(BtControl::BT_OPEN, p_bt_content, sizeof(RkBtContent));
 	sleep(1);
 
-	return 1;
+	return 0;
+}
+
+int rk_bt_deinit()
+{
+	printf("bluez don't support bt deinit\n");
+	return -1;
 }
 
 /*

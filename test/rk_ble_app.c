@@ -297,7 +297,7 @@ int rk_ble_request_data_cb(const char *uuid)
 	return 0;
 }
 
-void rk_ble_wifi_init()
+void rk_ble_wifi_init(void *data)
 {
 	RkBtContent bt_content;
 
@@ -324,4 +324,11 @@ void rk_ble_wifi_init()
 	sleep(3);
 	printf(">>>>> Start ble ....\n");
 	rk_ble_start(&bt_content.ble_content);
+}
+
+void rk_ble_wifi_deinit(void *data)
+{
+	rk_ble_stop();
+	sleep(3);
+	rk_bt_deinit();
 }

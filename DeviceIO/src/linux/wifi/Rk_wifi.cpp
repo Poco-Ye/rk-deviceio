@@ -1300,7 +1300,7 @@ static void get_airkiss_ssid_password(char *ssid, char *password)
 	printf("[AIRKISS] SSID: %s[%d], PSK: %s[%d]\n", ssid, strlen(ssid), password, strlen(password));
 }
 
-static int RK_wifi_rtl_airkiss_config(char *ssid, char *password)
+static int RK_wifi_rtl_airkiss_start(char *ssid, char *password)
 {
 	int reset_cnt = 1;
 	bool file_exist = false;
@@ -1330,12 +1330,27 @@ retry:
 	return 0;
 }
 
-int RK_wifi_airkiss_config(char *ssid, char *password)
+static void RK_wifi_rtl_airkiss_stop()
+{
+	system("rm /tmp/airkiss.conf");
+	system("killall rk_airkiss");
+}
+
+int RK_wifi_airkiss_start(char *ssid, char *password)
 {
 #ifdef REALTEK
-	return RK_wifi_rtl_airkiss_config(ssid, password);
+	return RK_wifi_rtl_airkiss_start(ssid, password);
 #else
 	printf("Currently only supports realtek airkiss config\n");
 	return -1;
+#endif
+}
+
+void RK_wifi_airkiss_stop()
+{
+#ifdef REALTEK
+	return RK_wifi_rtl_airkiss_stop();
+#else
+	printf("Currently only supports realtek airkiss config\n");
 #endif
 }
