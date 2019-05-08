@@ -25,14 +25,15 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/prctl.h>
 #include <unistd.h>
 #include "rapidjson/rapidjson.h"
 #include "rapidjson/document.h"
 #include "rapidjson/filereadstream.h"
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/prettywriter.h"
+#include <DeviceIo/Rk_wifi.h>
 #include "TcpServer.h"
-#include <sys/prctl.h>
 
 #define REQUEST_WIFI_LIST					"/provision/wifiListInfo"
 #define REQUEST_WIFI_SET_UP					"/provision/wifiSetup"
@@ -43,6 +44,11 @@
 static char HTTP_RESPOSE_MESSAGE[] = "HTTP/1.1 200 OK\r\nContent-Type:text/html\r\nContent-Length:%d\r\n\r\n%s";
 
 namespace DeviceIOFramework {
+
+static bool m_isConnecting = false;
+static RK_SOFTAP_STATE_CALLBACK m_cb = NULL;
+static RK_SOFTAP_STATE m_state = RK_SOFTAP_STATE_IDLE;
+static int fd_server = -1;
 
 TcpServer* TcpServer::m_instance;
 TcpServer* TcpServer::getInstance() {
@@ -60,14 +66,20 @@ TcpServer* TcpServer::getInstance() {
 TcpServer::TcpServer() {
 	m_wifiManager = WifiManager::getInstance();
 	m_thread = 0;
+	m_state = RK_SOFTAP_STATE_IDLE;
 }
 
 bool TcpServer::isRunning() {
 	return (m_thread > 0);
 }
 
+static void sendState(RK_SOFTAP_STATE state, const char* data) {
+	if(m_cb != NULL)
+		m_cb(state, data);
+}
+
 static int initSocket(const unsigned int port) {
-	int ret, fd_socket, val;
+	int ret, fd_socket, val = 1;
 	struct sockaddr_in server_addr;
 
 	/* create a socket */
@@ -86,7 +98,7 @@ static int initSocket(const unsigned int port) {
 		return -2;
 	}
 
-	/*  initialize server address */
+	/* initialize server address */
 	bzero(&server_addr, sizeof(server_addr));
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -114,30 +126,56 @@ static bool sendWifiList(const int fd, const char* buf) {
 	std::list<ScanResult*> scanResults;
 	std::list<ScanResult*>::iterator iterator;
 	char msg[MSG_BUFF_LEN] = {0};
-	size_t size;
+	size_t i, size = 0;
 	std::string json;
 	json = "{\"type\":\"WifiList\", \"content\":[";
 
 	wifiManager = WifiManager::getInstance();
+
+scan_retry:
 	wifiManager->startScan();
 	sleep(1);
 	scanResults = wifiManager->getScanResults();
-	if ((size = scanResults.size()) > 0) {
-		size_t i;
-		for (iterator = scanResults.begin(), i = 0; iterator != scanResults.end(); iterator++, i++) {
-			ScanResult* item = *iterator;
-			json += item->toString();
 
-			if (i < size - 1) {
-				json += ", ";
-			}
+	size = scanResults.size();
+	if(size <= 0)
+		goto scan_retry;
+
+	for (iterator = scanResults.begin(), i = 0; iterator != scanResults.end(); iterator++, i++) {
+		ScanResult* item = *iterator;
+		json += item->toString();
+
+		if (i < size - 1) {
+			json += ", ";
 		}
 	}
+
 	json += "]}";
 
 	snprintf(msg, sizeof(msg), HTTP_RESPOSE_MESSAGE, strlen(json.c_str()), json.c_str());
-	if (send(fd, msg, sizeof(msg), 0) < 0)
+	if (send(fd, msg, sizeof(msg), 0) < 0) {
 		return false;
+	}
+
+	return true;
+}
+
+static bool isWifiConnected(const int fd, const char* buf) {
+	char msg[MSG_BUFF_LEN] = {0};
+	WifiManager* wifiManager;
+	bool isConn;
+
+	wifiManager = WifiManager::getInstance();
+	isConn = wifiManager->isWifiConnected();
+
+	memset(msg, 0, sizeof(msg));
+	snprintf(msg, sizeof(msg), HTTP_RESPOSE_MESSAGE, 1, isConn ? "1" : "0");
+
+	m_isConnecting = false;
+
+	if (send(fd, msg, sizeof(msg), 0) < 0) {
+		return false;
+	}
 
 	return true;
 }
@@ -163,6 +201,7 @@ static bool wifiSetup(const int fd, const char* buf) {
 	}
 	std::string ssid;
 	std::string psk;
+	//std::string userdata;
 	auto ssidIterator = document.FindMember("ssid");
 	if (ssidIterator != document.MemberEnd() && ssidIterator->value.IsString()) {
 		ssid = ssidIterator->value.GetString();
@@ -172,31 +211,33 @@ static bool wifiSetup(const int fd, const char* buf) {
 	if (pskIterator != document.MemberEnd() && pskIterator->value.IsString()) {
 		psk = pskIterator->value.GetString();
 	}
-
-	if(ssid.empty() || psk.empty()){
-		printf("userName or password empty. \n");
-		return;
+/*
+	auto dataIterator = document.FindMember("userdata");
+	if (dataIterator != document.MemberEnd() && dataIterator->value.IsString()) {
+		userdata = dataIterator->value.GetString();
 	}
+*/
+	printf("do connect ssid:\"%s\", psk:\"%s\", isConnecting:%d\n", ssid.c_str(), psk.c_str(), m_isConnecting);
 
-	wifiManager = WifiManager::getInstance();
-	wifiManager->connect(ssid, psk);
+	if(!m_isConnecting) {
+		if(ssid.empty() || psk.empty()){
+			printf("userName or password empty. \n");
+			return false;
+		}
 
-	return true;
-}
+		sendState(RK_SOFTAP_STATE_CONNECTTING, NULL/*userdata.c_str()*/);
+		m_state = RK_SOFTAP_STATE_CONNECTTING;
 
-static bool isWifiConnected(const int fd, const char* buf) {
-	char msg[MSG_BUFF_LEN] = {0};
-	WifiManager* wifiManager;
-	bool isConn;
+		wifiManager = WifiManager::getInstance();
+		int id = wifiManager->connect(ssid, psk);
+		if (0 != id) {
+			sendState(RK_SOFTAP_STATE_FAIL, NULL);
+			m_state = RK_SOFTAP_STATE_FAIL;
+			m_isConnecting = false;
+			return false;
+		}
 
-	wifiManager = WifiManager::getInstance();
-	isConn = wifiManager->isWifiConnected();
-
-	memset(msg, 0, sizeof(msg));
-	snprintf(msg, sizeof(msg), HTTP_RESPOSE_MESSAGE, 1, isConn ? "1" : "0");
-
-	if (send(fd, msg, sizeof(msg), 0) < 0) {
-		return false;
+		m_isConnecting = true;
 	}
 
 	return true;
@@ -227,8 +268,13 @@ static bool doConnectResult(const int fd, const char* buf) {
 		result = resultIterator->value.GetString();
 	}
 	if (0 == result.compare("1")) { // connect success, disable ap
+		sendState(RK_SOFTAP_STATE_SUCCESS, NULL);
+		m_state = RK_SOFTAP_STATE_SUCCESS;
 		wifiManager = WifiManager::getInstance();
 		wifiManager->disableWifiAp();
+	} else {
+		sendState(RK_SOFTAP_STATE_FAIL, NULL);
+		m_state = RK_SOFTAP_STATE_FAIL;
 	}
 
 	return true;
@@ -260,16 +306,16 @@ static void handleRequest(const int fd_client) {
 }
 
 void* TcpServer::threadAccept(void *arg) {
-	int fd_server, fd_client, port;
+	int fd_client, port;
 	struct sockaddr_in addr_client;
 	socklen_t len_addr_client;
 	len_addr_client = sizeof(addr_client);
 
-	port = *(int*) arg;
-	fd_server = initSocket(port);
-
 	prctl(PR_SET_NAME,"threadAccept");
 
+	port = *(int*) arg;
+
+	fd_server = initSocket(port);
 	if (fd_server < 0) {
 		printf("TcpServer::threadAccept init tcp socket port %d fail. error:%d\n", port, fd_server);
 		goto end;
@@ -285,10 +331,7 @@ void* TcpServer::threadAccept(void *arg) {
 	}
 
 end:
-	if (fd_server >= 0)
-		close(fd_server);
-	m_instance->m_thread = 0;
-
+	printf("Exit Tcp accept thread\n");
 	return NULL;
 }
 
@@ -307,8 +350,10 @@ int TcpServer::stopTcpServer() {
 	if (m_thread <= 0)
 		return 0;
 
-	if (0 != pthread_cancel(m_thread)) {
-		return -1;
+	if (fd_server >= 0) {
+		shutdown(fd_server, SHUT_RDWR);
+		close(fd_server);
+		fd_server = -1;
 	}
 
 	if (0 != pthread_join(m_thread, NULL)) {
@@ -316,7 +361,16 @@ int TcpServer::stopTcpServer() {
 	}
 
 	m_thread = 0;
+	printf("stopTcpServer success\n");
 	return 0;
+}
+
+void TcpServer::registerCallback(RK_SOFTAP_STATE_CALLBACK cb) {
+	m_cb = cb;
+}
+
+RK_SOFTAP_STATE TcpServer::getState() {
+	return m_state;
 }
 
 } // namespace framework

@@ -26,15 +26,7 @@
 #include <string>
 #include "DeviceIo/Properties.h"
 #include "DeviceIo/WifiManager.h"
-
-typedef enum {
-	FW_softAP_State_IDLE=0,
-	FW_softAP_State_CONNECTTING,
-	FW_softAP_State_SUCCESS,
-	FW_softAP_State_FAIL,
-	FW_softAP_State_DISCONNECT,
-} FW_softAP_State_e;
-typedef int (*FW_softap_state_callback)(FW_softAP_State_e state, const char* data);
+#include "DeviceIo/Rk_softap.h"
 
 namespace DeviceIOFramework {
 
@@ -49,7 +41,8 @@ public:
 	int startBroadcastThread(const unsigned int port = 9876);
 	int stopBroadcastThread();
 	int stopUdpServer();
-	int registerCallback(FW_softap_state_callback cb);
+	void registerCallback(RK_SOFTAP_STATE_CALLBACK cb);
+	RK_SOFTAP_STATE getState();
 
 	virtual ~UdpServer(){};
 private:
@@ -60,7 +53,7 @@ private:
 	static void* threadAccept(void* arg);
 	static void* threadBroadcast(void* arg);
 
-	/* TcpServer single instance */
+	/* UdpServer single instance */
 	static UdpServer* m_instance;
 	pthread_t m_thread;
 	pthread_t m_thread_broadcast;

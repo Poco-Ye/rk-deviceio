@@ -21,7 +21,7 @@ static bool isRunning(DeviceIOFramework::TcpServer* server)
 	return isRun;
 }
 
-static int state_callback(RK_softAP_State_e state)
+static int state_callback(RK_SOFTAP_STATE state, const char* data)
 {
 	printf("State called back %d.\n", state);
 
@@ -42,11 +42,11 @@ static int startTcpServer(DeviceIOFramework::TcpServer* server, const unsigned i
 	// register state callback first
 	RK_softap_register_callback(state_callback);
 	// start softap
-	RK_softap_start("Rockchip-Echo-SoftAp");
+	RK_softap_start("Rockchip-Echo-SoftAp", RK_SOFTAP_TCP_SERVER);
 
 	int len;
 	char data[512];
-	RK_softAP_State_e state;
+	RK_SOFTAP_STATE state;
 
 	// loop to get state for test
 	/*for (;;) {

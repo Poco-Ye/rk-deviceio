@@ -25,15 +25,15 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/prctl.h>
 #include <unistd.h>
 #include "rapidjson/rapidjson.h"
 #include "rapidjson/document.h"
 #include "rapidjson/filereadstream.h"
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/prettywriter.h"
-#include "UdpServer.h"
 #include <DeviceIo/Rk_wifi.h>
-#include <sys/prctl.h>
+#include "UdpServer.h"
 
 const char* MSG_BROADCAST_AP_MODE = "{\"method\":\"softAP\", \"magic\":\"KugouMusic\", \"params\":\"ap_wifi_mode\"}";
 const char* MSG_WIFI_CONNECTING = "{\"method\":\"softAP\", \"magic\":\"KugouMusic\", \"params\":\"wifi_connecting\"}";
@@ -45,9 +45,10 @@ namespace DeviceIOFramework {
 
 static std::string m_broadcastMsg = "";
 static bool m_isConnecting = false;
-static FW_softap_state_callback m_cb = NULL;
+static RK_SOFTAP_STATE_CALLBACK m_cb = NULL;
 static int m_fd_broadcast = -1;
 static sockaddr_in m_addrto;
+static RK_SOFTAP_STATE m_state = RK_SOFTAP_STATE_IDLE;
 
 UdpServer* UdpServer::m_instance;
 UdpServer* UdpServer::getInstance() {
@@ -67,10 +68,16 @@ UdpServer::UdpServer() {
 	m_thread_broadcast = -1;
 	m_thread = 0;
 	m_fd_broadcast = -1;
+	m_state = RK_SOFTAP_STATE_IDLE;
 }
 
 bool UdpServer::isRunning() {
 	return (m_thread >= 0);
+}
+
+static void sendState(RK_SOFTAP_STATE state, const char* data) {
+	if(m_cb != NULL)
+		m_cb(state, data);
 }
 
 static int initSocket(const unsigned int port) {
@@ -118,9 +125,10 @@ void* checkWifi(void *arg) {
 	m_broadcastMsg = (ret ? MSG_WIFI_CONNECTED : MSG_WIFI_FAILED);
 	printf("UDP broadcast sendto \"%s\"\n", m_broadcastMsg.c_str());
 	sendto(m_fd_broadcast, m_broadcastMsg.c_str(), strlen(m_broadcastMsg.c_str()), 0,
-                        (struct sockaddr*)&m_addrto, sizeof(m_addrto));
+			(struct sockaddr*)&m_addrto, sizeof(m_addrto));
 	m_isConnecting = false;
 	printf("Wifi connect result %d\n", ret ? 1 : 0);
+	return NULL;
 }
 
 static void handleRequest(const char* buff) {
@@ -145,14 +153,12 @@ static void handleRequest(const char* buff) {
 			para = params.GetString();
 			if (0 == strcmp(para.c_str(), "wifi_connected")) {
 				m_broadcastMsg = "";
-				if (m_cb != NULL) {
-					m_cb(FW_softAP_State_SUCCESS, NULL);
-				}
+				sendState(RK_SOFTAP_STATE_SUCCESS, NULL);
+				m_state = RK_SOFTAP_STATE_SUCCESS;
 			} else if (0 == strcmp(para.c_str(), "wifi_failed")) {
 				m_broadcastMsg = "";
-				if (m_cb != NULL) {
-					m_cb(FW_softAP_State_FAIL, NULL);
-				}
+				sendState(RK_SOFTAP_STATE_FAIL, NULL);
+				m_state = RK_SOFTAP_STATE_FAIL;
 			}
 			return;
 		}
@@ -179,6 +185,7 @@ static void handleRequest(const char* buff) {
 						fclose(fi);
 						break;
 					}
+					i--;
 					sleep(1);
 				}
 				wifilist = RK_wifi_scan_r_sec(0x14);
@@ -212,8 +219,8 @@ static void handleRequest(const char* buff) {
 				printf("UDP broadcast sendto \"%s\"\n", m_broadcastMsg.c_str());
 				sendto(m_fd_broadcast, m_broadcastMsg.c_str(), strlen(m_broadcastMsg.c_str()), 0,
 						(struct sockaddr*)&m_addrto, sizeof(m_addrto));
-				if (m_cb != NULL)
-					m_cb(FW_softAP_State_CONNECTTING, userdata.c_str());
+				sendState(RK_SOFTAP_STATE_CONNECTTING, userdata.c_str());
+				m_state = RK_SOFTAP_STATE_CONNECTTING;
 				WifiManager* wifiManager = WifiManager::getInstance();
 				int id = wifiManager->connect(ssid, passwd);
 				if (0 != id) {
@@ -221,9 +228,8 @@ static void handleRequest(const char* buff) {
 					m_broadcastMsg = MSG_WIFI_FAILED;
 					sendto(m_fd_broadcast, m_broadcastMsg.c_str(), strlen(m_broadcastMsg.c_str()), 0,
 							(struct sockaddr*)&m_addrto, sizeof(m_addrto));
-					if (m_cb != NULL) {
-						m_cb(FW_softAP_State_FAIL, NULL);
-					}
+					sendState(RK_SOFTAP_STATE_FAIL, NULL);
+					m_state = RK_SOFTAP_STATE_FAIL;
 					m_isConnecting = false;
 					return;
 				}
@@ -237,7 +243,7 @@ static void handleRequest(const char* buff) {
 }
 
 void* UdpServer::threadAccept(void *arg) {
-	int fd_server, fd_client, port;
+	int fd_server, port;
 	struct sockaddr_in addr_client;
 	socklen_t len_addr_client;
 	len_addr_client = sizeof(addr_client);
@@ -344,8 +350,12 @@ int UdpServer::startBroadcastThread(const unsigned int port) {
 	return ret;
 }
 
-int UdpServer::registerCallback(FW_softap_state_callback cb) {
+void UdpServer::registerCallback(RK_SOFTAP_STATE_CALLBACK cb) {
 	m_cb = cb;
+}
+
+RK_SOFTAP_STATE UdpServer::getState() {
+	return m_state;
 }
 
 int UdpServer::stopBroadcastThread() {

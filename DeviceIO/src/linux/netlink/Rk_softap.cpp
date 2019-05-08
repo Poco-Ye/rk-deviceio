@@ -4,51 +4,21 @@
 #include "DeviceIo/Rk_softap.h"
 #include "DeviceIo/WifiManager.h"
 #include "UdpServer.h"
+#include "TcpServer.h"
 
 typedef struct {
-	char* name;
-	char* exdata;
-	RK_softap_state_callback callback;
-	RK_softAP_State_e state;
+	RK_SOFTAP_STATE_CALLBACK callback;
+	RK_SOFTAP_SERVER_TYPE server_type;
 } RkSoftAp;
 
 RkSoftAp m_softap;
 
-static int callback(FW_softAP_State_e state, const char* data) {
-	if (m_softap.callback != NULL) {
-		RK_softAP_State_e rk_state;
-		switch (state) {
-			case FW_softAP_State_IDLE:
-				rk_state = RK_softAP_State_IDLE;
-				break;
-			case FW_softAP_State_CONNECTTING:
-				rk_state = RK_softAP_State_CONNECTTING;
-				if (m_softap.exdata != NULL)
-					free(m_softap.exdata);
-				m_softap.exdata = strdup(data);
-				break;
-			case FW_softAP_State_SUCCESS:
-				rk_state = RK_softAP_State_SUCCESS;
-				break;
-			case FW_softAP_State_FAIL:
-				rk_state = RK_softAP_State_FAIL;
-				break;
-			case FW_softAP_State_DISCONNECT:
-				rk_state = RK_softAP_State_DISCONNECT;
-				break;
-		}
-		m_softap.state = rk_state;
-		m_softap.callback(rk_state);
-	}
-	return 0;
-}
-
-int RK_softap_register_callback(RK_softap_state_callback cb) {
+int RK_softap_register_callback(RK_SOFTAP_STATE_CALLBACK cb) {
 	m_softap.callback = cb;
 	return 0;
 }
 
-int RK_softap_start(char* name) {
+int RK_softap_start(char* name, RK_SOFTAP_SERVER_TYPE server_type) {
 	int ret;
 	DeviceIOFramework::WifiManager* wifiManager = DeviceIOFramework::WifiManager::getInstance();
 	// check whether wifi enabled, if not enable first
@@ -58,19 +28,35 @@ int RK_softap_start(char* name) {
 	// start ap mode
 	wifiManager->enableWifiAp(name);
 
-	// start udp server
-	DeviceIOFramework::UdpServer* server = DeviceIOFramework::UdpServer::getInstance();
-	server->registerCallback(callback);
-	ret = server->startUdpServer();
+	m_softap.server_type = server_type;
+	if(server_type == RK_SOFTAP_UDP_SERVER) {
+		// start udp server
+		DeviceIOFramework::UdpServer* server = DeviceIOFramework::UdpServer::getInstance();
+		server->registerCallback(m_softap.callback);
+		ret = server->startUdpServer();
+	} else {
+		// start tcp server
+		DeviceIOFramework::TcpServer* server = DeviceIOFramework::TcpServer::getInstance();
+		server->registerCallback(m_softap.callback);
+		ret = server->startTcpServer();
+	}
 
 	return ret;
 }
 
 int RK_softap_stop(void) {
 	int ret;
-	// stop udp server
-	DeviceIOFramework::UdpServer* server = DeviceIOFramework::UdpServer::getInstance();
-	ret = server->stopUdpServer();
+
+	if(m_softap.server_type == RK_SOFTAP_UDP_SERVER) {
+		// stop udp server
+		DeviceIOFramework::UdpServer* server = DeviceIOFramework::UdpServer::getInstance();
+		ret = server->stopUdpServer();
+	} else {
+		// stop tcp server
+		DeviceIOFramework::TcpServer* server = DeviceIOFramework::TcpServer::getInstance();
+		ret = server->stopTcpServer();
+	}
+
 	// stop ap mode
 	DeviceIOFramework::WifiManager* wifiManager = DeviceIOFramework::WifiManager::getInstance();
 	ret = wifiManager->disableWifiAp();
@@ -78,18 +64,13 @@ int RK_softap_stop(void) {
 	return ret;
 }
 
-int RK_softap_getState(RK_softAP_State_e* pState) {
-	*pState = m_softap.state;
-	return 0;
-}
-
-int RK_softap_get_exdata(char* buffer, int* length) {
-	if (m_softap.exdata == NULL) {
-		*length = 0;
-		return;
+int RK_softap_getState(RK_SOFTAP_STATE* pState) {
+	if(m_softap.server_type == RK_SOFTAP_UDP_SERVER) {
+		DeviceIOFramework::UdpServer* server = DeviceIOFramework::UdpServer::getInstance();
+		*pState = server->getState();
+	} else {
+		DeviceIOFramework::TcpServer* server = DeviceIOFramework::TcpServer::getInstance();
+		*pState = server->getState();
 	}
-	*length = strlen(m_softap.exdata);
-
-	snprintf(buffer, *length + 1, m_softap.exdata);
 	return 0;
 }

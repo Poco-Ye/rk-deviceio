@@ -30,8 +30,7 @@
 #include "rk_wifi_test.h"
 
 static void deviceio_test_bluetooth();
-static void deviceio_test_blewifi();
-static void deviceio_test_airkiss();
+static void deviceio_test_wifi_config();
 
 typedef struct {
 	const char *cmd;
@@ -41,16 +40,25 @@ typedef struct {
 
 static menu_command_t menu_command_table[] = {
 	{"bluetooth", "show bluetooth test cmd menu", deviceio_test_bluetooth},
-	{"blewifi", "start ble wifi config", deviceio_test_blewifi},
-	{"airkiss", "start airkiss wifi config", deviceio_test_airkiss},
+	{"wificonfig", "show wifi config test cmd menu", deviceio_test_wifi_config},
 };
 
 typedef struct {
 	const char *cmd;
 	void (*action)(void *userdata);
-} bt_command_t;
+} command_t;
 
-static bt_command_t bt_command_table[] = {
+static command_t wifi_config_command_table[] = {
+	{"", NULL},
+	{"ble_wifi_config_start", rk_ble_wifi_init},
+	{"ble_wifi_config_stop", rk_ble_wifi_deinit},
+	{"airkiss_wifi_config_start", rk_wifi_airkiss_start},
+	{"airkiss_wifi_config_stop", rk_wifi_airkiss_stop},
+	{"softap_wifi_config_start", rk_wifi_softap_start},
+	{"softap_wifi_config_stop", rk_wifi_softap_stop},
+};
+
+static command_t bt_command_table[] = {
 	{"", NULL},
 	{"bt_server_open", bt_test_init_open},
 	{"bt_test_source_auto_start", bt_test_source_auto_start},
@@ -81,10 +89,19 @@ static bt_command_t bt_command_table[] = {
 	{"bt_test_spp_status", bt_test_spp_status},
 };
 
+static void show_wifi_config_cmd() {
+	unsigned int i;
+	printf("#### Please Input Your Test Command Index ####\n");
+	for (i = 1; i < sizeof(wifi_config_command_table) / sizeof(wifi_config_command_table[0]); i++) {
+		printf("%02d.  %s \n", i, wifi_config_command_table[i].cmd);
+	}
+	printf("Which would you like: ");
+}
+
 static void show_bt_cmd() {
 	unsigned int i;
 	printf("#### Please Input Your Test Command Index ####\n");
-	for (i = 0; i < sizeof(bt_command_table) / sizeof(bt_command_table[0]); i++) {
+	for (i = 1; i < sizeof(bt_command_table) / sizeof(bt_command_table[0]); i++) {
 		printf("%02d.  %s \n", i, bt_command_table[i].cmd);
 	}
 	printf("Which would you like: ");
@@ -97,12 +114,34 @@ static void show_help(char *bin_name) {
 		printf("\t\"%s %s\":%s.\n", bin_name, menu_command_table[i].cmd, menu_command_table[i].desc);
 }
 
+static void deviceio_test_wifi_config()
+{
+	int i, item_cnt;
+	char szBuf[64] = {0};
+
+	item_cnt = sizeof(wifi_config_command_table) / sizeof(command_t);
+	while(true) {
+		memset(szBuf, 0, sizeof(szBuf));
+		show_wifi_config_cmd();
+		if(!std::cin.getline(szBuf, 64)) {
+			std::cout << "error" << std::endl;
+			continue;
+		}
+
+		i = atoi(szBuf);
+		if ((i >= 1) && (i < item_cnt))
+			wifi_config_command_table[i].action(NULL);
+	}
+
+	return;
+}
+
 static void deviceio_test_bluetooth()
 {
 	int i, item_cnt;
 	char szBuf[64] = {0};
 
-	item_cnt = sizeof(bt_command_table) / sizeof(bt_command_t);
+	item_cnt = sizeof(bt_command_table) / sizeof(command_t);
 	while(true) {
 		memset(szBuf, 0, sizeof(szBuf));
 		show_bt_cmd();
@@ -117,16 +156,6 @@ static void deviceio_test_bluetooth()
 	}
 
 	return;
-}
-
-static void deviceio_test_blewifi()
-{
-	rk_ble_wifi_init();
-}
-
-static void deviceio_test_airkiss()
-{
-	rk_wifi_airkiss();
 }
 
 int main(int argc, char *argv[])

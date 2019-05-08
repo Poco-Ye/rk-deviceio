@@ -6,6 +6,7 @@
 #include <sys/prctl.h>
 
 #include <DeviceIo/Rk_wifi.h>
+#include "DeviceIo/Rk_softap.h"
 
 struct wifi_info {
 	char ssid[512];
@@ -44,7 +45,7 @@ static void *rk_wifi_config_thread(void *arg)
 	return NULL;
 }
 
-void rk_wifi_airkiss()
+void rk_wifi_airkiss_start(void *data)
 {
 	int err  = 0;
 	struct wifi_info info;
@@ -54,7 +55,7 @@ void rk_wifi_airkiss()
 
 	printf("===== %s =====\n", __func__);
 
-	if(RK_wifi_airkiss_config(info.ssid, info.psk) < 0)
+	if(RK_wifi_airkiss_start(info.ssid, info.psk) < 0)
 		return;
 
 	err = pthread_create(&tid, NULL, rk_wifi_config_thread, &info);
@@ -65,4 +66,44 @@ void rk_wifi_airkiss()
 
 	while (!airkiss_wifi_state)
 		sleep(1);
+}
+
+void rk_wifi_airkiss_stop(void *data)
+{
+	RK_wifi_airkiss_stop();
+}
+
+static int rk_wifi_softap_state_callback(RK_SOFTAP_STATE state, const char* data)
+{
+	switch (state) {
+	case RK_SOFTAP_STATE_CONNECTTING:
+		printf("RK_SOFTAP_STATE_CONNECTTING\n");
+		break;
+	case RK_SOFTAP_STATE_DISCONNECT:
+		printf("RK_SOFTAP_STATE_DISCONNECT\n");
+		break;
+	case RK_SOFTAP_STATE_FAIL:
+		printf("RK_SOFTAP_STATE_FAIL\n");
+		break;
+	case RK_SOFTAP_STATE_SUCCESS:
+		printf("RK_SOFTAP_STATE_SUCCESS\n");
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+void rk_wifi_softap_start(void *data)
+{
+	RK_softap_register_callback(rk_wifi_softap_state_callback);
+	if (0 != RK_softap_start("Rockchip-SoftAp", RK_SOFTAP_TCP_SERVER)) {
+		return;
+	}
+}
+
+void rk_wifi_softap_stop(void *data)
+{
+	RK_softap_stop();
 }

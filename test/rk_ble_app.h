@@ -8,7 +8,8 @@
 extern "C" {
 #endif
 
-void rk_ble_wifi_init();
+void rk_ble_wifi_init(void *data);
+void rk_ble_wifi_deinit(void *data);
 
 #ifdef __cplusplus
 }

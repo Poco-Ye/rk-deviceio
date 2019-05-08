@@ -26,6 +26,7 @@
 #include <string>
 #include "DeviceIo/Properties.h"
 #include "DeviceIo/WifiManager.h"
+#include "DeviceIo/Rk_softap.h"
 
 namespace DeviceIOFramework {
 
@@ -38,6 +39,8 @@ public:
 	bool isRunning();
 	int startTcpServer(const unsigned int port = 8443);
 	int stopTcpServer();
+	void registerCallback(RK_SOFTAP_STATE_CALLBACK cb);
+	RK_SOFTAP_STATE getState();
 
 	virtual ~TcpServer(){};
 private:
