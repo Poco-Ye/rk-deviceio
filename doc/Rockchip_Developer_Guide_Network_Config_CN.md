@@ -6,7 +6,7 @@
 
 作者：CTF
 
-日期：2019.4.29
+日期：2019.5.13
 
 文件密级：公开资料
 
@@ -33,7 +33,7 @@ V1.2.1以上，不包含V1.2.1
 | **日期**  | **版本** | **作者** | **修改说明** |
 | ---------| -------- | -------- | ---------- |
 | 2019-4-29 | V1.0     | CTF | 初始版本     |
-|  |  |  |  |
+| 2019-5-13 | V1.0.1 | CTF | 修正手机配网各流程说明 |
 
 ---
 
@@ -43,16 +43,15 @@ V1.2.1以上，不包含V1.2.1
 
 ## 1、WIFI/BT配置 
 
-## 1.1 kernel配置 
+### 1.1 kernel配置 
 
-- kernel目录下执行`make menuconfig ` ，根据实际wifi选择相应配置
+- kernel目录下执行`make menuconfig ` ，根据实际wifi选择相应配置，具体请参考 /docs/Linux reference documents 目录下的 Rockchip Linux WIFI BT 开发指南 V4.0 20181126.pdf 文档，第一章节'WIFI/BT 内核配置' 
 
   ![1556523959514](img\Network_Config\1556523959514.png)
 
   ![1556524934650](img\Network_Config\1556524934650.png)
 
 - 退出配置框，make savedefconfig保存配置
-- 重新编译kernel
 
 ### 1.2 buildroot配置
 
@@ -94,7 +93,7 @@ V1.2.1以上，不包含V1.2.1
 
       ![1556526215526](img\Network_Config\1556526215526.png)
 
-  - 退出配置框，make savedefconfig保存配置
+- 退出配置框，make savedefconfig保存配置
 
 ### 1.3 编译说明
 
@@ -112,7 +111,7 @@ V1.2.1以上，不包含V1.2.1
 
 - 根目录下执行：`make deviceio-dirclean && make deviceio-rebuild`
 
-- 根目录下执行：`make`
+- 根目录下执行：`./build.sh`
 
 - 打包固件：`./mkfirmware.sh`
 
@@ -148,56 +147,78 @@ V1.2.1以上，不包含V1.2.1
 
 - 简介
 
-  目前ble配网已经集成到deviceio，接口位于RkBle.h。同时支持bluez ble配网和bsa ble配网，配置参照本文档的第一章节’WIFI/BT 配置‘。
+  ble配网同时支持bluez ble配网和bsa ble配网，配置参照本文档的第一章节’WIFI/BT 配置‘。并且ble配网已集成到deviceio，接口位于RkBle.h。
 
 
 - 接口说明
 
-  请参考/external/deviceio/doc目录下Rockchip_Developer_Guide_Rk3308_DeviceIo_Bluetooth_CN.pdf文档的第二章节’BLE接口介绍（RkBle.h）‘。
+  请参考/external/deviceio/doc目录下Rockchip_Developer_Guide_Rk3308_DeviceIo_Bluetooth_CN.pdf文档，第二章节’BLE接口介绍（RkBle.h）‘。
 
-- APP：Rkble.apk
+- 示例程序
+
+  示例程序的路径为：`external/deviceio/test/rk_ble_app.c`
+
+- APP
+
+  app路径：`/external/app/RockHome.apk `
+
+  app源码路径：`/external/app/src/RockHome `
 
 - 配网步骤
 
   - 该配网步骤以bsa ble配网为例进行说明，所有板端log均为bsa的配网log。bluez操作步骤相同，板端log不同。
 
-  - 确保wifi server进程启动 ，板端命令行执行：
+  - 首先确保WiFi的服务进程启动，串口输入：  `ps | grep wpa_supplicant`
 
-    `wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf &`
+    ![1556521720711](img/Network_Config/1556521720711.png)
 
-  - 板端命令行执行：`deviceio_test blewifi`  启动ble 配网，设置的ble广播设备名必须以RockChip为前缀，否则Rkble.apk无法检索到设备
+  - 如果没启动，请手动启动：
 
-    ![1556593573390](img\Network_Config\1556593573390.png)
+    `wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf & `
 
-    ![1556593697645](img\Network_Config\1556593697645.png)
+  - 板端命令行执行：`deviceio_test wificonfig `，输入1回车， 启动ble 配网
+
+    ![1557741255360](img\Network_Config\1557741255360.png)
+
+  - 设置的ble广播设备名必须以RockChip为前缀，否则apk无法检索到设备
+
+    ![1557747941383](img\Network_Config\1557747941383.png)
 
   - 手机端打开apk：
 
     点击CONTINUE -> START SCAN，扫描以RockChip为前缀命名的ble设备
 
-    ![1556595298129](img\Network_Config\1556595298129.png)![1556595307075](img\Network_Config\1556595307075.png)![1556595311834](img\Network_Config\1556595311834.png)
+    ![1556595298129](img\Network_Config\1556595298129.png)  ![1556595307075](img\Network_Config\1556595307075.png)  ![1556595311834](img\Network_Config\1556595311834.png)
 
   - 点击想要连接的ble设备，开始连接设备，设备连接成功，板端log如下：
 
-    ![1556593947421](img\Network_Config\1556593947421.png)
+    ![1557748018278](img\Network_Config\1557748018278.png)
 
-  - 设备连接成功，apk进入配网界面，输入ssid和psk，点击Confirm，发送配网信息
+  - 设备连接成功，apk进入配网界面，点击 >>按钮 获取wifi list，选择想要连接的wifi，输入密码，点击Confirm开始配网
 
-    ![1556595671867](img\Network_Config\1556595671867.png)
+    ![1557741733488](img\Network_Config\1557741880284.png)  ![1557741913399](img\Network_Config\1557741913399.png)  ![1557741753901](img\Network_Config\1557741753901.png)
 
-  - 板端接收到ssid和psk后，启动配网
+  - 板端接收到ssid和psk后，开始连接网络
 
-    ![1556606988821](img\Network_Config\1556606988821.png)
+    ![1557748154155](img\Network_Config\1557748154155.png)
 
-  - 配网成功
+  - 网络连接成功，板端发送通知给手机apk
 
-    ![1556606068410](img\Network_Config\1556606068410.png)
+    ![1557748229921](img\Network_Config\1557748229921.png)
+
+  - apk端收到配网成功的通知后，断开ble连接，返回设备搜索界面，板端log如下：
+
+    ![1557747329885](img\Network_Config\1557747329885.png)
+
+  - 再次启动配网，需要先输入2，关闭ble配网；再输入1重新启动ble，重复上述配网流程
+
+    ![1557748439162](img\Network_Config\1557748439162.png)
 
 ### 3.2 airkiss 配网
 
 - 简介
 
-  ​目前微信airkiss配网只支持realtek，请参照本文档第一章节 ’WIFI/BT 配置‘，正确配置kernel和rkwifibt；并且已集成到deviceio_test中。
+  目前微信airkiss配网只支持realtek，请参照本文档第一章节 ’WIFI/BT 配置‘，正确配置kernel和rkwifibt，并且airkiss配网已集成到deviceio中，接口位于Rk_wifi.h。
 
 - kernel 修改
 
@@ -210,45 +231,65 @@ V1.2.1以上，不包含V1.2.1
 
 - 接口说明
 
-  `int RK_wifi_airkiss_config(char *ssid, char *password)`
+  - 启动airkiss配网，成功返回0，失败返回-1
 
-  启动airkiss配网，并通过ssid、password参数返回手机端传输的wifi名称和密码，成功返回0，失败返回-1
+    `int RK_wifi_airkiss_start(char *ssid, char *password)`
+
+    ssid：手机端发送的wifi名称
+
+    password：手机端发送的wifi密码
+
+  - 关闭airkiss配网
+
+    `void RK_wifi_airkiss_stop()`
 
 - 示例程序
 
   示例程序的路径为：`external/deviceio/test/rk_wifi_test.c`
 
-  该测试用例调用`RK_wifi_airkiss_config()`启动airkiss，获取ssid和password并启动wifi配网。
+  该测试用例调用`RK_wifi_airkiss_start()`启动airkiss，获取ssid和password并启动wifi配网。
 
-  主要接口：`void rk_wifi_airkiss()`，  在DeviceIOTest.cpp中调用。
+  主要接口：`void rk_wifi_airkiss_start(void *data)`，  在DeviceIOTest.cpp中调用。
+
+  ![1557749107740](img\Network_Config\1557749107740.png)
 
 - 配网步骤
 
-  - 确保wifi server进程启动 ，命令行执行：
+  - 首先确保WiFi的服务进程启动，串口输入：  `ps | grep wpa_supplicant`
 
-    `wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf &`
+    ![1556521720711](img/Network_Config/1556521720711.png)
 
-  - 手机必须开启wifi，并连接网络，微信扫描二维码，进入网络配置界面
+  - 如果没启动，请手动启动：
 
-    ![1556534485235](img\Network_Config\1556534485235.png)
+    `wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf & `
 
-  - 选择 '配置设备上网'，输入手机当前连接wifi的密码，点击连接
+  - 板端命令行执行：`deviceio_test wificonfig `，输入3回车，启动airkiss 配网
 
-    ![1556534634593](img\Network_Config\1556534634593.png)![1556534642529](img\Network_Config\1556534642529.png)
+    ![1557749492372](img/Network_Config/1557749492372.png)
 
-  - 板端命令行执行：`deviceio_test airkiss`  启动airkiss 配网
+  - airkiss 启动成功
 
-    - airkiss 启动成功可以看到如下log
+    ![1557749530470](img\Network_Config\1557749530470.png)
 
-      ![1556536798533](img\Network_Config\1556536798533.png)
+  - 手机必须开启wifi，并连接网络，微信关注配网公众号，开始配网，
 
-    - 成功接收ssid和password，并开始配网
+  - 下面以 ‘回声智能’ 为例进行说明，打开 ‘回声智能’ 公众号，点击 助手 -> 配置网络 -> 找不到二维码 -> 微信联网 进入网络配置界面，输入手机当前连接wifi的密码，点击连接
 
-      ![1556536856374](img\Network_Config\1556536856374.png)
+    ![1557730182916](img\Network_Config\1557730182916.png)   ![1557730189275](img\Network_Config\1557730189275.png)
 
-    - 配网成功
+    ![1557730205018](img\Network_Config\1557730205018.png)   ![1557730211412](img\Network_Config\1557730211412.png)
 
-      ![1556536891941](img\Network_Config\1556536891941.png)
+    
+
+  - 成功接收ssid和password，并开始配网
+
+    ![1556536856374](img\Network_Config\1556536856374.png)
+
+  - 配网成功
+
+    ![1556536891941](img\Network_Config\1556536891941.png)
+
+  - 再次启动配网，需要先输入4，关闭airkiss配网；再输入3重新启动airkiss，重复上述配网流程
 
 ### 3.3 Softap 配网
 
@@ -256,49 +297,88 @@ V1.2.1以上，不包含V1.2.1
 
    ​	首先，用SDK板的WiFi创建一个AP热点，在手机端连接该AP热点；其次，通过手机端apk获取SDK板的当前扫描到的热点列表，在手机端填入要连接AP的密码，apk会把AP的ssid和密码发到SDK板端；最后，SDK板端会根据收到的信息连接WiFi。
 
-   ​	目前Softap还未集成到deviceio_test中，后续会进一步更新！！！
+   ​	Softap配网已集成到deviceio中，接口位于Rk_softap.h。
 
-- APP: /external/app/RkEcho.apk
+- APP
+
+   app路径：`/external/app/RockHome.apk `
+
+   app源码路径： `/external/app/src/RockHome `
 
 - buildroot配置
 
   ![1556529149205](img\Network_Config\1556529149205.png)
 
-- 源码开发目录
+  ![1557038048012](img\Network_Config\1557038048012.png)
 
-  wifi与apk端相关操作：/external/softapServer
+- 接口说明
 
-  wifi相关操作：/external/softapDemo
+  - 启动softap配网：
+
+    `RK_softap_start(char* name, RK_SOFTAP_SERVER_TYPE server_type)`
+
+    name：wifi热点的名字，前缀必须为Rockchip-SoftAp
+
+    server_type：网络协议类型，目前只支持TCP协议
+
+  - 结束softap配网
+
+    `int RK_softap_stop(void)`
+
+  - 注册状态回调
+
+    `RK_softap_register_callback(RK_SOFTAP_STATE_CALLBACK cb)`
+
+    正在连接网络：`RK_SOFTAP_STATE_CONNECTTING`
+
+    网络连接成功：`RK_SOFTAP_STATE_SUCCESS`
+
+    网络连接失败：`RK_SOFTAP_STATE_FAIL`
+
+- 示例程序
+
+   示例程序的路径为：`external/deviceio/test/rk_wifi_test.c`
+
+   主要接口：`void rk_wifi_softap_start(void *data)`， `rk_wifi_softap_stop(void *data)`，在DeviceIOTest.cpp中调用。
 
 - 配网步骤
 
-  - 确保wifi server进程启动 ，命令行执行：
+  - 首先确保WiFi的服务进程启动，串口输入：  `ps | grep wpa_supplicant`
 
-    `wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf &`
+    ![1556521720711](img/Network_Config/1556521720711.png)
 
-  - 板端命令行执行：
+  - 如果没启动，请手动启动：
 
-    `softapServer Rockchip-Echo-123`(wifi热点的名字，前缀必须为Rockchip-Echo-xxx)
+    `wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf & `
 
-  - 打开手机wifi setting界面，找到Rockchip-Echo-xxx , 点击连接 ：
+  - 板端命令行执行`deviceio_test wificonfig`，输入5 回车，启动softap配网
 
-    ![1556529808878](img\Network_Config\1556529808878.png)![1556529842514](img\Network_Config\1556529842514.png)
+    ![1557733796143](img\Network_Config\1557733796143.png)
 
-  - 打开apk，点击wifi setup->CONFIRM->确认->wifi列表->点击你要连接的网络名字->输入密码->点击确认
+  - 打开RockHome.apk，左侧滑选择第三个选项，进入softap配网方式，点击 SEARCH DEVICES，扫描以Rockchip-SoftAp为前缀命名的softap设备
 
-    ![1556530238748](img\Network_Config\1556530238748.png)![1556530250512](img\Network_Config\1556530250512.png)![1556530283071](img\Network_Config\1556530283071.png)
+    ![1557734606368](img\Network_Config\1557734776566.png)  ![1557734800637](img\Network_Config\1557734800637.png)  ![1557734611071](img\Network_Config\1557734611071.png)
 
-    ![1556530302765](img\Network_Config\1556530302765.png)![1556530349048](img\Network_Config\1556530349048.png)
+  - 点击想要连接的softap设备，开始连接设备，设备连接成功，板端log如下：
 
-  - 板子串口端显示
+    ![1557734903643](img\Network_Config\1557734903643.png)
 
-    ![1556530470219](img\Network_Config\1556530470219.png)
+  - 设备连接成功，apk进入配网界面，点击 >> 获取wifi list，选择想要连接的wifi，输入密码，点击Confirm开始配网
 
-  - 检查网络是否连通
+    ![1557737211547](img\Network_Config\1557737211547.png)  ![1557737215388](img\Network_Config\1557737215388.png)  ![1557737219046](img\Network_Config\1557737219046.png)
 
-    - 添加dns域名解析 :`echo nameserver 8.8.8.8 > etc/resolv.conf`
-    - 看下是否ping通 :`ping www.baidu.com`
+  - 板子收到ssid和psk，开始连接网络
 
-- 注意要点
-  - softspServer  Rockchip-Echo-123 执行后命令行是无法退出的，直到配网完成
-  - 热点名千万不要写错，否则apk无法进入确认界面（Rockchip-Echo-xxx）
+    ![1557737321439](img\Network_Config\1557737321439.png)
+
+  - 网络连接成功
+
+    ![1557737935083](img\Network_Config\1557737935083.png)
+
+  - 配网成功后，板端disableWifiAp，手机apk返回设备搜索界面，板端log如下：
+
+    ![1557738060099](img\Network_Config\1557738060099.png)
+
+  - 想要再次启动softap配网，需要先输入6，回车反初始化softap，再输入5重新初始化softap，重复上述配网步骤
+
+    ![1557738267469](img\Network_Config\1557738267469.png)

@@ -67,12 +67,14 @@ static std::string exec(const std::string& cmd) {
 	memset(buf, 0, sizeof(buf));
 	ret = (char*) malloc(sizeof(char) * size);
 	memset(ret, 0, sizeof(char) * size);
-	while (NULL != fgets(buf, sizeof(buf)-1, fp)) {
-		if (size <= (strlen(ret) + strlen(buf))) {
-			size += SIZE_UNITE;
-			ret = (char*) realloc(ret, sizeof(char) * size);
+	while (!feof(fp)) {
+		if(fgets(buf, sizeof(buf)-1, fp)) {
+			if (size <= (strlen(ret) + strlen(buf))) {
+				size += SIZE_UNITE;
+				ret = (char*) realloc(ret, sizeof(char) * size);
+			}
+			strcat(ret, buf);
 		}
-		strcat(ret, buf);
 	}
 
 	pclose(fp);
