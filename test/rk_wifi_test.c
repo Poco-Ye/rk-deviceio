@@ -5,20 +5,25 @@
 #include <pthread.h>
 #include <sys/prctl.h>
 
-#include <DeviceIo/Rk_wifi.h>
+#include "DeviceIo/Rk_wifi.h"
 #include "DeviceIo/Rk_softap.h"
+#include "DeviceIo/Rk_voice_print.h"
 
 struct wifi_info {
+	int ssid_len;
 	char ssid[512];
+	int psk_len;
 	char psk[512];
 };
 
-/* rk wifi airkiss */
-static RK_WIFI_RUNNING_State_e airkiss_wifi_state = 0;
-static int rk_wifi_airkiss_state_callback(RK_WIFI_RUNNING_State_e state)
+/*****************************************************************
+ *                     wifi config                               *
+ *****************************************************************/
+static RK_WIFI_RUNNING_State_e wifi_state = 0;
+static int rk_wifi_state_callback(RK_WIFI_RUNNING_State_e state)
 {
 	printf("[RK_AIRKISS] %s state: %d\n", __func__, state);
-	airkiss_wifi_state = state;
+	wifi_state = state;
 	if (state == RK_WIFI_State_CONNECTED) {
 		printf("[RK_AIRKISS] RK_WIFI_State_CONNECTED\n");
 	} else if (state == RK_WIFI_State_CONNECTFAILED) {
@@ -38,13 +43,19 @@ static void *rk_wifi_config_thread(void *arg)
 
 	prctl(PR_SET_NAME,"rk_config_wifi_thread");
 
+	wifi_state = 0;
+
 	info = (struct wifi_info *) arg;
-	RK_wifi_register_callback(rk_wifi_airkiss_state_callback);
+	RK_wifi_register_callback(rk_wifi_state_callback);
 	RK_wifi_connect(info->ssid, info->psk);
 
+	printf("Exit wifi config thread\n");
 	return NULL;
 }
 
+/*****************************************************************
+ *                     airkiss wifi config test                  *
+ *****************************************************************/
 void rk_wifi_airkiss_start(void *data)
 {
 	int err  = 0;
@@ -58,13 +69,15 @@ void rk_wifi_airkiss_start(void *data)
 	if(RK_wifi_airkiss_start(info.ssid, info.psk) < 0)
 		return;
 
+	wifi_state = 0;
+
 	err = pthread_create(&tid, NULL, rk_wifi_config_thread, &info);
 	if (err) {
 		printf("Error - pthread_create() return code: %d\n", err);
 		return;
 	}
 
-	while (!airkiss_wifi_state)
+	while (!wifi_state)
 		sleep(1);
 }
 
@@ -73,6 +86,9 @@ void rk_wifi_airkiss_stop(void *data)
 	RK_wifi_airkiss_stop();
 }
 
+/*****************************************************************
+ *                     softap wifi config test                   *
+ *****************************************************************/
 static int rk_wifi_softap_state_callback(RK_SOFTAP_STATE state, const char* data)
 {
 	switch (state) {
@@ -106,4 +122,39 @@ void rk_wifi_softap_start(void *data)
 void rk_wifi_softap_stop(void *data)
 {
 	RK_softap_stop();
+}
+
+/*****************************************************************
+ *                     voiceprint wifi config test               *
+ *****************************************************************/
+static void rk_wifi_vp_ssid_psk_callback(char* ssid, char* psk)
+{
+	int ret;
+	pthread_t tid = 0;
+	struct wifi_info info;
+
+	memset(&info, 0, sizeof(struct wifi_info));
+
+	info.ssid_len = strlen(ssid);
+	info.psk_len = strlen(psk);
+	strncpy(info.ssid, ssid, info.ssid_len);
+	strncpy(info.psk, psk, info.psk_len);
+	printf("%s: ssid_len: %d, ssid: %s, psk_len: %d, psk: %s\n", __func__, info.ssid_len, ssid, info.psk_len, psk);
+
+	ret = pthread_create(&tid, NULL, rk_wifi_config_thread, &info);
+	if (ret) {
+		printf("Error - pthread_create() return code: %d\n", ret);
+		return;
+	}
+}
+
+void rk_wifi_voiceprint_start(void *data)
+{
+	rk_voice_print_register_callback(rk_wifi_vp_ssid_psk_callback);
+	rk_voice_print_start();
+}
+
+void rk_wifi_voiceprint_stop(void *data)
+{
+	rk_voice_print_stop();
 }
