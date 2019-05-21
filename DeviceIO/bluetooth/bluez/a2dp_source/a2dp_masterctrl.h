@@ -5,6 +5,7 @@
 #include "DeviceIo/RkBtSource.h"
 
 int bt_open(RkBtContent *bt_content);
+int bt_close();
 int init_a2dp_master_ctrl();
 int release_a2dp_master_ctrl();
 int a2dp_master_scan(void *data, int len);

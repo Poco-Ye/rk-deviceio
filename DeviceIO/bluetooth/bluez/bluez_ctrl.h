@@ -18,6 +18,8 @@ enum class BtControlType {
 	BT_SINK,
 	BT_SOURCE,
 	BT_BLE_MODE,
+	BT_HFP_HF,
+	BT_SINK_HFP_MODE,
 	BLE_SINK_BLE_MODE,
 	BLE_WIFI_INTRODUCER
 };
@@ -28,6 +30,7 @@ typedef struct {
 	int is_ble_open;
 	int is_a2dp_sink_open;
 	int is_a2dp_source_open;
+	int is_hfp_open;
 	bool is_ble_sink_coexist;
 	BtControlType type;
 	BtControlType last_type;
@@ -36,6 +39,7 @@ typedef struct {
 bool ble_is_open();
 bool bt_source_is_open(void);
 bool bt_sink_is_open(void);
+bool bt_hfp_is_open(void);
 int bt_interface(BtControl type, void *data);
 int bt_close_sink(void);
 int bt_close_source(void);

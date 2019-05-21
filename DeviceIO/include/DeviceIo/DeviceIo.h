@@ -114,6 +114,9 @@ enum class BtControl {
 	BT_GATT_MTU,
 	BT_BLE_DISCONNECT,
 
+	BT_HFP_OPEN,
+	BT_HFP_SINK_OPEN,
+
     GET_BT_MAC,
 };
 

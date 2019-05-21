@@ -45,6 +45,7 @@ volatile bt_control_t bt_control = {
 	0,
 	0,
 	0,
+	0,
 	BT_IS_BLE_SINK_COEXIST,
 	BtControlType::BT_NONE
 };
@@ -251,7 +252,7 @@ static int bt_start_a2dp_source()
 	return 0;
 }
 
-static int bt_start_a2dp_sink()
+static int bt_start_a2dp_sink(int sink_only)
 {
 	char ret_buff[1024];
 
@@ -259,7 +260,10 @@ static int bt_start_a2dp_sink()
 	RK_shell_system("killall bluealsa-aplay");
 
 	msleep(500);
-	RK_shell_system("bluealsa --profile=a2dp-sink &");
+	if (sink_only)
+		RK_shell_system("bluealsa --profile=a2dp-sink &");
+	else
+		RK_shell_system("bluealsa &");
 	RK_shell_exec("pidof bluealsa", ret_buff, 1024);
 	if (!ret_buff[0]) {
 		RK_LOGE("start a2dp sink profile failed!\n");
@@ -281,6 +285,31 @@ static int bt_start_a2dp_sink()
 
 	return 0;
 }
+
+static int bt_start_hfp()
+{
+	char ret_buff[1024];
+
+	RK_shell_system("killall bluealsa");
+	RK_shell_system("killall bluealsa-aplay");
+
+	msleep(500);
+	RK_shell_system("bluealsa --profile=hfp-hf &");
+	RK_shell_exec("pidof bluealsa", ret_buff, 1024);
+	if (!ret_buff[0]) {
+		RK_LOGE("start hfp-hf profile failed!\n");
+		return -1;
+	}
+
+	RK_shell_system("hciconfig hci0 class 0x240404");
+	msleep(100);
+	RK_shell_system("hciconfig hci0 class 0x240404");
+	msleep(200);
+	RK_LOGD("%s exit\n", __func__);
+
+	return 0;
+}
+
 
 static int get_ps_pid(const char Name[])
 {
@@ -320,6 +349,22 @@ bool bt_sink_is_open(void)
 
 	return 0;
 }
+
+bool bt_hfp_is_open(void)
+{
+	if (bt_control.is_hfp_open) {
+		RK_LOGD("bt hfp has been opened.\n");
+		if (get_ps_pid("bluetoothd") && get_ps_pid("bluealsa")) {
+			RK_LOGD("Bluetooth has been opened.\n");
+			return 1;
+		} else {
+			RK_LOGE("bt hfp has been opened but bluetoothd server exit.\n");
+		}
+	}
+
+	return 0;
+}
+
 
 bool bt_source_is_open(void)
 {
@@ -454,11 +499,47 @@ static int bt_a2dp_sink_open(void)
 	RK_LOGD("bt_a2dp_sink_server_open\n");
 
 	if ((bt_control.last_type == BtControlType::BT_SOURCE) ||
-		(bt_control.last_type == BtControlType::BT_NONE))
-		bt_start_a2dp_sink();
+		(bt_control.last_type == BtControlType::BT_NONE) ||
+		(bt_control.last_type == BtControlType::BT_HFP_HF))
+		ret = bt_start_a2dp_sink(1);
 
-	RK_LOGD("call init_avrcp_ctrl ...\n");
-	ret = a2dp_sink_open();
+	if (ret == 0) {
+		RK_LOGD("call init_avrcp_ctrl ...\n");
+		ret = a2dp_sink_open();
+	}
+
+	return ret;
+}
+
+static int bt_hfp_hf_open(void)
+{
+	int ret = 0;
+
+	RK_LOGD("%s is called!\n", __func__);
+	if ((bt_control.last_type == BtControlType::BT_SOURCE) ||
+		(bt_control.last_type == BtControlType::BT_SINK) ||
+		(bt_control.last_type == BtControlType::BT_NONE))
+		ret = bt_start_hfp();
+
+	if (ret == 0)
+		system("hciconfig hci0 piscan");
+
+	return ret;
+}
+
+static int bt_hfp_with_sink_open(void)
+{
+	int ret = 0;
+
+	RK_LOGD("%s is called!\n", __func__);
+	if ((bt_control.last_type == BtControlType::BT_SOURCE) ||
+		(bt_control.last_type == BtControlType::BT_SINK) ||
+		(bt_control.last_type == BtControlType::BT_HFP_HF) ||
+		(bt_control.last_type == BtControlType::BT_NONE))
+		ret = bt_start_a2dp_sink(0);
+
+	if (ret == 0)
+		ret = a2dp_sink_open();
 
 	return ret;
 }
@@ -469,6 +550,8 @@ static int bt_a2dp_src_server_open(void)
 	RK_LOGD("%s\n", __func__);
 
 	if ((bt_control.last_type == BtControlType::BT_SINK) ||
+		(bt_control.last_type == BtControlType::BT_HFP_HF) ||
+		(bt_control.last_type == BtControlType::BT_SINK_HFP_MODE) ||
 		(bt_control.last_type == BtControlType::BT_NONE))
 		bt_start_a2dp_source();
 
@@ -505,6 +588,12 @@ int bt_interface(BtControl type, void *data)
 			ret = -1;
 			return ret;
 		}
+	} else if (type == BtControl::BT_HFP_OPEN) {
+		RK_LOGD("Open bt hfp.");
+		bt_hfp_hf_open();
+	} else if (type == BtControl::BT_HFP_SINK_OPEN) {
+		RK_LOGD("Open bt hfp with sink.");
+		bt_hfp_with_sink_open();
 	}
 
 	return ret;

@@ -2739,7 +2739,6 @@ void *init_a2dp_master(void *)
 
 void bluetooth_open(RkBtContent *bt_content)
 {
-	bt_shell_printf("init_a2dp_master start A2DP_SRC_FLAG: %d\n", A2DP_SRC_FLAG);
 	a2dp_source_clean();
 	A2DP_SRC_FLAG = 1;
 	A2DP_SINK_FLAG = 1;
@@ -2758,8 +2757,6 @@ void bluetooth_open(RkBtContent *bt_content)
 		dbus_connection_unref(dbus_conn);
 		return NULL;
 	}
-	printf("a2dp_master unique name: %s [0x%p:0x%p]\n",
-				dbus_bus_get_unique_name(dbus_conn), dbus_conn, btsrc_client);
 
 	btsrc_main_loop = g_main_loop_new(NULL, FALSE);
 	init_avrcp_ctrl();
@@ -2770,26 +2767,38 @@ void bluetooth_open(RkBtContent *bt_content)
 	g_dbus_client_set_signal_watch(btsrc_client, message_handler, NULL);
 	g_dbus_client_set_proxy_handlers(btsrc_client, proxy_added, proxy_removed,
 						  property_changed, NULL);
-	printf("a2dp_source init ok\n");
+	printf("#### %s server start...\n", __func__);
 	g_main_loop_run(btsrc_main_loop);
 	g_dbus_client_unref(btsrc_client);
 	dbus_connection_unref(dbus_conn);
 	g_main_loop_unref(btsrc_main_loop);
 	a2dp_source_clean();
-	printf("a2dp_source exit ok\n");
+	printf("#### %s server end...\n", __func__);
 	pthread_exit(0);
 }
 
 static pthread_t bt_thread = 0;
 int bt_open(RkBtContent *bt_content)
 {
-	printf("init_a2dp_master_ctrl start pid: 0x%x, A2DP_SRC_FLAG: %d\n", bt_thread, A2DP_SRC_FLAG);
-
 	if (bt_thread)
-		return 1;
+		return 0;
 
 	pthread_create(&bt_thread, NULL, bluetooth_open, bt_content);
-	return 1;
+	return 0;
+}
+
+int bt_close()
+{
+	int ret = 0;
+
+	g_main_loop_quit(btsrc_main_loop);
+	ret = pthread_join (bt_thread, NULL);
+	if (ret) {
+		printf("ERROR: %s waite for bt server thread exit failed!\n", __func__);
+		return -1;
+	}
+
+	return 0;
 }
 
 int init_a2dp_master_ctrl()

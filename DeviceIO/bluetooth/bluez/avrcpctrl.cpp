@@ -156,7 +156,6 @@ extern struct adapter *default_ctrl;
 extern GList *ctrl_list;
 
 static int reconn_device(void *user_data);
-int reconn_last(void *data);
 
 static gboolean device_is_child(GDBusProxy *device, GDBusProxy *master)
 {
@@ -467,7 +466,7 @@ static void reconn_last_device_reply(DBusMessage * message, void *user_data)
 			pr_info("Retry to reconn_last connect, count %d", count);
 			count--;
 			reconnect_timer = g_timeout_add_seconds(RECONN_INTERVAL,
-					reconn_last, user_data);
+					reconn_last, NULL);
 			dbus_error_free(&error);
 			return;
 		}
@@ -524,10 +523,16 @@ bool disconn_device(void)
 	return TRUE;
 }
 
-int reconn_last(void *data)
+bool reconn_last(void)
 {
 	GDBusProxy *proxy = last_connected_device_proxy;
 	DBusMessageIter addr_iter, addrType_iter;
+	static int done = 0;
+
+	if (done)
+		return 0;
+	else
+		done = 1;
 
 	/* Enable auto reconnect? */
 	if (!g_btsink_auto_reconnect)
@@ -866,7 +871,7 @@ int a2dp_sink_open(void)
 	A2DP_SRC_FLAG = 0;
 	system("hciconfig hci0 piscan");
 	system("hciconfig hci0 piscan");
-	reconn_last(NULL);
+	reconn_last();
 
 	return 1;
 }

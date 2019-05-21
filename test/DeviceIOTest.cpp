@@ -62,7 +62,10 @@ static command_t wifi_config_command_table[] = {
 
 static command_t bt_command_table[] = {
 	{"", NULL},
-	{"bt_server_open", bt_test_init_open},
+	{"bt_server_open", bt_test_bluetooth_init},
+	{"bt_test_set_class", bt_test_set_class},
+	{"bt_test_enable_reconnect", bt_test_enable_reconnect},
+	{"bt_test_disable_reconnect", bt_test_disable_reconnect},
 	{"bt_test_source_auto_start", bt_test_source_auto_start},
 	{"bt_test_source_connect_status", bt_test_source_connect_status},
 	{"bt_test_source_auto_stop", bt_test_source_auto_stop},
@@ -89,6 +92,15 @@ static command_t bt_command_table[] = {
 	{"bt_test_spp_write", bt_test_spp_write},
 	{"bt_test_spp_close", bt_test_spp_close},
 	{"bt_test_spp_status", bt_test_spp_status},
+	{"bt_test_hfp_sink_open", bt_test_hfp_sink_open},
+	{"bt_test_hfp_hp_open", bt_test_hfp_hp_open},
+	{"bt_test_hfp_hp_accept", bt_test_hfp_hp_accept},
+	{"bt_test_hfp_hp_hungup", bt_test_hfp_hp_hungup},
+	{"bt_test_hfp_hp_redail", bt_test_hfp_hp_redial},
+	{"bt_test_hfp_hp_report_battery", bt_test_hfp_hp_report_battery},
+	{"bt_test_hfp_hp_close", bt_test_hfp_hp_close},
+
+	{"bt_server_close", bt_test_bluetooth_deinit},
 };
 
 static void show_wifi_config_cmd() {

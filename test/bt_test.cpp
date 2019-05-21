@@ -9,6 +9,7 @@
 #include <DeviceIo/RkBtSource.h>
 #include <DeviceIo/RkBle.h>
 #include <DeviceIo/RkBtSpp.h>
+#include <DeviceIo/RkBtHfp.h>
 
 #include "bt_test.h"
 
@@ -32,9 +33,9 @@ static RkBtContent bt_content;
  * The Bluetooth basic service is turned on and the function
  * must be called before using the Bluetooth function.
  */
-void bt_test_init_open(void *data)
+void bt_test_bluetooth_init(void *data)
 {
-	printf("---------------BT INIT OPEN----------------\n");
+	printf("--------------- BT BLUETOOTH INIT ----------------\n");
 	bt_content.bt_name = "ROCKCHIP_AUDIO";
 	bt_content.ble_content.ble_name = "ROCKCHIP_AUDIO BLE";
 	bt_content.ble_content.server_uuid.uuid = BLE_UUID_SERVICE;
@@ -51,6 +52,27 @@ void bt_test_init_open(void *data)
 	bt_content.ble_content.cb_ble_request_data = bt_test_ble_request_data_callback;
 
 	rk_bt_init(&bt_content);
+}
+
+void bt_test_bluetooth_deinit(void *data)
+{
+	printf("--------------- BT BLUETOOTH DEINIT ----------------\n");
+	rk_bt_deinit();
+}
+
+void bt_test_set_class(void *data)
+{
+	rk_bt_set_class(0x240404);
+}
+
+void bt_test_enable_reconnect(void *data)
+{
+	rk_bt_enable_reconnect(1);
+}
+
+void bt_test_disable_reconnect(void *data)
+{
+	rk_bt_enable_reconnect(0);
 }
 
 /******************************************/
@@ -386,3 +408,99 @@ void bt_test_spp_status(void *data)
 	}
 }
 
+int bt_test_hfp_hp_cb(RK_BT_HFP_EVENT event)
+{
+	switch(event) {
+		case  RK_BT_HFP_CONNECT_EVT:
+			printf("+++++ BT HFP HP CONNECT +++++\n");
+			break;
+		case RK_BT_HFP_DISCONNECT_EVT:
+			printf("+++++ BT HFP HP DISCONNECT +++++\n");
+			break;
+		case RK_BT_HFP_RING_EVT:
+			printf("+++++ BT HFP HP RING +++++\n");
+			break;
+		case RK_BT_HFP_AUDIO_OPEN_EVT:
+			printf("+++++ BT HFP AUDIO OPEN +++++\n");
+			break;
+		case RK_BT_HFP_AUDIO_CLOSE_EVT:
+			printf("+++++ BT HFP AUDIO CLOSE +++++\n");
+			break;
+		case RK_BT_HFP_PICKUP_EVT:
+			printf("+++++ BT HFP PICKIP +++++\n");
+			break;
+		case RK_BT_HFP_HANGUP_EVT:
+			printf("+++++ BT HFP HANGUP +++++\n");
+			break;
+		default:
+			break;
+	}
+
+	return 0;
+}
+
+void bt_test_hfp_hp_open(void *data)
+{
+	int ret = 0;
+
+	ret = rk_bt_hfp_open();
+	if (ret < 0)
+		printf("%s hfp open failed!\n", __func__);
+
+	rk_bt_hfp_register_callback(bt_test_hfp_hp_cb);
+}
+
+void bt_test_hfp_hp_accept(void *data)
+{
+	int ret = 0;
+
+	ret = rk_bt_hfp_pickup();
+	if (ret < 0)
+		printf("%s hfp accept failed!\n", __func__);
+}
+
+void bt_test_hfp_hp_hungup(void *data)
+{
+	int ret = 0;
+
+	ret = rk_bt_hfp_hangup();
+	if (ret < 0)
+		printf("%s hfp hungup failed!\n", __func__);
+}
+
+void bt_test_hfp_hp_redial(void *data)
+{
+	int ret = 0;
+
+	ret = rk_bt_hfp_redial();
+	if (ret < 0)
+		printf("%s hfp redial failed!\n", __func__);
+}
+
+void bt_test_hfp_hp_report_battery(void *data)
+{
+	int ret = 0;
+	int i = 0;
+
+	for (i = 0; i < 10; i++) {
+		ret = rk_bt_hfp_report_battery(i);
+		if (ret < 0) {
+			printf("%s hfp report battery(%d) failed!\n", __func__, i);
+			break;
+		}
+
+		sleep(1);
+	}
+}
+
+void bt_test_hfp_hp_close(void *data)
+{
+	rk_bt_hfp_close();
+}
+
+void bt_test_hfp_sink_open(void *data)
+{
+	rk_bt_sink_register_callback(bt_sink_callback);
+	rk_bt_hfp_register_callback(bt_test_hfp_hp_cb);
+	rk_bt_hfp_sink_open();
+}
