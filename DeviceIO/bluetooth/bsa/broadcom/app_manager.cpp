@@ -49,6 +49,7 @@
 
 #define APP_XML_CONFIG_FILE_PATH            "/data/bsa/config/bt_config.xml"
 #define APP_XML_REM_DEVICES_FILE_PATH       "/data/bsa/config/bt_devices.xml"
+#define APP_RECONNECT_FILE_PATH             "/data/bsa/bt_reconnect"
 
 /*
  * Simple Pairing Input/Output Capabilities:
@@ -76,6 +77,8 @@ tAPP_MGR_CB app_mgr_cb;
 tBSA_SEC_SET_REMOTE_OOB bsa_sec_set_remote_oob;
 
 tBSA_SEC_PASSKEY_REPLY g_passkey_reply;
+
+static DEV_CLASS app_mgr_cod = {0, 0, 0};
 
 static app_mgr_callback app_mgr_notify_cb = NULL;
 static void app_mgr_notify_status(tBSA_MGR_EVT evt) {
@@ -1487,8 +1490,11 @@ int app_mgr_config(const char *bt_name, app_mgr_callback cb)
             sprintf((char *)app_xml_config.name, "%s %02X%02X", APP_DEFAULT_BT_NAME,
                 app_xml_config.bd_addr[4], app_xml_config.bd_addr[5]);
 
+        if(!app_mgr_cod[0] && !app_mgr_cod[1] && !app_mgr_cod[2])
+            memcpy(app_xml_config.class_of_device, local_class_of_device, sizeof(DEV_CLASS));
+        else
+            memcpy(app_xml_config.class_of_device, app_mgr_cod, sizeof(DEV_CLASS));
 
-        memcpy(app_xml_config.class_of_device, local_class_of_device, sizeof(DEV_CLASS));
         strncpy(app_xml_config.root_path, APP_DEFAULT_ROOT_PATH, sizeof(app_xml_config.root_path));
         app_xml_config.root_path[sizeof(app_xml_config.root_path) - 1] = '\0';
         strncpy((char *)app_xml_config.pin_code, APP_DEFAULT_PIN_CODE, APP_DEFAULT_PIN_LEN);
@@ -1899,6 +1905,27 @@ BOOLEAN app_mgt_callback(tBSA_MGT_EVT event, tBSA_MGT_MSG *p_data)
     return FALSE;
 }
 
+int app_mgr_get_latest_device()
+{
+    int index;
+
+    /* Read the XML file which contains all the bonded devices */
+    if(app_read_xml_remote_devices() < 0)
+        return -1;
+
+    app_xml_display_devices(app_xml_remote_devices_db, APP_NUM_ELEMENTS(app_xml_remote_devices_db));
+
+    for(index = 0; index < APP_MAX_NB_REMOTE_STORED_DEVICES; index++) {
+        if((app_xml_remote_devices_db[index].in_use != FALSE)
+            && (app_xml_remote_devices_db[index].latest_connect != FALSE)) {
+            APP_DEBUG1("Device%d %s is latest connected", index, app_xml_remote_devices_db[index].name);
+            return index;
+        }
+    }
+
+    return -1;
+}
+
 int app_manager_init(const char *bt_name, app_mgr_callback cb)
 {
     int mode;
@@ -1930,4 +1957,72 @@ int app_manager_init(const char *bt_name, app_mgr_callback cb)
     }
 
     return 0;
+}
+
+int app_manager_deinit()
+{
+    memset(app_mgr_cod, 0, sizeof(DEV_CLASS));
+    app_mgr_notify_cb = NULL;
+
+    return app_mgt_close();
+}
+
+int app_manager_set_cod(int cod)
+{
+    if (cod <= 0) {
+        APP_ERROR1("invalid cod value: %d", cod);
+        return -1;
+    }
+
+    app_mgr_cod[2] = cod & 0x000000FF;
+    app_mgr_cod[1] = (cod & 0x0000FF00) >> 8;
+    app_mgr_cod[0] = (cod & 0x00FF0000) >> 16;
+
+    memcpy(app_xml_config.class_of_device, app_mgr_cod, sizeof(DEV_CLASS));
+    return app_mgr_set_bt_config(app_xml_config.enable);
+}
+
+int app_manager_set_auto_reconnect(int enable)
+{
+    int fd, ret = 0;
+    char c = (char)(enable + '0');
+
+    if ((fd = open(APP_RECONNECT_FILE_PATH, O_WRONLY | O_CREAT | O_TRUNC, 0666)) < 0) {
+        APP_ERROR1("Error opening/creating %s file", APP_RECONNECT_FILE_PATH);
+        return -1;
+    }
+
+    if (write(fd, &c, 1) != 1) {
+        APP_ERROR0("Error writing to the file");
+        ret = -1;
+    }
+
+    fsync(fd);
+    close(fd);
+    return ret;
+}
+
+int app_mgr_is_reconnect()
+{
+    int fd;
+    char enable;
+
+    if (access(APP_RECONNECT_FILE_PATH, F_OK) != 0) {
+        APP_DEBUG0("default for auto reconnect");
+        return 1;
+    }
+
+    if ((fd = open(APP_RECONNECT_FILE_PATH, O_RDONLY)) < 0) {
+        APP_ERROR1("Error opening %s file", APP_RECONNECT_FILE_PATH);
+        return 1;
+    }
+
+    if (read(fd, &enable, 1) != 1) {
+        APP_ERROR1("Error reading %s file", APP_RECONNECT_FILE_PATH);
+        close(fd);
+        return 1;
+    }
+
+    close(fd);
+    return (int)(enable - '0');
 }

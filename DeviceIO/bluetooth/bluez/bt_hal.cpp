@@ -745,6 +745,11 @@ int rk_bt_hfp_sink_open(void)
 	return 0;
 }
 
+int rk_bt_hfp_set_volume(int volume)
+{
+	return 0
+}
+
 int rk_bt_hfp_close(void)
 {
 	if (!bt_hfp_is_open())
@@ -835,7 +840,7 @@ int rk_bt_hfp_pickup(void)
 		return ret;
 
 	if (g_hfp_cb)
-		g_hfp_cb(RK_BT_HFP_PICKUP_EVT);
+		g_hfp_cb(RK_BT_HFP_PICKUP_EVT, NULL);
 
 	return rfcomm_hfp_open_audio_path();
 }
@@ -849,7 +854,7 @@ int rk_bt_hfp_hangup(void)
 		return ret;
 
 	if (g_hfp_cb)
-		g_hfp_cb(RK_BT_HFP_HANGUP_EVT);
+		g_hfp_cb(RK_BT_HFP_HANGUP_EVT, NULL);
 
 	return rk_bt_hfp_hp_send_cmd("AT+CHUP");
 }
@@ -877,7 +882,7 @@ int rk_bt_hfp_report_battery(int value)
 	}
 
 	if (done == 0) {
-		ret = rk_bt_hfp_hp_send_cmd("AT+XAPL=ABCD-1234-0100,10");
+		ret = rk_bt_hfp_hp_send_cmd("AT+XAPL=ABCD-1234-0100,2");
 		done = 1;
 	}
 

@@ -397,5 +397,16 @@ void app_mgr_set_remote_oob();
  *******************************************************************************/
 void app_mgr_set_link_policy(BD_ADDR bd_addr, tBSA_DM_LP_MASK policy_mask, BOOLEAN set);
 
+int app_mgr_get_latest_device(void);
+
 int app_manager_init(const char *bt_name, app_mgr_callback cb);
+
+int app_manager_deinit(void);
+
+int app_manager_set_cod(int cod);
+
+int app_mgr_is_reconnect(void);
+
+int app_manager_set_auto_reconnect(int enable);
+
 #endif /* __APP_MANAGER_H__ */

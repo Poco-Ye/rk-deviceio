@@ -66,6 +66,7 @@ void bt_test_hfp_hp_accept(void *data);
 void bt_test_hfp_hp_hungup(void *data);
 void bt_test_hfp_hp_redial(void *data);
 void bt_test_hfp_hp_report_battery(void *data);
+void bt_test_hfp_hp_set_volume(void *data);
 void bt_test_hfp_hp_close(void *data);
 
 #ifdef __cplusplus

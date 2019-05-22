@@ -783,6 +783,4 @@ int app_avk_start(void);
 
 void app_avk_stop(void);
 
-void app_avk_set_auto_reconnect(int enable);
-
 #endif /* APP_AVK_H_ */

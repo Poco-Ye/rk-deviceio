@@ -457,7 +457,6 @@ int app_hs_hold_call(UINT16 handle, tBSA_BTHF_CHLD_TYPE_T type);
 *******************************************************************************/
 int app_hs_last_num_dial(UINT16 handle);
 
-
 /*******************************************************************************
 **
 ** Function         app_hs_dial_num
@@ -564,19 +563,6 @@ int app_hs_send_dtmf(UINT16 handle, char dtmf);
 
 /*******************************************************************************
 **
-** Function         app_hs_send_cnum
-**
-** Description      Send AT CNUM Command
-**
-** Parameters       None
-**
-** Returns          0 if successful execution, error code else
-**
-*******************************************************************************/
-int app_hs_send_cnum(UINT16 handle);
-
-/*******************************************************************************
-**
 ** Function         app_hs_getallIndicatorValues
 **
 ** Description      This function is used to get all indicator values
@@ -600,7 +586,6 @@ int app_hs_getallIndicatorValues(UINT16 handle, tBSA_HS_IND_VALS *pIndVals);
 **
 *******************************************************************************/
 int app_hs_set_volume(UINT16 handle, tBSA_BTHF_VOLUME_TYPE_T type, int volume);
-
 
 /*******************************************************************************
 **
@@ -684,6 +669,9 @@ int app_hs_initialize(void);
 void app_hs_deinitialize(void);
 int app_hs_pick_up(void);
 int app_hs_hang_up(void);
+int app_hs_redial(void);
+int app_hs_report_battery(int value);
+int app_hs_set_vol(int volume);
 
 #ifdef  __cplusplus
 }

@@ -408,7 +408,7 @@ void bt_test_spp_status(void *data)
 	}
 }
 
-int bt_test_hfp_hp_cb(RK_BT_HFP_EVENT event)
+int bt_test_hfp_hp_cb(RK_BT_HFP_EVENT event, void *data)
 {
 	switch(event) {
 		case  RK_BT_HFP_CONNECT_EVT:
@@ -427,11 +427,17 @@ int bt_test_hfp_hp_cb(RK_BT_HFP_EVENT event)
 			printf("+++++ BT HFP AUDIO CLOSE +++++\n");
 			break;
 		case RK_BT_HFP_PICKUP_EVT:
-			printf("+++++ BT HFP PICKIP +++++\n");
+			printf("+++++ BT HFP PICKUP +++++\n");
 			break;
 		case RK_BT_HFP_HANGUP_EVT:
 			printf("+++++ BT HFP HANGUP +++++\n");
 			break;
+		case RK_BT_HFP_VOLUME_EVT:
+		{
+			unsigned short volume = *(unsigned short*)data;
+			printf("+++++ BT HFP VOLUME CHANGE, volume: %d +++++\n", volume);
+			break;
+		}
 		default:
 			break;
 	}
@@ -443,11 +449,12 @@ void bt_test_hfp_hp_open(void *data)
 {
 	int ret = 0;
 
+	/* must be placed before rk_bt_hfp_open */
+	rk_bt_hfp_register_callback(bt_test_hfp_hp_cb);
+
 	ret = rk_bt_hfp_open();
 	if (ret < 0)
 		printf("%s hfp open failed!\n", __func__);
-
-	rk_bt_hfp_register_callback(bt_test_hfp_hp_cb);
 }
 
 void bt_test_hfp_hp_accept(void *data)
@@ -490,6 +497,19 @@ void bt_test_hfp_hp_report_battery(void *data)
 		}
 
 		sleep(1);
+	}
+}
+
+void bt_test_hfp_hp_set_volume(void *data)
+{
+	int i;
+
+	for(i = 0; i <= 15; i++) {
+		if (rk_bt_hfp_set_volume(i) < 0) {
+			printf("%s hfp set volume(%d) failed!\n", __func__, i);
+			break;
+		}
+		sleep(2);
 	}
 }
 

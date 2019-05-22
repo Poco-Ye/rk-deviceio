@@ -35,6 +35,7 @@
 #include "app_wav.h"
 #include "btm_api.h"
 #include "bta_api.h"
+#include "app_manager.h"
 
 #ifdef PCM_ALSA
 #ifndef PCM_ALSA_DISABLE_HS
@@ -179,10 +180,11 @@ static int app_hs_close_alsa_duplex(void);
 #endif
 #endif /* PCM_ALSA */
 
+static int app_hs_battery_report = 0;
 static RK_BT_HFP_CALLBACK app_hs_send_cb = NULL;
-static void app_hs_send_event(RK_BT_HFP_EVENT event) {
+static void app_hs_send_event(RK_BT_HFP_EVENT event, void *data) {
     if(app_hs_send_cb)
-        app_hs_send_cb(event);
+        app_hs_send_cb(event, data);
 }
 
 /*
@@ -749,14 +751,33 @@ int app_hs_open(BD_ADDR *bd_addr_in /*= NULL*/)
     bdcpy(param.bd_addr, bd_addr);
     /* we manage only one connection for now */
     param.hndl = app_hs_cb.conn_cb[0].handle;
+
     status = BSA_HsOpen(&param);
     app_hs_cb.open_pending = TRUE;
+    bdcpy(app_hs_cb.open_pending_bda, bd_addr);
 
     if (status != BSA_SUCCESS)
     {
         APP_ERROR1("BSA_HsOpen failed (%d)", status);
         app_hs_cb.open_pending = FALSE;
+        memset(app_hs_cb.open_pending_bda, 0, sizeof(BD_ADDR));
+        return -1;
     }
+
+    /* this is an active wait for demo purpose */
+    APP_DEBUG0("waiting for hs connection to open");
+#if 0
+    while (app_hs_cb.open_pending == TRUE);
+#else
+    GKI_delay(3000);
+    if(app_hs_cb.open_pending == TRUE) {
+        APP_ERROR0("after 2 seconds, app_hs_cback not return BSA_HS_OPEN_EVT");
+        app_hs_cb.open_pending = FALSE;
+        memset(app_hs_cb.open_pending_bda, 0, sizeof(BD_ADDR));
+        return -1;
+    }
+#endif
+
     return status;
 }
 
@@ -1156,9 +1177,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
             break;
         default:
             printf("Not supported 0x%08x\n", p_data->conn.service);
-            app_hs_send_event(RK_BT_HFP_CONNECT_FAILED_EVT);
             return;
-            break;
         }
 
         /* check if this conneciton is already opened */
@@ -1167,13 +1186,14 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
             printf("BSA_HS_CONN_EVT: connection already opened for handle %d\n", handle);
             break;
         }
+
         bdcpy(p_conn->connected_bd_addr, p_data->conn.bd_addr);
         p_conn->handle = p_data->conn.handle;
         p_conn->connection_active = TRUE;
         p_conn->connected_hs_service_id = p_data->conn.service;
         p_conn->peer_feature = p_data->conn.peer_features;
         p_conn->status = BSA_HS_ST_CONNECT;
-        app_hs_send_event(RK_BT_HFP_CONNECT_EVT);
+        app_hs_send_event(RK_BT_HFP_CONNECT_EVT, NULL);
         break;
 
     case BSA_HS_CLOSE_EVT:      /* Connection Closed (for info)*/
@@ -1190,7 +1210,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         p_conn->indicator_string_received = FALSE;
 
         BSA_HS_SETSTATUS(p_conn, BSA_HS_ST_CONNECTABLE);
-        app_hs_send_event(RK_BT_HFP_DISCONNECT_EVT);
+        app_hs_send_event(RK_BT_HFP_DISCONNECT_EVT, NULL);
         break;
 
     case BSA_HS_AUDIO_OPEN_EVT:     /* Audio Open Event */
@@ -1228,7 +1248,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
 
         p_conn->call_state = BSA_HS_CALL_CONN;
         BSA_HS_SETSTATUS(p_conn, BSA_HS_ST_SCOOPEN);
-        app_hs_send_event(RK_BT_HFP_AUDIO_OPEN_EVT);
+        app_hs_send_event(RK_BT_HFP_AUDIO_OPEN_EVT, NULL);
         break;
 
     case BSA_HS_AUDIO_CLOSE_EVT:         /* Audio Close event */
@@ -1260,7 +1280,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         }
 
         app_hs_cb.is_pick_up = FALSE;
-        app_hs_send_event(RK_BT_HFP_AUDIO_CLOSE_EVT);
+        app_hs_send_event(RK_BT_HFP_AUDIO_CLOSE_EVT, NULL);
         break;
 
     case BSA_HS_CIEV_EVT:                /* CIEV event */
@@ -1288,7 +1308,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
 
     case BSA_HS_RING_EVT:
         fprintf(stdout, "BSA_HS_RING_EVT\n");
-        app_hs_send_event(RK_BT_HFP_RING_EVT);
+        app_hs_send_event(RK_BT_HFP_RING_EVT, NULL);
         break;
 
     case BSA_HS_CLIP_EVT:
@@ -1316,7 +1336,8 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         break;
 
     case BSA_HS_VGS_EVT:
-        fprintf(stdout, "BSA_HS_VGS_EVT\n");
+        APP_DEBUG1("BSA_HS_VGS_EVT Speaker volume: %d", p_data->val.num);
+        app_hs_send_event(RK_BT_HFP_VOLUME_EVT, &p_data->val.num);
         break;
 
     case BSA_HS_BINP_EVT:
@@ -1352,12 +1373,12 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         switch(p_data->val.num) {
             case BSA_HS_A_CMD:
                 APP_DEBUG0("Call has been picked up");
-                app_hs_send_event(RK_BT_HFP_PICKIP);
+                app_hs_send_event(RK_BT_HFP_PICKUP_EVT, NULL);
                 break;
 
             case BSA_HS_CHUP_CMD:
                 APP_DEBUG0("Call has been hanged up");
-                app_hs_send_event(RK_BT_HFP_HANGUP);
+                app_hs_send_event(RK_BT_HFP_HANGUP_EVT, NULL);
                 break;
         }
         break;
@@ -1526,6 +1547,7 @@ void app_hs_init(void)
 {
     UINT8 index;
 
+    app_hs_battery_report = 0;
     memset(&app_hs_cb, 0, sizeof(app_hs_cb));
 
     for(index=0; index<BSA_HS_MAX_NUM_CONN ; index++)
@@ -1583,7 +1605,7 @@ int app_hs_last_num_dial(void)
     tBSA_HS_COMMAND cmd_param;
     tBSA_HS_CONN_CB *p_conn;
 
-    printf("app_hs_answer_call\n");
+    printf("app_hs_last_num_dial\n");
 
     /* If no connection exist, error */
     if ((p_conn = app_hs_get_default_conn()) == NULL)
@@ -1616,7 +1638,7 @@ int app_hs_dial_num(const char *num)
     tBSA_HS_COMMAND cmd_param;
     tBSA_HS_CONN_CB *p_conn;
 
-    printf("app_hs_answer_call\n");
+    printf("app_hs_dial_num\n");
 
     if((num == NULL) || (strlen(num) == 0))
     {
@@ -1989,7 +2011,7 @@ int app_hs_set_volume(tBSA_BTHF_VOLUME_TYPE_T type, int volume)
     tBSA_HS_COMMAND cmd_param;
     tBSA_HS_CONN_CB *p_conn=NULL;
 
-    printf("app_hs_set_volume:Command : %d, %d\n", type, volume);
+    printf("app_hs_set_volume, Command: %d, %d\n", type, volume);
 
     /* If no connection exist, error */
     if ((NULL==(p_conn = app_hs_get_default_conn())))
@@ -2613,8 +2635,23 @@ static int app_hs_close_alsa_duplex(void)
 #endif
 #endif /*PCM_ALSA*/
 
+static int app_hs_latest_connect()
+{
+    int index;
+
+    index = app_mgr_get_latest_device();
+    if(index < 0 || index >= APP_MAX_NB_REMOTE_STORED_DEVICES) {
+        APP_DEBUG0("can't find latest connected device");
+        return -1;
+    }
+
+    return app_hs_open(&app_xml_remote_devices_db[index].bd_addr);
+}
+
 int app_hs_initialize()
 {
+    int connect_cnt = 2;
+
     /* Init Headset Application */
     app_hs_init();
 
@@ -2622,6 +2659,13 @@ int app_hs_initialize()
     if(app_hs_start(NULL) < 0) {
         APP_ERROR0("Start Headset service failed");
         return -1;
+    }
+
+    if(app_mgr_is_reconnect()) {
+        while(connect_cnt--) {
+            if(app_hs_latest_connect() == 0)
+                break;
+        }
     }
 
     return 0;
@@ -2667,4 +2711,52 @@ int app_hs_hang_up()
     }
 
     return 0;
+}
+
+int app_hs_redial()
+{
+    if(!app_hs_cb.is_pick_up) {
+        if(app_hs_last_num_dial() < 0) {
+            APP_ERROR0("app_hs_last_num_dial failed");
+            return -1;
+        }
+
+        app_hs_cb.is_pick_up = TRUE;
+    }
+
+    return 0;
+}
+
+int app_hs_report_battery(int value)
+{
+    char at_cmd[100] = {0};
+
+    if ((value < 0) || (value > 9)) {
+        APP_ERROR0("ERROR: Invalid value, should within [0, 9]");
+        return -1;
+    }
+
+    if(!app_hs_battery_report) {
+        if(app_hs_send_unat("+XAPL=ABCD-1234-0100,2") < 0) {
+            APP_ERROR0("send AT cmd failed: AT+XAPL=ABCD-1234-0100,2");
+            return -1;
+        } else {
+            app_hs_battery_report = 1;
+        }
+    }
+
+    sprintf(at_cmd, "+IPHONEACCEV=1,1,%d", value);
+    return app_hs_send_unat(at_cmd);
+}
+
+int app_hs_set_vol(int volume)
+{
+    UINT16 index, handle;
+
+    if(volume < 0 || volume >15) {
+        APP_ERROR0("ERROR: Invalid value, should within [0, 15]");
+        return -1;
+    }
+
+    return app_hs_set_volume(BSA_HS_SPK_CMD, volume);
 }

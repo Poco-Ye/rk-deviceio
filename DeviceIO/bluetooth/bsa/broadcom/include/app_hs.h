@@ -80,11 +80,9 @@ enum
 #define BSA_HS_RESETSTATUS(p,m)      ((p)->status &= (~(m)))
 #define BSA_HS_GETSTATUS(p,m)        ((p)->status & m)
 
-
 /* HS APP main control block */
 typedef struct
 {
-
      BD_ADDR           connected_bd_addr;       /* peer bdaddr */
      UINT16            handle;                  /* connection handle */
      tUIPC_CH_ID       uipc_channel;
@@ -354,7 +352,6 @@ void app_hs_stop(void);
 *******************************************************************************/
 int app_hs_hold_call(tBSA_BTHF_CHLD_TYPE_T type);
 
-
 /*******************************************************************************
 **
 ** Function         app_hs_last_num_dial
@@ -367,7 +364,6 @@ int app_hs_hold_call(tBSA_BTHF_CHLD_TYPE_T type);
 **
 *******************************************************************************/
 int app_hs_last_num_dial(void);
-
 
 /*******************************************************************************
 **
@@ -475,19 +471,6 @@ int app_hs_send_dtmf(char dtmf);
 
 /*******************************************************************************
 **
-** Function         app_hs_send_cnum
-**
-** Description      Send AT CNUM Command
-**
-** Parameters       None
-**
-** Returns          0 if successful execution, error code else
-**
-*******************************************************************************/
-int app_hs_send_cnum(void);
-
-/*******************************************************************************
-**
 ** Function         app_hs_getallIndicatorValues
 **
 ** Description      This function is used to get all indicator values
@@ -511,7 +494,6 @@ int app_hs_getallIndicatorValues(tBSA_HS_IND_VALS *pIndVals);
 **
 *******************************************************************************/
 int app_hs_set_volume(tBSA_BTHF_VOLUME_TYPE_T type, int volume);
-
 
 /*******************************************************************************
 **
@@ -595,6 +577,9 @@ int app_hs_initialize(void);
 void app_hs_deinitialize(void);
 int app_hs_pick_up(void);
 int app_hs_hang_up(void);
+int app_hs_redial(void);
+int app_hs_report_battery(int value);
+int app_hs_set_vol(int volume);
 
 #ifdef  __cplusplus
 }

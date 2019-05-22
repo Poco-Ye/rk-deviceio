@@ -32,6 +32,7 @@
 #include "app_utils.h"
 #include "app_wav.h"
 #include "app_dm.h"
+#include "app_manager.h"
 
 #ifdef PCM_ALSA
 #include "alsa/asoundlib.h"
@@ -109,7 +110,6 @@ enum eAPP_AVK_PLAYSTATE {
 static enum eAPP_AVK_PLAYSTATE play_state[APP_AVK_MAX_CONNECTIONS];
 static pthread_mutex_t ps_mutex = PTHREAD_MUTEX_INITIALIZER;
 static tAVRC_PLAYSTATE play_status[APP_AVK_MAX_CONNECTIONS];
-static int app_avk_auto_reconnect = 1; /* Default for auto reconnect */
 
 /*
  * Local functions
@@ -1199,7 +1199,7 @@ int app_avk_open(BD_ADDR bd_addr, BD_NAME name)
 #if 0
         while (app_avk_cb.open_pending == TRUE);
 #else
-        GKI_delay(2000);
+        GKI_delay(3000);
         if(app_avk_cb.open_pending == TRUE) {
             APP_ERROR0("after 2 seconds, app_avk_cback not return BSA_AVK_OPEN_EVT");
             app_avk_cb.open_pending = FALSE;
@@ -3469,29 +3469,16 @@ int app_avk_get_status(RK_BT_SINK_STATE *pState)
 
 static int app_avk_latest_connect()
 {
-    int ret = -1, index;
+    int index;
 
-    /* Read the XML file which contains all the bonded devices */
-    if(app_read_xml_remote_devices() < 0)
-        return -1;
-
-    app_xml_display_devices(app_xml_remote_devices_db, APP_NUM_ELEMENTS(app_xml_remote_devices_db));
-
-    for(index = 0; index < APP_MAX_NB_REMOTE_STORED_DEVICES; index++) {
-        if((app_xml_remote_devices_db[index].in_use != FALSE)
-            && (app_xml_remote_devices_db[index].latest_connect != FALSE)) {
-            APP_DEBUG1("Device%d %s is latest connected", index, app_xml_remote_devices_db[index].name);
-            ret = app_avk_open(app_xml_remote_devices_db[index].bd_addr, app_xml_remote_devices_db[index].name);
-            break;
-        }
-    }
-
-    if(index >= APP_MAX_NB_REMOTE_STORED_DEVICES) {
+    index = app_mgr_get_latest_device();
+    if(index < 0 || index >= APP_MAX_NB_REMOTE_STORED_DEVICES) {
         APP_DEBUG0("can't find latest connected device");
         return -1;
     }
 
-    return ret;
+    return app_avk_open(app_xml_remote_devices_db[index].bd_addr,
+                        app_xml_remote_devices_db[index].name);
 }
 
 int app_avk_start()
@@ -3511,7 +3498,7 @@ int app_avk_start()
         return -1;
     }
 
-    if(app_avk_auto_reconnect) {
+    if(app_mgr_is_reconnect()) {
         while(connect_cnt--) {
             if(app_avk_latest_connect() == 0)
                 break;
@@ -3532,9 +3519,4 @@ void app_avk_stop()
 
     app_avk_notify_status(RK_BT_SINK_STATE_IDLE);
     app_avk_deregister_cb();
-}
-
-void app_avk_set_auto_reconnect(int enable)
-{
-    app_avk_auto_reconnect = (enable ? 1 : 0);
 }

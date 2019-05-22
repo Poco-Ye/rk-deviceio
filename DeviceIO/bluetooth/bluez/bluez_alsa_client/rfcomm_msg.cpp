@@ -49,20 +49,20 @@ void *thread_get_ba_msg(void *arg)
 
 		if (strstr(buff, "rfcomm status:hfp_hf_ring;")) {
 			if (g_rfcomm_hfp_cb)
-				g_rfcomm_hfp_cb(RK_BT_HFP_RING_EVT);
+				g_rfcomm_hfp_cb(RK_BT_HFP_RING_EVT, NULL);
 		} else if (strstr(buff, "rfcomm status:hfp_slc_connected;")) {
 			if (g_rfcomm_hfp_cb)
-				g_rfcomm_hfp_cb(RK_BT_HFP_CONNECT_EVT);
+				g_rfcomm_hfp_cb(RK_BT_HFP_CONNECT_EVT, NULL);
 		} else if (strstr(buff, "rfcomm status:hfp_slc_disconnected;")) {
 			if (g_rfcomm_hfp_cb)
-				g_rfcomm_hfp_cb(RK_BT_HFP_DISCONNECT_EVT);
+				g_rfcomm_hfp_cb(RK_BT_HFP_DISCONNECT_EVT, NULL);
 		} else if (strstr(buff, "rfcomm status:hfp_hf_connected;")) {
 			if (g_rfcomm_hfp_cb)
-				g_rfcomm_hfp_cb(RK_BT_HFP_AUDIO_OPEN_EVT);
+				g_rfcomm_hfp_cb(RK_BT_HFP_AUDIO_OPEN_EVT, NULL);
 		} else if (strstr(buff, "rfcomm status:hfp_hf_disconnected;")) {
 			rfcomm_hfp_close_audio_path();
 			if (g_rfcomm_hfp_cb)
-			    g_rfcomm_hfp_cb(RK_BT_HFP_AUDIO_CLOSE_EVT);
+			    g_rfcomm_hfp_cb(RK_BT_HFP_AUDIO_CLOSE_EVT, NULL);
 		} else {
 			printf("FUCN:%s. Received a malformed message(%s)\n", __func__, buff);
 		}

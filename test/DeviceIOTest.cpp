@@ -98,6 +98,7 @@ static command_t bt_command_table[] = {
 	{"bt_test_hfp_hp_hungup", bt_test_hfp_hp_hungup},
 	{"bt_test_hfp_hp_redail", bt_test_hfp_hp_redial},
 	{"bt_test_hfp_hp_report_battery", bt_test_hfp_hp_report_battery},
+	{"bt_test_hfp_hp_set_volume", bt_test_hfp_hp_set_volume},
 	{"bt_test_hfp_hp_close", bt_test_hfp_hp_close},
 
 	{"bt_server_close", bt_test_bluetooth_deinit},

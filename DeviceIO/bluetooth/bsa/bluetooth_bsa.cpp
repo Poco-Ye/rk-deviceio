@@ -329,13 +329,28 @@ int rk_bt_deinit()
     rk_bt_hfp_close();
 
     /* Close BSA before exiting (to release resources) */
-    app_mgt_close();
+    app_manager_deinit();
 
     /* stop bsa_server */
     bt_bsa_server_close();
 
     g_bt_control.is_bt_open = false;
     return 0;
+}
+
+int rk_bt_set_class(int value)
+{
+    if(!bt_is_open()) {
+        APP_DEBUG0("bluetooth is not inited, please init");
+        return -1;
+    }
+
+    return app_manager_set_cod(value);
+}
+
+int rk_bt_enable_reconnect(int enable)
+{
+    return app_manager_set_auto_reconnect(enable);
 }
 
 /******************************************/
@@ -451,8 +466,7 @@ int rk_bt_sink_get_state(RK_BT_SINK_STATE *pState)
 
 int rk_bt_sink_set_auto_reconnect(int enable)
 {
-    app_avk_set_auto_reconnect(enable);
-    return 0;
+    return rk_bt_enable_reconnect(enable);
 }
 
 int rk_bt_sink_disconnect()
@@ -829,6 +843,14 @@ void rk_bt_hfp_register_callback(RK_BT_HFP_CALLBACK cb)
     app_hs_register_cb(cb);
 }
 
+int rk_bt_hfp_sink_open()
+{
+    rk_bt_sink_open();
+    rk_bt_hfp_open();
+
+    return 0 ;
+}
+
 int rk_bt_hfp_open()
 {
     if(!bt_is_open()) {
@@ -863,120 +885,135 @@ int rk_bt_hfp_close()
     return 0;
 }
 
-void rk_bt_hfp_pickup()
+int rk_bt_hfp_pickup()
 {
     app_hs_pick_up();
 }
 
-void rk_bt_hfp_hangup()
+int rk_bt_hfp_hangup()
 {
     app_hs_hang_up();
 }
 
+int rk_bt_hfp_set_volume(int volume)
+{
+    return app_hs_set_vol(volume);
+}
+
+int rk_bt_hfp_redial(void)
+{
+    return app_hs_redial();
+}
+
+int rk_bt_hfp_report_battery(int value)
+{
+    return app_hs_report_battery(value);
+}
+
 int rk_bt_control(DeviceIOFramework::BtControl cmd, void *data, int len)
 {
-	using BtControl_rep_type = std::underlying_type<DeviceIOFramework::BtControl>::type;
-	RkBleConfig *ble_cfg;
+    using BtControl_rep_type = std::underlying_type<DeviceIOFramework::BtControl>::type;
+    RkBleConfig *ble_cfg;
     RkBtContent bt_content;
     RkBleContent ble_content;
-	int ret = 0;
+    int ret = 0;
     bool scan;
 
     bt_print_cmd(cmd);
 
-	switch (cmd) {
-	case DeviceIOFramework::BtControl::BT_OPEN:
+    switch (cmd) {
+    case DeviceIOFramework::BtControl::BT_OPEN:
         bt_content = *((RkBtContent *)data);
         ret = rk_bt_init(&bt_content);
-		break;
+        break;
 
     case DeviceIOFramework::BtControl::BT_CLOSE:
         rk_bt_deinit();
         break;
 
-	case DeviceIOFramework::BtControl::BT_SINK_OPEN:
+    case DeviceIOFramework::BtControl::BT_SINK_OPEN:
         ret = rk_bt_sink_open();
-		break;
+        break;
 
-	case DeviceIOFramework::BtControl::BT_SINK_CLOSE:
+    case DeviceIOFramework::BtControl::BT_SINK_CLOSE:
         ret = rk_bt_sink_close();
-		break;
+        break;
 
-	case DeviceIOFramework::BtControl::BT_SINK_IS_OPENED:
+    case DeviceIOFramework::BtControl::BT_SINK_IS_OPENED:
         ret = (int)a2dp_sink_is_open();
-		break;
+        break;
 
-	case DeviceIOFramework::BtControl::BT_BLE_OPEN:
+    case DeviceIOFramework::BtControl::BT_BLE_OPEN:
         ble_content = *((RkBleContent *)data);
         ret = rk_ble_start(&ble_content);
-		break;
+        break;
 
-	case DeviceIOFramework::BtControl::BT_BLE_COLSE:
+    case DeviceIOFramework::BtControl::BT_BLE_COLSE:
         ret = rk_ble_stop();
-		break;
+        break;
 
-	case DeviceIOFramework::BtControl::BT_BLE_IS_OPENED:
+    case DeviceIOFramework::BtControl::BT_BLE_IS_OPENED:
         ret = (int)ble_is_open();
-		break;
+        break;
 
-	case DeviceIOFramework::BtControl::BT_BLE_WRITE:
+    case DeviceIOFramework::BtControl::BT_BLE_WRITE:
         ble_cfg = (RkBleConfig *)data;
         rk_ble_write(ble_cfg->uuid, (char *)ble_cfg->data, ble_cfg->len);
-		break;
+        break;
 
-	case DeviceIOFramework::BtControl::BT_SOURCE_OPEN:
+    case DeviceIOFramework::BtControl::BT_SOURCE_OPEN:
         ret = rk_bt_source_auto_connect_start(data, NULL);
-		break;
+        break;
 
-	case DeviceIOFramework::BtControl::BT_SOURCE_CLOSE:
+    case DeviceIOFramework::BtControl::BT_SOURCE_CLOSE:
         rk_bt_source_auto_connect_stop();
-		break;
+        break;
 
-	case DeviceIOFramework::BtControl::BT_SOURCE_IS_OPENED:
+    case DeviceIOFramework::BtControl::BT_SOURCE_IS_OPENED:
         ret = a2dp_source_is_open();
-		break;
+        break;
 
-	case DeviceIOFramework::BtControl::GET_BT_MAC:
+    case DeviceIOFramework::BtControl::GET_BT_MAC:
         bsa_get_bt_mac((char *)data);
-		break;
+        break;
 
-	case DeviceIOFramework::BtControl::BT_VOLUME_UP:
+    case DeviceIOFramework::BtControl::BT_VOLUME_UP:
         ret = rk_bt_sink_volume_up();
-		break;
+        break;
 
-	case DeviceIOFramework::BtControl::BT_VOLUME_DOWN:
+    case DeviceIOFramework::BtControl::BT_VOLUME_DOWN:
         ret = rk_bt_sink_volume_down();
-		break;
+        break;
 
-	case DeviceIOFramework::BtControl::BT_PLAY:
-	case DeviceIOFramework::BtControl::BT_RESUME_PLAY:
+    case DeviceIOFramework::BtControl::BT_PLAY:
+    case DeviceIOFramework::BtControl::BT_RESUME_PLAY:
         ret = rk_bt_sink_play();
-		break;
+        break;
 
-	case DeviceIOFramework::BtControl::BT_PAUSE_PLAY:
+    case DeviceIOFramework::BtControl::BT_PAUSE_PLAY:
         ret = rk_bt_sink_pause();
-		break;
+        break;
 
-	case DeviceIOFramework::BtControl::BT_AVRCP_FWD:
+    case DeviceIOFramework::BtControl::BT_AVRCP_FWD:
         ret = rk_bt_sink_prev();
-		break;
+        break;
 
-	case DeviceIOFramework::BtControl::BT_AVRCP_BWD:
+    case DeviceIOFramework::BtControl::BT_AVRCP_BWD:
         ret = rk_bt_sink_next();
-		break;
+        break;
 
-	case DeviceIOFramework::BtControl::BT_VISIBILITY:
+    case DeviceIOFramework::BtControl::BT_VISIBILITY:
         scan = (*(bool *)data);
         if(scan)
             rk_bt_sink_set_visibility(1, 1);
         else
             rk_bt_sink_set_visibility(0, 0);
-		break;
+        break;
 
-	default:
-		APP_DEBUG1("cmd <%d> is not implemented.", static_cast<BtControl_rep_type>(cmd));
-		break;
-	}
+    default:
+        APP_DEBUG1("cmd <%d> is not implemented.", static_cast<BtControl_rep_type>(cmd));
+        break;
+    }
 
-	return ret;
+    return ret;
 }
