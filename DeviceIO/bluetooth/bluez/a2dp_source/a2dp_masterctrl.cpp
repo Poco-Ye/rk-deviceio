@@ -11,6 +11,9 @@
 #include <sys/socket.h>
 #include <readline/readline.h>
 #include <readline/history.h>
+#include <linux/input.h>
+#include <dirent.h>
+#include <fcntl.h>
 
 #include "DeviceIo/DeviceIo.h"
 #include "DeviceIo/RkBle.h"
@@ -23,6 +26,7 @@
 #include "gatt.h"
 #include "advertising.h"
 #include "../gatt_config.h"
+#include "../include/uinput.h"
 
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
@@ -71,8 +75,8 @@ volatile bool A2DP_SINK_FLAG;
 volatile bool A2DP_SRC_FLAG;
 volatile bool BLE_FLAG;
 
-static RK_BT_SOURCE_CALLBACK g_btmaster_cb;
-static void *g_btmaster_userdata;
+RK_BT_SOURCE_CALLBACK g_btmaster_cb;
+void *g_btmaster_userdata;
 
 extern RK_BLE_STATE_CALLBACK ble_status_callback;
 extern RK_BLE_STATE g_ble_status;
@@ -554,6 +558,7 @@ static void set_source_device(GDBusProxy *proxy)
 	if (proxy == NULL) {
 		default_src_dev = NULL;
 		a2dp_master_save_status(NULL);
+		a2dp_master_avrcp_close();
 		if (g_btmaster_cb)
 			(*g_btmaster_cb)(g_btmaster_userdata, BT_SOURCE_EVENT_DISCONNECTED);
 		return;
@@ -570,8 +575,10 @@ static void set_source_device(GDBusProxy *proxy)
 		printf("%s address: %s\n", __func__, address);
 	}
 
-	if (g_btmaster_cb)
+	if (g_btmaster_cb) {
 		(*g_btmaster_cb)(g_btmaster_userdata, BT_SOURCE_EVENT_CONNECTED);
+		a2dp_master_avrcp_open();
+	}
 	a2dp_master_save_status(address);
 }
 
@@ -909,6 +916,8 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 							set_source_device(NULL);
 						}
 					}
+					if (connected && (dist_dev_class(proxy) == BT_Device_Class::BT_SINK_DEVICE))
+						set_source_device(proxy);
 				}
 
 				//bt_sink
@@ -2681,8 +2690,6 @@ static void connect_reply(DBusMessage *message, void *user_data)
 	}
 
 	printf("Connection successful\n");
-	if (dist_dev_class(proxy) == BT_Device_Class::BT_SINK_DEVICE)
-		set_source_device(proxy);
 	set_default_device(proxy, NULL);
 
 	return bt_shell_noninteractive_quit(EXIT_SUCCESS);
@@ -2706,8 +2713,8 @@ static void disconn_reply(DBusMessage *message, void *user_data)
 	if (proxy == default_dev)
 		set_default_device(NULL, NULL);
 
-	if (proxy == default_src_dev)
-		set_source_device(NULL);
+//	if (proxy == default_src_dev)
+//		set_source_device(NULL);
 
 	return bt_shell_noninteractive_quit(EXIT_SUCCESS);
 }
@@ -3127,3 +3134,191 @@ void a2dp_master_clear_cb()
 	g_btmaster_userdata = NULL;
 	return;
 }
+
+/**********************************************
+ *      bt source avrcp
+ **********************************************/
+static int g_bt_source_avrcp_thread_runing;
+static int g_bt_source_avrcp_fd;
+static pthread_t g_bt_source_avrcp_thread;
+
+static int is_bluealsa_event(char *node)
+{
+	char sys_path[100] = {0};
+	char node_info[100] = {0};
+	int fd = 0;
+
+	if (strncmp(node, "event", 5))
+		return 0;
+
+	sprintf(sys_path, "sys/class/input/%s/device/name", node);
+	fd = open(sys_path, O_RDONLY);
+	if (fd < 0)
+		return 0;
+
+	if (read(fd, node_info, sizeof(node_info)) < 0) {
+		close(fd);
+		return 0;
+	}
+
+	/* BlueAlsa addr like XX:XX:XX:XX:XX:XX */
+	if ((strlen(node_info) == 18) &&
+		(node_info[2] == ':') && (node_info[5] == ':') &&
+		(node_info[8] == ':') && (node_info[11] == ':') &&
+		(node_info[14] == ':')) {
+		close(fd);
+		return 1;
+	}
+
+	close(fd);
+	return 0;
+}
+
+
+static int get_input_event_id()
+{
+	DIR *dir;
+	struct dirent *ptr;
+	char node_name[7]; //eventXX
+	int id = -1;
+
+	if ((dir = opendir("/dev/input")) == NULL) {
+		printf("ERROR: %s Open dir \"/dev/input\" error\n", __func__);
+		return -1;
+	}
+
+	while ((ptr = readdir(dir)) != NULL) {
+		if ((strcmp(ptr->d_name, ".") == 0) || (strcmp(ptr->d_name, "..") == 0) || //current dir OR parrent dir
+			(ptr->d_type == 10) || (ptr->d_type == 4)) { //link file or dir
+			continue;
+		} else if ((ptr->d_type == 8) || (ptr->d_type == 2)) { //file
+			if (strncmp(ptr->d_name, "event", 5) != 0)
+				continue;
+
+			if (is_bluealsa_event(ptr->d_name)) {
+				memset(node_name, 0, sizeof(node_name));
+				memcpy(node_name, ptr->d_name, strlen(ptr->d_name));
+				if ((node_name[5] >= '0') && (node_name[5] <= '9'))
+					id = node_name[5] - '0';
+				else if ((node_name[6] >= '0') && (node_name[6] <= '9'))
+					id = id * 10 + (node_name[6] - '0');
+				break;
+			}
+		}
+	}
+	closedir(dir);
+
+	return id;
+}
+
+static void *bt_source_listen_avrcp_event(int fd)
+{
+	fd_set rfds;
+	int ret;
+	struct input_event ev_key;
+	struct timeval tv;
+
+	printf("### %s start...\n", __func__);
+	tv.tv_sec = 0;
+	tv.tv_usec = 100000;/* 100ms */
+	while (g_bt_source_avrcp_thread_runing) {
+		FD_ZERO(&rfds);
+		FD_SET(fd, &rfds);
+
+		select(fd + 1, &rfds, NULL, NULL, &tv);
+
+		if (FD_ISSET(fd, &rfds) == 0)
+			continue;
+
+		ret = read(fd, &ev_key, sizeof(ev_key));
+		if (ret == -1) {
+			printf("ERROR:%s read bt source avrcp event failed!\n", __func__);
+			break;
+		}
+
+		/* ignore illegal key code and only key down is captured */
+		if ((ev_key.code == 0) || (ev_key.value != 1))
+			continue;
+
+		switch(ev_key.code) {
+			case KEY_PLAYCD:
+	            g_btmaster_cb(g_btmaster_userdata, BT_SOURCE_EVENT_RC_PLAY);
+				break;
+	        case KEY_PAUSECD:
+	            g_btmaster_cb(g_btmaster_userdata, BT_SOURCE_EVENT_RC_PAUSE);
+				break;
+	        case KEY_VOLUMEUP:
+	            g_btmaster_cb(g_btmaster_userdata, BT_SOURCE_EVENT_RC_VOL_UP);
+				break;
+	        case KEY_VOLUMEDOWN:
+	            g_btmaster_cb(g_btmaster_userdata, BT_SOURCE_EVENT_RC_VOL_DOWN);
+				break;
+	        case KEY_NEXTSONG:
+	            g_btmaster_cb(g_btmaster_userdata, BT_SOURCE_EVENT_RC_BACKWARD);
+				break;
+	        case KEY_PREVIOUSSONG:
+	            g_btmaster_cb(g_btmaster_userdata, BT_SOURCE_EVENT_RC_FORWARD);
+				break;
+	        default:
+	            break;
+		}
+	}
+
+	if (g_bt_source_avrcp_fd > 0) {
+		close(g_bt_source_avrcp_fd);
+		g_bt_source_avrcp_fd = 0;
+	}
+
+	printf("### %s end...\n", __func__);
+	return NULL;
+}
+
+int a2dp_master_avrcp_open()
+{
+	int id, fd;
+	int ret = -1;
+	char path[100] = {0};
+	int try_cnt = 6;
+
+REPEAT:
+	id = get_input_event_id();
+	if (id >= 0) {
+		sprintf(path, "/dev/input/event%d", id);
+		fd = open(path, O_RDONLY);
+		if (fd > 0) {
+			g_bt_source_avrcp_fd = fd;
+			g_bt_source_avrcp_thread_runing = 1;
+			pthread_create(&g_bt_source_avrcp_thread, NULL, bt_source_listen_avrcp_event, fd);
+			ret = 0;
+		} else {
+			g_bt_source_avrcp_fd = 0;
+			printf("WARNING: %s open %s failed!\n", __func__, path);
+		}
+	} else {
+		try_cnt--;
+		if (try_cnt > 0) {
+			usleep(200000); /* 100ms */
+			printf("INFO: %s waite for bt source avrcp event node. 200ms\n", __func__);
+			goto REPEAT;
+		}
+		printf("ERROR: %s can not open bt source avrcp event node\n", __func__);
+	}
+
+	return ret;
+}
+
+int a2dp_master_avrcp_close()
+{
+	printf("### %s start...\n", __func__);
+	g_bt_source_avrcp_thread_runing = 0;
+	if (g_bt_source_avrcp_fd > 0) {
+		close(g_bt_source_avrcp_fd);
+		g_bt_source_avrcp_fd = 0;
+	}
+	if (g_bt_source_avrcp_thread)
+		pthread_join(g_bt_source_avrcp_thread, NULL);
+
+	printf("### %s end...\n", __func__);
+	return 0;
+}
+
