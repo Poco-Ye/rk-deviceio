@@ -125,6 +125,38 @@ static pthread_t m_th;
 static int m_maxfd = 0;
 static Dirents *dirents = NULL;
 
+static int is_bluealsa_event(char *node)
+{
+	char sys_path[100] = {0};
+	char node_info[100] = {0};
+	int fd = 0;
+
+	if (strncmp(node, "event", 5))
+		return 0;
+
+	sprintf(sys_path, "sys/class/input/%s/device/name", node);
+	fd = open(sys_path, O_RDONLY);
+	if (fd < 0)
+		return 0;
+
+	if (read(fd, node_info, sizeof(node_info)) < 0) {
+		close(fd);
+		return 0;
+	}
+
+	/* BlueAlsa addr like XX:XX:XX:XX:XX:XX */
+	if ((strlen(node_info) == 18) &&
+		(node_info[2] == ':') && (node_info[5] == ':') &&
+		(node_info[8] == ':') && (node_info[11] == ':') &&
+		(node_info[14] == ':')) {
+		close(fd);
+		return 1;
+	}
+
+	close(fd);
+	return 0;
+}
+
 static Dirents* list_input_events(const char *path)
 {
 	Dirents* head = NULL;
@@ -951,6 +983,10 @@ int RK_input_init(RK_input_callback input_callback_cb)
 	if (dirents) {
 		Dirents *event = dirents;
 		while (event) {
+			if (is_bluealsa_event(event->file.d_name)) {
+				printf("INFO:%s %s is bluealsa node, pass over!", __func__, event->file.d_name);
+				continue;
+			}
 			memset(input_event, 0, sizeof(input_event));
 			snprintf(input_event, sizeof(input_event), "/dev/input/%s", event->file.d_name);
 			event->event = open(input_event, O_RDONLY);

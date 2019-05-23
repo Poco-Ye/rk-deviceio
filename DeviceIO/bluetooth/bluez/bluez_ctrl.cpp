@@ -477,6 +477,7 @@ int bt_close_source(void)
 {
 	int ret = 0;
 
+	a2dp_master_avrcp_close();
 	if (!bt_source_is_open())
 		return 1;
 

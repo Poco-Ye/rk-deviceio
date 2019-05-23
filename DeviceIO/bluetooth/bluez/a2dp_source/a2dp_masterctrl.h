@@ -15,6 +15,9 @@ int a2dp_master_status(char *addr_buf, int addr_len, char *name_buf, int name_le
 int a2dp_master_remove(char *address);
 void a2dp_master_register_cb(void *userdata, RK_BT_SOURCE_CALLBACK cb);
 void a2dp_master_clear_cb();
+int a2dp_master_avrcp_open();
+int a2dp_master_avrcp_close();
+
 int ble_disconnect(void);
 
 #endif /* __A2DP_SOURCE_CTRL__ */

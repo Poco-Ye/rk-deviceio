@@ -145,14 +145,14 @@ int rk_ble_register_recv_callback(RK_BLE_RECV_CALLBACK cb)
 /*****************************************************************
  *            Rockchip bluetooth master api                      *
  *****************************************************************/
-static RK_BT_SOURCE_CALLBACK g_btmaster_user_cb;
-static void *g_btmaster_user_data;
+extern RK_BT_SOURCE_CALLBACK g_btmaster_cb;
+extern void *g_btmaster_userdata;
 static pthread_t g_btmaster_thread;
 
 static void _btmaster_send_event(RK_BT_SOURCE_EVENT event)
 {
-	if (g_btmaster_user_cb)
-		(*g_btmaster_user_cb)(g_btmaster_user_data, event);
+	if (g_btmaster_cb)
+		(*g_btmaster_cb)(g_btmaster_userdata, event);
 }
 
 static void* _btmaster_autoscan_and_connect(void *data)
@@ -254,8 +254,6 @@ int rk_bt_source_auto_connect_start(void *userdata, RK_BT_SOURCE_CALLBACK cb)
 
 	/* Register callback and userdata */
 	rk_bt_source_register_status_cb(userdata, cb);
-	g_btmaster_user_data = userdata;
-	g_btmaster_user_cb = cb;
 
 	ret = rk_bt_source_open();
 	if (ret < 0)

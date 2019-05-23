@@ -223,6 +223,27 @@ void bt_test_source_status_callback(void *userdata, const RK_BT_SOURCE_EVENT enE
 		case BT_SOURCE_EVENT_DISCONNECTED:
 			printf("++++++++++++ BT SOURCE EVENT:disconnect ++++++++++\n");
 			break;
+		case BT_SOURCE_EVENT_RC_PLAY:
+			printf("++++++++++++ BT SOURCE EVENT:play ++++++++++\n");
+			break;
+		case BT_SOURCE_EVENT_RC_STOP:
+			printf("++++++++++++ BT SOURCE EVENT:stop ++++++++++\n");
+			break;
+		case BT_SOURCE_EVENT_RC_PAUSE:
+			printf("++++++++++++ BT SOURCE EVENT:pause ++++++++++\n");
+			break;
+		case BT_SOURCE_EVENT_RC_FORWARD:
+			printf("++++++++++++ BT SOURCE EVENT:next ++++++++++\n");
+			break;
+		case BT_SOURCE_EVENT_RC_BACKWARD:
+			printf("++++++++++++ BT SOURCE EVENT:previous ++++++++++\n");
+			break;
+		case BT_SOURCE_EVENT_RC_VOL_UP:
+			printf("++++++++++++ BT SOURCE EVENT:vol up ++++++++++\n");
+			break;
+		case BT_SOURCE_EVENT_RC_VOL_DOWN:
+			printf("++++++++++++ BT SOURCE EVENT:vol down ++++++++++\n");
+			break;
 	}
 }
 
