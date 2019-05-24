@@ -367,6 +367,12 @@ int rk_bt_sink_register_callback(RK_BT_SINK_CALLBACK cb)
     return 0;
 }
 
+int rk_bt_sink_register_volume_callback(RK_BT_SINK_VOLUME_CALLBACK cb)
+{
+    app_avk_register_volume_cb(cb);
+    return 0;
+}
+
 int rk_bt_sink_open()
 {
     if(!bt_is_open()) {
@@ -448,6 +454,11 @@ int rk_bt_sink_volume_down()
 {
     app_avk_rc_send_cmd((int)APP_AVK_VOLUME_DOWN);
     return 0;
+}
+
+int rk_bt_sink_set_volume(int volume)
+{
+    return app_avk_set_volume(volume);
 }
 
 int rk_bt_sink_set_visibility(const int visiable, const int connect)

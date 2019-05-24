@@ -101,11 +101,17 @@ int bt_sink_callback(RK_BT_SINK_STATE state)
 			break;
 	}
 
-    return 0;
+	return 0;
+}
+
+void bt_sink_volume_callback(int volume)
+{
+	printf("++++++++ bt sink volume change, volume: %d ++++++++\n", volume);
 }
 
 void bt_test_sink_open(void *data)
 {
+	rk_bt_sink_register_volume_callback(bt_sink_volume_callback);
 	rk_bt_sink_register_callback(bt_sink_callback);
 	rk_bt_sink_open();
 }
@@ -200,6 +206,19 @@ void bt_test_sink_disconnect(void *data)
 void bt_test_sink_close(void *data)
 {
 	rk_bt_sink_close();
+}
+
+void bt_test_sink_set_volume(void *data)
+{
+	int volume;
+
+	for(volume = 0; volume <= 0x7F; ) {
+		rk_bt_sink_set_volume(volume);
+
+		/* change vol by 10% */
+		volume += 0x7F/10;
+		sleep(2);
+	}
 }
 
 /******************************************/

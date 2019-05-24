@@ -2753,8 +2753,8 @@ int app_hs_set_vol(int volume)
 {
     UINT16 index, handle;
 
-    if(volume < 0 || volume >15) {
-        APP_ERROR0("ERROR: Invalid value, should within [0, 15]");
+    if(volume < 0 || volume > 15) {
+        APP_ERROR1("Invalid value(%d), should within [0, 15]", volume);
         return -1;
     }
 
