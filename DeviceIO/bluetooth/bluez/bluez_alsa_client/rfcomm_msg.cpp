@@ -54,15 +54,21 @@ void *thread_get_ba_msg(void *arg)
 			if (g_rfcomm_hfp_cb)
 				g_rfcomm_hfp_cb(RK_BT_HFP_CONNECT_EVT, NULL);
 		} else if (strstr(buff, "rfcomm status:hfp_slc_disconnected;")) {
+			rfcomm_hfp_close_audio_path();
 			if (g_rfcomm_hfp_cb)
 				g_rfcomm_hfp_cb(RK_BT_HFP_DISCONNECT_EVT, NULL);
 		} else if (strstr(buff, "rfcomm status:hfp_hf_connected;")) {
+			rfcomm_hfp_open_audio_path();
 			if (g_rfcomm_hfp_cb)
 				g_rfcomm_hfp_cb(RK_BT_HFP_AUDIO_OPEN_EVT, NULL);
 		} else if (strstr(buff, "rfcomm status:hfp_hf_disconnected;")) {
 			rfcomm_hfp_close_audio_path();
 			if (g_rfcomm_hfp_cb)
 			    g_rfcomm_hfp_cb(RK_BT_HFP_AUDIO_CLOSE_EVT, NULL);
+		} else if (strstr(buff, "rfcomm status:hfp_hf_pickup;")) {
+			rfcomm_hfp_open_audio_path();
+		} else if (strstr(buff, "rfcomm status:hfp_hf_calling;")) {
+			rfcomm_hfp_open_audio_path();
 		} else {
 			printf("FUCN:%s. Received a malformed message(%s)\n", __func__, buff);
 		}
@@ -396,8 +402,8 @@ int rfcomm_hfp_open_audio_path()
 	}
 	pcm_param.channel = 2;
 	pcm_param.samplerate = 8000;
-	pcm_param.buffer_time = 500000;
-	pcm_param.period_time = 100000;
+	pcm_param.buffer_time = 100000;
+	pcm_param.period_time = 20000;
 	pcm_param.format = SND_PCM_FORMAT_S16_LE;
 	pcm_param.start_threshold = 0; //default
 	if (err = setup_pcm_handle("LocalPlayback", local_play_pcm, &pcm_param) != 0) {
@@ -412,7 +418,7 @@ int rfcomm_hfp_open_audio_path()
 	}
 	pcm_param.channel = 2;
 	pcm_param.samplerate = 8000;
-	pcm_param.buffer_time = 100000;
+	pcm_param.buffer_time = 400000;
 	pcm_param.period_time = 20000;
 	pcm_param.format = SND_PCM_FORMAT_S16_LE;
 	pcm_param.start_threshold = 1;
@@ -444,7 +450,7 @@ int rfcomm_hfp_open_audio_path()
 	}
 	pcm_param.channel = 2;
 	pcm_param.samplerate = 8000;
-	pcm_param.buffer_time = 100000;
+	pcm_param.buffer_time = 400000;
 	pcm_param.period_time = 20000;
 	pcm_param.format = SND_PCM_FORMAT_S16_LE;
 	pcm_param.start_threshold = 1;

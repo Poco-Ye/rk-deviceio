@@ -743,11 +743,6 @@ int rk_bt_hfp_sink_open(void)
 	return 0;
 }
 
-int rk_bt_hfp_set_volume(int volume)
-{
-	return 0
-}
-
 int rk_bt_hfp_close(void)
 {
 	if (!bt_hfp_is_open())
@@ -859,13 +854,7 @@ int rk_bt_hfp_hangup(void)
 
 int rk_bt_hfp_redial(void)
 {
-	int ret = 0;
-
-	ret = rk_bt_hfp_hp_send_cmd("AT+BLDN");
-	if (ret)
-		return ret;
-
-	return rfcomm_hfp_open_audio_path();
+	return rk_bt_hfp_hp_send_cmd("AT+BLDN");
 }
 
 int rk_bt_hfp_report_battery(int value)
@@ -888,6 +877,22 @@ int rk_bt_hfp_report_battery(int value)
 		sprintf(at_cmd, "AT+IPHONEACCEV=1,1,%d", value);
 		ret =  rk_bt_hfp_hp_send_cmd(at_cmd);
 	}
+
+	return ret;
+}
+
+int rk_bt_hfp_set_volume(int volume)
+{
+	int ret = 0;
+	char at_cmd[100] = {0};
+
+	if (volume > 15)
+		volume = 15;
+	else if (volume < 0)
+		volume = 0;
+
+	sprintf(at_cmd, "AT+VGS=%d", volume);
+	ret =  rk_bt_hfp_hp_send_cmd(at_cmd);
 
 	return ret;
 }
