@@ -41,6 +41,7 @@ void bt_test_sink_reconnect_disenable(void *data);
 void bt_test_sink_disconnect(void *data);
 void bt_test_sink_close(void *data);
 void bt_test_sink_status(void *data);
+void bt_test_sink_set_volume(void *data);
 
 /******************************************/
 /*          A2DP SOURCE Test              */

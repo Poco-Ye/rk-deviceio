@@ -10,15 +10,17 @@ extern "C" {
 typedef enum {
 	RK_BT_SINK_STATE_IDLE = 0,
 	RK_BT_SINK_STATE_CONNECT,
-	RK_BT_SINK_STATE_PLAY ,
+	RK_BT_SINK_STATE_PLAY,
 	RK_BT_SINK_STATE_PAUSE,
-	RK_BT_SINK_STATE_STOP ,
+	RK_BT_SINK_STATE_STOP,
 	RK_BT_SINK_STATE_DISCONNECT
 } RK_BT_SINK_STATE;
 
 typedef int (*RK_BT_SINK_CALLBACK)(RK_BT_SINK_STATE state);
+typedef void (*RK_BT_SINK_VOLUME_CALLBACK)(int volume);
 
 int rk_bt_sink_register_callback(RK_BT_SINK_CALLBACK cb);
+int rk_bt_sink_register_volume_callback(RK_BT_SINK_VOLUME_CALLBACK cb);
 int rk_bt_sink_open();
 int rk_bt_sink_set_visibility(const int visiable, const int connectal);
 int rk_bt_sink_close(void);
@@ -30,6 +32,7 @@ int rk_bt_sink_next(void);
 int rk_bt_sink_stop(void);
 int rk_bt_sink_volume_up(void);
 int rk_bt_sink_volume_down(void);
+int rk_bt_sink_set_volume(int volume);
 int rk_bt_sink_set_auto_reconnect(int enable);
 int rk_bt_sink_disconnect();
 

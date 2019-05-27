@@ -393,6 +393,11 @@ int rk_bt_sink_register_callback(RK_BT_SINK_CALLBACK cb)
 	return 0;
 }
 
+int rk_bt_sink_register_volume_callback(RK_BT_SINK_VOLUME_CALLBACK cb)
+{
+	return;
+}
+
 int rk_bt_sink_open()
 {
 	/* Init bluetooth */
@@ -497,6 +502,11 @@ int rk_bt_sink_set_auto_reconnect(int enable)
 int rk_bt_sink_disconnect()
 {
 	disconn_device();
+	return 0;
+}
+
+int rk_bt_sink_set_volume(int volume)
+{
 	return 0;
 }
 

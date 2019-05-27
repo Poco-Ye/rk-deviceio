@@ -25,6 +25,7 @@
 
 #define BSA_MIN_ABS_VOLUME        0x00   /* Min and max absolute vol */
 #define BSA_MAX_ABS_VOLUME        0x7F
+#define BSA_ABS_VOLUME_STEP       15
 
 /* Menu items */
 enum
@@ -90,6 +91,19 @@ typedef struct
     tBSA_AVK_CBACK *p_Callback;
     tAPP_AVK_CONNECTION *pStreamingConn;
 } tAPP_AVK_CB;
+
+/*******************************************************************************
+**
+** Function         app_avk_register_volume_cb
+**
+** Description      Register AVK volume notify
+**
+** Parameters       Notify callback
+**
+** Returns          void
+**
+*******************************************************************************/
+void app_avk_register_volume_cb(RK_BT_SINK_VOLUME_CALLBACK cb);
 
 /*******************************************************************************
 **
@@ -782,5 +796,7 @@ int app_avk_get_status(RK_BT_SINK_STATE *pState);
 int app_avk_start(void);
 
 void app_avk_stop(void);
+
+int app_avk_set_volume(int volume);
 
 #endif /* APP_AVK_H_ */

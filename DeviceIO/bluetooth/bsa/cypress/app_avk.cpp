@@ -118,10 +118,33 @@ static void app_avk_close_wave_file(tAPP_AVK_CONNECTION *connection);
 static void app_avk_create_wave_file(void);
 static void app_avk_uipc_cback(BT_HDR *p_msg);
 
+static RK_BT_SINK_VOLUME_CALLBACK app_avk_volume_cb = NULL;
 static RK_BT_SINK_CALLBACK app_avk_notify_cb = NULL;
+
+static void app_avk_volume_notify(int volume) {
+    if(app_avk_volume_cb)
+        app_avk_volume_cb(volume);
+}
+
 static void app_avk_notify_status(RK_BT_SINK_STATE state) {
     if(app_avk_notify_cb)
         app_avk_notify_cb(state);
+}
+
+/*******************************************************************************
+**
+** Function         app_avk_register_volume_cb
+**
+** Description      Register AVK volume notify
+**
+** Parameters       Notify callback
+**
+** Returns          void
+**
+*******************************************************************************/
+void app_avk_register_volume_cb(RK_BT_SINK_VOLUME_CALLBACK cb)
+{
+	app_avk_volume_cb = cb;
 }
 
 /*******************************************************************************
@@ -429,6 +452,15 @@ void app_avk_select_streaming_device(BD_ADDR bd_addr)
     }
 }
 
+static app_avk_set_master_volume(int volume)
+{
+    char buffer[100];
+    memset(buffer, 0 ,100);
+    sprintf(buffer, "amixer set Master Playback %d", volume * 100 / BSA_MAX_ABS_VOLUME);
+    if (-1 == system(buffer))
+        APP_ERROR1("error: %d, volume: %d", errno, volume);
+}
+
 /*******************************************************************************
  **
  ** Function         app_avk_cback
@@ -594,8 +626,6 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
         }
 
         break;
-
-
 
     case BSA_AVK_STOP_EVT:
         APP_DEBUG1("BSA_AVK_STOP_EVT handle: %d  Suspended: %d", p_data->stop_streaming.ccb_handle, p_data->stop_streaming.suspended);
@@ -1034,15 +1064,13 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
             if (p_data->abs_volume.abs_volume_cmd.volume <= BSA_MAX_ABS_VOLUME)
             {
                 app_avk_cb.volume = p_data->abs_volume.abs_volume_cmd.volume;
+
+                /* Change the code below based on which interface audio is going out to. */
+                app_avk_set_master_volume(app_avk_cb.volume);
+
+                app_avk_register_volume_cb(app_avk_cb.volume);
+                app_avk_set_abs_vol_rsp(app_avk_cb.volume, p_data->abs_volume.handle, p_data->abs_volume.label);
             }
-
-            /* Change the code below based on which interface audio is going out to. */
-            char buffer[100];
-            sprintf(buffer, "amixer set Master Playback %d", app_avk_cb.volume * 100 / BSA_MAX_ABS_VOLUME);
-            if (-1 == system(buffer))
-                APP_ERROR1("app_avk_cback: set volume error: %d, volume: %d", errno, app_avk_cb.volume);
-
-            app_avk_set_abs_vol_rsp(app_avk_cb.volume, p_data->abs_volume.handle, p_data->abs_volume.label);
         }
         else
         {
@@ -1060,6 +1088,9 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
             {
                 connection->m_bAbsVolumeSupported = TRUE;
                 connection->volChangeLabel = p_data->reg_notif_cmd.label;
+
+                APP_DEBUG1("app_avk_cb.volume: %d", app_avk_cb.volume);
+                app_avk_set_master_volume(app_avk_cb.volume);
 
                 /* Peer requested registration for vol change event. Send response with current system volume. BSA is TG role in AVK */
                 app_avk_reg_notfn_rsp(app_avk_cb.volume,
@@ -1820,6 +1851,48 @@ void app_avk_rc_send_cmd(int command)
  **
  ** Function         app_avk_volume_up
  **
+ ** Description      Example of set volume
+ **
+ ** Returns          void
+ **
+ *******************************************************************************/
+int app_avk_set_volume(int volume)
+{
+    int index;
+    tAPP_AVK_CONNECTION *connection = NULL;
+
+    if(volume < 0 || volume > BSA_MAX_ABS_VOLUME) {
+        APP_ERROR1("Invalid value(%d), should within [0, 0x7F]", volume);
+        return -1;
+    }
+
+    for (index = 0; index < APP_AVK_MAX_CONNECTIONS; index++) {
+        connection = app_avk_find_connection_by_index(index);
+        if(connection->in_use) {
+            if ((connection->peer_features & BSA_RC_FEAT_RCTG) && connection->is_rc_open) {
+                APP_DEBUG1("connection->m_bAbsVolumeSupported: %d", connection->m_bAbsVolumeSupported);
+                if (connection->m_bAbsVolumeSupported) {
+                    app_avk_cb.volume = volume;
+                    APP_DEBUG1("app_avk_cb.volume: %d", app_avk_cb.volume);
+
+                    /* send abs vol change notification */
+                    app_avk_reg_notfn_rsp(app_avk_cb.volume, connection->rc_handle,
+                        connection->volChangeLabel, AVRC_EVT_VOLUME_CHANGE, BSA_AVK_RSP_CHANGED);
+                }
+            } else {
+                APP_ERROR1("Unable to send AVRC command, is support RCTG %d, is rc open %d",
+                    (connection->peer_features & BSA_RC_FEAT_RCTG), connection->is_rc_open);
+            }
+        }
+    }
+
+    return 0;
+}
+
+/*******************************************************************************
+ **
+ ** Function         app_avk_volume_up
+ **
  ** Description      Example of volume up
  **
  ** Returns          void
@@ -1842,8 +1915,7 @@ void app_avk_volume_up(UINT8 rc_handle)
         if (connection->m_bAbsVolumeSupported == FALSE) {
             app_avk_rc_send_click(BSA_AVK_RC_VOL_UP, rc_handle);
         } else {
-            /* increase vol by 10% */
-            UINT8 vol = app_avk_cb.volume + (UINT8)(BSA_MAX_ABS_VOLUME/10);
+            UINT8 vol = app_avk_cb.volume + (UINT8)(BSA_MAX_ABS_VOLUME/BSA_ABS_VOLUME_STEP);
             app_avk_cb.volume = (vol <= BSA_MAX_ABS_VOLUME) ? vol : BSA_MAX_ABS_VOLUME;
             APP_DEBUG1("app_avk_cb.volume: %d", app_avk_cb.volume);
 
@@ -1885,8 +1957,7 @@ void app_avk_volume_down(UINT8 rc_handle)
         if (connection->m_bAbsVolumeSupported == FALSE) {
             app_avk_rc_send_click(BSA_AVK_RC_VOL_DOWN, rc_handle);
         } else {
-            /* decrease vol by 10% */
-            UINT8 voldown = (UINT8)(BSA_MAX_ABS_VOLUME/10);
+            UINT8 voldown = (UINT8)(BSA_MAX_ABS_VOLUME/BSA_ABS_VOLUME_STEP);
             app_avk_cb.volume = (app_avk_cb.volume <= voldown) ? BSA_MIN_ABS_VOLUME : app_avk_cb.volume-voldown;
             APP_DEBUG1("app_avk_cb.volume: %d", app_avk_cb.volume);
 
@@ -3512,8 +3583,11 @@ int app_avk_start()
 
 void app_avk_stop()
 {
+    app_avk_volume_cb = NULL;
+
     app_avk_close_all();
     GKI_delay(1000);
+
     app_avk_deregister();
     app_avk_deinit();
 
