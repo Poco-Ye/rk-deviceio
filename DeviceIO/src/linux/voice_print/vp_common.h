@@ -7,7 +7,7 @@
 
 //#define MEMORYLEAK_DIAGNOSE
 #ifndef LP_64
-typedef long long int64_t;
+//typedef long long int64_t;
 #else
 #include <stdint.h>
 #endif

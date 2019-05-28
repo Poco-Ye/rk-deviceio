@@ -351,7 +351,7 @@ static int voice_print_handle(int timeout_ms)
     end_time = get_current_time() + timeout_ms;
     while(vp_thread_done && (end_time > get_current_time())) {
         status = voice_print_handle_once();
-        if (status == VP_STATUS_DEC_ERROR)
+        if (status == VP_STATUS_DEC_ERROR || status == -1)
             goto err_out;
         else if (status == VP_STATUS_COMPLETE)
             break;
