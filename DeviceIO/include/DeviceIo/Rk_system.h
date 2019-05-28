@@ -6,6 +6,13 @@ extern "C" {
 #endif
 
 /*
+ *Version 1.2.2 Release 2019/05/27
+  1.add bt source avrcp function
+  2.add hfp hf api
+  3.add set bt device class api
+  4.add auto reconnect for sink & hfp
+  5.add softap network config
+  6.add airkiss network config
  *Version 1.2.1 Release 2019/04/29
   1.deviceio_test blewifi: register ble data recv callback(BSA)
   2.fix bug with program stuck when starting bluetooth related service(BLUEZ)
@@ -45,7 +52,7 @@ extern "C" {
  *Version 1.0.0 Release 2018/12/22
  */
 
-#define DEVICEIO_VERSION "V1.2.1"
+#define DEVICEIO_VERSION "V1.2.2"
 
 int RK_read_chip_id(char *buffer, const int size);
 int RK_read_version(char *buffer, const int size);

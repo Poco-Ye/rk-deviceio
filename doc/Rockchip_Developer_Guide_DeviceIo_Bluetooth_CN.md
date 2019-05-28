@@ -2,11 +2,11 @@
 
 ---
 
-发布版本：1.2
+发布版本：1.3
 
 作者：francis.fan
 
-日期：2019.4.29
+日期：2019.5.27
 
 文件密级：公开资料
 
@@ -14,7 +14,11 @@
 
 **概述**
 
-该文档旨在介绍RockChip DeviceIo库的蓝牙接口。
+该文档旨在介绍RockChip DeviceIo库的蓝牙接口。不同的蓝牙芯片模组对应的DeviceIo库也不同，对应关系如下所示：<br/>libDeviceIo_bluez.so ：基于BlueZ协议栈，主要适用于Realtek的蓝牙模组，如：RTL8723DS.<br/>libDeviceIo_broadcom.so：基于BSA协议栈，主要适用于正基的蓝牙模组，如：AP6255.<br/>libDeviceIo_cypress.so：基于BSA协议栈，主要适用于海华的蓝牙模组，如：AW-CM256.<br/>用户在配置好SDK的蓝牙芯片类型后，deviceio编译脚本会根据用户选择的芯片类型自动选择libDeviceIo库。SDK的蓝牙芯片配置方法请参考《Rockchip Linux WIFI BT 开发指南》。基于不同协议栈实现的DeviceIo库的接口尽可能做到了统一，但仍有部分接口有些区别，这些区别会在具体接口介绍时进行详细描述。
+
+**名词说明**
+
+BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bluez.so。<br/>BSA DEVICEIO：基于BSA协议栈实现的DeviceIo库，对应libDeviceIo_broadcom.so和libDeviceIo_cypress.so <br/>BLUEZ only：接口或文档仅支持BLUEZ DEVICEIO。<br/>BSA only：接口或文档仅支持BSA DEVICEIO。
 
 **读者对象**
 
@@ -31,6 +35,7 @@
 | 2019-3-27 | V1.0     | V1.0.x / V1.1.x | francis.fan | 初始版本（BLUEZ only） |
 | 2019-4-16 | V1.1 | V1.2.0 | francis.fan | 新增BLE配网Demo<br />修复BtSource接口<br />新增BSA库的支持<br />修复文档排版 |
 | 2019-4-29 | V1.2 | V1.2.1 | francis.fan | 修复BSA分支deviceio_test测试失败<br />修复BLUEZ初始化失败程序卡住的BUG<br />修改A2DP SOURCE 获取playrole方法 |
+| 2019-5-27 | V1.3 | V1.2.2 | francis.fan | 增加A2DP SOURCE 反向控制事件通知<br />添加HFP HF接口支持<br />添加蓝牙类设置接口<br />添加蓝牙自动重连属性设置接口<br />添加A2DP SINK 音量反向控制（BSA only） |
 
 ---
 
@@ -87,6 +92,23 @@
 
 	获取当前蓝牙是否有某个服务处于连接状态。SPP/BLE/SINK/SOURCE任意一个服务处于连接状态，该函数都返回1；否则返回0。
 
+- `int rk_bt_set_class(int value)`
+
+  设置蓝牙设备类型。value：类型值。比如0x240404对应的含义为：
+  	Major Device Class：Audio/Video
+
+  ​	Minor Device Class：Wearable headset device
+
+  ​	Service Class： Audio (Speaker, Microphone, Headset service)， Rendering (Printing, Speaker)
+
+- `int rk_bt_enable_reconnect(int value)`
+
+  启动/关闭HFP/A2DP SINK的自动重连功能。value：0表示关闭自动重连功能，1表示开启自动重连功能。
+  
+  BLUEZ DEVICEIO：该属性重启后会失效，推荐该接口紧接在`rk_bt_init`接口后调用。
+  
+  BSA DEVICEIO：该属性保存在/data/bt_reconnect中，重启后仍能生效。
+
 ## 2、BLE接口介绍（RkBle.h） ##
 
 - `RK_BLE_STATE`说明
@@ -113,7 +135,7 @@
 
 - `int rk_ble_register_recv_callback(RK_BLE_RECV_CALLBACK cb)`
 
-  该接口用于注册接收BLE数据的回调函数。存在两种注册接收回调函数的方法：一种是通过rk_bt_init()接口的RkBtContent 参数进行指定；另一种是调用该接口进行注册。BLUEZ两种方式均可用，而对BSA来说只能使用该接口注册接收回调函数。
+  该接口用于注册接收BLE数据的回调函数。存在两种注册接收回调函数的方法：一种是通过rk_bt_init()接口的RkBtContent 参数进行指定；另一种是调用该接口进行注册。BLUEZ DEVICEIO两种方式均可用，而对BSA DEVICEIO来说只能使用该接口注册接收回调函数。
 
 - `int rk_ble_start(RkBleContent *ble_content)`
 
@@ -167,11 +189,14 @@
 
 - `int rk_bt_spp_open(void)`
 
-	打开SPP，设备处于可连接状态。由于连接管理对A2DP Sink有依赖，因此该接口内部会检测A2DP Sink是否开启，若没开启则会先打开A2DP Sink。
+  打开SPP，设备处于可连接状态。
+
+  BLUEZ DEVICEIO：SPP连接管理对A2DP SINK有依赖，因此该接口内部会检测A2DP Sink是否开启，若没开启则会先打开A2DP Sink。
+  BSA DEVICEIO：SPP可独立开启，与A2DP SINK没有依赖关系。
 
 - `int rk_bt_spp_close(void)`
 
-	关闭SPP，打开时会触发A2DP Sink打开，但关闭仅关闭SPP的服务。
+	关闭SPP。BLUEZ DEVICEIO在打开SPP时会触发A2DP SINK打开，但关闭接口仅关闭SPP的服务。
 
 - `int rk_bt_spp_get_state(RK_BT_SPP_STATE *pState)`
 
@@ -206,7 +231,7 @@
 
 - `int rk_bt_sink_open()`
 
-  打开A2DP Sink功能。
+  打开A2DP SINK服务。如需要A2DP SINK与HFP并存，请参见<HFP-HF接口介绍>章节中`rk_bt_hfp_sink_open`接口。
 
 - `int rk_bt_sink_set_visibility(const int visiable, const int connectal)`
 
@@ -242,15 +267,19 @@
 
 - i`nt rk_bt_sink_volume_up(void)`
 
-  反向控制：音量增大。
+  反向控制：音量增大。（BSA only）
 
 - i`nt rk_bt_sink_volume_down(void)`
 
-  反向控制：银两减小。
+  反向控制：音量减小。（BSA only）
+
+- `int rk_bt_sink_set_volume(int volume)`
+
+     反向控制：设置A2DP SOURCE端音量。（BSA only）
 
 - `int rk_bt_sink_set_auto_reconnect(int enable)`
 
-  设置A2DP Sink自动连接属性。enable：1表示可自动连接，0表示不可自动连接。
+  设置A2DP Sink自动连接属性。enable：1表示可自动连接，0表示不可自动连接。其用法与`rk_bt_enable_reconnect`接口功能重复。***未来将摒弃该接口，不推荐使用！***
 
 - `int rk_bt_sink_disconnect()`
 
@@ -288,8 +317,16 @@
 
       typedef enum {
       	BT_SOURCE_EVENT_CONNECT_FAILED, //连接A2DP Sink设备失败
-      	BT_SOURCE_EVENT_CONNECTED, //连接A2DP Sink设备成功
-      	BT_SOURCE_EVENT_DISCONNECTED, //断开连接
+      	BT_SOURCE_EVENT_CONNECTED,      //连接A2DP Sink设备成功
+      	BT_SOURCE_EVENT_DISCONNECTED,   //断开连接
+      	/* Sink端反向控制事件 */
+      	BT_SOURCE_EVENT_RC_PLAY,        //播放
+      	BT_SOURCE_EVENT_RC_STOP,        //停止
+      	BT_SOURCE_EVENT_RC_PAUSE,       //暂停
+      	BT_SOURCE_EVENT_RC_FORWARD,     //上一首
+      	BT_SOURCE_EVENT_RC_BACKWARD,    //下一首
+      	BT_SOURCE_EVENT_RC_VOL_UP,      //音量+
+      	BT_SOURCE_EVENT_RC_VOL_DOWN,    //音量-
       } RK_BT_SOURCE_EVENT;
 
 - `RK_BT_SOURCE_STATUS`介绍
@@ -303,11 +340,11 @@
 
 - `typedef void (*RK_BT_SOURCE_CALLBACK)(void *userdata, const RK_BT_SOURCE_EVENT event)`
 
-	状态回调函数。userdata：用户指针，event：连接事件。
+	状态回调函数。userdata：用户指针，event：连接事件。建议在`rk_bt_source_open`接口之前注册状态回调函数，以免状态事件丢失。
 
 - `int rk_bt_source_auto_connect_start(void *userdata, RK_BT_SOURCE_CALLBACK cb)`
 
-	自动扫描周围Audio Sink类型设备，并主动连接rssi最强的设备。userdata：用户指针，cb：状态回调函数。
+	自动扫描周围Audio Sink类型设备，并主动连接rssi最强的设备。userdata：用户指针，cb：状态回调函数。该接口自动扫描时长为10秒，若10秒内每扫描到任何一个Audio Sink类型设备，该接口则不会做任何操作。若扫描到Audio Sink类型设备，则会打印出设备的基本信息，如果扫描不到Audio Sink设备则会打印“=== Cannot find audio Sink devices. ===”；若扫到的设备信号强度太低，则也会连接失败，并打印“=== BT SOURCE RSSI is is too weak !!! ===”。
 
 - `int rk_bt_source_auto_connect_stop(void)`
 
@@ -353,12 +390,94 @@
 
 	注册状态回调函数。
 
+## 5、HFP-HF接口介绍（RkBtHfp.h）
 
-## 5、示例程序说明 ##
+- `RK_BT_HFP_EVENT`介绍
+
+  ```
+  typedef enum {
+          RK_BT_HFP_CONNECT_EVT,              // HFP 连接成功
+          RK_BT_HFP_DISCONNECT_EVT,           // HFP 断开连接
+          RK_BT_HFP_RING_EVT,                 // 收到AG(手机)的振铃信号
+          RK_BT_HFP_AUDIO_OPEN_EVT,           // 接通电话
+          RK_BT_HFP_AUDIO_CLOSE_EVT,          // 挂断电话
+          RK_BT_HFP_PICKUP_EVT,               // 主动接通电话
+          RK_BT_HFP_HANGUP_EVT,               // 主动挂断电话
+          RK_BT_HFP_VOLUME_EVT,               // AG(手机)端音量改变
+  } RK_BT_HFP_EVENT;
+  ```
+
+- `typedef int (*RK_BT_HFP_CALLBACK)(RK_BT_HFP_EVENT event, void *data)`
+
+  HFP状态回调函数。event：参见上述`RK_BT_HFP_EVENT`介绍。data：当event为`RK_BT_HFP_VOLUME_EVT`时，`*((int *)data)`为当前AG（手机）端显示的音量值。*注：实际通话音量仍需要在板端做相应处理。*
+
+- `void rk_bt_hfp_register_callback(RK_BT_HFP_CALLBACK cb)`
+
+  注册HFP回调函数。该函数推荐在`rk_bt_hfp_sink_open`之前调用，这样避免状态事件丢失。
+
+- `int rk_bt_hfp_sink_open(void)`
+
+  同时打开HFP-HF与A2DP SINK功能。BSA DEVICEIO可调用该接口，也可以单独调用A2DP Sink打开和HFP的打开接口，实现HFP-HF和A2DP SINK共存。而BLUEZ DEVICEIO则只能通过该接口实现HFP-HF与A2DP SINK并存。
+
+  调用该接口时，A2DP SINK 与 HFP的回调函数以及功能接口仍是独立分开的，`rk_bt_hfp_register_callback` 与`rk_bt_sink_register_callback`最好在`rk_bt_hfp_sink_open`之前调用，以免丢失事件。对于BLUEZ DEVICEIO来说，在调用`rk_bt_hfp_sink_open`接口之前，不能调用`rk_bt_hfp_open`和`rk_bt_sink_open`函数，否则该接口返回错误（return -1）. 参考代码如下：
+
+  ```
+  /* 共存方式打开A2DP SINK 与 HFP HF功能 */
+  rk_bt_sink_register_callback(bt_sink_callback);
+  rk_bt_hfp_register_callback(bt_hfp_hp_callback);
+  rk_bt_hfp_sink_open();
+  ```
+
+  ```
+  /* 关闭操作 */
+  rk_bt_hfp_close(); //关闭HFP HF
+  rk_bt_sink_close(); //关闭A2DP SINK
+  ```
+
+- `int rk_bt_hfp_open(void)`
+
+  打开HFP服务。
+
+  BLUEZ DEVICEIO：该接口与`rk_bt_sink_open`互斥，调用该接口会自动退出A2DP协议相关服务，然后启动HFP服务。若需要A2DP SINK 与 HFP 并存，参见`rk_bt_hfp_sink_open`. 
+
+  BSA DEVICEIO：该接口与`rk_bt_sink_open`不存在互斥情况。
+
+- `int rk_bt_hfp_close(void)`
+
+  关闭HFP服务。
+
+- `int rk_bt_hfp_pickup(void)`
+
+  主动接听电话。
+
+- `int rk_bt_hfp_hangup(void)`
+
+  主动挂断电话。
+
+- `int rk_bt_hfp_redial(void)`
+
+  重播通话记录中最近一次呼出的电话号码。注意是“呼出”的电话号码，而不是通话记录中最近一次的电话号码。比如如下场景中，调用`rk_bt_hfp_redial`接口，则会回拨rockchip-003。
+
+  <1>  rockchip-001 [呼入]
+
+  <2>  rockchip-002 [呼入]
+
+  <3>  rockchip-003 [呼出]
+
+- `int rk_bt_hfp_report_battery(int value)`
+
+  电池电量上报。value:电池电量值，取值范围[0, 9]。
+
+- `int rk_bt_hfp_set_volume(int volume)`
+
+  设置AG（手机）的Speaker音量。volume：音量值，取值范围[0, 15]。对于AG设备是手机来说，调用该接口后，手机端蓝牙通话的音量进度条会做相应改变。但实际通话音量仍需要在板端做相应处理。
+
+
+## 6、示例程序说明 ##
 
 示例程序的路径为：external/deviceio/test。其中bluetooth相关的测试用例都实现在bt_test.cpp中，该测试用例涵盖了上述所有接口。函数调用在DeviceIOTest.cpp中。
 
-###5.1 编译说明###
+###6.1 编译说明
 
 1、在SDK根目录下执行`make deviceio-dirclean && make deviceio -j4`，编译成功会提示如下log（注：仅截取部分，rk-xxxx对应具体的工程根目录）
 -- Installing: /home/rk-xxxx/buildroot/output/target/usr/lib/librkmediaplayer.so
@@ -370,15 +489,43 @@
 
 2、执行./build.sh生成新固件，然后将新固件烧写到设备中。
 
-###  5.2 基础接口演示程序  ###
+###  6.2 基础接口演示程序  ###
 
-#### 5.2.1 接口说明
+#### 6.2.1 接口说明
 
-- void bt_test_init_open(void *data)
+***6.2.1.1 蓝牙服务的基础接口测试说明***
 
-  蓝牙测试初始化，执行蓝牙测试前，先调用该接口。BLE的接收和数据请求回调函数的注册。
+- void bt_test_bluetooth_init(void *data)
+
+  蓝牙测试初始化，执行蓝牙测试前，先调用该接口。BLE的接收和数据请求回调函数的注册。对应DeviceIOTest.cpp测试菜单中的“bt_server_open”。
 
   *注：BLE 读数据是通过注册回调函数实现。当BLE连接收到数据主动调用接收回调函数。具体请参见*RkBtContent 结构说明和rk_ble_register_recv_callback函数说明。
+
+- bt_test_set_class(void *data)
+
+  设置蓝牙设备类型。当前测试值为0x240404.
+
+- bt_test_enable_reconnect(void *data)
+
+  使能A2DP SINK 和 HFP 自动重连功能。推荐紧跟在bt_test_bluetooth_init后调用。
+
+- bt_test_disable_reconnect(void *data)
+
+  禁用A2DP SINK 和 HFP 自动重连功能。推荐紧跟在bt_test_bluetooth_init后调用。
+
+  手机端
+
+***6.2.1.2 BLE接口测试说明***
+
+1、手机安装第三方ble测试apk，如nrfconnnect。
+
+2、选择bt_test_ble_start函数。
+
+3、手机蓝牙扫描并连接“ROCKCHIP_AUDIO BLE”。
+
+4、连接成功后，设备端会回调bt_test.cpp中的ble_status_callback_test函数，打印“+++++ RK_BLE_STATE_CONNECT +++++”。
+
+5、执行如下函数，进行具体功能测试。
 
 - void bt_test_ble_start(void *data)
 
@@ -395,6 +542,18 @@
 - void bt_test_ble_stop(void *data)
 
   停止BLE。
+
+***6.2.1.3 A2DP SINK接口测试说明***
+
+1、选择bt_test_sink_open函数。
+
+2、手机蓝牙扫描并连接“ROCKCHIP_AUDIO”。
+
+3、连接成功后，设备端会回调bt_test.cpp中的bt_sink_callback函数， 打印“++++++++++++ BT SINK EVENT: connect sucess ++++++++++”。
+
+4、打开手机的音乐播放器，准备播放歌曲。
+
+5、执行如下函数，进行具体功能测试。
 
 - void bt_test_sink_open(void *data)
 
@@ -456,6 +615,18 @@
 
   查询 A2DP Sink 连接状态。
 
+***6.2.1.4 A2DP SOURCE接口测试说明***
+
+1、选择bt_test_source_auto_start函数。
+
+2、设备会自动扫描身边的A2dp Sink类型设备，并连接信号最强的那个。
+
+3、连接成功后，设备端会回调bt_test.cpp中的bt_test_source_status_callback函数，打印“++++++++++++ BT SOURCE EVENT:connect sucess ++++++++++”。
+
+4、此时设备播放音乐，则音乐会从连接的A2dp Sink设备中播出。
+
+5、执行如下函数，进行具体功能测试。
+
 - void bt_test_source_auto_start(void *data)
 
   A2DP Source 自动扫描开始。
@@ -465,7 +636,20 @@
   A2DP Source 自动扫描接口停止。
 
 - void bt_test_source_connect_status(void *data)
+  
   获取 A2DP Source 连接状态。
+
+***6.2.1.5 SPP接口测试说明***
+
+1、手机安装第三方SPP测试apk，如“Serial Bluetooth Terminal”。
+
+2、选择bt_test_spp_open函数。
+
+3、手机蓝牙扫描并连接“ROCKCHIP_AUDIO”。
+
+4、打开第三方SPP测试apk，使用spp连接设备。设备连接成功后，设备端会回调bt_test.cpp中的_btspp_status_callback函数，打印“+++++++ RK_BT_SPP_EVENT_CONNECT +++++”。
+
+5、执行如下函数，进行具体功能测试。
 
 - void bt_test_spp_open(void *data)
 
@@ -483,42 +667,95 @@
 
   查询SPP连接状态。
 
-#### 5.2.2 测试步骤 ####
+***6.2.1.6 HFP接口测试说明***
+
+1、选择bt_test_hfp_sink_open或bt_test_hfp_hp_open函数。
+
+2、手机蓝牙扫描并连接“ROCKCHIP_AUDIO”。*注：如果之前测试SINK功能时已经连接过手机，此时应在手机端先忽略该设备，重新扫描并连接。*
+
+3、设备连接成功后，设备端会回调bt_test.cpp中的bt_test_hfp_hp_cb函数，打印“+++++ BT HFP HP CONNECT +++++”。如果手机被呼叫，此时打印“+++++ BT HFP HP RING +++++”，接通电话时会打印“+++++ BT HFP AUDIO OPEN +++++”。其他状态打印请直接阅读bt_test.cpp中bt_test_hfp_hp_cb函数源码。*注：若调用了bt_test_hfp_sink_open接口，当设备连接成功后，A2DP SINK的连接状态也会打印，比如*“++++++++++++ BT SINK EVENT: connect sucess ++++++++++”。
+
+4、执行如下函数，进行具体功能测试。
+
+- bt_test_hfp_sink_open 
+
+  并存方式打开HFP HF与A2DP SINK。
+
+- bt_test_hfp_hp_open 
+
+  仅打开HFP HF功能。
+
+- bt_test_hfp_hp_accept 
+
+  主动接听电话。
+
+- bt_test_hfp_hp_hungup
+
+  主动挂断电话。 
+
+- bt_test_hfp_hp_redail 
+
+  重播。
+
+- bt_test_hfp_hp_report_battery 
+
+  从0到9，每隔一秒上报一次电池电量状态，此时手机端可看到电量从空到满的图标变化过程。注：有些手机不支持蓝牙电量图标显示。
+
+- bt_test_hfp_hp_set_volume
+
+  从1到15，每隔一秒设置一次蓝牙通话的音量，此时手机端可看到蓝牙通话音量进度条变化过程。*注：有些手机并不动态显示进度条变化，主动加减音量触发进度天显示，此时可看到设备成功设置了手机端的音量。比如本身音量为0，该接口运行结束后，主动按手机音量‘+’按钮，发现音量已经满格。*
+
+- bt_test_hfp_hp_close 
+
+  关闭HFP 服务。
+
+#### 6.2.2 测试步骤 ####
 
 1、执行测试程序命令：`DeviceIOTest bluetooth`显示如下界面：
 
 ```
 # deviceio_test bluethood
-version:V1.2.1
+version:V1.2.3
 #### Please Input Your Test Command Index ####
-00.   
 01.  bt_server_open 
-02.  bt_test_source_auto_start 
-03.  bt_test_source_connect_status 
-04.  bt_test_source_auto_stop 
-05.  bt_test_sink_open 
-06.  bt_test_sink_visibility00 
-07.  bt_test_sink_visibility01 
-08.  bt_test_sink_visibility10 
-09.  bt_test_sink_visibility11 
-10.  bt_test_sink_status 
-11.  bt_test_sink_music_play 
-12.  bt_test_sink_music_pause 
-13.  bt_test_sink_music_next 
-14.  bt_test_sink_music_previous 
-15.  bt_test_sink_music_stop 
-16.  bt_test_sink_reconnect_disenable 
-17.  bt_test_sink_reconnect_enable 
-18.  bt_test_sink_disconnect 
-19.  bt_test_sink_close 
-20.  bt_test_ble_start 
-21.  bt_test_ble_write 
-22.  bt_test_ble_stop 
-23.  bt_test_ble_get_status 
-24.  bt_test_spp_open 
-25.  bt_test_spp_write 
-26.  bt_test_spp_close 
-27.  bt_test_spp_status 
+02.  bt_test_set_class 
+03.  bt_test_enable_reconnect 
+04.  bt_test_disable_reconnect 
+05.  bt_test_source_auto_start 
+06.  bt_test_source_connect_status 
+07.  bt_test_source_auto_stop 
+08.  bt_test_sink_open 
+09.  bt_test_sink_visibility00 
+10.  bt_test_sink_visibility01 
+11.  bt_test_sink_visibility10 
+12.  bt_test_sink_visibility11 
+13.  bt_test_sink_status 
+14.  bt_test_sink_music_play 
+15.  bt_test_sink_music_pause 
+16.  bt_test_sink_music_next 
+17.  bt_test_sink_music_previous 
+18.  bt_test_sink_music_stop 
+19.  bt_test_sink_reconnect_disenable 
+20.  bt_test_sink_reconnect_enable 
+21.  bt_test_sink_disconnect 
+22.  bt_test_sink_close 
+23.  bt_test_ble_start 
+24.  bt_test_ble_write 
+25.  bt_test_ble_stop 
+26.  bt_test_ble_get_status 
+27.  bt_test_spp_open 
+28.  bt_test_spp_write 
+29.  bt_test_spp_close 
+30.  bt_test_spp_status 
+31.  bt_test_hfp_sink_open 
+32.  bt_test_hfp_hp_open 
+33.  bt_test_hfp_hp_accept 
+34.  bt_test_hfp_hp_hungup 
+35.  bt_test_hfp_hp_redail 
+36.  bt_test_hfp_hp_report_battery 
+37.  bt_test_hfp_hp_set_volume 
+38.  bt_test_hfp_hp_close 
+39.  bt_server_close 
 Which would you like:
 ```
 
@@ -527,29 +764,10 @@ Which would you like:
 ```
 Which would you like:01
 #注：等待执行结束，进入下一轮选择界面。
-Which would you like:02
-#注：选择02前，要开启一个BT Sink设备，该设备处于可发现并可连接状态。02功能会自动扫描BT Sink设备并连接信号最强的那个设备。
+Which would you like:05
+#注：选择05前，要开启一个BT Sink设备，该设备处于可发现并可连接状态。05功能会自动扫描BT Sink设备并连接信号最强的那个设备。
 ```
 
-### 5.3 BLE配网演示程序
+### 6.3 BLE配网演示程序
 
-1、手机端安装external/deviceio/test/apk/Rkble.apk。
-
-2、设备端执行`wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf &`
-
-3、ps命令查看第2步进程在后台运行。
-
-4、设备端执行`DeviceIOTest blewifi`
-
-5、打开手机端Rkble.apk，直接点击“CONTINUE”按钮（默认为BLE配网）。
-
-6、点击“START SCAN”按钮，扫描ble设备。扫描到名为RockChipBle的设备，点击名称进行连接。
-
-7、BLE连接成功后，会进入密码提示窗口。当前APK默认选中手机已连接的WIFI名称，若要主动选择则需点击“>>”按钮，弹窗显示设备端扫描到的wifi列表。选择你想要设置的网络名称。
-
-8、输入密码，点击“Confirm”按钮，配网成功后APK界面下端会有弹窗提示配网成功或失败消息。
-
-*注：external/deviceio/test/apk/Rkble.zip为Rkble.apk源码*
-
-
-
+请参见《Rockchip_Developer_Guide_Network_Config_CN》文档。
