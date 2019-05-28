@@ -45,13 +45,8 @@ V1.2.1以上，不包含V1.2.1
 
 ### 1.1 kernel配置 
 
-- kernel目录下执行`make menuconfig ` ，根据实际wifi选择相应配置，具体请参考 /docs/Linux reference documents 目录下的 Rockchip Linux WIFI BT 开发指南 V4.0 20181126.pdf 文档，第一章节'WIFI/BT 内核配置' 
+- 请参考 /docs/Linux reference documents 目录下的 Rockchip Linux WIFI BT 开发指南 V6.0.pdf 文档，第一章节'WIFI/BT 配置' 
 
-  ![1556523959514](img\Network_Config\1556523959514.png)
-
-  ![1556524934650](img\Network_Config\1556524934650.png)
-
-- 退出配置框，make savedefconfig保存配置
 
 ### 1.2 buildroot配置
 
@@ -113,7 +108,6 @@ V1.2.1以上，不包含V1.2.1
 
 - 根目录下执行：`./build.sh`
 
-- 打包固件：`./mkfirmware.sh`
 
 
 ## 2、命令行配网
@@ -152,7 +146,7 @@ V1.2.1以上，不包含V1.2.1
 
 - 接口说明
 
-  请参考/external/deviceio/doc目录下Rockchip_Developer_Guide_Rk3308_DeviceIo_Bluetooth_CN.pdf文档，第二章节’BLE接口介绍（RkBle.h）‘。
+  请参考/docs/Develop reference documents/DeviceIo目录下Rockchip_Developer_Guide_Rk3308_DeviceIo_Bluetooth_CN.pdf文档，第二章节’BLE接口介绍（RkBle.h）‘。
 
 - 示例程序
 
@@ -184,13 +178,13 @@ V1.2.1以上，不包含V1.2.1
 
     ![1557747941383](img\Network_Config\1557747941383.png)
 
-  - 手机端打开apk：
+  - 手机端打开apk
 
     点击CONTINUE -> START SCAN，扫描以RockChip为前缀命名的ble设备
 
     ![1556595298129](img\Network_Config\1556595298129.png)  ![1556595307075](img\Network_Config\1556595307075.png)  ![1556595311834](img\Network_Config\1556595311834.png)
 
-  - 点击想要连接的ble设备，开始连接设备，设备连接成功，板端log如下：
+  - 点击想要连接的ble设备，开始连接设备，设备连接成功，板端log如下
 
     ![1557748018278](img\Network_Config\1557748018278.png)
 
@@ -206,13 +200,11 @@ V1.2.1以上，不包含V1.2.1
 
     ![1557748229921](img\Network_Config\1557748229921.png)
 
-  - apk端收到配网成功的通知后，断开ble连接，返回设备搜索界面，板端log如下：
+  - apk端收到配网成功的通知后，断开ble连接，返回设备搜索界面，板端log如下
 
     ![1557747329885](img\Network_Config\1557747329885.png)
 
   - 再次启动配网，需要先输入2，关闭ble配网；再输入1重新启动ble，重复上述配网流程
-
-    ![1557748439162](img\Network_Config\1557748439162.png)
 
 ### 3.2 airkiss 配网
 
@@ -253,6 +245,24 @@ V1.2.1以上，不包含V1.2.1
 
   ![1557749107740](img\Network_Config\1557749107740.png)
 
+- 微信配网方式
+
+  可以使用手机app 或者 扫描微信二维码的方式配置网络
+
+  - 手机app
+
+    下载地址：https://iot.weixin.qq.com/wiki/document-download.html ，进入下载中心 -> WiFi设备 -> airkiss 调试工具，下载AirKissDebugger.apk
+
+    ![1559007310962](img\Network_Config\1559007310962.png)
+
+  - 二维码
+
+    微信扫描如下二维码，二维码配网时，手机必须先连接wifi，否则会提示：未能搜索设备，请开启手机wifi后重试
+
+    ![1558960260872](img\Network_Config\1558960260872.png)
+
+  
+
 - 配网步骤
 
   - 首先确保WiFi的服务进程启动，串口输入：  `ps | grep wpa_supplicant`
@@ -263,31 +273,25 @@ V1.2.1以上，不包含V1.2.1
 
     `wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf & `
 
+  - 手机端操作以app为例进行说明，打开AirKissDebugger.apk，输入ssid和password，AESKey为空、不输入。点击发送按钮，配网成功会弹窗提示“AirKissDebugger：Bingo”
+
+    ![1559008491742](img\Network_Config\1559008491742.png) ![1559008522412](img\Network_Config\1559008522412.png) ![1559008550176](img\Network_Config\1559008550176.png)
+
   - 板端命令行执行：`deviceio_test wificonfig `，输入3回车，启动airkiss 配网
 
     ![1557749492372](img/Network_Config/1557749492372.png)
 
   - airkiss 启动成功
 
-    ![1557749530470](img\Network_Config\1557749530470.png)
-
-  - 手机必须开启wifi，并连接网络，微信关注配网公众号，开始配网，
-
-  - 下面以 ‘回声智能’ 为例进行说明，打开 ‘回声智能’ 公众号，点击 助手 -> 配置网络 -> 找不到二维码 -> 微信联网 进入网络配置界面，输入手机当前连接wifi的密码，点击连接
-
-    ![1557730182916](img\Network_Config\1557730182916.png)   ![1557730189275](img\Network_Config\1557730189275.png)
-
-    ![1557730205018](img\Network_Config\1557730205018.png)   ![1557730211412](img\Network_Config\1557730211412.png)
-
-    
+    ![1559012871406](img\Network_Config\1559012871406.png)
 
   - 成功接收ssid和password，并开始配网
 
-    ![1556536856374](img\Network_Config\1556536856374.png)
+    ![1559028635665](img\Network_Config\1559028635665.png)
 
   - 配网成功
 
-    ![1556536891941](img\Network_Config\1556536891941.png)
+    ![1559028700299](img\Network_Config\1559028700299.png)
 
   - 再次启动配网，需要先输入4，关闭airkiss配网；再输入3重新启动airkiss，重复上述配网流程
 
@@ -359,7 +363,7 @@ V1.2.1以上，不包含V1.2.1
 
     ![1557734606368](img\Network_Config\1557734776566.png)  ![1557734800637](img\Network_Config\1557734800637.png)  ![1557734611071](img\Network_Config\1557734611071.png)
 
-  - 点击想要连接的softap设备，开始连接设备，设备连接成功，板端log如下：
+  - 点击想要连接的softap设备，开始连接设备，设备连接成功，板端log如下
 
     ![1557734903643](img\Network_Config\1557734903643.png)
 
@@ -375,10 +379,8 @@ V1.2.1以上，不包含V1.2.1
 
     ![1557737935083](img\Network_Config\1557737935083.png)
 
-  - 配网成功后，板端disableWifiAp，手机apk返回设备搜索界面，板端log如下：
+  - 配网成功后，板端disableWifiAp，手机apk返回设备搜索界面，板端log如下
 
     ![1557738060099](img\Network_Config\1557738060099.png)
 
   - 想要再次启动softap配网，需要先输入6，回车反初始化softap，再输入5重新初始化softap，重复上述配网步骤
-
-    ![1557738267469](img\Network_Config\1557738267469.png)
