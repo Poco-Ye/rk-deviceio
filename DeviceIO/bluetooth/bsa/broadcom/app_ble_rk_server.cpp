@@ -633,7 +633,6 @@ static int app_ble_rk_server_create_gatt_database(RkBleContent *ble_content)
         //save char uuid string
         strcpy((char *)app_ble_rk_server_cb.attr[char_attr_index].uuid_string, ble_content->chr_uuid[i].uuid);
 
-#if 0
         /* Declare client characteristic configuration descriptor
          * Value of the descriptor can be modified by the client
          * Value modified shall be retained during connection and across connection
@@ -653,7 +652,6 @@ static int app_ble_rk_server_create_gatt_database(RkBleContent *ble_content)
         }
         //save descriptor uuid string
         strcpy((char *)app_ble_rk_server_cb.attr[char_attr_index].uuid_string, APP_BLE_RK_SERVER_DESCRIPTOR_STRING_UUID);
-#endif
     }
 
     return 0;
