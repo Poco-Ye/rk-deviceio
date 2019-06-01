@@ -1,23 +1,21 @@
+#include <errno.h>
+#include <fcntl.h>
+#include <glib.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <stdbool.h>
-#include <errno.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <signal.h>
-#include <sys/signalfd.h>
-
-#include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <fcntl.h>
-
+#include <sys/signalfd.h>
 #include <readline/readline.h>
 #include <readline/history.h>
-#include <glib.h>
-#include "avrcpctrl.h"
-#include "gdbus.h"
 
+#include "gdbus.h"
+#include "avrcpctrl.h"
 #include "DeviceIo/DeviceIo.h"
+#include "DeviceIo/Rk_shell.h"
 //#include "../Timer.h"
 
 //using DeviceIOFramework::Timer;
@@ -85,7 +83,6 @@ static int g_btsrc_connect_status = RK_BT_SINK_STATE_IDLE;
 extern void print_iter(const char *label, const char *name, DBusMessageIter *iter);
 
 static RK_BT_SINK_CALLBACK g_btsink_cb;
-static int g_btsink_auto_reconnect = 1; /* Default for auto reconnect */
 
 void report_avrcp_event(DeviceInput event, void *data, int len) {
 	if (DeviceIo::getInstance()->getNotify())
@@ -154,8 +151,6 @@ struct adapter {
 
 extern struct adapter *default_ctrl;
 extern GList *ctrl_list;
-
-static int reconn_device(void *user_data);
 
 static gboolean device_is_child(GDBusProxy *device, GDBusProxy *master)
 {
@@ -429,30 +424,6 @@ static void disconn_device_reply(DBusMessage * message, void *user_data)
 }
 
 #define RECONN_INTERVAL	2
-static void reconn_device_reply(DBusMessage * message, void *user_data)
-{
-
-	DBusError error;
-	static int count = 1;
-
-	dbus_error_init(&error);
-	if (dbus_set_error_from_message(&error, message) == TRUE) {
-
-		if (strstr(error.name, "Failed") && (count > 0)) {
-			pr_info("Retry to connect, count %d", count);
-			count--;
-			reconnect_timer = g_timeout_add_seconds(RECONN_INTERVAL,
-					reconn_device, user_data);
-			dbus_error_free(&error);
-			return;
-		}
-
-		report_avrcp_event(DeviceInput::BT_SINK_ENV_CONNECT_FAIL, NULL, 0);
-		dbus_error_free(&error);
-	}
-	count = 1;
-}
-
 static void reconn_last_device_reply(DBusMessage * message, void *user_data)
 {
 
@@ -527,16 +498,31 @@ bool reconn_last(void)
 {
 	GDBusProxy *proxy = last_connected_device_proxy;
 	DBusMessageIter addr_iter, addrType_iter;
-	static int done = 0;
+	int fd, ret, reconnect = 1;
+	char buff[100] = {0};
 
-	if (done)
+	fd = open("/userdata/cfg/bt_reconnect", O_RDONLY);
+	if (fd > 0) {
+		ret = read(fd, buff, sizeof(buff));
+		if (ret > 0) {
+			if (strstr(buff, "bluez-reconnect:disable"))
+				reconnect = 0;
+		}
+		close(fd);
+	}
+
+	if (reconnect == 0) {
+		printf("%s: automatic reconnection is disabled!", __func__);
 		return 0;
-	else
-		done = 1;
+	}
 
-	/* Enable auto reconnect? */
-	if (!g_btsink_auto_reconnect)
-		return false;
+	memset(buff, 0, 100);
+	RK_shell_exec("hcitool con", buff, 100);
+	if (strstr(buff, "ACL") || strstr(buff, "LE")) {
+		printf("%s: The device is connected and does not need to be reconnected!", __func__);
+		return 0;
+	}
+
 	if (reconnect_timer) {
 		g_source_remove(reconnect_timer);
 		reconnect_timer = 0;
@@ -591,45 +577,6 @@ bool reconn_last(void)
 				     NULL,
 				     reconn_last_device_reply,
 				     last_connected_device_proxy, NULL) == FALSE) {
-		error("Failed to call org.bluez.Device1.Connect");
-	}
-
-	return FALSE;
-}
-
-
-static int reconn_device(void *user_data)
-{
-	GDBusProxy *proxy = (GDBusProxy *)user_data;
-	DBusMessageIter iter;
-
-	/* Enable auto reconnect? */
-	if (!g_btsink_auto_reconnect)
-		return false;
-
-	if (reconnect_timer) {
-		g_source_remove(reconnect_timer);
-		reconnect_timer = 0;
-	}
-
-	if (!proxy) {
-		error("Invalid proxy, stop reconnecting");
-		return FALSE;
-	}
-
-	if (g_list_length(device_list) > 0) {
-		error("Device already connected");
-		return FALSE;
-
-	}
-
-	pr_info("Connect target device: %s", g_dbus_proxy_get_path(proxy));
-
-	if (g_dbus_proxy_method_call(proxy,
-				     "Connect",
-				     NULL,
-				     reconn_device_reply,
-				     user_data, NULL) == FALSE) {
 		error("Failed to call org.bluez.Device1.Connect");
 	}
 
@@ -857,7 +804,6 @@ int init_avrcp_ctrl(void)
 	last_connected_device_proxy = NULL;
 	device_list = NULL;
 	reconnect_timer = 0;
-	g_btsink_auto_reconnect = 1;
 
 	return 1;
 }
@@ -1189,11 +1135,6 @@ void a2dp_sink_register_cb(RK_BT_SINK_CALLBACK cb)
 void a2dp_sink_clear_cb()
 {
 	g_btsink_cb = NULL;
-}
-
-void a2dp_sink_set_auto_reconnect(int enable)
-{
-	g_btsink_auto_reconnect = (enable ? 1 : 0);
 }
 
 int a2dp_sink_status(RK_BT_SINK_STATE *pState)

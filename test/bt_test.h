@@ -36,8 +36,6 @@ void bt_test_sink_music_pause(void *data);
 void bt_test_sink_music_next(void *data);
 void bt_test_sink_music_previous(void *data);
 void bt_test_sink_music_stop(void *data);
-void bt_test_sink_reconnect_enable(void *data);
-void bt_test_sink_reconnect_disenable(void *data);
 void bt_test_sink_disconnect(void *data);
 void bt_test_sink_close(void *data);
 void bt_test_sink_status(void *data);

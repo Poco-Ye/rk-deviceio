@@ -80,8 +80,6 @@ static command_t bt_command_table[] = {
 	{"bt_test_sink_music_next", bt_test_sink_music_next},
 	{"bt_test_sink_music_previous", bt_test_sink_music_previous},
 	{"bt_test_sink_music_stop", bt_test_sink_music_stop},
-	{"bt_test_sink_reconnect_disenable", bt_test_sink_reconnect_disenable},
-	{"bt_test_sink_reconnect_enable", bt_test_sink_reconnect_enable},
 	{"bt_test_sink_disconnect", bt_test_sink_disconnect},
 	{"bt_test_sink_set_volume", bt_test_sink_set_volume},
 	{"bt_test_sink_close", bt_test_sink_close},
