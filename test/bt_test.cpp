@@ -424,7 +424,7 @@ void bt_test_spp_write(void *data)
 
 void bt_test_spp_close(void *data)
 {
-	rk_bt_sink_close();
+	rk_bt_spp_close();
 }
 
 void bt_test_spp_status(void *data)
