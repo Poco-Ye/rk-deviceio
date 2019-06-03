@@ -261,9 +261,9 @@ static int bt_start_a2dp_sink(int sink_only)
 
 	msleep(500);
 	if (sink_only)
-		RK_shell_system("bluealsa --profile=a2dp-sink &");
+		RK_shell_system("bluealsa --profile=a2dp-sink --a2dp-volume &");
 	else
-		RK_shell_system("bluealsa &");
+		RK_shell_system("bluealsa --a2dp-volume &");
 	RK_shell_exec("pidof bluealsa", ret_buff, 1024);
 	if (!ret_buff[0]) {
 		RK_LOGE("start a2dp sink profile failed!\n");

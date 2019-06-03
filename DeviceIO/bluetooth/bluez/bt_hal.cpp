@@ -3,15 +3,9 @@
 #include <paths.h>
 #include <string.h>
 #include <unistd.h>
-#include <netdb.h>
-#include <sys/ioctl.h>
-#include <sys/wait.h>
 #include <sys/prctl.h>
-#include <sys/time.h>
-#include <net/if.h>
-#include <arpa/inet.h>
-#include <netinet/ip.h>
-#include <netinet/ip_icmp.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 
 #include <DeviceIo/DeviceIo.h>
 #include <DeviceIo/Rk_wifi.h>
@@ -384,6 +378,95 @@ int rk_bt_source_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, int name_l
 /*****************************************************************
  *            Rockchip bluetooth sink api                        *
  *****************************************************************/
+static int g_sink_volume_sockfd;
+static RK_BT_SINK_VOLUME_CALLBACK g_sink_volume_cb;
+
+/* Get volume event frome bluealsa thread */
+void *thread_get_ba_volume(void *arg)
+{
+	int ret = 0;
+	char buff[100] = {0};
+	struct sockaddr_un clientAddr;
+	struct sockaddr_un serverAddr;
+	socklen_t addr_len;
+	int value = 0;
+	char *start = NULL;
+
+	g_sink_volume_sockfd = socket(AF_UNIX, SOCK_DGRAM, 0);
+	if (g_sink_volume_sockfd < 0) {
+		printf("Create socket failed!\n");
+		return NULL;
+	}
+
+	serverAddr.sun_family = AF_UNIX;
+	strcpy(serverAddr.sun_path, "/tmp/rk_deviceio_a2dp_volume");
+
+	system("rm -rf /tmp/rk_deviceio_a2dp_volume");
+	ret = bind(g_sink_volume_sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
+	if (ret < 0) {
+		printf("Bind Local addr failed!\n");
+		return NULL;
+	}
+
+	printf("###### FUCN:%s start!\n", __func__);
+	while(1) {
+		memset(buff, 0, sizeof(buff));
+		ret = recvfrom(g_sink_volume_sockfd, buff, sizeof(buff), 0, (struct sockaddr *)&clientAddr, &addr_len);
+		if (ret <= 0) {
+			if (ret == 0)
+				printf("###### FUCN:%s. socket closed!\n", __func__);
+			break;
+		}
+		printf("###### FUCN:%s. Received a malformed message(%s)\n", __func__, buff);
+
+		if (!bt_sink_is_open())
+			break;
+
+		start = strstr(buff, "a2dp volume:");
+		if (!start) {
+			printf("WARNING: %s recved unsupport msg:%s\n", __func__, buff);
+			continue;
+		}
+		start += strlen("a2dp volume:");
+		value = (*start - '0') * 100 + (*(start + 1) - '0') * 10 + (*(start +2) - '0');
+
+		if (g_sink_volume_cb)
+			g_sink_volume_cb(value);
+		else
+			break;
+	}
+
+	if (g_sink_volume_sockfd > 0) {
+		close(g_sink_volume_sockfd);
+		g_sink_volume_sockfd = 0;
+	}
+
+	printf("###### FUCN:%s exit!\n", __func__);
+	return NULL;
+}
+
+static int a2dp_sink_listen_ba_volume_start()
+{
+	pthread_t tid;
+
+	/* Create a thread to listen for Bluezalsa volume changes. */
+	if (g_sink_volume_sockfd == 0)
+		pthread_create(&tid, NULL, thread_get_ba_volume, NULL);
+
+	return 0;
+}
+
+static int a2dp_sink_listen_ba_volume_stop()
+{
+	if (g_sink_volume_sockfd > 0) {
+		close(g_sink_volume_sockfd);
+		g_sink_volume_sockfd = 0;
+	}
+	/* wait for  thread_get_ba_msg exit */
+	usleep(200);
+	return 0;
+}
+
 int rk_bt_sink_register_callback(RK_BT_SINK_CALLBACK cb)
 {
 	a2dp_sink_register_cb(cb);
@@ -392,7 +475,9 @@ int rk_bt_sink_register_callback(RK_BT_SINK_CALLBACK cb)
 
 int rk_bt_sink_register_volume_callback(RK_BT_SINK_VOLUME_CALLBACK cb)
 {
-	return;
+	g_sink_volume_cb = cb;
+	a2dp_sink_listen_ba_volume_start();
+	return 0;
 }
 
 int rk_bt_sink_open()
@@ -432,6 +517,7 @@ int rk_bt_sink_set_visibility(const int visiable, const int connectable)
 		RK_shell_system("hciconfig hci0 piscan");
 		return 0;
 	}
+
 	RK_shell_system("hciconfig hci0 noscan");
 	usleep(20000);//20ms
 	if (visiable)
@@ -445,7 +531,7 @@ int rk_bt_sink_set_visibility(const int visiable, const int connectable)
 int rk_bt_sink_close(void)
 {
 	bt_close_sink();
-
+	a2dp_sink_listen_ba_volume_stop();
 	return 0;
 }
 
@@ -500,9 +586,130 @@ int rk_bt_sink_disconnect()
 	return 0;
 }
 
+static int _get_bluealsa_plugin_volume_ctrl_info(char *name, int *value)
+{
+	char buff[1024] = {0};
+	char ctrl_name[128] = {0};
+	int ctrl_value = 0;
+	char *start = NULL;
+	char *end = NULL;
+
+	if (!name && !value)
+		return -1;
+
+	if (name) {
+		RK_shell_exec("amixer -D bluealsa scontents", buff, sizeof(buff));
+		start = strstr(buff, "Simple mixer control ");
+		end = strstr(buff, "A2DP'");
+		if (!start || (!strstr(start, "A2DP")))
+			return -1;
+
+		start += strlen("Simple mixer control '");
+		end += strlen("A2DP");
+		if ((end - start) < strlen(" - A2DP"))
+			return -1;
+
+		memcpy(ctrl_name, start, end-start);
+		memcpy(name, ctrl_name, strlen(ctrl_name));
+	}
+
+	if (value) {
+		start = strstr(buff, "Front Left: Capture ");
+		if (!start)
+			return -1;
+
+		start += strlen("Front Left: Capture ");
+		if ((*start < '0') || (*start > '9'))
+			return -1;
+
+		/* Max volume value:127, the length of volume value string must be <= 3 */
+		ctrl_value += (*start - '0');
+		start++;
+		if ((*start >= '0') && (*start <= '9'))
+			ctrl_value = 10 * ctrl_value + (*start - '0');
+		start++;
+		if ((*start >= '0') && (*start <= '9'))
+			ctrl_value = 10 * ctrl_value + (*start - '0');
+
+		*value = ctrl_value;
+	}
+
+	return 0;
+}
+
+static int _set_bluealsa_plugin_volume_ctrl_info(char *name, int value)
+{
+	char buff[1024] = {0};
+	char cmd[256] = {0};
+	char ctrl_name[128] = {0};
+	int new_volume = 0;
+
+	if (!name)
+		return -1;
+
+	sprintf(cmd, "amixer -D bluealsa sset \"%s\" %d", name, value);
+	RK_shell_exec(cmd, buff, sizeof(buff));
+
+	if (_get_bluealsa_plugin_volume_ctrl_info(ctrl_name, &new_volume) == -1)
+		return -1;
+	if (new_volume != value)
+		return -1;
+
+	return 0;
+}
+
+int rk_bt_sink_volume_up(void)
+{
+	char ctrl_name[128] = {0};
+	int current_volume = 0;
+	int ret = 0;
+
+	ret = _get_bluealsa_plugin_volume_ctrl_info(ctrl_name, &current_volume);
+	if (ret)
+		return ret;
+
+	ret = _set_bluealsa_plugin_volume_ctrl_info(ctrl_name, current_volume + 8);
+	return ret;
+}
+
+int rk_bt_sink_volume_down(void)
+{
+	char ctrl_name[128] = {0};
+	int current_volume = 0;
+	int ret = 0;
+
+	ret = _get_bluealsa_plugin_volume_ctrl_info(ctrl_name, &current_volume);
+	if (ret)
+		return ret;
+
+	if (current_volume < 8)
+		current_volume = 0;
+	else
+		current_volume -= 8;
+
+	ret = _set_bluealsa_plugin_volume_ctrl_info(ctrl_name, current_volume);
+	return ret;
+}
+
 int rk_bt_sink_set_volume(int volume)
 {
-	return 0;
+	char ctrl_name[128] = {0};
+	int new_volume = 0;
+	int ret = 0;
+
+	if (volume < 0)
+		new_volume = 0;
+	else if (volume > 127)
+		new_volume = 127;
+	else
+		new_volume = volume;
+
+	ret = _get_bluealsa_plugin_volume_ctrl_info(ctrl_name, NULL);
+	if (ret)
+		return ret;
+
+	ret = _set_bluealsa_plugin_volume_ctrl_info(ctrl_name, new_volume);
+	return ret;
 }
 
 /*****************************************************************

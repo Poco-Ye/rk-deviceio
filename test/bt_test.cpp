@@ -143,22 +143,22 @@ void bt_test_sink_status(void *data)
 	rk_bt_sink_get_state(&pState);
 	switch(pState) {
 		case RK_BT_SINK_STATE_IDLE:
-			printf("++++++++++++ BT MASTER EVENT: idle ++++++++++\n");
+			printf("++++++++++++ BT SINK STATUS: idle ++++++++++\n");
 			break;
 		case RK_BT_SINK_STATE_CONNECT:
-			printf("++++++++++++ BT MASTER EVENT: connect sucess ++++++++++\n");
+			printf("++++++++++++ BT SINK STATUS: connect sucess ++++++++++\n");
 			break;
 		case RK_BT_SINK_STATE_PLAY:
-			printf("++++++++++++ BT MASTER EVENT: playing ++++++++++\n");
+			printf("++++++++++++ BT SINK STATUS: playing ++++++++++\n");
 			break;
 		case RK_BT_SINK_STATE_PAUSE:
-			printf("++++++++++++ BT MASTER EVENT: paused ++++++++++\n");
+			printf("++++++++++++ BT SINK STATUS: paused ++++++++++\n");
 			break;
 		case RK_BT_SINK_STATE_STOP:
-			printf("++++++++++++ BT MASTER EVENT: stoped ++++++++++\n");
+			printf("++++++++++++ BT SINK STATUS: stoped ++++++++++\n");
 			break;
 		case RK_BT_SINK_STATE_DISCONNECT:
-			printf("++++++++++++ BT MASTER EVENT: disconnected ++++++++++\n");
+			printf("++++++++++++ BT SINK STATUS: disconnected ++++++++++\n");
 			break;
 	}
 }
@@ -200,15 +200,30 @@ void bt_test_sink_close(void *data)
 
 void bt_test_sink_set_volume(void *data)
 {
-	int volume;
+	int i = 0;
 
-	for(volume = 0; volume <= 0x7F; ) {
-		rk_bt_sink_set_volume(volume);
+	printf("===== A2DP SINK Set Volume:100 =====\n");
+	rk_bt_sink_set_volume(127);
+	sleep(2);
+	printf("===== A2DP SINK Set Volume:64 =====\n");
+	rk_bt_sink_set_volume(64);
+	sleep(2);
+	printf("===== A2DP SINK Set Volume:0 =====\n");
+	rk_bt_sink_set_volume(0);
+	sleep(2);
 
-		/* change vol by 10% */
-		volume += 0x7F/10;
+	for (; i < 17; i++) {
+		printf("===== A2DP SINK Set Volume UP =====\n");
+		rk_bt_sink_volume_up();
 		sleep(2);
 	}
+
+	for (i = 0; i < 17; i++) {
+		printf("===== A2DP SINK Set Volume DOWN =====\n");
+		rk_bt_sink_volume_down();
+		sleep(2);
+	}
+
 }
 
 /******************************************/
