@@ -92,7 +92,7 @@ static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 #endif /* PCM_ALSA */
 
-enum eAPP_AVK_PLAYSTATE {
+enum APP_AVK_PLAYSTATE {
     SEND_PLAY = 1,
     SEND_PAUSE,
     SEND_STOP,
@@ -100,7 +100,7 @@ enum eAPP_AVK_PLAYSTATE {
     STOPPED
 };
 
-static enum eAPP_AVK_PLAYSTATE play_state[APP_AVK_MAX_CONNECTIONS];
+static enum APP_AVK_PLAYSTATE play_state[APP_AVK_MAX_CONNECTIONS];
 static pthread_mutex_t ps_mutex = PTHREAD_MUTEX_INITIALIZER;
 static tAVRC_PLAYSTATE play_status[APP_AVK_MAX_CONNECTIONS];
 
@@ -782,6 +782,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
                     break;
                 case AVRC_PLAYSTATE_PAUSED:
                 case AVRC_PLAYSTATE_STOPPED:
+                    enum APP_AVK_PLAYSTATE previous_state;
                     APP_INFO1("Play Status %s, index: %d",
                               p_data->reg_notif.rsp.param.play_status ==
                                 AVRC_PLAYSTATE_PAUSED ? "Paused" : "Stopped",
@@ -789,14 +790,15 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
                     pthread_mutex_lock(&ps_mutex);
                     if (play_state[index] != STOPPED) {
                         do_it = TRUE;
+                        previous_state = play_state[index];
                         play_state[index] = STOPPED;
                     }
                     pthread_mutex_unlock(&ps_mutex);
                     if (do_it) {
-                        if(p_data->reg_notif.rsp.param.play_status == AVRC_PLAYSTATE_PAUSED)
-                            app_avk_notify_status(RK_BT_SINK_STATE_PAUSE);
-                        else
+                        if(previous_state == SEND_STOP)
                             app_avk_notify_status(RK_BT_SINK_STATE_STOP);
+                        else
+                            app_avk_notify_status(RK_BT_SINK_STATE_PAUSE);
                     }
                     break;
                 default:
@@ -847,7 +849,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
                 APP_DEBUG1("app_avk_cb.volume: %d", app_avk_cb.volume);
 
                 /* Change the code below based on which interface audio is going out to. */
-                app_avk_set_master_volume(app_avk_cb.volume);
+                //app_avk_set_master_volume(app_avk_cb.volume);
 
                 app_avk_volume_notify((int)app_avk_cb.volume);
                 app_avk_set_abs_vol_rsp(app_avk_cb.volume, p_data->abs_volume.handle, p_data->abs_volume.label);
@@ -871,7 +873,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
                 connection->volChangeLabel = p_data->reg_notif_cmd.label;
 
                 APP_DEBUG1("app_avk_cb.volume: %d", app_avk_cb.volume);
-                app_avk_set_master_volume(app_avk_cb.volume);
+                //app_avk_set_master_volume(app_avk_cb.volume);
 
                 /* Peer requested registration for vol change event. Send response with current system volume. BSA is TG role in AVK */
                 app_avk_reg_notfn_rsp(app_avk_cb.volume,
