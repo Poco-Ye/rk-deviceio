@@ -22,7 +22,7 @@ typedef void (*RK_BT_SINK_VOLUME_CALLBACK)(int volume);
 int rk_bt_sink_register_callback(RK_BT_SINK_CALLBACK cb);
 int rk_bt_sink_register_volume_callback(RK_BT_SINK_VOLUME_CALLBACK cb);
 int rk_bt_sink_open();
-int rk_bt_sink_set_visibility(const int visiable, const int connectal);
+int rk_bt_sink_set_visibility(const int visiable, const int connectable);
 int rk_bt_sink_close(void);
 int rk_bt_sink_get_state(RK_BT_SINK_STATE *p_state);
 int rk_bt_sink_play(void);

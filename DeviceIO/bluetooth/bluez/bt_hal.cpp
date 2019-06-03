@@ -426,13 +426,17 @@ int rk_bt_sink_open()
 	return 0;
 }
 
-int rk_bt_sink_set_visibility(const int visiable, const int connectal)
+int rk_bt_sink_set_visibility(const int visiable, const int connectable)
 {
+	if (visiable && connectable) {
+		RK_shell_system("hciconfig hci0 piscan");
+		return 0;
+	}
 	RK_shell_system("hciconfig hci0 noscan");
-	usleep(2000);//2ms
+	usleep(20000);//20ms
 	if (visiable)
 		RK_shell_system("hciconfig hci0 iscan");
-	if (connectal)
+	if (connectable)
 		RK_shell_system("hciconfig hci0 pscan");
 
 	return 0;
