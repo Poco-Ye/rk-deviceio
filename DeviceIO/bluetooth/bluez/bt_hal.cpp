@@ -1,20 +1,17 @@
-#include <string>
-#include <fstream>
+#include <errno.h>
+#include <fcntl.h>
+#include <paths.h>
+#include <string.h>
 #include <unistd.h>
-#include <cstring>
-#include <algorithm>
 #include <netdb.h>
 #include <sys/ioctl.h>
-#include <net/if.h>
-#include <arpa/inet.h>
-#include <sys/time.h>
-#include <netinet/ip.h>
-#include <netinet/ip_icmp.h>
-#include <csignal>
-#include <errno.h>
-#include <paths.h>
 #include <sys/wait.h>
 #include <sys/prctl.h>
+#include <sys/time.h>
+#include <net/if.h>
+#include <arpa/inet.h>
+#include <netinet/ip.h>
+#include <netinet/ip_icmp.h>
 
 #include <DeviceIo/DeviceIo.h>
 #include <DeviceIo/Rk_wifi.h>
@@ -493,12 +490,6 @@ int rk_bt_sink_stop(void)
 	return 0;
 }
 
-int rk_bt_sink_set_auto_reconnect(int enable)
-{
-	a2dp_sink_set_auto_reconnect(enable);
-	return 0;
-}
-
 int rk_bt_sink_disconnect()
 {
 	disconn_device();
@@ -651,8 +642,22 @@ int rk_bt_set_class(int value)
 
 int rk_bt_enable_reconnect(int value)
 {
-	a2dp_sink_set_auto_reconnect(value);
-	return 0;
+	int ret = 0;
+	int fd = 0;
+
+	fd = open("/userdata/cfg/bt_reconnect", O_RDWR | O_CREAT | O_TRUNC, 0666);
+	if (fd < 0) {
+		RK_LOGE("open /userdata/cfg/bt_reconnect failed!\n");
+		return -1;
+	}
+
+	if (value)
+		ret = write(fd, "bluez-reconnect:enable", strlen("bluez-reconnect:enable"));
+	else
+		ret = write(fd, "bluez-reconnect:disable", strlen("bluez-reconnect:disable"));
+
+	close(fd);
+	return (ret < 0) ? -1 : 0;
 }
 
 /*****************************************************************

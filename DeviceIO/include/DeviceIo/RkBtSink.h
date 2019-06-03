@@ -33,7 +33,6 @@ int rk_bt_sink_stop(void);
 int rk_bt_sink_volume_up(void);
 int rk_bt_sink_volume_down(void);
 int rk_bt_sink_set_volume(int volume);
-int rk_bt_sink_set_auto_reconnect(int enable);
 int rk_bt_sink_disconnect();
 
 #ifdef __cplusplus

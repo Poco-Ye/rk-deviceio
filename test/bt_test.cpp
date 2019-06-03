@@ -188,16 +188,6 @@ void bt_test_sink_music_stop(void *data)
 	rk_bt_sink_stop();
 }
 
-void bt_test_sink_reconnect_disenable(void *data)
-{
-	rk_bt_sink_set_auto_reconnect(0);
-}
-
-void bt_test_sink_reconnect_enable(void *data)
-{
-	rk_bt_sink_set_auto_reconnect(1);
-}
-
 void bt_test_sink_disconnect(void *data)
 {
 	rk_bt_sink_disconnect();
