@@ -517,10 +517,6 @@ int rk_bt_spp_open()
 {
 	int ret = 0;
 
-	ret = rk_bt_sink_open();
-	if (ret)
-		return ret;
-
 	ret = bt_spp_server_open();
 	return ret;
 }
