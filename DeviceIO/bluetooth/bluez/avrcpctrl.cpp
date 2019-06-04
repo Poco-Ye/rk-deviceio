@@ -303,6 +303,13 @@ static GDBusProxy *proxy_lookup(GList *list, int *index, const char *path,
 		if (index)
 			(*index)++;
 
+		/* Proxy info mybe error. */
+		if (!proxy_iface || !proxy_path) {
+			printf("ERROR: %s proxy info error! proxy_iface:%s, proxy_path:%s\n",
+				__func__, proxy_iface, proxy_path);
+			return NULL;
+		}
+
 		if (g_str_equal(proxy_iface, interface) == TRUE &&
 			g_str_equal(proxy_path, path) == TRUE)
 			return proxy;
