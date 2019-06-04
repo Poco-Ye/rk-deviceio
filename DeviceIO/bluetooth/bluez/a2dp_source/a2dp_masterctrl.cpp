@@ -539,8 +539,53 @@ enum BT_Device_Class dist_dev_class(GDBusProxy *proxy)
 					printf("%s The device is sink\n", __func__);
 					return BT_Device_Class::BT_SINK_DEVICE;
 				}
-			}
 
+				if ((((valu32 >> DEVICE_CLASS_SHIFT) & DEVICE_CLASS_MASK) == DEVICE_CLASS_AUDIO) ||
+					(((valu32 >> DEVICE_CLASS_SHIFT) & DEVICE_CLASS_MASK) == DEVICE_CLASS_PHONE)) {
+					DBusMessageIter iter, value;
+					const char *text;
+					char str[26];
+					unsigned int n;
+					char *uuid;
+					enum BT_Device_Class ret = BT_Device_Class::BT_IDLE;
+
+					if (g_dbus_proxy_get_property(proxy, "UUIDs", &iter) == FALSE)
+						return BT_Device_Class::BT_IDLE;
+
+					dbus_message_iter_recurse(&iter, &value);
+
+					while (dbus_message_iter_get_arg_type(&value) == DBUS_TYPE_STRING) {
+						dbus_message_iter_get_basic(&value, &uuid);
+
+						text = bt_uuidstr_to_str(uuid);
+						if (text) {
+							str[sizeof(str) - 1] = '\0';
+
+							n = snprintf(str, sizeof(str), "%s", text);
+							if (n > sizeof(str) - 1) {
+							      str[sizeof(str) - 2] = '.';
+							      str[sizeof(str) - 3] = '.';
+							      if (str[sizeof(str) - 4] == ' ')
+							              str[sizeof(str) - 4] = '.';
+
+							      n = sizeof(str) - 1;
+							}
+
+							if (strstr(str, "Audio Sink")) {
+								ret = BT_Device_Class::BT_SINK_DEVICE;
+								break;
+							} else if (strstr(str, "Audio Source")) {
+								ret = BT_Device_Class::BT_SOURCE_DEVICE;
+								break;
+							}
+						}
+
+						dbus_message_iter_next(&value);
+					}
+
+					return ret;
+				}
+			}
 		}
 	}
 
