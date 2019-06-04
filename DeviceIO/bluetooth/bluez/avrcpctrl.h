@@ -57,6 +57,7 @@ int init_avrcp_ctrl();
 * 释放蓝牙音频反向控制相关资源
 */
 int release_avrcp_ctrl();
+int release_avrcp_ctrl2(void);
 /**
 * 播放
 */

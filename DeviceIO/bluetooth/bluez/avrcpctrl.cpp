@@ -841,6 +841,14 @@ int release_avrcp_ctrl(void)
 	return 0;
 }
 
+int release_avrcp_ctrl2(void)
+{
+	printf("=== release_avrcp_ctrl2 ===\n");
+	A2DP_SINK_FLAG = false;
+	g_btsrc_connect_status = RK_BT_SINK_STATE_IDLE;
+	return 0;
+}
+
 void play_reply(DBusMessage *message, void *user_data)
 {
 	DBusError error;

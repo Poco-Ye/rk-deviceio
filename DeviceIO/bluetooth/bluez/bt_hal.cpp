@@ -892,6 +892,11 @@ int rk_bt_hfp_open(void)
 		return -1;
 	}
 
+	if (bt_hfp_is_open()) {
+		RK_LOGI("bt hfp has already been opened!!!\n");
+		return 0;
+	}
+
 	if (bt_source_is_open()) {
 		RK_LOGE("bt hfp isn't coexist with source!!!\n");
 		bt_close_source();
@@ -910,7 +915,6 @@ int rk_bt_hfp_open(void)
 	}
 
 	rfcomm_listen_ba_msg_start();
-
 	bt_control.is_hfp_open = 1;
 	/* Set bluetooth control current type */
 	bt_control.type = BtControlType::BT_HFP_HF;
@@ -967,16 +971,16 @@ int rk_bt_hfp_sink_open(void)
 
 int rk_bt_hfp_close(void)
 {
-	if (!bt_hfp_is_open())
-		return 0;
-
+	rfcomm_listen_ba_msg_stop();
 	if (g_ba_hfp_client >= 0) {
 		close(g_ba_hfp_client);
 		g_ba_hfp_client = 0;
 	}
 
+	if (!bt_control.is_hfp_open)
+		return 0;
+
 	bt_control.is_hfp_open = 0;
-	rfcomm_listen_ba_msg_stop();
 
 	if (bt_control.type == BtControlType::BT_HFP_HF) {
 		bt_control.type = BtControlType::BT_NONE;
@@ -989,6 +993,8 @@ int rk_bt_hfp_close(void)
 		return 0;
 	}
 
+	disconn_device();
+	system("hciconfig hci0 noscan");
 	system("killall bluealsa-aplay");
 	system("killall bluealsa");
 
