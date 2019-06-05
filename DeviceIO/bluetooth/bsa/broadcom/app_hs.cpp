@@ -98,7 +98,6 @@ typedef struct
     short              audio_buf[APP_HS_MAX_AUDIO_BUF];
     BOOLEAN            open_pending;
     BD_ADDR            open_pending_bda;
-    BOOLEAN            is_pick_up;
 } tAPP_HS_CB;
 
 /*
@@ -1279,7 +1278,6 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
             p_conn->uipc_connected = FALSE;
         }
 
-        app_hs_cb.is_pick_up = FALSE;
         app_hs_send_event(RK_BT_HFP_AUDIO_CLOSE_EVT, NULL);
         break;
 
@@ -2673,10 +2671,8 @@ int app_hs_initialize()
 
 void app_hs_deinitialize()
 {
-    if(app_hs_cb.is_pick_up) {
-        app_hs_hang_up();
-        GKI_delay(1000);
-    }
+    app_hs_hang_up();
+    GKI_delay(1000);
 
     app_hs_close();
     GKI_delay(1000);
@@ -2687,13 +2683,9 @@ void app_hs_deinitialize()
 
 int app_hs_pick_up()
 {
-    if(!app_hs_cb.is_pick_up) {
-        if(app_hs_answer_call() < 0) {
-            APP_ERROR0("app_hs_answer_call failed");
-            return -1;
-        }
-
-        app_hs_cb.is_pick_up = TRUE;
+    if(app_hs_answer_call() < 0) {
+        APP_ERROR0("app_hs_answer_call failed");
+        return -1;
     }
 
     return 0;
@@ -2701,13 +2693,9 @@ int app_hs_pick_up()
 
 int app_hs_hang_up()
 {
-    if(app_hs_cb.is_pick_up) {
-        if(app_hs_hangup() < 0) {
-            APP_ERROR0("app_hs_hangup failed");
-            return -1;
-        }
-
-        app_hs_cb.is_pick_up = FALSE;
+    if(app_hs_hangup() < 0) {
+        APP_ERROR0("app_hs_hangup failed");
+        return -1;
     }
 
     return 0;
@@ -2715,13 +2703,9 @@ int app_hs_hang_up()
 
 int app_hs_redial()
 {
-    if(!app_hs_cb.is_pick_up) {
-        if(app_hs_last_num_dial() < 0) {
-            APP_ERROR0("app_hs_last_num_dial failed");
-            return -1;
-        }
-
-        app_hs_cb.is_pick_up = TRUE;
+    if(app_hs_last_num_dial() < 0) {
+        APP_ERROR0("app_hs_last_num_dial failed");
+        return -1;
     }
 
     return 0;

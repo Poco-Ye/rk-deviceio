@@ -5221,7 +5221,7 @@ static int app_av_find_strongest_sink_device()
 
     for (index = 0; index < APP_DISC_NB_DEVICES; index++) {
         if(app_discovery_cb.devs[index].in_use == TRUE) {
-            if(strcmp((char *)app_discovery_cb.devs[index].device.playrole, "Audio Sink") == 0
+            if(strstr((char *)app_discovery_cb.devs[index].device.playrole, "Audio Sink") != NULL
                 && app_discovery_cb.devs[index].device.rssi > max_rssi) {
                 APP_INFO1("\tBdaddr:%02x:%02x:%02x:%02x:%02x:%02x",
                         app_discovery_cb.devs[index].device.bd_addr[0],
@@ -5306,6 +5306,7 @@ int app_av_auto_connect_start(void *userdata, RK_BT_SOURCE_CALLBACK cb)
         app_av_send_event(BT_SOURCE_EVENT_CONNECT_FAILED);
         return -1;
     }
+
     return 0;
 }
 

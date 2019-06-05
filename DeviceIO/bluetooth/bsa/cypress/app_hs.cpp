@@ -94,7 +94,6 @@ typedef struct
     BD_ADDR             open_pending_bda;
     int                 rec_fd; /* recording file descriptor */
     UINT32              sample_rate;
-    BOOLEAN             is_pick_up;
 } tAPP_HS_CB;
 
 /*
@@ -1596,7 +1595,6 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
 
         }
 
-        app_hs_cb.is_pick_up = FALSE;
         app_hs_send_event(RK_BT_HFP_AUDIO_CLOSE_EVT, NULL);
         break;
 
@@ -3057,10 +3055,8 @@ int app_hs_initialize()
 
 void app_hs_deinitialize()
 {
-    if(app_hs_cb.is_pick_up) {
-        app_hs_hang_up();
-        GKI_delay(1000);
-    }
+    app_hs_hang_up();
+    GKI_delay(1000);
 
     app_hs_close_all();
     GKI_delay(1000);
@@ -3072,11 +3068,6 @@ void app_hs_deinitialize()
 int app_hs_pick_up()
 {
     UINT16 index, handle;
-
-    if(app_hs_cb.is_pick_up) {
-        APP_DEBUG0("The phone has been picked up");
-        return 0;
-    }
 
     for(index = 0; index < BSA_HS_MAX_NUM_CONN; index++) {
         //APP_DEBUG1("app_hs_cb.connections[%d].connection_active: %d",
@@ -3091,19 +3082,12 @@ int app_hs_pick_up()
         }
     }
 
-    app_hs_cb.is_pick_up = TRUE;
-
     return 0;
 }
 
 int app_hs_hang_up()
 {
     UINT16 index, handle;
-
-    if(!app_hs_cb.is_pick_up) {
-        APP_DEBUG0("The phone has been hanged up");
-        return 0;
-    }
 
     for(index = 0; index < BSA_HS_MAX_NUM_CONN; index++) {
         //APP_DEBUG1("app_hs_cb.connections[%d].connection_active: %d",
@@ -3117,19 +3101,12 @@ int app_hs_hang_up()
         }
     }
 
-    app_hs_cb.is_pick_up = FALSE;
-
     return 0;
 }
 
 int app_hs_redial()
 {
     UINT16 index, handle;
-
-    if(app_hs_cb.is_pick_up) {
-        APP_DEBUG0("The phone has been picked up");
-        return 0;
-    }
 
     for(index = 0; index < BSA_HS_MAX_NUM_CONN; index++) {
         //APP_DEBUG1("app_hs_cb.connections[%d].connection_active: %d",
@@ -3142,8 +3119,6 @@ int app_hs_redial()
             }
         }
     }
-
-    app_hs_cb.is_pick_up = TRUE;
 
     return 0;
 }
