@@ -972,7 +972,7 @@ int rk_bt_hfp_sink_open(void)
 int rk_bt_hfp_close(void)
 {
 	rfcomm_listen_ba_msg_stop();
-	if (g_ba_hfp_client >= 0) {
+	if (g_ba_hfp_client > 0) {
 		close(g_ba_hfp_client);
 		g_ba_hfp_client = 0;
 	}
