@@ -4,6 +4,14 @@
 #include "DeviceIo/RkBtBase.h"
 #include "DeviceIo/RkBtSource.h"
 
+typedef enum _bt_devices_type {
+	BT_DEVICES_A2DP_SINK,
+	BT_DEVICES_A2DP_SOURCE,
+	BT_DEVICES_BLE,
+	BT_DEVICES_HFP,
+	BT_DEVICES_SPP,
+} BtDeviceType;
+
 int bt_open(RkBtContent *bt_content);
 int bt_close();
 int init_a2dp_master_ctrl();
@@ -17,6 +25,7 @@ void a2dp_master_register_cb(void *userdata, RK_BT_SOURCE_CALLBACK cb);
 void a2dp_master_clear_cb();
 int a2dp_master_avrcp_open();
 int a2dp_master_avrcp_close();
+int reconn_last_devices(BtDeviceType type);
 
 int ble_disconnect(void);
 

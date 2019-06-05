@@ -503,6 +503,8 @@ int rk_bt_sink_open()
 		return -1;
 	}
 
+	reconn_last_devices(BT_DEVICES_A2DP_SOURCE);
+
 	bt_control.is_a2dp_sink_open = 1;
 	/* Set bluetooth control current type */
 	bt_control.type = BtControlType::BT_SINK;
@@ -920,7 +922,7 @@ int rk_bt_hfp_open(void)
 	bt_control.type = BtControlType::BT_HFP_HF;
 	bt_control.last_type = BtControlType::BT_HFP_HF;
 
-	reconn_last();
+	reconn_last_devices(BT_DEVICES_HFP);
 
 	return 0;
 }

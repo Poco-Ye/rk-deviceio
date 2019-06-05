@@ -824,7 +824,7 @@ int a2dp_sink_open(void)
 	A2DP_SRC_FLAG = 0;
 	system("hciconfig hci0 piscan");
 	system("hciconfig hci0 piscan");
-	reconn_last();
+	//reconn_last();
 
 	return 1;
 }

@@ -17,6 +17,7 @@
 
 #include "DeviceIo/DeviceIo.h"
 #include "DeviceIo/RkBle.h"
+#include "DeviceIo/Rk_shell.h"
 
 #include "a2dp_masterctrl.h"
 #include "../gdbus/gdbus.h"
@@ -125,7 +126,11 @@ static const char *ad_arguments[] = {
 	NULL
 };
 
+#define BT_RECONNECT_CFG "/data/cfg/lib/bluetooth/reconnect_cfg"
+
 static int a2dp_master_save_status(char *address);
+static int load_last_device(char *address);
+static void save_last_device(GDBusProxy *proxy);
 
 static void proxy_leak(gpointer data)
 {
@@ -639,6 +644,8 @@ static void set_default_device(GDBusProxy *proxy, const char *attribute)
 		default_attr = NULL;
 		goto done;
 	}
+
+	save_last_device(proxy);
 
 	if (!g_dbus_proxy_get_property(proxy, "Alias", &iter)) {
 		if (!g_dbus_proxy_get_property(proxy, "Address", &iter))
@@ -3364,6 +3371,179 @@ int a2dp_master_avrcp_close()
 		pthread_join(g_bt_source_avrcp_thread, NULL);
 
 	printf("### %s end...\n", __func__);
+	return 0;
+}
+
+static void save_last_device(GDBusProxy *proxy)
+{
+	int fd;
+	const char *object_path, *address;
+	DBusMessageIter iter, class_iter;
+	dbus_uint32_t valu32;
+	char buff[512] = {0};
+
+	if (g_dbus_proxy_get_property(proxy, "Address", &iter) == FALSE) {
+		printf("Get adapter address error");
+		return;
+	}
+
+	dbus_message_iter_get_basic(&iter, &address);
+	printf("Connected device address: %s", address);
+
+	if (g_dbus_proxy_get_property(proxy, "Class", &class_iter) == FALSE) {
+		printf("Get adapter Class error");
+		return;
+	}
+
+	dbus_message_iter_get_basic(&class_iter, &valu32);
+	printf("Connected device class: 0x%x\n", valu32);
+
+	object_path = g_dbus_proxy_get_path(proxy);
+	printf("Connected device object path: %s\n", object_path);
+
+	fd = open(BT_RECONNECT_CFG, O_RDWR | O_CREAT | O_TRUNC, 0644);
+	if (fd == -1) {
+		printf("Open %s error: %s\n", BT_RECONNECT_CFG, strerror(errno));
+		return;
+	}
+
+	sprintf(buff, "ADDRESS:%s;CLASS:%x;PATH:%s;", address, valu32, object_path);
+	write(fd, buff, strlen(buff));
+	fsync(fd);
+	close(fd);
+}
+
+static int load_last_device(char *address)
+{
+	int fd, ret, i;
+	char buff[512] = {0};
+	char *start = NULL, *end = NULL;
+
+	printf("Load path %s\n", BT_RECONNECT_CFG);
+
+	ret = access(BT_RECONNECT_CFG, F_OK);
+	if (ret == -1) {
+		printf("%s does not exist\n", BT_RECONNECT_CFG);
+		return -1;
+	}
+
+	fd = open(BT_RECONNECT_CFG, O_RDONLY);
+	if (fd == -1) {
+		printf("Open %s error: %s\n", BT_RECONNECT_CFG, strerror(errno));
+		return -1;
+	}
+
+	ret = read(fd, buff, sizeof(buff));
+	if (ret < 0) {
+		printf("read %s error: %s\n", BT_RECONNECT_CFG, strerror(errno));
+		return -1;
+	}
+
+	start = strstr(buff, "ADDRESS:");
+	end = strstr(buff, ";");
+	if (!start || !end || (end < start)) {
+		printf("file %s content invalid(address): %s\n", BT_RECONNECT_CFG, buff);
+		return -1;
+	}
+	start += strlen("ADDRESS:");
+	if (address)
+		memcpy(address, start, end - start);
+
+	return 0;
+}
+
+static void reconn_last_device_reply(DBusMessage * message, void *user_data)
+{
+	DBusError err;
+
+	dbus_error_init(&err);
+	if (dbus_set_error_from_message(&err, message) == TRUE) {
+		printf("Reconnect failed!\n");
+		dbus_error_free(&err);
+	}
+}
+
+int reconn_last_devices(BtDeviceType type)
+{
+	GDBusProxy *proxy;
+	DBusMessageIter addr_iter, addrType_iter;
+	int fd, ret, reconnect = 1;
+	char buff[100] = {0};
+	char address[48] = {0};
+	enum BT_Device_Class device_class;
+
+	fd = open("/userdata/cfg/bt_reconnect", O_RDONLY);
+	if (fd > 0) {
+		ret = read(fd, buff, sizeof(buff));
+		if (ret > 0) {
+			if (strstr(buff, "bluez-reconnect:disable"))
+				reconnect = 0;
+		}
+		close(fd);
+	}
+
+	if (reconnect == 0) {
+		printf("%s: automatic reconnection is disabled!\n", __func__);
+		return 0;
+	}
+
+	memset(buff, 0, 100);
+	RK_shell_exec("hcitool con", buff, 100);
+	if (strstr(buff, "ACL") || strstr(buff, "LE")) {
+		printf("%s: The device is connected and does not need to be reconnected!\n", __func__);
+		return 0;
+	}
+
+	ret = load_last_device(address);
+	if (ret < 0)
+		return ret;
+
+	proxy = find_device_by_address(address);
+	if (!proxy) {
+		printf("Invalid proxy, stop reconnecting\n");
+		return -1;
+	}
+
+	device_class = dist_dev_class(proxy);
+	if (device_class == BT_Device_Class::BT_IDLE) {
+		printf("Invalid device_class, stop reconnecting\n");
+		return -1;
+	}
+
+	switch(type) {
+		case BT_DEVICES_A2DP_SINK:
+			if (device_class != BT_Device_Class::BT_SINK_DEVICE)
+				reconnect = 0;
+			break;
+		case BT_DEVICES_A2DP_SOURCE:
+			if (device_class != BT_Device_Class::BT_SOURCE_DEVICE)
+				reconnect = 0;
+			break;
+		case BT_DEVICES_BLE:
+			if (device_class != BT_Device_Class::BT_BLE_DEVICE)
+				reconnect = 0;
+			break;
+		case BT_DEVICES_HFP:
+			if (device_class != BT_Device_Class::BT_SOURCE_DEVICE)
+				reconnect = 0;
+			break;
+		case BT_DEVICES_SPP:
+			break;
+		default:
+			reconnect = 0;
+	}
+
+	if (reconnect == 0) {
+		printf("Unable to find a suitable reconnect device!\n");
+		return -1;
+	}
+
+	if (g_dbus_proxy_method_call(proxy, "Connect", NULL,
+		reconn_last_device_reply, NULL, NULL) == FALSE) {
+		printf("Failed to call org.bluez.Device1.Connect\n");
+		return -1;
+	}
+
 	return 0;
 }
 
