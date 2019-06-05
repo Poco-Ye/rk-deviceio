@@ -147,14 +147,3 @@ static void rk_wifi_vp_ssid_psk_callback(char* ssid, char* psk)
 		return;
 	}
 }
-
-void rk_wifi_voiceprint_start(void *data)
-{
-	rk_voice_print_register_callback(rk_wifi_vp_ssid_psk_callback);
-	rk_voice_print_start();
-}
-
-void rk_wifi_voiceprint_stop(void *data)
-{
-	rk_voice_print_stop();
-}

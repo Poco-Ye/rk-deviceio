@@ -56,8 +56,6 @@ static command_t wifi_config_command_table[] = {
 	{"airkiss_wifi_config_stop", rk_wifi_airkiss_stop},
 	{"softap_wifi_config_start", rk_wifi_softap_start},
 	{"softap_wifi_config_stop", rk_wifi_softap_stop},
-	{"voiceprint_wifi_config_start", rk_wifi_voiceprint_start},
-	{"voiceprint_wifi_config_stop", rk_wifi_voiceprint_stop},
 };
 
 static command_t bt_command_table[] = {
@@ -99,7 +97,6 @@ static command_t bt_command_table[] = {
 	{"bt_test_hfp_hp_report_battery", bt_test_hfp_hp_report_battery},
 	{"bt_test_hfp_hp_set_volume", bt_test_hfp_hp_set_volume},
 	{"bt_test_hfp_hp_close", bt_test_hfp_hp_close},
-
 	{"bt_server_close", bt_test_bluetooth_deinit},
 };
 
