@@ -721,6 +721,12 @@ int rk_bt_spp_open()
 {
 	int ret = 0;
 
+	/* Init bluetooth */
+	if (!bt_control.is_bt_open) {
+		printf("Please open bt!!!\n");
+		return -1;
+	}
+
 	ret = bt_spp_server_open();
 	return ret;
 }
