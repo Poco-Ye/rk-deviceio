@@ -3191,7 +3191,6 @@ void a2dp_master_clear_cb()
  *      bt source avrcp
  **********************************************/
 static int g_bt_source_avrcp_thread_runing;
-static int g_bt_source_avrcp_fd;
 static pthread_t g_bt_source_avrcp_thread;
 
 static int is_bluealsa_event(char *node)
@@ -3263,21 +3262,43 @@ static int get_input_event_id()
 	return id;
 }
 
-static void *bt_source_listen_avrcp_event(int fd)
+static void *bt_source_listen_avrcp_event(void *arg)
 {
 	fd_set rfds;
-	int ret;
+	int ret, fd, id;
 	struct input_event ev_key;
 	struct timeval tv;
+	char path[100] = {0};
+	int try_cnt = 30;
 
 	printf("### %s start...\n", __func__);
+	while ((try_cnt--) && g_bt_source_avrcp_thread_runing) {
+		id = get_input_event_id();
+		if (id >= 0) {
+			sprintf(path, "/dev/input/event%d", id);
+			fd = open(path, O_RDONLY);
+			if (fd > 0)
+				g_bt_source_avrcp_thread_runing = 1;
+			else
+				printf("WARNING: %s open %s failed!\n", __func__, path);
+
+			break;
+		}
+
+		usleep(200000); /* 100ms */
+		printf("INFO: %s waite for bt source avrcp event node. 200ms\n", __func__);
+	}
+
 	tv.tv_sec = 0;
 	tv.tv_usec = 100000;/* 100ms */
 	while (g_bt_source_avrcp_thread_runing) {
 		FD_ZERO(&rfds);
 		FD_SET(fd, &rfds);
 
-		select(fd + 1, &rfds, NULL, NULL, &tv);
+		if (select(fd + 1, &rfds, NULL, NULL, &tv) < 0) {
+			printf("ERROR:%s wait bt source avrcp event failed!\n", __func__);
+			break;
+		}
 
 		if (FD_ISSET(fd, &rfds) == 0)
 			continue;
@@ -3316,10 +3337,8 @@ static void *bt_source_listen_avrcp_event(int fd)
 		}
 	}
 
-	if (g_bt_source_avrcp_fd > 0) {
-		close(g_bt_source_avrcp_fd);
-		g_bt_source_avrcp_fd = 0;
-	}
+	if (fd > 0)
+		close(fd);
 
 	printf("### %s end...\n", __func__);
 	return NULL;
@@ -3327,34 +3346,11 @@ static void *bt_source_listen_avrcp_event(int fd)
 
 int a2dp_master_avrcp_open()
 {
-	int id, fd;
 	int ret = -1;
-	char path[100] = {0};
-	int try_cnt = 6;
 
-REPEAT:
-	id = get_input_event_id();
-	if (id >= 0) {
-		sprintf(path, "/dev/input/event%d", id);
-		fd = open(path, O_RDONLY);
-		if (fd > 0) {
-			g_bt_source_avrcp_fd = fd;
-			g_bt_source_avrcp_thread_runing = 1;
-			pthread_create(&g_bt_source_avrcp_thread, NULL, bt_source_listen_avrcp_event, fd);
-			ret = 0;
-		} else {
-			g_bt_source_avrcp_fd = 0;
-			printf("WARNING: %s open %s failed!\n", __func__, path);
-		}
-	} else {
-		try_cnt--;
-		if (try_cnt > 0) {
-			usleep(200000); /* 100ms */
-			printf("INFO: %s waite for bt source avrcp event node. 200ms\n", __func__);
-			goto REPEAT;
-		}
-		printf("ERROR: %s can not open bt source avrcp event node\n", __func__);
-	}
+	g_bt_source_avrcp_thread_runing = 1;
+	if (!g_bt_source_avrcp_thread)
+		pthread_create(&g_bt_source_avrcp_thread, NULL, bt_source_listen_avrcp_event, NULL);
 
 	return ret;
 }
@@ -3363,13 +3359,10 @@ int a2dp_master_avrcp_close()
 {
 	printf("### %s start...\n", __func__);
 	g_bt_source_avrcp_thread_runing = 0;
-	if (g_bt_source_avrcp_fd > 0) {
-		close(g_bt_source_avrcp_fd);
-		g_bt_source_avrcp_fd = 0;
-	}
 	if (g_bt_source_avrcp_thread)
 		pthread_join(g_bt_source_avrcp_thread, NULL);
 
+	g_bt_source_avrcp_thread = 0;
 	printf("### %s end...\n", __func__);
 	return 0;
 }
