@@ -7,7 +7,7 @@
 #include <sys/prctl.h>
 #include <alsa/asoundlib.h>
 #include "voice_print.h"
-#include "DeviceIo/Rk_voice_print.h"
+#include "DeviceIo/VoicePrint.h"
 
 //#define INTERACTIVE_3_TIMES
 
@@ -65,7 +65,7 @@ static int vp_thread_done = 0;
 static snd_pcm_t *vp_capture_handle = NULL;
 static const char *vp_capture_device = "2mic_loopback"; /* ALSA capture device */
 static vp_info_t *voice_print = NULL;
-static RK_VP_SSID_PSK_CALLBACK vp_ssid_psk_cb = NULL;
+static VP_SSID_PSK_CALLBACK vp_ssid_psk_cb = NULL;
 
 #ifdef SAVE_FILE
 FILE *file_fd = NULL;
@@ -163,18 +163,18 @@ static long get_current_time()
     return tv.tv_sec * 1000 + tv.tv_usec / 1000; //ms
 }
 
-static int voice_print_get_samplerate(freq_type_t type)
+static int voice_print_get_samplerate(FREQ_TYPE_T type)
 {
     int sample_rate;
 
     switch(type) {
-        case FREQ_TYPE_LOW:
+        case LOW_FREQ_TYPE:
             sample_rate = 16000;
             break;
-        case FREQ_TYPE_MIDDLE:
+        case MIDDLE_FREQ_TYPE:
             sample_rate = 32000;
             break;
-        case FREQ_TYPE_HIGH:
+        case HIGH_FREQ_TYPE:
             sample_rate = 44100;
             break;
     }
@@ -192,7 +192,7 @@ static int voice_print_get_result(vp_result_t *result)
     }
 
     if (vp->result_str[0] == 0) {
-        printf("vp invalid result\n");
+        printf("invalid result\n");
         return -1;
     }
 
@@ -208,7 +208,7 @@ static int voice_print_get_result(vp_result_t *result)
 
 static int voice_print_handle_once()
 {
-    int i, ret, size;
+    int i, ret, size, flag = 0;
     int finish = 0;
     static int decode_step = 0;
     vp_status_t status;
@@ -249,7 +249,6 @@ repeat:
             pcm_device_close();
 
             vp->ref--;
-            printf("info->ref: %d\n", vp->ref);
             goto repeat;
         }
     }
@@ -257,37 +256,31 @@ repeat:
 #ifdef SAVE_FILE
     if(file_fd) {
          size = fwrite(vp->pcm_data_buf, VP_PCM_BUF_SIZE, 1, file_fd);
-         printf("size: %d\n",size);
+         //printf("size: %d\n",size);
     }
 #endif
 
     for (i = 0; i < (VP_PCM_BUF_SIZE / buf_size); i++) {
-        ret = decoderFedPcm(vp->handle, (short *)&vp->pcm_data_buf[i * buf_size]);
+        ret = decoderPcmData(vp->handle, (short *)&vp->pcm_data_buf[i * buf_size]);
 
         switch (ret) {
-            case RET_DEC_ERROR:
-                printf("%s: decoder error\n", __func__);
-                status = VP_STATUS_DEC_ERROR;
-                finish = 1;
-                goto out;
-
-            case RET_DEC_NORMAL:
+            case DEC_NORMAL:
                 status = VP_STATUS_NORMAL;
                 break;
 
-            case RET_DEC_NOTREADY:
+            case DEC_NOTREADY:
                 //printf("%s: wait to decoder\n", __func__);
                 status = VP_STATUS_NOTREADY;
                 break;
 
-            case RET_DEC_END:
+            case DEC_END:
                 status = VP_STATUS_COMPLETE;
-#ifdef _INTERACTIVE_3TIMES
-                ret = decoderGetStr(vp->handle, vp->result_str[decode_step]);
+#ifdef INTERACTIVE_3_TIMES
+                ret = decoderGetResult(vp->handle, vp->result_str[decode_step]);
 #else
-                ret = decoderGetStr(vp->handle, vp->result_str);
+                ret = decoderGetResult(vp->handle, vp->result_str);
 #endif
-                if (ret == RET_DEC_NOTREADY) {
+                if (ret == DEC_NOTREADY) {
                     printf("get decoder result error\n");
                     status = VP_STATUS_NOTREADY;
                     break;
@@ -295,14 +288,14 @@ repeat:
                     /*  It's better transfer ssid and psk
                      *  like "ssid:psk" in 3 times, and modify this decode code here.
                      */
-                    printf("result[%d]: %d, %s\n", decode_step, strlen((char *)vp->result_str), vp->result_str);
+                    printf("result: %d, %s\n", strlen((char *)vp->result_str), vp->result_str);
 
 #ifdef INTERACTIVE_3_TIMES
                     decode_step++;
 #else
                     decode_step = 3;
 #endif
-                    decoderReset(vp->handle);
+                    decoderReset(vp->handle, flag);
                 }
 
                 if (decode_step < 3) {
@@ -323,7 +316,6 @@ repeat:
 out:
     if (finish && vp->ref) {
         pcm_device_close();
-        //printf("%s: get data end, status: %d\n", __func__, status);
         vp->ref--;
     }
 
@@ -338,7 +330,7 @@ static int voice_print_handle(int timeout_ms)
     vp_info_t *vp = voice_print;
 
     if (!vp) {
-        printf("%s voiceprint don't init!\n", __func__);
+        printf("%s vp don't init!\n", __func__);
         return -1;
     }
 
@@ -382,7 +374,7 @@ static void *voice_print_handle_thread(void *arg)
     prctl(PR_SET_NAME,"voice_print_handle_thread");
 
     if(voice_print_handle(VP_TIME_OUT_MS) < 0) {
-        printf("%s: voice_print_handle failed\n", __func__);
+        printf("%s: voiceprint handle failed\n", __func__);
         return NULL;
     }
 
@@ -394,10 +386,11 @@ static void *voice_print_handle_thread(void *arg)
     return NULL;
 }
 
-static int voice_print_init(freq_type_t type)
+static int voice_print_init(FREQ_TYPE_T type)
 {
+    int flag = 0;
     vp_info_t *vp = voice_print;
-    config_decoder_t decode_config;
+    DECODER_CONFIG_T decode_config;
 
     if (vp) {
         printf("%s vp has already inited!\n", __func__);
@@ -419,13 +412,13 @@ static int voice_print_init(freq_type_t type)
     decode_config.max_strlen = 200; //256;
     decode_config.sample_rate = voice_print_get_samplerate(type);
 
-    vp->handle = decoderCreate(&decode_config);
+    vp->handle = decoderInit(&decode_config, flag);
     if (vp->handle == NULL) {
-        printf("%s: decoderCreate error\n", __func__);
+        printf("%s: voiceprint decoder init error\n", __func__);
         return -1;
     }
 
-    vp->decoder_bitsize = decoderGetBitSize(vp->handle);
+    vp->decoder_bitsize = decoderGetSize(vp->handle, flag);
     if (VP_PCM_BUF_SIZE % (vp->decoder_bitsize * 2)) {
         printf("alsa read buffer size(%d) is not aligned to %d\n",
                VP_PCM_BUF_SIZE, vp->decoder_bitsize);
@@ -442,14 +435,14 @@ static int voice_print_init(freq_type_t type)
     return 0;
 }
 
-int rk_voice_print_start()
+int voice_print_start()
 {
     int ret;
 
     printf("%s\n", __func__);
 
-    if(voice_print_init(FREQ_TYPE_LOW) < 0) {
-        printf("vp start failed\n");
+    if(voice_print_init(LOW_FREQ_TYPE) < 0) {
+        printf("%s: vp init failed\n", __func__);
         return -1;
     }
 
@@ -464,8 +457,9 @@ int rk_voice_print_start()
     return 0;
 }
 
-int rk_voice_print_stop()
+int voice_print_stop()
 {
+    int flag = 0;
     vp_info_t *vp = voice_print;
 
     if (!vp) {
@@ -481,7 +475,7 @@ int rk_voice_print_stop()
         printf("%s pthread_join failed!\n", __func__);
     vp_thread = 0;
 
-    decoderDestroy(vp->handle);
+    decoderDeinit(vp->handle, flag);
     free(vp);
     voice_print = NULL;
 
@@ -489,7 +483,75 @@ int rk_voice_print_stop()
     return 0;
 }
 
-void rk_voice_print_register_callback(RK_VP_SSID_PSK_CALLBACK cb)
+void voice_print_register_callback(VP_SSID_PSK_CALLBACK cb)
 {
     vp_ssid_psk_cb = cb;
+}
+
+int vp_encode(char *file_path, unsigned char *str)
+{
+    int ret, size, outsize, flag = 0;
+    uint8_t *buffer = NULL;
+    FILE *fd = NULL;
+    ENCOEDR_CONFIG_T config;
+    void *handle;
+
+    if(file_path == NULL || str == NULL) {
+        printf("input string or file path error\n");
+        return -1;
+    }
+
+    fd = fopen(file_path, "w+");
+    if (fd == NULL) {
+        printf("open pcm file failed\n");
+        return -1;
+    }
+
+    config.error_correct = 0;
+    config.error_correct_num = 0;
+    config.freq_type = LOW_FREQ_TYPE;
+    config.group_symbol_num = 10;
+    config.max_strlen = 200;
+    config.sample_rate = voice_print_get_samplerate(config.freq_type);
+    handle = encoderInit(&config, flag);
+    if (handle == NULL) {
+        printf("voiceprint encoder init error\n");
+        return -1;
+    }
+
+    outsize = encoderGetsize(handle);
+    //printf("outsize: %d\n", outsize);
+    buffer = (uint8_t*)malloc(outsize);
+    if(buffer == NULL) {
+        printf("malloc buffer failed\n");
+        return -1;
+    }
+
+    ret = encoderSetStr(handle, str);
+    if(ret == ENC_ERROR) {
+        printf("encoder set input string failed\n");
+        free(buffer);
+        return -1;
+    }
+
+    while(1) {
+        memset(buffer, 0, outsize);
+        ret = encoderStrData(handle, (short*)buffer);
+        if(ret == ENC_ERROR) {
+            printf("encoder get pcm data failed\n");
+            break;
+        }
+
+         size = fwrite(buffer, outsize, 1, fd);
+
+        if(ret == ENC_END) {
+            printf("encoder get pcm data success\n");
+            break;
+        }
+    }
+
+    fclose(fd);
+    free(buffer);
+    encoderDeinit(handle, flag);
+    return 0;
 }

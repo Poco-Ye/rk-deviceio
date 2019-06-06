@@ -5,65 +5,42 @@
 #include "vp_rscode.h"
 #include "voice_print.h"
 
-#define QPRODUCT 15
+#define Q_PRODUCT 15
 
-#define STATE_SYNC1 0
-#define STATE_SYNC2 1
-#define STATE_DECODE 2
-#define STATE_FRAMEEND 3
-#define STATE_END   4
-#define STATE_ERROR -1
+#define SYNC1_STATE 0
+#define SYNC2_STATE 1
+#define DECODE_STATE 2
+#define FRAME_END_STATE 3
+#define END_STATE   4
+#define ERROR_STATE -1
 
 /* 4 for 75% overlap, 2 for 50% overlap*/
-#define OVERLAP_FACTOR 8
-#define TRANSMIT_PER_SYMBOL 2
-#define RECEIVE_PER_SYMBOL (OVERLAP_FACTOR*TRANSMIT_PER_SYMBOL)
+#define DEC_OVERLAP_FACTOR 8
+#define TRANSMIT_PER_SYM 2
+#define RECEIVE_PER_SYM (DEC_OVERLAP_FACTOR * TRANSMIT_PER_SYM)
 
 #define vp_abs(a) ((a) > 0 ? (a) : (-(a)))
 
-static int idx_sync[4] ={0xf, 0x0, 0xf, 0x0};
-static int idx_sync_lag[4] ={0xf, 0x0, 0xf, 0x0};
+static int sync_index[4] ={0xf, 0x0, 0xf, 0x0};
+static int sync_lag_index[4] ={0xf, 0x0, 0xf, 0x0};
 
-static int lag_sync = 0xf;
-
-static unsigned char char_sync[2]={0x0f, 0x0f};
-
-typedef struct
-{
-	/* maximum of probable string length in bytes */
-	int max_strlen;
-	/* error correcting coding flag */
-	int error_correct;
-	/* grouping of symbol number in symbols */
-	int grouping_symbol_num;
-
-	/* symbol length in samples */
-	int symbol_length;
-	/* sample rate of the encoded data*/
-	int samplerate;
-	/* freqrange select*/
-	freq_type_t freqrange_select;
-	/* maximum candidate freqidx in each symbol time */
-	int max_candidate_num;
-	/* threshold 1 in dB, threshold_1 lower than peak should not be a candidate */
-	int threshold_1;
-	/* threshold 2 in dB, threshold_2 larger than minmum should not be a candidate */
-	int threshold_2;
-}decode_init_prms_t;
+/*setPrms中freq_idx_high赋值时, vp_freq_point的索引必须和这里相等，即10
+  sync_char的值可以是0x00 ~ 0x0f之间的值*/
+static unsigned char sync_str[2]={0x0a, 0x0a};
 
 typedef struct
 {
 	int order;
 	short* history_buffer;
 	short* coeff;
-}firfilter_t;
+} FIR_FILTER_INFO_T;
 
 typedef struct
 {
 	int* candidate_freqidx;
 	int  candidate_num;
 	int  candidate_idx;
-}candidate_t;
+} CANDIDATE_INFO_T;
 
 typedef struct
 {
@@ -113,7 +90,7 @@ typedef struct
 	/* frame count */
 	int frame_count;
 	/* Reed Solomon decoder */
-	RS* rs;
+	RS_INFO_T* rs;
 	/* fft handle */
 	kiss_fft_cfg fft_table;
 	/* window */
@@ -127,8 +104,8 @@ typedef struct
 	/* power spectrum density buffer */
 	unsigned int* psd_buf;
 	/* candidate of all time segment */
-	candidate_t** candidate_array;
-	candidate_t** candidate_array_lag;
+	CANDIDATE_INFO_T** candidate_array;
+	CANDIDATE_INFO_T** candidate_array_lag;
 	/* candidate idx array */
 	int** candidate_idx_array;
 	/* shift idx */
@@ -151,7 +128,7 @@ typedef struct
 	/* error byte count */
 	int error_count;
 	/* fir filter */
-	firfilter_t* filter;
+	FIR_FILTER_INFO_T* filter;
 	/* sync tone define regions, for sync count and count total count */
     int lag_count;
 	/* blablabla */
@@ -168,12 +145,9 @@ typedef struct
 	/* for debug, total play time*/
 	unsigned int play_time;
 	unsigned int fft_fetch_time;
-}decoder_t;
+}DECODER_INFO_T;
 
-#define HAMMING_COEF1 17695
-#define HAMMING_COEF2 15073
-
-static int caculateCoeffFirfilter(firfilter_t* filter, int fs, int f0, filter_type_t type)
+static int firfilterCoeffCaculate(FIR_FILTER_INFO_T* filter, int fs, int f0, tFILTER_TYPE type)
 {
 	int ALPHA = VPMULT(f0, 32768*2)/fs;
 	int order = filter->order;
@@ -181,36 +155,36 @@ static int caculateCoeffFirfilter(firfilter_t* filter, int fs, int f0, filter_ty
 	int i,ret=0;
 	int w1, w2, w3;
 	short* coeff = filter->coeff;
-	/* we only support an even order now 
+	/* we only support an even order now
 		because odd order of symmetric fir filter can not be an highpass filter
 	*/
 	if(order & 1)
 	{
-		printf("only support even order now!\n");
+		printf("only support an even order\n");
 		return -1;
 	}
-	
+
 	/* we use hamming windowing here to get an linear phase filter
 		wn = 0.54-0.46cos(2*pi*n/L) 0<= n <= L
 	*/
 	switch(type)
 	{
-	case FILTER_TYPE_LOWPASS:
+	case LOW_PASS_TYPE:
 		coeff[N] = ALPHA;
 		break;
-	case FILTER_TYPE_HIGHPASS:
+	case HIGH_PASS_TYPE:
 		coeff[N] = 32768-ALPHA;
 		break;
 	default:
 		printf("don't support filter type : %d\n", type);
 		return-1;
-		
+
 	}
 	for(i = 1; i <= N; i++)
 	{
 		w1 = PI/2-VPMULT(2*PI,(i+N))/order;
 		w1 = vp_sin(w1);
-		w1 = HAMMING_COEF1 - VPMUL(w1,HAMMING_COEF2); 
+		w1 = HAMMING_COEF1 - VPMUL(w1,HAMMING_COEF2);
 		w2 = i*PI;
 		w3 = VPMUL(w2,ALPHA);
 		w3 = vp_sin(w3);
@@ -218,10 +192,10 @@ static int caculateCoeffFirfilter(firfilter_t* filter, int fs, int f0, filter_ty
 		w3 = VPMUL(w3,w1);
 		switch(type)
 		{
-		case FILTER_TYPE_LOWPASS:
+		case LOW_PASS_TYPE:
 			coeff[i+N] = coeff[-i+N] = VPMUL(w3,w1);
 			break;
-		case FILTER_TYPE_HIGHPASS:
+		case HIGH_PASS_TYPE:
 			coeff[i+N] = coeff[-i+N] = VPMUL(-w3,w1);
 			break;
 		default:
@@ -229,7 +203,6 @@ static int caculateCoeffFirfilter(firfilter_t* filter, int fs, int f0, filter_ty
 			printf("don't support filter type : %d\n", type);
 			break;
 		}
-		 
 	}
 #if 0
 	for(i = 0; i <= order; i++)
@@ -240,7 +213,7 @@ static int caculateCoeffFirfilter(firfilter_t* filter, int fs, int f0, filter_ty
 	return ret;
 }
 
-static void destroyFirfilter(firfilter_t* filter)
+static void firfilterDestroy(FIR_FILTER_INFO_T* filter)
 {
 	if(filter)
 	{
@@ -256,14 +229,14 @@ static void destroyFirfilter(firfilter_t* filter)
 	}
 }
 
-static void resetFirfilter(firfilter_t* filter)
+static void firfilterReset(FIR_FILTER_INFO_T* filter)
 {
 	vp_memset(filter->history_buffer,0,(sizeof(short)*filter->order));
 }
 
-static firfilter_t* initFirfilter(int order, int fs, int f0, filter_type_t type)
+static FIR_FILTER_INFO_T* firfilterInit(int order, int fs, int f0, tFILTER_TYPE type)
 {
-	firfilter_t* filter = vp_alloc(sizeof(firfilter_t));
+	FIR_FILTER_INFO_T* filter = vp_alloc(sizeof(FIR_FILTER_INFO_T));
 	if(filter)
 	{
 		filter->order = order;
@@ -271,25 +244,25 @@ static firfilter_t* initFirfilter(int order, int fs, int f0, filter_type_t type)
 		filter->history_buffer = vp_alloc(sizeof(short)*order);
 		if(filter->history_buffer == NULL)
 		{
-			destroyFirfilter(filter);
+			firfilterDestroy(filter);
 			filter = NULL;
 		}
 		filter->coeff = vp_alloc(sizeof(short)*(order+1));
 		if(filter->coeff == NULL)
 		{
-			destroyFirfilter(filter);
+			firfilterDestroy(filter);
 			filter = NULL;
 		}
-		if (caculateCoeffFirfilter(filter, fs, f0, type) != 0)
+		if (firfilterCoeffCaculate(filter, fs, f0, type) != 0)
 		{
-			destroyFirfilter(filter);
+			firfilterDestroy(filter);
 			filter = NULL;
 		}
 	}
 	return filter;
 }
 
-static void processFirfilter(firfilter_t* filter, short* in, short* out, int len)
+static void firfilterProcess(FIR_FILTER_INFO_T* filter, short* in, short* out, int len)
 {
 	int order = filter->order;
 	short* coeff = filter->coeff;
@@ -333,14 +306,14 @@ static void processFirfilter(firfilter_t* filter, short* in, short* out, int len
 
 }
 
-static void resetDecBuf(decoder_t* decoder)
+static void decoderBufReset(DECODER_INFO_T* decoder)
 {
 	vp_memset(decoder->dec_buf, 0, sizeof(char)*decoder->internal_symbol_num);
 	decoder->idx = 0;
 	decoder->bidx = 0;
 }
 
-static void loadDefaultPrms(decoder_t* decoder)
+static void defaultPrmsLoad(DECODER_INFO_T* decoder)
 {
 	decoder->max_strlen = 256;
 	decoder->error_correct = 1;
@@ -350,23 +323,23 @@ static void loadDefaultPrms(decoder_t* decoder)
 	decoder->check_symbol_num = 8;
 	decoder->symbol_length = 8*1024;
 	decoder->samplerate = 48000;
-	decoder->freqrange_select = FREQ_TYPE_MIDDLE;
-	decoder->fft_size = decoder->symbol_length/TRANSMIT_PER_SYMBOL;
-	
+	decoder->freqrange_select = MIDDLE_FREQ_TYPE;
+	decoder->fft_size = decoder->symbol_length/TRANSMIT_PER_SYM;
+
 	decoder->max_candidate_num = 2;
 	decoder->threshold_1 = 328; /* -26dB(0.01) in Q15 */
 	decoder->threshold_2 = 3276800; /* 30dB(100) in Q15 */
 	decoder->internal_symbol_num = (decoder->grouping_symbol_num+decoder->sync_symbol_num + decoder->check_symbol_num);
-	decoder->pcmbuf_length = decoder->symbol_length/TRANSMIT_PER_SYMBOL/**decoder->internal_symbol_num*/;
+	decoder->pcmbuf_length = decoder->symbol_length/TRANSMIT_PER_SYM/**decoder->internal_symbol_num*/;
 }
 
-static int setPrms(decoder_t* decoder, config_decoder_t* decoder_config)
+static int setParameters(DECODER_INFO_T* decoder, DECODER_CONFIG_T* decoder_config)
 {
 	if(decoder_config != NULL)
 	{
-		if(( decoder_config->freq_type == FREQ_TYPE_LOW && decoder_config->sample_rate < 11025)
-		   || ( decoder_config->freq_type == FREQ_TYPE_MIDDLE && decoder_config->sample_rate < 32000)
-		   || ( decoder_config->freq_type == FREQ_TYPE_HIGH && decoder_config->sample_rate < 44100))
+		if(( decoder_config->freq_type == LOW_FREQ_TYPE && decoder_config->sample_rate < 11025)
+		   || ( decoder_config->freq_type == MIDDLE_FREQ_TYPE && decoder_config->sample_rate < 32000)
+		   || ( decoder_config->freq_type == HIGH_FREQ_TYPE && decoder_config->sample_rate < 44100))
 		{
 			return -1;
 		}
@@ -378,21 +351,21 @@ static int setPrms(decoder_t* decoder, config_decoder_t* decoder_config)
 		{
 		case 11025:
 		case 16000:
-            decoder->symbol_length = 2*1024*SYMB_LENGTH_FACTOR;
+            decoder->symbol_length = 2 * 1024 * SYMBOL_LENGTH_FACTOR;
 			break;
 		case 22050:
 		case 24000:
 		case 32000:
-			decoder->symbol_length = 4*1024*SYMB_LENGTH_FACTOR;
+			decoder->symbol_length = 4 * 1024 * SYMBOL_LENGTH_FACTOR;
 			break;
 		case 44100:
 		case 48000:
-			decoder->symbol_length = 8*1024*SYMB_LENGTH_FACTOR;
+			decoder->symbol_length = 8 * 1024 * SYMBOL_LENGTH_FACTOR;
 			break;
 		default:
 			return -1;
 		}
-		
+
 		if(decoder->error_correct)
 		{
 			decoder->check_symbol_num = decoder_config->error_correct_num*2;
@@ -416,23 +389,23 @@ static int setPrms(decoder_t* decoder, config_decoder_t* decoder_config)
 			return -1;
 		}
 
-		decoder->fft_size = decoder->symbol_length/TRANSMIT_PER_SYMBOL;
+		decoder->fft_size = decoder->symbol_length/TRANSMIT_PER_SYM;
 		decoder->internal_symbol_num = (decoder->grouping_symbol_num+decoder->sync_symbol_num + decoder->check_symbol_num);
-		decoder->pcmbuf_length = decoder->symbol_length/TRANSMIT_PER_SYMBOL/**decoder->internal_symbol_num*/;
+		decoder->pcmbuf_length = decoder->symbol_length/TRANSMIT_PER_SYM/**decoder->internal_symbol_num*/;
 	}else {
-		loadDefaultPrms(decoder);
+		defaultPrmsLoad(decoder);
 	}
 #if 0
 	printf("decoder->freqrange_select: %d\n", decoder->freqrange_select);
 	printf("decoder->fft_size: %d\n", decoder->fft_size);
 	printf("decoder->samplerate: %d\n", decoder->samplerate);
-	printf("freq_point[decoder->freqrange_select][0]: %d\n", freq_point[decoder->freqrange_select][0]);
-	printf("freq_point[decoder->freqrange_select][15]: %d\n", freq_point[decoder->freqrange_select][15]);
+	printf("vp_freq_point[decoder->freqrange_select][0]: %d\n", vp_freq_point[decoder->freqrange_select][0]);
+	printf("vp_freq_point[decoder->freqrange_select][15]: %d\n", vp_freq_point[decoder->freqrange_select][15]);
 #endif
-	decoder->freq_idx_low = freq_point[decoder->freqrange_select][0]*decoder->fft_size/decoder->samplerate;
-	decoder->freq_idx_high = (freq_point[decoder->freqrange_select][15]*decoder->fft_size+decoder->samplerate/2)/decoder->samplerate;
-	decoder->freq_idx_high_cover_lag = (freq_lag_top[decoder->freqrange_select]*decoder->fft_size+decoder->samplerate/2)/decoder->samplerate;
-	decoder->delta_freq_idx = freq_delta[decoder->freqrange_select]*decoder->fft_size/decoder->samplerate;
+	decoder->freq_idx_low = vp_freq_point[decoder->freqrange_select][0]*decoder->fft_size/decoder->samplerate;
+	decoder->freq_idx_high = (vp_freq_point[decoder->freqrange_select][10]*decoder->fft_size+decoder->samplerate/2)/decoder->samplerate;
+	decoder->freq_idx_high_cover_lag = (vp_freq_lag_top[decoder->freqrange_select]*decoder->fft_size+decoder->samplerate/2)/decoder->samplerate;
+	decoder->delta_freq_idx = vp_freq_delta[decoder->freqrange_select]*decoder->fft_size/decoder->samplerate;
 	decoder->freq_bin_num = decoder->freq_idx_high - decoder->freq_idx_low + 1;
 	decoder->freq_bin_num_lag = decoder->freq_idx_high_cover_lag - decoder->freq_idx_high;
 #if 0
@@ -443,14 +416,14 @@ static int setPrms(decoder_t* decoder, config_decoder_t* decoder_config)
 	printf("decoder->freq_bin_num: %d\n", decoder->freq_bin_num);
 	printf("decoder->freq_bin_num_lag: %d\n", decoder->freq_bin_num_lag);
 #endif
-	decoder->freq_idx_lag_low = freq_lag[decoder->freqrange_select]*decoder->fft_size/decoder->samplerate;
-	decoder->freq_idx_lag_high = (freq_lag[decoder->freqrange_select] + 800)*decoder->fft_size/decoder->samplerate;
+	decoder->freq_idx_lag_low = vp_freq_lag[decoder->freqrange_select]*decoder->fft_size/decoder->samplerate;
+	decoder->freq_idx_lag_high = (vp_freq_lag[decoder->freqrange_select] + 800)*decoder->fft_size/decoder->samplerate;
 	decoder->lag_count = 0;
-	decoder->lag_symbol_num_internal = SYNC_TONE_SYMB_LENGTH;
+	decoder->lag_symbol_num_internal = SYNC_TONE_SYMBOL_LENGTH;
 	return 0;
 }
 
-static void resetSortIdx(decoder_t* decoder, int start, int range)
+static void sortIdxReset(DECODER_INFO_T* decoder, int start, int range)
 {
 	int i;
 	for(i = 0; i < range; i++)
@@ -459,37 +432,37 @@ static void resetSortIdx(decoder_t* decoder, int start, int range)
 	}
 }
 
-static void resetCandidate(decoder_t* decoder)
+static void candidateReset(DECODER_INFO_T* decoder)
 {
 	int i,k;
-	for(k = 0; k < OVERLAP_FACTOR; k++)
+	for(k = 0; k < DEC_OVERLAP_FACTOR; k++)
 	{
-		for(i = 0; i < decoder->internal_symbol_num*TRANSMIT_PER_SYMBOL; i++)
+		for(i = 0; i < decoder->internal_symbol_num*TRANSMIT_PER_SYM; i++)
 		{
 			vp_memset(decoder->candidate_array[k][i].candidate_freqidx, 0, sizeof(int)*decoder->max_candidate_num);
 			decoder->candidate_array[k][i].candidate_num = 0;
-			decoder->candidate_array[k][i].candidate_idx = 0;	
+			decoder->candidate_array[k][i].candidate_idx = 0;
 		}
-		for(i = 0; i < decoder->lag_symbol_num_internal*TRANSMIT_PER_SYMBOL; i++)
+		for(i = 0; i < decoder->lag_symbol_num_internal*TRANSMIT_PER_SYM; i++)
 		{
 			vp_memset(decoder->candidate_array_lag[k][i].candidate_freqidx, 0, sizeof(int)*decoder->max_candidate_num);
 			decoder->candidate_array_lag[k][i].candidate_num = 0;
-			decoder->candidate_array_lag[k][i].candidate_idx = 0;	
+			decoder->candidate_array_lag[k][i].candidate_idx = 0;
 		}
 	}
-	resetSortIdx(decoder, decoder->process_start_idx, (decoder->process_freq_num + decoder->process_freq_num_lag));
+	sortIdxReset(decoder, decoder->process_start_idx, (decoder->process_freq_num + decoder->process_freq_num_lag));
 }
 
-static void frameReset(decoder_t* decoder)
+static void frameReset(DECODER_INFO_T* decoder)
 {
 		decoder->error_count = 0;
-		resetDecBuf(decoder);
+		decoderBufReset(decoder);
 		decoder->frame_count = 0;
-		decoder->state = STATE_SYNC2;
-		resetCandidate(decoder);
+		decoder->state = SYNC2_STATE;
+		candidateReset(decoder);
 }
 
-static void initBlackmanWindow(int* window, int L)
+static void blackmanWindowInit(int* window, int L)
 {
 	/* 0.42-0.5*cos(2*pi*n/(L-1))+0.08*cos(4*pi*n/(L-1))*/
 	int w1, w2, w3,i;
@@ -503,33 +476,33 @@ static void initBlackmanWindow(int* window, int L)
 		}
 		w1 = vp_sin(w1);
 		w2 = vp_sin(w2);
-		w3 = BLACK_COEF1 - VPMUL(BLACK_COEF2, w1) + VPMUL(BLACK_COEF3, w2);
+		w3 = BLACKMAN_COEF1 - VPMUL(BLACKMAN_COEF2, w1) + VPMUL(BLACKMAN_COEF3, w2);
 		window[i] = w3;
 	}
 }
 
-void* decoderCreate(config_decoder_t* decode_config)
+void* decoderInit(DECODER_CONFIG_T *config, int flag)
 {
 	int i,k/*, symsize, gfpoly, fcr, prim, nroots, pad*/;
-	decoder_t* decoder;
-#ifdef MEMORYLEAK_DIAGNOSE
-	vp_memdiagnoseinit();
+	DECODER_INFO_T* decoder;
+#ifdef MEMORY_LEAK_DIAGNOSE
+	vp_mem_diagnose_init();
 #endif
-	printf("Deocde Init\n");
-	decoder = vp_alloc(sizeof(decoder_t));
+
+	decoder = vp_alloc(sizeof(DECODER_INFO_T));
 	if(decoder)
 	{
-		/*loadDefaultPrms(decoder);
-		decoder->max_strlen = decode_config->max_strlen;
-		decoder->freqrange_select = decode_config->freq_type;
-		decoder->freq_idx_low = freq_point[decoder->freqrange_select][0]*decoder->fft_size/decoder->samplerate;
-		decoder->freq_idx_high = (freq_point[decoder->freqrange_select][15]*decoder->fft_size+decoder->samplerate/2)/decoder->samplerate;
-		decoder->delta_freq_idx = freq_delta[decoder->freqrange_select]*decoder->fft_size/decoder->samplerate;
+		/*defaultPrmsLoad(decoder);
+		decoder->max_strlen = config->max_strlen;
+		decoder->freqrange_select = config->freq_type;
+		decoder->freq_idx_low = vp_freq_point[decoder->freqrange_select][0]*decoder->fft_size/decoder->samplerate;
+		decoder->freq_idx_high = (vp_freq_point[decoder->freqrange_select][15]*decoder->fft_size+decoder->samplerate/2)/decoder->samplerate;
+		decoder->delta_freq_idx = vp_freq_delta[decoder->freqrange_select]*decoder->fft_size/decoder->samplerate;
 		decoder->freq_bin_num = decoder->freq_idx_high - decoder->freq_idx_low + 1;
 		*/
-		if(setPrms(decoder, decode_config) != 0)
+		if(setParameters(decoder, config) != 0)
 		{
-			decoderDestroy(decoder);
+			decoderDeinit(decoder, flag);
 			return NULL;
 		}
 
@@ -538,7 +511,7 @@ void* decoderCreate(config_decoder_t* decode_config)
 		decoder->process_freq_num_lag  = decoder->freq_bin_num_lag;
 		decoder->process_start_idx_lag = decoder->freq_idx_high + 1;
 
-		decoder->fft_fetch_time    = decoder->fft_size*1000/(OVERLAP_FACTOR*decoder->samplerate);
+		decoder->fft_fetch_time    = decoder->fft_size*1000/(DEC_OVERLAP_FACTOR*decoder->samplerate);
 		decoder->time_window = vp_alloc(sizeof(int)*decoder->fft_size);
 		decoder->pcm_buf = vp_alloc(sizeof(kiss_fft_cpx)*decoder->pcmbuf_length);
 		decoder->temp_buf = vp_alloc(sizeof(kiss_fft_cpx)*decoder->fft_size);
@@ -546,11 +519,11 @@ void* decoderCreate(config_decoder_t* decode_config)
 		//printf("decoder->process_freq_num: %d\n", decoder->process_freq_num);
 		//printf("decoder->process_freq_num_lag: %d\n", decoder->process_freq_num_lag);
 		decoder->psd_buf = vp_alloc(sizeof(unsigned int)*(decoder->process_freq_num + decoder->process_freq_num_lag));
-		decoder->candidate_array = vp_alloc(sizeof(candidate_t*)*OVERLAP_FACTOR);
-		decoder->candidate_array_lag = vp_alloc(sizeof(candidate_t*)*OVERLAP_FACTOR);
+		decoder->candidate_array = vp_alloc(sizeof(CANDIDATE_INFO_T*)*DEC_OVERLAP_FACTOR);
+		decoder->candidate_array_lag = vp_alloc(sizeof(CANDIDATE_INFO_T*)*DEC_OVERLAP_FACTOR);
 		if(decoder->error_correct)
 		{
-			decoder->rs = initRsChar(8, 285, 1, 1, decoder->check_symbol_num, 255-decoder->internal_symbol_num/*symsize, gfpoly, fcr, prim, nroots, pad*/);
+			decoder->rs = rsInitChar(8, 285, 1, 1, decoder->check_symbol_num, 255-decoder->internal_symbol_num/*symsize, gfpoly, fcr, prim, nroots, pad*/);
 		}
 		decoder->fft_table = kissFftAlloc(decoder->fft_size, 0, NULL, NULL);
 		decoder->sort_idx = vp_alloc(sizeof(int)*(decoder->process_freq_num + decoder->process_freq_num_lag));
@@ -564,47 +537,47 @@ void* decoderCreate(config_decoder_t* decode_config)
 			|| !decoder->candidate_idx_array || !decoder->dec_buf
 			|| !decoder->out_buf || !decoder->time_window || !decoder->temp_buf)
 		{
-			decoderDestroy((void*) decoder);
+			decoderDeinit((void*) decoder, flag);
 			return NULL;
 		}
 
-		initBlackmanWindow(decoder->time_window, decoder->fft_size);
-		for(k = 0; k < OVERLAP_FACTOR; k++)
+		blackmanWindowInit(decoder->time_window, decoder->fft_size);
+		for(k = 0; k < DEC_OVERLAP_FACTOR; k++)
 		{
-			decoder->candidate_array[k] = vp_alloc(decoder->internal_symbol_num*TRANSMIT_PER_SYMBOL*sizeof(candidate_t));
+			decoder->candidate_array[k] = vp_alloc(decoder->internal_symbol_num*TRANSMIT_PER_SYM*sizeof(CANDIDATE_INFO_T));
 			if(decoder->candidate_array[k] == NULL)
 			{
-				decoderDestroy((void*)decoder);
+				decoderDeinit((void*)decoder, flag);
 				return NULL;
 			}
-			vp_memset(decoder->candidate_array[k], 0, decoder->internal_symbol_num*TRANSMIT_PER_SYMBOL*sizeof(candidate_t));
-		
-			for(i = 0; i < decoder->internal_symbol_num*TRANSMIT_PER_SYMBOL; i++)
+			vp_memset(decoder->candidate_array[k], 0, decoder->internal_symbol_num*TRANSMIT_PER_SYM*sizeof(CANDIDATE_INFO_T));
+
+			for(i = 0; i < decoder->internal_symbol_num*TRANSMIT_PER_SYM; i++)
 			{
 				decoder->candidate_array[k][i].candidate_freqidx = vp_alloc(sizeof(int)*decoder->max_candidate_num);
 				if(!decoder->candidate_array[k][i].candidate_freqidx)
 				{
-					decoderDestroy((void*) decoder);
+					decoderDeinit((void*) decoder, flag);
 					return NULL;
 				}
 			}
 		}
-		for(k = 0; k < OVERLAP_FACTOR; k++)
+		for(k = 0; k < DEC_OVERLAP_FACTOR; k++)
 		{
-			decoder->candidate_array_lag[k] = vp_alloc(decoder->lag_symbol_num_internal*TRANSMIT_PER_SYMBOL*sizeof(candidate_t));
+			decoder->candidate_array_lag[k] = vp_alloc(decoder->lag_symbol_num_internal*TRANSMIT_PER_SYM*sizeof(CANDIDATE_INFO_T));
 			if(decoder->candidate_array_lag[k] == NULL)
 			{
-				decoderDestroy((void*)decoder);
+				decoderDeinit((void*)decoder, flag);
 				return NULL;
 			}
-			vp_memset(decoder->candidate_array_lag[k], 0, decoder->lag_symbol_num_internal*TRANSMIT_PER_SYMBOL*sizeof(candidate_t));
-		
-			for(i = 0; i < decoder->lag_symbol_num_internal*TRANSMIT_PER_SYMBOL; i++)
+			vp_memset(decoder->candidate_array_lag[k], 0, decoder->lag_symbol_num_internal*TRANSMIT_PER_SYM*sizeof(CANDIDATE_INFO_T));
+
+			for(i = 0; i < decoder->lag_symbol_num_internal*TRANSMIT_PER_SYM; i++)
 			{
 				decoder->candidate_array_lag[k][i].candidate_freqidx = vp_alloc(sizeof(int)*decoder->max_candidate_num);
 				if(!decoder->candidate_array_lag[k][i].candidate_freqidx)
 				{
-					decoderDestroy((void*) decoder);
+					decoderDeinit((void*) decoder, flag);
 					return NULL;
 				}
 			}
@@ -613,60 +586,60 @@ void* decoderCreate(config_decoder_t* decode_config)
 
 		for(i = 0; i < decoder->max_allowed_ombin; i++)
 		{
-			decoder->candidate_idx_array[i] = vp_alloc(sizeof(int)*TRANSMIT_PER_SYMBOL*decoder->internal_symbol_num);
+			decoder->candidate_idx_array[i] = vp_alloc(sizeof(int)*TRANSMIT_PER_SYM*decoder->internal_symbol_num);
 			if(!decoder->candidate_idx_array[i])
 			{
-				decoderDestroy((void*) decoder);
+				decoderDeinit((void*) decoder, flag);
 				return NULL;
 			}
 		}
 
-		decoder->filter = initFirfilter(32, decoder->samplerate, freq_cutoff[decoder->freqrange_select], filter_type[decoder->freqrange_select]);//initFirfilter(32, coefftable);
+		decoder->filter = firfilterInit(32, decoder->samplerate, vp_freq_cutoff[decoder->freqrange_select], vp_filter_type[decoder->freqrange_select]);//firfilterInit(32, coefftable);
 		if(decoder->filter == NULL)
 		{
-			decoderDestroy((void*) decoder);
-			return NULL;	
+			decoderDeinit((void*) decoder, flag);
+			return NULL;
 		}
 
 		decoder->out_idx = 0;
 		decoder->error_count = 0;
-		resetDecBuf(decoder);
+		decoderBufReset(decoder);
 		decoder->frame_count = 0;
-		idx_sync[0] = decoder->freq_idx_high;
-		idx_sync[1] = decoder->freq_idx_low;
-		idx_sync[2] = decoder->freq_idx_high;
-		idx_sync[3] = decoder->freq_idx_low;
-		idx_sync_lag[0] = decoder->freq_idx_lag_high;
-		idx_sync_lag[1] = decoder->freq_idx_lag_low;
-		idx_sync_lag[2] = decoder->freq_idx_lag_high;
-		idx_sync_lag[3] = decoder->freq_idx_lag_low;
-		decoder->state = STATE_SYNC1;
+		sync_index[0] = decoder->freq_idx_high;
+		sync_index[1] = decoder->freq_idx_low;
+		sync_index[2] = decoder->freq_idx_high;
+		sync_index[3] = decoder->freq_idx_low;
+		sync_lag_index[0] = decoder->freq_idx_lag_high;
+		sync_lag_index[1] = decoder->freq_idx_lag_low;
+		sync_lag_index[2] = decoder->freq_idx_lag_high;
+		sync_lag_index[3] = decoder->freq_idx_lag_low;
+		decoder->state = SYNC1_STATE;
 	}
 	return (void*)decoder;
 }
 
-void decoderReset(void* handle)
+void decoderReset(void* handle, int flag)
 {
-	decoder_t* decoder = (decoder_t*)handle;
-	printf("Deocde Reset\n");
+	DECODER_INFO_T* decoder = (DECODER_INFO_T*)handle;
 	vp_memset(decoder->pcm_buf,0,sizeof(kiss_fft_cpx)*decoder->pcmbuf_length);
 	decoder->shift_idx = 0;
 	decoder->out_idx = 0;
 	decoder->error_count = 0;
-	resetDecBuf(decoder);
+	decoderBufReset(decoder);
 	decoder->frame_count = 0;
 	decoder->lag_count   = 0;
-	decoder->state = STATE_SYNC1;
-	resetFirfilter(decoder->filter);
+	decoder->state = SYNC1_STATE;
+	firfilterReset(decoder->filter);
 
 }
-int decoderGetBitSize(void* handle)
+
+int decoderGetSize(void* handle, int flag)
 {
-	decoder_t* decoder = (decoder_t*)handle;
-	return decoder->fft_size/OVERLAP_FACTOR;
+	DECODER_INFO_T* decoder = (DECODER_INFO_T*)handle;
+	return decoder->fft_size/DEC_OVERLAP_FACTOR;
 }
 
-static void sortingPsd(decoder_t* decoder, int start, int range)
+static void psdSorting(DECODER_INFO_T* decoder, int start, int range)
 {
 	int i, j, temp;
 	register int* psd = (int*)(&decoder->psd_buf[start - decoder->process_start_idx]);
@@ -703,7 +676,7 @@ static void sortingPsd(decoder_t* decoder, int start, int range)
     //printf("shift_idx : %d, sort_idx : %d", decoder->shift_idx, sort_idx[0]);
 }
 
-static int isValidIdx(decoder_t* decoder, int idx, int symbol_i, int len)
+static int isValidIdx(DECODER_INFO_T* decoder, int idx, int symbol_i, int len)
 {
 	int i, v;
 	for(i = 0; i < len; i++)
@@ -717,47 +690,47 @@ static int isValidIdx(decoder_t* decoder, int idx, int symbol_i, int len)
 	return 1;
 }
 
-static void showCandidate(decoder_t* decoder)
+static void showCandidate(DECODER_INFO_T* decoder)
 {
-	int symbol_i = decoder->internal_symbol_num*TRANSMIT_PER_SYMBOL;
+	int symbol_i = decoder->internal_symbol_num*TRANSMIT_PER_SYM;
 
-    int j, idx, shift_idx, jdx;
+	int j, idx, shift_idx, jdx;
 	FILE * text = NULL;
 	char name[128] = {0};
 	char *prefix = "/tmp/print_result";
 	char *postfix ="txt";
 
 	sprintf(name, "%s_%dms-%dms.%s", prefix, decoder->play_time - decoder->fft_fetch_time, decoder->play_time, postfix);
-    text = fopen(name, "wb");
-	
-    fprintf(text,"|========== print start ===========\n");
+	text = fopen(name, "wb");
 
-    {
+	fprintf(text,"---------- print start -----------\n");
+
+	{
 		int* psd  = &decoder->psd_buf[decoder->process_start_idx_lag - decoder->process_start_idx];
 		int* sort_idx = &decoder->sort_idx[decoder->process_start_idx_lag - decoder->process_start_idx];
 		for(j = 0; j < decoder->process_freq_num_lag; j++)
 		{
 			fprintf(text, "psd[%d] : %d, sort_idx : %d\n", j, psd[j], sort_idx[j]);
 		}
-    }
-	fprintf(text,"|========== print end   ===========\n");
+	}
+	fprintf(text,"----------- print end ------------\n");
 	fclose(text);
 }
 
-static int updateCandidate(decoder_t* decoder, int range, int symbol_i)
+static int candidateUpdate(DECODER_INFO_T* decoder, int range, int symbol_i)
 {
 	int i, j;
 
 	int* psd  = &decoder->psd_buf[0];
-    int* sort_idx = &decoder->sort_idx[0];
-	
-	int low_limit2 = (int)(((long long)decoder->threshold_2*psd[range-1]) >> QPRODUCT);
-	int low_limit1 = (int)(((long long)decoder->threshold_1*psd[0]) >> QPRODUCT);
+	int* sort_idx = &decoder->sort_idx[0];
+
+	int low_limit2 = (int)(((long long)decoder->threshold_2*psd[range-1]) >> Q_PRODUCT);
+	int low_limit1 = (int)(((long long)decoder->threshold_1*psd[0]) >> Q_PRODUCT);
 
 	/* shift */
 
 	for(j = 0; j < symbol_i; j++)
-	{	
+	{
 		vp_memcpy(decoder->candidate_array[decoder->shift_idx][j].candidate_freqidx,decoder->candidate_array[decoder->shift_idx][j+1].candidate_freqidx,sizeof(int)*decoder->candidate_array[decoder->shift_idx][j+1].candidate_num);
 		decoder->candidate_array[decoder->shift_idx][j].candidate_num = decoder->candidate_array[decoder->shift_idx][j+1].candidate_num;
 		decoder->candidate_array[decoder->shift_idx][j].candidate_idx = decoder->candidate_array[decoder->shift_idx][j+1].candidate_idx;
@@ -765,12 +738,12 @@ static int updateCandidate(decoder_t* decoder, int range, int symbol_i)
 
 	decoder->candidate_array[decoder->shift_idx][symbol_i].candidate_idx = 0;
 	decoder->candidate_array[decoder->shift_idx][symbol_i].candidate_num = 0;
-	
+
 	if(psd[0] > low_limit2)
 	{
 		decoder->candidate_array[decoder->shift_idx][symbol_i].candidate_freqidx[decoder->candidate_array[decoder->shift_idx][symbol_i].candidate_num++]
 									= sort_idx[0];
-									
+
 		for(j = 1; j < range&& decoder->candidate_array[decoder->shift_idx][symbol_i].candidate_num < decoder->max_candidate_num; j++)
 		{
 			if(psd[j] > low_limit1 && psd[j] > low_limit2 )
@@ -784,27 +757,27 @@ static int updateCandidate(decoder_t* decoder, int range, int symbol_i)
 			{
 				break;
 			}
-		}	
+		}
 		return 0;
 	}
-	
+
 	return -1;
 }
 
-static int updateLagCandidate(decoder_t* decoder, int range, int symbol_i)
+static int lagCandidateUpdate(DECODER_INFO_T* decoder, int range, int symbol_i)
 {
 	int i, j;
 
 	int* psd  = &decoder->psd_buf[0];
-    int* sort_idx = &decoder->sort_idx[0];
-	
-	int low_limit2 = (int)(((long long)decoder->threshold_2*psd[range-1]) >> QPRODUCT);
-	int low_limit1 = (int)(((long long)decoder->threshold_1*psd[0]) >> QPRODUCT);
+	int* sort_idx = &decoder->sort_idx[0];
+
+	int low_limit2 = (int)(((long long)decoder->threshold_2*psd[range-1]) >> Q_PRODUCT);
+	int low_limit1 = (int)(((long long)decoder->threshold_1*psd[0]) >> Q_PRODUCT);
 
 	/* shift */
 
 	for(j = 0; j < symbol_i; j++)
-	{	
+	{
 		vp_memcpy(decoder->candidate_array_lag[decoder->shift_idx][j].candidate_freqidx,decoder->candidate_array_lag[decoder->shift_idx][j+1].candidate_freqidx,sizeof(int)*decoder->candidate_array_lag[decoder->shift_idx][j+1].candidate_num);
 		decoder->candidate_array_lag[decoder->shift_idx][j].candidate_num = decoder->candidate_array_lag[decoder->shift_idx][j+1].candidate_num;
 		decoder->candidate_array_lag[decoder->shift_idx][j].candidate_idx = decoder->candidate_array_lag[decoder->shift_idx][j+1].candidate_idx;
@@ -812,12 +785,12 @@ static int updateLagCandidate(decoder_t* decoder, int range, int symbol_i)
 
 	decoder->candidate_array_lag[decoder->shift_idx][symbol_i].candidate_idx = 0;
 	decoder->candidate_array_lag[decoder->shift_idx][symbol_i].candidate_num = 0;
-	
+
 	if(psd[0] > low_limit2)
 	{
 		decoder->candidate_array_lag[decoder->shift_idx][symbol_i].candidate_freqidx[decoder->candidate_array_lag[decoder->shift_idx][symbol_i].candidate_num++]
 									= sort_idx[0];
-									
+
 		for(j = 1; j < range&& decoder->candidate_array_lag[decoder->shift_idx][symbol_i].candidate_num < decoder->max_candidate_num; j++)
 		{
 			if(psd[j] > low_limit1 && psd[j] > low_limit2 )
@@ -834,11 +807,11 @@ static int updateLagCandidate(decoder_t* decoder, int range, int symbol_i)
 		}
 		return 0;
 	}
-	
+
 	return -1;
 }
 
-static int storeBits(decoder_t* decoder, unsigned char c, int bits)
+static int storeBits(DECODER_INFO_T* decoder, unsigned char c, int bits)
 {
 	int bidx, idx;
 	bidx = decoder->bidx;
@@ -869,7 +842,7 @@ static int storeBits(decoder_t* decoder, unsigned char c, int bits)
 	return 0;
 }
 
-static int searchNULL(char* str, int len)
+static int findNull(char* str, int len)
 {
 	int i;
 	for(i = len-1; i >= 0; i--)
@@ -882,15 +855,15 @@ static int searchNULL(char* str, int len)
 	return 0;
 }
 
-static int searchSync(decoder_t* decoder)
+static int findSync(DECODER_INFO_T* decoder)
 {
 	int i, j, total_num = 1;
-	candidate_t* candidate_array = decoder->candidate_array[decoder->shift_idx];
-	for(i = 0; i < decoder->sync_symbol_num*TRANSMIT_PER_SYMBOL; i++)
+	CANDIDATE_INFO_T* candidate_array = decoder->candidate_array[decoder->shift_idx];
+	for(i = 0; i < decoder->sync_symbol_num*TRANSMIT_PER_SYM; i++)
 	{
 		for(j = 0; j < candidate_array[i].candidate_num; j++)
 		{
-			if(vp_abs(candidate_array[i].candidate_freqidx[j] - idx_sync[i]) < decoder->delta_freq_idx)
+			if(vp_abs(candidate_array[i].candidate_freqidx[j] - sync_index[i]) < decoder->delta_freq_idx)
 			{
 				candidate_array[i].candidate_idx = j;
 				break;
@@ -900,21 +873,21 @@ static int searchSync(decoder_t* decoder)
 		{
 			return -1;
 		}
-		
+
 	}
 	return 0;
 }
 
-static int searchSyncLag(decoder_t* decoder)
+static int findSyncLag(DECODER_INFO_T* decoder)
 {
 	int i, j, total_num = 1;
 	{
-		candidate_t* candidate_array = decoder->candidate_array_lag[decoder->shift_idx];
-		for(i = 0; i < decoder->lag_symbol_num_internal*TRANSMIT_PER_SYMBOL; i++)
+		CANDIDATE_INFO_T* candidate_array = decoder->candidate_array_lag[decoder->shift_idx];
+		for(i = 0; i < decoder->lag_symbol_num_internal*TRANSMIT_PER_SYM; i++)
 		{
 			for(j = 0; j < candidate_array[i].candidate_num; j++)
 			{
-				if(vp_abs(candidate_array[i].candidate_freqidx[j] - idx_sync_lag[i]) < decoder->delta_freq_idx)
+				if(vp_abs(candidate_array[i].candidate_freqidx[j] - sync_lag_index[i]) < decoder->delta_freq_idx)
 				{
 					candidate_array[i].candidate_idx = j;
 					break;
@@ -923,34 +896,34 @@ static int searchSyncLag(decoder_t* decoder)
 			if(j == candidate_array[i].candidate_num)
 			{
 				return -1;
-			}		
+			}
 		}
 	}
 	return 0;
 }
 
-static unsigned char freqIdx2Char(decoder_t* decoder, int freq_idx)
+static unsigned char freqIdx2Char(DECODER_INFO_T* decoder, int freq_idx)
 {
 	int freq = freq_idx*decoder->samplerate/decoder->fft_size;
 	int i;
 	for(i = 0; i < 15; i++)
 	{
-		if(vp_abs(freq - freq_point[decoder->freqrange_select][i]) < vp_abs(freq - freq_point[decoder->freqrange_select][i+1]))
+		if(vp_abs(freq - vp_freq_point[decoder->freqrange_select][i]) < vp_abs(freq - vp_freq_point[decoder->freqrange_select][i+1]))
 		{
 			return i;
 		}
 	}
 	return 15;
 }
-static void computePsd(kiss_fft_cpx* Xf, unsigned int* power, int length, int idx_start, int base_start)
+
+static void caculatePsd(kiss_fft_cpx* Xf, unsigned int* power, int length, int idx_start, int base_start)
 {
 	int i;
-	
+
 	for(i = 0; i < length ; i++)
 	{
 		power[i+idx_start - base_start] = VPMULT16(Xf[i+idx_start].r, Xf[i+idx_start].r) + VPMULT16(Xf[i+idx_start].i, Xf[i+idx_start].i);
 	}
-
 }
 
 static void windowingPcm(kiss_fft_cpx* pcm, kiss_fft_cpx* out, int* window, int L)
@@ -963,34 +936,34 @@ static void windowingPcm(kiss_fft_cpx* pcm, kiss_fft_cpx* out, int* window, int 
 	}
 }
 
-int decoderFedPcm(void* handle, short* pcm)
+int decoderPcmData(void* handle, short* pcm)
 {
 	int i, j, k, idx_total, idx_total1;
 	int ret = 0, ret_lag = 0;
 	int sync_score = 0;
-	decoder_t* decoder = (decoder_t*)handle;
+	DECODER_INFO_T* decoder = (DECODER_INFO_T*)handle;
 	int max_amp, count_leadingzeros;
 
-	/* filter input to keep the precision of the fixed point number 
-	   we use the temp_buf, because it can be used uninitialized later 
+	/* filter input to keep the precision of the fixed point number
+	   we use the temp_buf, because it can be used uninitialized later
 	*/
 	short* filt_tmpbuf = (short*)decoder->temp_buf;
-	processFirfilter(decoder->filter, pcm, filt_tmpbuf,decoder->fft_size/OVERLAP_FACTOR);
+	firfilterProcess(decoder->filter, pcm, filt_tmpbuf,decoder->fft_size/DEC_OVERLAP_FACTOR);
 
 	decoder->play_time += decoder->fft_fetch_time;//milisec
 
 	/*shift buffer */
-	for(i = 0; i < decoder->pcmbuf_length - decoder->fft_size/OVERLAP_FACTOR; i++)
+	for(i = 0; i < decoder->pcmbuf_length - decoder->fft_size/DEC_OVERLAP_FACTOR; i++)
 	{
-		decoder->pcm_buf[i].r = decoder->pcm_buf[i+decoder->fft_size/OVERLAP_FACTOR].r;
-		decoder->pcm_buf[i].i = decoder->pcm_buf[i+decoder->fft_size/OVERLAP_FACTOR].i;
+		decoder->pcm_buf[i].r = decoder->pcm_buf[i+decoder->fft_size/DEC_OVERLAP_FACTOR].r;
+		decoder->pcm_buf[i].i = decoder->pcm_buf[i+decoder->fft_size/DEC_OVERLAP_FACTOR].i;
 	}
-	
-	for(i = 0; i < decoder->fft_size/OVERLAP_FACTOR; i++)
+
+	for(i = 0; i < decoder->fft_size/DEC_OVERLAP_FACTOR; i++)
 	{
-		decoder->pcm_buf[i+decoder->pcmbuf_length - decoder->fft_size/OVERLAP_FACTOR].r
+		decoder->pcm_buf[i+decoder->pcmbuf_length - decoder->fft_size/DEC_OVERLAP_FACTOR].r
 																= filt_tmpbuf[i]/*pcm[i]*/;
-		decoder->pcm_buf[i+decoder->pcmbuf_length - decoder->fft_size/OVERLAP_FACTOR].i
+		decoder->pcm_buf[i+decoder->pcmbuf_length - decoder->fft_size/DEC_OVERLAP_FACTOR].i
 																= 0;
 	}
 
@@ -1017,89 +990,89 @@ int decoderFedPcm(void* handle, short* pcm)
 		}
 	}
 
-    if(decoder->state == STATE_SYNC1)
+    if(decoder->state == SYNC1_STATE)
     {
-#ifdef ADD_SYNC_TONE
-        resetSortIdx(decoder, decoder->process_start_idx, decoder->process_freq_num_lag + decoder->process_freq_num);
+#ifdef HAVE_SYNC_TONE
+        sortIdxReset(decoder, decoder->process_start_idx, decoder->process_freq_num_lag + decoder->process_freq_num);
         /* windowing */
         windowingPcm(decoder->pcm_buf, decoder->temp_buf, decoder->time_window, decoder->fft_size);
         /* fft */
         kissFft(decoder->fft_table, decoder->temp_buf, decoder->fd_buf);
         /* caculate the psd */
-        computePsd(decoder->fd_buf, decoder->psd_buf, decoder->process_freq_num_lag + decoder->process_freq_num, decoder->process_start_idx, decoder->process_start_idx);
+        caculatePsd(decoder->fd_buf, decoder->psd_buf, decoder->process_freq_num_lag + decoder->process_freq_num, decoder->process_start_idx, decoder->process_start_idx);
         /* sorting psd, TODO: init sort_idx */
-        sortingPsd(decoder, decoder->process_start_idx, decoder->process_freq_num_lag + decoder->process_freq_num);
+        psdSorting(decoder, decoder->process_start_idx, decoder->process_freq_num_lag + decoder->process_freq_num);
         decoder->lag_count++;
-        decoder->shift_idx = (decoder->shift_idx + 1) % (OVERLAP_FACTOR);
-		ret = updateLagCandidate(decoder, decoder->process_freq_num_lag + decoder->process_freq_num, decoder->lag_symbol_num_internal*TRANSMIT_PER_SYMBOL - 1);
+        decoder->shift_idx = (decoder->shift_idx + 1) % (DEC_OVERLAP_FACTOR);
+		ret = lagCandidateUpdate(decoder, decoder->process_freq_num_lag + decoder->process_freq_num, decoder->lag_symbol_num_internal*TRANSMIT_PER_SYM - 1);
         if(ret < 0)
-        {	
+        {
             /* no candidate in current sync tone symbol interval, so we just return to get more data */
-            return RET_DEC_NORMAL;
+            return DEC_NORMAL;
         }
-        if(decoder->lag_count < decoder->lag_symbol_num_internal*RECEIVE_PER_SYMBOL)
+        if(decoder->lag_count < decoder->lag_symbol_num_internal*RECEIVE_PER_SYM)
         {
-            return RET_DEC_NORMAL;
+            return DEC_NORMAL;
         }
-        if(searchSyncLag(decoder) < 0)
+        if(findSyncLag(decoder) < 0)
         {
-            return RET_DEC_NORMAL;
+            return DEC_NORMAL;
         }
-        resetCandidate(decoder);
-        decoder->state = STATE_SYNC2;
-        printf("find sync tone... decoding start!! lag_count : %d, sync_score : %d, during (%d ms - %d ms)", decoder->lag_count, sync_score, decoder->play_time - decoder->fft_fetch_time, decoder->play_time);
-        return RET_DEC_NORMAL;
+        candidateReset(decoder);
+        decoder->state = SYNC2_STATE;
+        //printf("find sync tone... decoding start!! lag_count : %d, sync_score : %d, during (%d ms - %d ms)", decoder->lag_count, sync_score, decoder->play_time - decoder->fft_fetch_time, decoder->play_time);
+        return DEC_NORMAL;
 #else
-        decoder->state = STATE_SYNC2;
+        decoder->state = SYNC2_STATE;
 #endif
     }
 
-	resetSortIdx(decoder, decoder->process_start_idx, (decoder->process_freq_num + decoder->process_freq_num_lag));
+	sortIdxReset(decoder, decoder->process_start_idx, (decoder->process_freq_num + decoder->process_freq_num_lag));
 	/* windowing */
 	windowingPcm(decoder->pcm_buf, decoder->temp_buf, decoder->time_window, decoder->fft_size);
 	/* fft */
 	kissFft(decoder->fft_table, decoder->temp_buf, decoder->fd_buf);
 	/* caculate the psd */
-	computePsd(decoder->fd_buf, decoder->psd_buf, (decoder->process_freq_num + decoder->process_freq_num_lag), decoder->process_start_idx , decoder->process_start_idx);
+	caculatePsd(decoder->fd_buf, decoder->psd_buf, (decoder->process_freq_num + decoder->process_freq_num_lag), decoder->process_start_idx , decoder->process_start_idx);
 	/* sorting psd, TODO: init sort_idx */
-	sortingPsd(decoder, decoder->process_start_idx, decoder->process_freq_num_lag + decoder->process_freq_num);
+	psdSorting(decoder, decoder->process_start_idx, decoder->process_freq_num_lag + decoder->process_freq_num);
 
 	decoder->frame_count++;
-	decoder->shift_idx = (decoder->shift_idx + 1) % OVERLAP_FACTOR;
-	
-	ret = updateCandidate(decoder, decoder->process_freq_num_lag + decoder->process_freq_num, decoder->internal_symbol_num*TRANSMIT_PER_SYMBOL - 1);
-	updateLagCandidate(decoder, decoder->process_freq_num_lag + decoder->process_freq_num, decoder->lag_symbol_num_internal*TRANSMIT_PER_SYMBOL - 1);
-	if(!searchSyncLag(decoder))
+	decoder->shift_idx = (decoder->shift_idx + 1) % DEC_OVERLAP_FACTOR;
+
+	ret = candidateUpdate(decoder, decoder->process_freq_num_lag + decoder->process_freq_num, decoder->internal_symbol_num*TRANSMIT_PER_SYM - 1);
+	lagCandidateUpdate(decoder, decoder->process_freq_num_lag + decoder->process_freq_num, decoder->lag_symbol_num_internal*TRANSMIT_PER_SYM - 1);
+	if(!findSyncLag(decoder))
 	{
 		decoder->out_idx = 0;
 		decoder->error_count = 0;
-		resetDecBuf(decoder);
-		resetCandidate(decoder);
-		decoder->state = STATE_SYNC2;
+		decoderBufReset(decoder);
+		candidateReset(decoder);
+		decoder->state = SYNC2_STATE;
 		vp_memset(decoder->out_buf,0x00, (sizeof(unsigned char)*(decoder->max_strlen+1)));
-		printf("find some start tone during decoding..., sync_score : %d, during (%d ms - %d ms)", sync_score, decoder->play_time - decoder->fft_fetch_time, decoder->play_time);
-		return RET_DEC_NORMAL;
+		//printf("find some start tone during decoding..., sync_score : %d, during (%d ms - %d ms)", sync_score, decoder->play_time - decoder->fft_fetch_time, decoder->play_time);
+		return DEC_NORMAL;
 	}
 
 	if(ret < 0)
 	{
 		/* no candidate in current sync tone symbol interval, so we just return to get more data */
-		return RET_DEC_NORMAL;
+		return DEC_NORMAL;
 	}
 
-	if(decoder->frame_count < decoder->internal_symbol_num*RECEIVE_PER_SYMBOL)
+	if(decoder->frame_count < decoder->internal_symbol_num*RECEIVE_PER_SYM)
 	{
-		return RET_DEC_NORMAL;
+		return DEC_NORMAL;
 	}
 	//showCandidate(decoder);
-	if(decoder->state == STATE_SYNC2 && searchSync(decoder) != 0)
+	if(decoder->state == SYNC2_STATE && findSync(decoder) != 0)
 	{
-		return RET_DEC_NORMAL;
+		return DEC_NORMAL;
 	}
-	decoder->state = STATE_DECODE;
+	decoder->state = DECODE_STATE;
 	/* TODO init candidate_idx_array*/
 	idx_total = 1;
-	for(i  = decoder->sync_symbol_num*TRANSMIT_PER_SYMBOL; i < decoder->internal_symbol_num*TRANSMIT_PER_SYMBOL; i++)
+	for(i  = decoder->sync_symbol_num*TRANSMIT_PER_SYM; i < decoder->internal_symbol_num*TRANSMIT_PER_SYM; i++)
 	{
 		idx_total1 =  idx_total* decoder->candidate_array[decoder->shift_idx][i].candidate_num;
 		if(idx_total1  > decoder->max_allowed_ombin)
@@ -1117,16 +1090,16 @@ int decoderFedPcm(void* handle, short* pcm)
 				memcpy(decoder->candidate_idx_array[k+j*idx_total],decoder->candidate_idx_array[k], sizeof(int)*(i-1));
 				decoder->candidate_idx_array[k+j*idx_total][i] = decoder->candidate_array[decoder->shift_idx][i].candidate_freqidx[j];
 			}
-			 
+
 		}
 		idx_total = idx_total1;
-		
+
 	}
 
 	if(idx_total1 > decoder->max_allowed_ombin)
 	{
 		idx_total = decoder->error_correct ? 1:0;
-		for(i  = decoder->sync_symbol_num*TRANSMIT_PER_SYMBOL; i < decoder->internal_symbol_num*TRANSMIT_PER_SYMBOL; i++)
+		for(i  = decoder->sync_symbol_num*TRANSMIT_PER_SYM; i < decoder->internal_symbol_num*TRANSMIT_PER_SYM; i++)
 		{
 			decoder->candidate_idx_array[0][i] = decoder->candidate_array[decoder->shift_idx][i].candidate_freqidx[0];
 		}
@@ -1134,68 +1107,64 @@ int decoderFedPcm(void* handle, short* pcm)
 	}
 	for(k = 0; k < idx_total; k++)
 	{
-		for(i = 0; i < decoder->sync_symbol_num*TRANSMIT_PER_SYMBOL; i++)
+		for(i = 0; i < decoder->sync_symbol_num*TRANSMIT_PER_SYM; i++)
 		{
-			decoder->candidate_idx_array[k][i] = idx_sync[i];
+			decoder->candidate_idx_array[k][i] = sync_index[i];
 		}
 	}
 
 	for(k = 0; k < idx_total; k++)
 	{
 		int ret1;
-		resetDecBuf(decoder);
-		for(i = 0; i < decoder->internal_symbol_num*TRANSMIT_PER_SYMBOL; i++)
+		decoderBufReset(decoder);
+		for(i = 0; i < decoder->internal_symbol_num*TRANSMIT_PER_SYM; i++)
 		{
 			unsigned char c_value = freqIdx2Char(decoder, decoder->candidate_idx_array[k][i]);
 			storeBits(decoder, c_value, 4);
 		}
 		if(decoder->error_correct)
 		{
-			ret1 = decodeRsChar(decoder->rs, decoder->dec_buf, NULL, 0);
+			ret1 = rsDecodeChar(decoder->rs, decoder->dec_buf, NULL, 0);
 		}else
 		{
 			ret1 = 0;
 		}
-		if(ret1 >= 0 && ret1 <= decoder->check_symbol_num/TRANSMIT_PER_SYMBOL && memcmp(decoder->dec_buf,char_sync,sizeof(char_sync))==0)
+		if(ret1 >= 0 && ret1 <= decoder->check_symbol_num/TRANSMIT_PER_SYM && memcmp(decoder->dec_buf,sync_str,sizeof(sync_str))==0)
 		{
 			memcpy(&decoder->out_buf[decoder->out_idx], &decoder->dec_buf[decoder->sync_symbol_num], decoder->grouping_symbol_num*sizeof(unsigned char));
-				
-			decoder->error_count += ret1;	
-			if(searchNULL(&decoder->dec_buf[decoder->sync_symbol_num], decoder->grouping_symbol_num) != 0)
+			decoder->error_count += ret1;
+			if(findNull(&decoder->dec_buf[decoder->sync_symbol_num], decoder->grouping_symbol_num) != 0)
 			{
-					
-				decoder->state = STATE_END;
-				return RET_DEC_END;
-					
+				decoder->state = END_STATE;
+				return DEC_END;
 			}else
 			{
-				decoder->state = STATE_FRAMEEND;
+				decoder->state = FRAME_END_STATE;
 				decoder->out_idx += decoder->grouping_symbol_num;
 				frameReset(decoder);
 			}
-			return RET_DEC_NORMAL;
+			return DEC_NORMAL;
 		}
 	}
-	//decoder->state = STATE_ERROR
-	return RET_DEC_NORMAL;
-	
+
+	//decoder->state = ERROR_STATE
+	return DEC_NORMAL;
 }
 
-int decoderGetStr(void* handle, unsigned char* str)
+int decoderGetResult(void* handle, unsigned char* str)
 {
-	decoder_t* decoder = (decoder_t*)handle;
-	if(decoder->state != STATE_END)
-	{
-		return RET_DEC_NOTREADY;
+	DECODER_INFO_T* decoder = (DECODER_INFO_T*)handle;
+	if(decoder->state != END_STATE) {
+		return DEC_NOTREADY;
 	}
 	strcpy(str, decoder->out_buf);
-	return RET_DEC_NORMAL;
+	return DEC_NORMAL;
 
 }
-void decoderDestroy(void* handle)
+void decoderDeinit(void *handle, int flag)
 {
-	decoder_t* decoder = (decoder_t*)handle;
-	printf("Deocde Destroy\n");
+	DECODER_INFO_T* decoder = (DECODER_INFO_T*)handle;
+
 	if(decoder)
 	{
 		int i,k;
@@ -1207,11 +1176,11 @@ void decoderDestroy(void* handle)
 			vp_free(decoder->psd_buf);
 		if(decoder->candidate_array)
 		{
-			for(k = 0; k < OVERLAP_FACTOR; k++)
+			for(k = 0; k < DEC_OVERLAP_FACTOR; k++)
 			{
 				if(decoder->candidate_array[k])
 				{
-					for(i = 0; i < decoder->internal_symbol_num*TRANSMIT_PER_SYMBOL; i++)
+					for(i = 0; i < decoder->internal_symbol_num*TRANSMIT_PER_SYM; i++)
 					{
 						if(decoder->candidate_array[k][i].candidate_freqidx)
 							vp_free(decoder->candidate_array[k][i].candidate_freqidx);
@@ -1223,11 +1192,11 @@ void decoderDestroy(void* handle)
 		}
 		if(decoder->candidate_array_lag)
 		{
-			for(k = 0; k < OVERLAP_FACTOR; k++)
+			for(k = 0; k < DEC_OVERLAP_FACTOR; k++)
 			{
 				if(decoder->candidate_array_lag[k])
 				{
-					for(i = 0; i < decoder->lag_symbol_num_internal*TRANSMIT_PER_SYMBOL; i++)
+					for(i = 0; i < decoder->lag_symbol_num_internal*TRANSMIT_PER_SYM; i++)
 					{
 						if(decoder->candidate_array_lag[k][i].candidate_freqidx)
 							vp_free(decoder->candidate_array_lag[k][i].candidate_freqidx);
@@ -1238,7 +1207,7 @@ void decoderDestroy(void* handle)
 			vp_free(decoder->candidate_array_lag);
 		}
 		if(decoder->error_correct&&decoder->rs)
-			freeRsChar(decoder->rs);
+			rsFreeChar(decoder->rs);
 		if(decoder->fft_table)
 			kissFftFree(decoder->fft_table);
 		if(decoder->sort_idx)
@@ -1247,11 +1216,9 @@ void decoderDestroy(void* handle)
 		{
 			for(i = 0; i < decoder->max_allowed_ombin; i++)
 			{
-				
 				if(decoder->candidate_idx_array[i])
 				{
 					vp_free(decoder->candidate_idx_array[i]);
-					
 				}
 			}
 			vp_free(decoder->candidate_idx_array);
@@ -1266,10 +1233,10 @@ void decoderDestroy(void* handle)
 			vp_free(decoder->temp_buf);
 
 		if(decoder->filter)
-			destroyFirfilter(decoder->filter);
+			firfilterDestroy(decoder->filter);
 		vp_free(decoder);
 	}
-#ifdef MEMORYLEAK_DIAGNOSE
-	vp_memdiagnose();
+#ifdef MEMORY_LEAK_DIAGNOSE
+	vp_mem_diagnose();
 #endif
 }
