@@ -641,7 +641,7 @@ void a2dp_sink_proxy_added(GDBusProxy *proxy, void *user_data)
 		item_added(proxy);
 
 	if (!strcmp(interface, "org.bluez.Device1")) {
-		a2dp_sink_device_added(proxy);
+		//a2dp_sink_device_added(proxy);
 	} else if (!strcmp(interface, "org.bluez.Adapter1")) {
 		DBusMessageIter iter;
 		const char *str;
