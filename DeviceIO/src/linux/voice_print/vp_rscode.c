@@ -1,7 +1,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#ifdef HAVE_LIBPTHREAD
+#ifdef HAVE_LIB_PTHREAD
 #  include <pthread.h>
 #endif
 
@@ -15,35 +15,28 @@
 
 #include "vp_rscode.h"
 
-/* Stuff specific to the 8-bit symbol version of the general purpose RS codecs
- *
- */
-typedef unsigned char data_t;
-
-/**
- * Reed-Solomon codec control block
- */
-struct _RS {
+/* Reed-Solomon codec control block */
+struct _RS_INFO {
 	int mm;              /* Bits per symbol */
 	int nn;              /* Symbols per block (= (1<<mm)-1) */
-	data_t *alpha_to;     /* log lookup table */
-	data_t *index_of;     /* Antilog lookup table */
-	data_t *genpoly;      /* Generator polynomial */
+	unsigned char *alpha_to;     /* log lookup table */
+	unsigned char *index_of;     /* Antilog lookup table */
+	unsigned char *genpoly;      /* Generator polynomial */
 	int nroots;     /* Number of generator roots = number of parity symbols */
 	int fcr;        /* First consecutive root, index form */
 	int prim;       /* Primitive element, index form */
 	int iprim;      /* prim-th root of 1, index form */
 	int pad;        /* Padding bytes in shortened block */
 	int gfpoly;
-	struct _RS *next;
+	struct _RS_INFO *next;
 };
 
-static RS *rslist = NULL;
-#ifdef HAVE_LIBPTHREAD
-static pthread_mutex_t rslist_mutex = PTHREAD_MUTEX_INITIALIZER;
+static RS_INFO_T *rs_list = NULL;
+#ifdef HAVE_LIB_PTHREAD
+static pthread_mutex_t rs_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
-static int modnn(RS *rs, int x){
+static int modnn(RS_INFO_T *rs, int x){
 	while (x >= rs->nn) {
 		x -= rs->nn;
 		x = (x >> rs->mm) + (x & rs->nn);
@@ -55,7 +48,7 @@ static int modnn(RS *rs, int x){
 
 #define MM (rs->mm)
 #define NN (rs->nn)
-#define ALPHA_TO (rs->alpha_to) 
+#define ALPHA_TO (rs->alpha_to)
 #define INDEX_OF (rs->index_of)
 #define GENPOLY (rs->genpoly)
 #define NROOTS (rs->nroots)
@@ -63,19 +56,19 @@ static int modnn(RS *rs, int x){
 #define PRIM (rs->prim)
 #define IPRIM (rs->iprim)
 #define PAD (rs->pad)
-#define A0 (NN)
+#define A0 (NN)             /* Special reserved value encoding zero in index form */
 
 /* Initialize a Reed-Solomon codec
  * symsize = symbol size, bits
  * gfpoly = Field generator polynomial coefficients
- * fcr = first root of RS code generator polynomial, index form
+ * fcr = first root of RS_INFO_T code generator polynomial, index form
  * prim = primitive element to generate polynomial roots
- * nroots = RS code generator polynomial degree (number of roots)
+ * nroots = RS_INFO_T code generator polynomial degree (number of roots)
  * pad = padding bytes at front of shortened block
  */
-RS *initRsChar(int symsize, int gfpoly, int fcr, int prim, int nroots, int pad)
+RS_INFO_T *rsInitChar(int symsize, int gfpoly, int fcr, int prim, int nroots, int pad)
 {
-  RS *rs;
+  RS_INFO_T *rs;
 
 /* Common code for intializing a Reed-Solomon control block (char or int symbols)
  * Copyright 2004 Phil Karn, KA9Q
@@ -88,7 +81,7 @@ RS *initRsChar(int symsize, int gfpoly, int fcr, int prim, int nroots, int pad)
 
   rs = NULL;
   /* Check parameter ranges */
-  if(symsize < 0 || symsize > (int)(8*sizeof(data_t))){
+  if(symsize < 0 || symsize > (int)(8*sizeof(unsigned char))){
     goto done;
   }
 
@@ -101,7 +94,7 @@ RS *initRsChar(int symsize, int gfpoly, int fcr, int prim, int nroots, int pad)
   if(pad < 0 || pad >= ((1<<symsize) -1 - nroots))
     goto done; /* Too much padding */
 
-  rs = (RS *)calloc(1,sizeof(RS));
+  rs = (RS_INFO_T *)calloc(1,sizeof(RS_INFO_T));
   if(rs == NULL)
     goto done;
 
@@ -109,13 +102,13 @@ RS *initRsChar(int symsize, int gfpoly, int fcr, int prim, int nroots, int pad)
   rs->nn = (1<<symsize)-1;
   rs->pad = pad;
 
-  rs->alpha_to = (data_t *)malloc(sizeof(data_t)*(rs->nn+1));
+  rs->alpha_to = (unsigned char *)malloc(sizeof(unsigned char)*(rs->nn+1));
   if(rs->alpha_to == NULL){
     free(rs);
     rs = NULL;
     goto done;
   }
-  rs->index_of = (data_t *)malloc(sizeof(data_t)*(rs->nn+1));
+  rs->index_of = (unsigned char *)malloc(sizeof(unsigned char)*(rs->nn+1));
   if(rs->index_of == NULL){
     free(rs->alpha_to);
     free(rs);
@@ -147,8 +140,8 @@ RS *initRsChar(int symsize, int gfpoly, int fcr, int prim, int nroots, int pad)
     goto done;
   }
 
-  /* Form RS code generator polynomial from its roots */
-  rs->genpoly = (data_t *)malloc(sizeof(data_t)*(nroots+1));
+  /* Form RS_INFO_T code generator polynomial from its roots */
+  rs->genpoly = (unsigned char *)malloc(sizeof(unsigned char)*(nroots+1));
   if(rs->genpoly == NULL){
     free(rs->alpha_to);
     free(rs->index_of);
@@ -188,14 +181,14 @@ RS *initRsChar(int symsize, int gfpoly, int fcr, int prim, int nroots, int pad)
   return rs;
 }
 
-RS *initRs(int symsize, int gfpoly, int fcr, int prim, int nroots, int pad)
+RS_INFO_T *rsInit(int symsize, int gfpoly, int fcr, int prim, int nroots, int pad)
 {
-	RS *rs;
+	RS_INFO_T *rs;
 
-#ifdef HAVE_LIBPTHREAD
-	pthread_mutex_lock(&rslist_mutex);
+#ifdef HAVE_LIB_PTHREAD
+	pthread_mutex_lock(&rs_list_mutex);
 #endif
-	for(rs = rslist; rs != NULL; rs = rs->next) {
+	for(rs = rs_list; rs != NULL; rs = rs->next) {
 		if(rs->pad != pad) continue;
 		if(rs->nroots != nroots) continue;
 		if(rs->mm != symsize) continue;
@@ -206,19 +199,19 @@ RS *initRs(int symsize, int gfpoly, int fcr, int prim, int nroots, int pad)
 		goto DONE;
 	}
 
-	rs = initRsChar(symsize, gfpoly, fcr, prim, nroots, pad);
+	rs = rsInitChar(symsize, gfpoly, fcr, prim, nroots, pad);
 	if(rs == NULL) goto DONE;
-	rs->next = rslist;
-	rslist = rs;
+	rs->next = rs_list;
+	rs_list = rs;
 
 DONE:
-#ifdef HAVE_LIBPTHREAD
-	pthread_mutex_unlock(&rslist_mutex);
+#ifdef HAVE_LIB_PTHREAD
+	pthread_mutex_unlock(&rs_list_mutex);
 #endif
 	return rs;
 }
 
-void freeRsChar(RS *rs)
+void rsFreeChar(RS_INFO_T *rs)
 {
 	free(rs->alpha_to);
 	free(rs->index_of);
@@ -226,37 +219,37 @@ void freeRsChar(RS *rs)
 	free(rs);
 }
 
-void freeRsCache(void)
+void rsFreeCache(void)
 {
-	RS *rs, *next;
+	RS_INFO_T *rs, *next;
 
-#ifdef HAVE_LIBPTHREAD
-	pthread_mutex_lock(&rslist_mutex);
+#ifdef HAVE_LIB_PTHREAD
+	pthread_mutex_lock(&rs_list_mutex);
 #endif
-	rs = rslist;
+	rs = rs_list;
 	while(rs != NULL) {
 		next = rs->next;
-		freeRsChar(rs);
+		rsFreeChar(rs);
 		rs = next;
 	}
 
-	rslist = NULL;
-#ifdef HAVE_LIBPTHREAD
-	pthread_mutex_unlock(&rslist_mutex);
+	rs_list = NULL;
+#ifdef HAVE_LIB_PTHREAD
+	pthread_mutex_unlock(&rs_list_mutex);
 #endif
 }
 
 /* The guts of the Reed-Solomon encoder, meant to be #included
  * into a function body with the following typedefs, macros and variables supplied
  * according to the code parameters:
- * data_t - a typedef for the data symbol
- * data_t data[] - array of NN-NROOTS-PAD and type data_t to be encoded
- * data_t parity[] - an array of NROOTS and type data_t to be written with parity symbols
- * NROOTS - the number of roots in the RS code generator polynomial,
+ * unsigned char - a typedef for the data symbol
+ * unsigned char data[] - array of NN-NROOTS-PAD and type unsigned char to be encoded
+ * unsigned char parity[] - an array of NROOTS and type unsigned char to be written with parity symbols
+ * NROOTS - the number of roots in the RS_INFO_T code generator polynomial,
  *          which is the same as the number of parity symbols in a block.
             Integer variable or literal.
-	    * 
- * NN - the total number of symbols in a RS block. Integer variable or literal.
+        *
+ * NN - the total number of symbols in a RS_INFO_T block. Integer variable or literal.
  * PAD - the number of pad symbols in a block. Integer variable or literal.
  * ALPHA_TO - The address of an array of NN elements to convert Galois field
  *            elements in index (log) form to polynomial form. Read only.
@@ -270,23 +263,19 @@ void freeRsCache(void)
  * Copyright 2004, Phil Karn, KA9Q
  * May be used under the terms of the GNU Lesser General Public License (LGPL)
  */
-
-#undef A0
-#define A0 (NN) /* Special reserved value encoding zero in index form */
-
-void encodeRsChar(RS *rs, const data_t *data, data_t *parity)
+void rsEncodeChar(RS_INFO_T *rs, const unsigned char *data, unsigned char *parity)
 {
   int i, j;
-  data_t feedback;
+  unsigned char feedback;
 
-  memset(parity,0,NROOTS*sizeof(data_t));
+  memset(parity,0,NROOTS*sizeof(unsigned char));
 
   for(i=0;i<NN-NROOTS-PAD;i++){
     feedback = INDEX_OF[data[i] ^ parity[0]];
     if(feedback != A0){      /* feedback term is non-zero */
-#ifdef UNNORMALIZED
+#ifdef UN_NORMALIZED
       /* This line is unnecessary when GENPOLY[NROOTS] is unity, as it must
-       * always be for the polynomials constructed by initRs()
+       * always be for the polynomials constructed by rsInit()
        */
       feedback = MODNN(NN - GENPOLY[NROOTS] + feedback);
 #endif
@@ -294,7 +283,7 @@ void encodeRsChar(RS *rs, const data_t *data, data_t *parity)
 	parity[j] ^= ALPHA_TO[MODNN(feedback + GENPOLY[NROOTS-j])];
     }
     /* Shift */
-    memmove(&parity[0],&parity[1],sizeof(data_t)*(NROOTS-1));
+    memmove(&parity[0],&parity[1],sizeof(unsigned char)*(NROOTS-1));
     if(feedback != A0)
       parity[NROOTS-1] = ALPHA_TO[MODNN(feedback + GENPOLY[0])];
     else
@@ -302,36 +291,36 @@ void encodeRsChar(RS *rs, const data_t *data, data_t *parity)
   }
 }
 
-int decodeRsChar(RS *rs, unsigned char *data, int *eras_pos, int no_eras) {
-    
+int rsDecodeChar(RS_INFO_T *rs, unsigned char *data, int *eras_pos, int no_eras) {
+
     int retval;
 #if 1
 
-	data_t *lambda, *s, *b, *t, *omega, *root, *reg, *loc;
+	unsigned char *lambda, *s, *b, *t, *omega, *root, *reg, *loc;
 #endif
-        
+
     {
         int deg_lambda, el, deg_omega;
         int i, j, r,k;
-        data_t u,q,tmp,num1,num2,den,discr_r;
+        unsigned char u,q,tmp,num1,num2,den,discr_r;
 
-#if 0     
-		data_t lambda[NROOTS+1], s[NROOTS];	/* Err+Eras Locator poly
+#if 0
+		unsigned char lambda[NROOTS+1], s[NROOTS];	/* Err+Eras Locator poly
                                              * and syndrome poly */
-        data_t b[NROOTS+1], t[NROOTS+1], omega[NROOTS+1];
-        data_t root[NROOTS], reg[NROOTS+1], loc[NROOTS];
+        unsigned char b[NROOTS+1], t[NROOTS+1], omega[NROOTS+1];
+        unsigned char root[NROOTS], reg[NROOTS+1], loc[NROOTS];
 #endif
 		int syn_error, count, count_validloc=0;
-      
+
 #if 1
-		lambda = (data_t*)calloc(NROOTS+1, sizeof(data_t));
-		s = (data_t*)calloc(NROOTS, sizeof(data_t));
-		b = (data_t*)calloc(NROOTS+1, sizeof(data_t));
-		t = (data_t*)calloc(NROOTS+1, sizeof(data_t));
-		omega = (data_t*)calloc(NROOTS+1, sizeof(data_t));
-		root = (data_t*)calloc(NROOTS, sizeof(data_t));
-		reg = (data_t*)calloc(NROOTS+1, sizeof(data_t));
-		loc = (data_t*)calloc(NROOTS, sizeof(data_t));
+		lambda = (unsigned char*)calloc(NROOTS+1, sizeof(unsigned char));
+		s = (unsigned char*)calloc(NROOTS, sizeof(unsigned char));
+		b = (unsigned char*)calloc(NROOTS+1, sizeof(unsigned char));
+		t = (unsigned char*)calloc(NROOTS+1, sizeof(unsigned char));
+		omega = (unsigned char*)calloc(NROOTS+1, sizeof(unsigned char));
+		root = (unsigned char*)calloc(NROOTS, sizeof(unsigned char));
+		reg = (unsigned char*)calloc(NROOTS+1, sizeof(unsigned char));
+		loc = (unsigned char*)calloc(NROOTS, sizeof(unsigned char));
 		if(lambda == NULL || s== NULL || b == NULL || t == NULL
 			|| omega == NULL || root == NULL || reg == NULL || loc == NULL)
 		{
@@ -377,31 +366,27 @@ int decodeRsChar(RS *rs, unsigned char *data, int *eras_pos, int no_eras) {
         lambda[0] = 1;
         
         if (no_eras > 0) {
-            
             /* Init lambda to be the erasure locator polynomial */
             lambda[1] = ALPHA_TO[MODNN(PRIM*(NN-1-eras_pos[0]))];
-            
+
             for (i = 1; i < no_eras; i++) {
-                
                 u = MODNN(PRIM*(NN-1-eras_pos[i]));
-                
                 for (j = i+1; j > 0; j--) {
-                    
                     tmp = INDEX_OF[lambda[j - 1]];
                     
                     if(tmp != A0)
                         lambda[j] ^= ALPHA_TO[MODNN(u + tmp)];
                 }
             }
-            
-#if DEBUG >= 1
+
+#if 0//DEBUG >= 1
             /* Test code that verifies the erasure locator polynomial just constructed
              Needed only for decoder debugging. */
-            
+
             /* find roots of the erasure location polynomial */
             for(i=1;i<=no_eras;i++)
                 reg[i] = INDEX_OF[lambda[i]];
-            
+
             count = 0;
             for (i = 1,k=IPRIM-1; i <= NN; i++,k = MODNN(k+IPRIM)) {
                 q = 1;
@@ -418,7 +403,7 @@ int decodeRsChar(RS *rs, unsigned char *data, int *eras_pos, int no_eras) {
                 count++;
             }
             if (count != no_eras) {
-                printf("count = %d no_eras = %d\n lambda(x) is WRONG",count,no_eras);
+                printf("lambda(x) error, count: %d, no_eras: %d\n", count, no_eras);
                 count = -1;
                 goto finish;
             }
@@ -499,7 +484,7 @@ int decodeRsChar(RS *rs, unsigned char *data, int *eras_pos, int no_eras) {
             if (q != 0)
                 continue; /* Not a root */
             /* store root (index-form) and error location number */
-#if DEBUG>=2
+#if 0//DEBUG>=2
             printf("count %d root %d loc %d\n",count,i,k);
 #endif
             root[count] = i;
@@ -509,7 +494,6 @@ int decodeRsChar(RS *rs, unsigned char *data, int *eras_pos, int no_eras) {
              */
             if(++count == deg_lambda)
                 break;
-			
         }
         if (deg_lambda != count) {
             /*
@@ -545,13 +529,13 @@ int decodeRsChar(RS *rs, unsigned char *data, int *eras_pos, int no_eras) {
             }
             num2 = ALPHA_TO[MODNN(root[j] * (FCR - 1) + NN)];
             den = 0;
-            
+
             /* lambda[i+1] for i even is the formal derivative lambda_pr of lambda[i] */
             for (i = MIN(deg_lambda,NROOTS-1) & ~1; i >= 0; i -=2) {
                 if(lambda[i+1] != A0)
                     den ^= ALPHA_TO[MODNN(lambda[i+1] + i * root[j])];
             }
-#if DEBUG >= 1
+#if 0//DEBUG >= 1
             if (den == 0) {
                 printf("\n ERROR: denominator = 0\n");
                 count = -1;

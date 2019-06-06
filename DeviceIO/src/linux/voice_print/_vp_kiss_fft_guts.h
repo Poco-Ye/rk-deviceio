@@ -86,31 +86,30 @@ struct kiss_fft_state{
 #endif
 
 #define  C_ADD( res, a,b)\
+	do { \
+		CHECK_OVERFLOW_OP((a).r,+,(b).r)\
+		CHECK_OVERFLOW_OP((a).i,+,(b).i)\
+		(res).r=(a).r+(b).r;  (res).i=(a).i+(b).i; \
+	}while(0)
+#define C_SUB( res, a,b)\
     do { \
-	    CHECK_OVERFLOW_OP((a).r,+,(b).r)\
-	    CHECK_OVERFLOW_OP((a).i,+,(b).i)\
-	    (res).r=(a).r+(b).r;  (res).i=(a).i+(b).i; \
-    }while(0)
-#define  C_SUB( res, a,b)\
-    do { \
-	    CHECK_OVERFLOW_OP((a).r,-,(b).r)\
-	    CHECK_OVERFLOW_OP((a).i,-,(b).i)\
-	    (res).r=(a).r-(b).r;  (res).i=(a).i-(b).i; \
+		CHECK_OVERFLOW_OP((a).r,-,(b).r)\
+		CHECK_OVERFLOW_OP((a).i,-,(b).i)\
+		(res).r=(a).r-(b).r;  (res).i=(a).i-(b).i; \
     }while(0)
 #define C_ADDTO( res , a)\
     do { \
-	    CHECK_OVERFLOW_OP((res).r,+,(a).r)\
-	    CHECK_OVERFLOW_OP((res).i,+,(a).i)\
-	    (res).r += (a).r;  (res).i += (a).i;\
-    }while(0)
+		CHECK_OVERFLOW_OP((res).r,+,(a).r)\
+		CHECK_OVERFLOW_OP((res).i,+,(a).i)\
+		(res).r += (a).r;  (res).i += (a).i;\
+	}while(0)
 
 #define C_SUBFROM( res , a)\
-    do {\
-	    CHECK_OVERFLOW_OP((res).r,-,(a).r)\
-	    CHECK_OVERFLOW_OP((res).i,-,(a).i)\
-	    (res).r -= (a).r;  (res).i -= (a).i; \
-    }while(0)
-
+	do {\
+		CHECK_OVERFLOW_OP((res).r,-,(a).r)\
+		CHECK_OVERFLOW_OP((res).i,-,(a).i)\
+		(res).r -= (a).r;  (res).i -= (a).i; \
+	}while(0)
 
 #ifdef FIXED_POINT
 #  define KISS_FFT_COS(phase)  floor(.5+SAMP_MAX * cos (phase))
@@ -132,18 +131,14 @@ struct kiss_fft_state{
 		(x)->i = KISS_FFT_SIN(phase);\
 	}while(0)
 
-/* a debugging function */
-#define pcpx(c)\
-    fprintf(stderr,"%g + %gi\n",(double)((c)->r),(double)((c)->i) )
-
-#ifdef KISS_FFT_USE_ALLOCA
+#ifdef USE_ALLOCA
 // define this to allow use of alloca instead of malloc for temporary buffers
-// Temporary buffers are used in two case: 
+// Temporary buffers are used in two case:
 // 1. FFT sizes that have "bad" factors. i.e. not 2,3 and 5
 // 2. "in-place" FFTs.  Notice the quotes, since kissfft does not really do an in-place transform.
 #include <alloca.h>
 #define  KISS_FFT_TMP_ALLOC(nbytes) alloca(nbytes)
-#define  KISS_FFT_TMP_FREE(ptr) 
+#define  KISS_FFT_TMP_FREE(ptr)
 #else
 #define  KISS_FFT_TMP_ALLOC(nbytes) KISS_FFT_MALLOC(nbytes)
 #define  KISS_FFT_TMP_FREE(ptr) KISS_FFT_FREE(ptr)

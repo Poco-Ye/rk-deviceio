@@ -5,22 +5,20 @@
 typedef enum
 {
     /*低频 2K~5K */
-    FREQ_TYPE_LOW =0,
+    LOW_FREQ_TYPE =0,
     /*中频, 8K~12K*/
-    FREQ_TYPE_MIDDLE,
+    MIDDLE_FREQ_TYPE,
     /*高频 16K~20K*/
-    FREQ_TYPE_HIGH
-}freq_type_t;
+    HIGH_FREQ_TYPE
+} FREQ_TYPE_T;
 
 /*macros of return valule of decoder*/
-/* 解码出错 */
-#define RET_DEC_ERROR -1
 /* 解码正常返回 */
-#define RET_DEC_NORMAL 0
+#define DEC_NORMAL 0
 /* 解码还未结束,       不能获取到解码结果 */
-#define RET_DEC_NOTREADY 1
+#define DEC_NOTREADY 1
 /* 解码结束 */
-#define RET_DEC_END 2
+#define DEC_END 2
 
 /* definition of decoder config paramters */
 typedef struct
@@ -30,43 +28,46 @@ typedef struct
     /* 采样率 */
     int sample_rate;
     /* 频率范围选择 */
-    freq_type_t freq_type;
+    FREQ_TYPE_T freq_type;
     /* 每个分组传输的字节数 */
     int group_symbol_num;
     /* 是否采用纠错码 */
     int error_correct;
     /* 纠错码的纠错能力(字节数) */
     int error_correct_num;
-} config_decoder_t;
-
-/* 
-    描述：创建解码器
-    参数：decode_config: 参数结构体(指针)
-    返回值：解码器句柄, NULL表示创建失败
-*/
-void* decoderCreate(config_decoder_t* decode_config );
-
-/* 
-    描述：复位解码器
-    参数：handle：解码器句柄
-    返回值：无
-*/
-void decoderReset(void* handle);
-
-/* 
-    描述：获取每帧数据量(样本数)
-    参数：handle：解码器句柄
-    返回值：每帧数据量(样本数, 每个样本为16bit)
-*/
-int decoderGetBitSize(void* handle);
+} DECODER_CONFIG_T;
 
 /*
-    描述：向解码器填充数据
+    描述：创建解码器
+    参数：decode_config: 参数结构体(指针)
+          flag: this is a flag, but it's a reserved argument now
+    返回值：解码器句柄, NULL表示创建失败
+*/
+void* decoderInit(DECODER_CONFIG_T* decode_config, int flag);
+
+/*
+    描述：复位解码器
     参数：handle：解码器句柄
-          pcm：数据buffer, 需保证含有的样本数等于decoder_getbsize的返回值
+          flag: this is a flag, but it's a reserved argument now
+    返回值：无
+*/
+void decoderReset(void* handle, int flag);
+
+/*
+    描述：获取每帧数据量(样本数)
+    参数：handle：解码器句柄
+          flag: this is a flag, but it's a reserved argument now
+    返回值：每帧数据量(样本数, 每个样本为16bit)
+*/
+int decoderGetSize(void* handle, int flag);
+
+/*
+    描述：解码pcm数据
+    参数：handle：解码器句柄
+          pcm：数据buffer, 需保证含有的样本数等于decoderGetSize的返回值
     返回值：同解码返回值的宏定义
 */
-int decoderFedPcm(void* handle, short* pcm);
+int decoderPcmData(void* handle, short* pcm);
 
 /*
     描述：获取解码结果
@@ -74,15 +75,15 @@ int decoderFedPcm(void* handle, short* pcm);
           str：解码结果buffer
     返回值：同解码返回值的宏定义
 */
-int decoderGetStr(void* handle, unsigned char* str);
+int decoderGetResult(void* handle, unsigned char* str);
 
 /*
     描述：释放解码器句柄
     参数：handle：解码器句柄
+          flag: this is a flag, but it's a reserved argument now
     返回值：无
 */
-void decoderDestroy(void* handle);
-
+void decoderDeinit(void* handle, int flag);
 
 /* definition of encoder config paramters */
 typedef struct
@@ -92,59 +93,62 @@ typedef struct
     /* 采样率 */
     int sample_rate;
     /* 频率范围选择 */
-    freq_type_t freq_type;
+    FREQ_TYPE_T freq_type;
     /* 每个分组传输的字节数 */
     int group_symbol_num;
     /* 是否采用纠错码 */
     int error_correct;
     /* 纠错码的纠错能力(字节数) */
     int error_correct_num;
-}config_encoder_t;
+} ENCOEDR_CONFIG_T;
 
 /* macros of return value of encoder */
 /* 编码正常返回 */
-#define		RET_ENC_NORMAL 0
+#define		ENC_NORMAL 0
 /* 编码结束 */
-#define 	RET_ENC_END 1
+#define 	ENC_END 1
 /* 编码出错 */
-#define		RET_ENC_ERROR -1
+#define		ENC_ERROR -1
 
 /*
     描述：释放编码器句柄
     参数：handle：编码器句柄
+          flag: this is a flag, but it's a reserved argument now
     返回值：无
 
 */
-void encoderDestroy(void* handle);
+void encoderDeinit(void* handle, int flag);
 
 /*
     描述：创建编码器
     参数：config: 参数结构体(指针)
+          flag: this is a flag, but it's a reserved argument now
     返回值：编码器句柄, NULL表示创建失败
 */
-void* encoderCreate(config_encoder_t* config);
+void* encoderInit(ENCOEDR_CONFIG_T* config, int flag);
 
 /*
     描述：复位编码器
     参数：handle：编码器句柄
+          flag: this is a flag, but it's a reserved argument now
     返回值：无
 */
-void encoder_reset(void* handle);
+void encoderReset(void* handle, int flag);
 
 /*
     描述：获取帧缓存大小(字节单位), 用于外部分配帧缓存buffer
     参数：handle：编码器句柄
     返回值：帧缓存大小(字节单位)
 */
-int encoderGetOutsize(void* handle);
+int encoderGetsize(void* handle);
 
 /*
-    描述：获取帧数据
+    描述：对字符串进行编码
     参数：handle：编码器句柄
           outpcm：帧数据buffer(外部分配)
     返回值：同编码器返回值定义
 */
-int encoderGetPcm(void* handle, short* outpcm);
+int encoderStrData(void* handle, short* outpcm);
 
 /*
     描述：设置待编码的字符串, 字符串需以 '\0' 结尾
@@ -152,6 +156,6 @@ int encoderGetPcm(void* handle, short* outpcm);
           input：以 '\0' 结尾的字符串
     返回值：同编码器返回值定义
 */
-int encoderSetInput(void* handle, unsigned char* input);
+int encoderSetStr(void* handle, unsigned char* input);
 
 #endif

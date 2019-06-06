@@ -229,12 +229,12 @@ static void kfWork(
         )
 {
     kiss_fft_cpx * Fout_beg=Fout;
-    const int p=*factors++; /* the radix  */
+    const int p=*factors++; /* the radix */
     const int m=*factors++; /* stage's fft length/p */
     const kiss_fft_cpx * Fout_end = Fout + p*m;
 
-#ifdef _OPENMP
-    // use openmp extensions at the 
+#ifdef HAVE_OPENMP
+    // use openmp extensions at the
     // top-level (not recursive)
     if (fstride==1 && p<=5)
     {
@@ -242,15 +242,15 @@ static void kfWork(
 
         // execute the p different work units in different threads
 #       pragma omp parallel for
-        for (k=0;k<p;++k) 
+        for (k=0;k<p;++k)
             kfWork( Fout +k*m, f+ fstride*in_stride*k,fstride*p,in_stride,factors,st);
         // all threads have joined by this point
 
         switch (p) {
             case 2: kfBfly2(Fout,fstride,st,m); break;
-            case 3: kfBfly3(Fout,fstride,st,m); break; 
+            case 3: kfBfly3(Fout,fstride,st,m); break;
             case 4: kfBfly4(Fout,fstride,st,m); break;
-            case 5: kfBfly5(Fout,fstride,st,m); break; 
+            case 5: kfBfly5(Fout,fstride,st,m); break;
             default: kfBflyGeneric(Fout,fstride,st,m,p); break;
         }
         return;
@@ -266,7 +266,7 @@ static void kfWork(
         do{
             // recursive call:
             // DFT of size m*p performed by doing
-            // p instances of smaller DFTs of size m, 
+            // p instances of smaller DFTs of size m,
             // each one takes a decimated version of the input
             kfWork( Fout , f, fstride*p, in_stride, factors,st);
             f += fstride*in_stride;
@@ -275,21 +275,21 @@ static void kfWork(
 
     Fout=Fout_beg;
 
-    // recombine the p smaller DFTs 
+    // recombine the p smaller DFTs
     switch (p) {
         case 2: kfBfly2(Fout,fstride,st,m); break;
-        case 3: kfBfly3(Fout,fstride,st,m); break; 
+        case 3: kfBfly3(Fout,fstride,st,m); break;
         case 4: kfBfly4(Fout,fstride,st,m); break;
-        case 5: kfBfly5(Fout,fstride,st,m); break; 
+        case 5: kfBfly5(Fout,fstride,st,m); break;
         default: kfBflyGeneric(Fout,fstride,st,m,p); break;
     }
 }
 
 /*  facbuf is populated by p1,m1,p2,m2, ...
-    where 
+    where
     p[i] * m[i] = m[i-1]
     m0 = n                  */
-static void kfFactor(int n,int * facbuf)
+static void kissFftFactor(int n,int * facbuf)
 {
     int p=4;
     double floor_sqrt;
@@ -313,13 +313,12 @@ static void kfFactor(int n,int * facbuf)
 }
 
 /*
- *
  * User-callable function to allocate all necessary storage space for the fft.
  *
  * The return value is a contiguous block of memory, allocated with malloc.  As such,
  * It can be freed with free(), rather than a kissFft-specific function.
- * */
-kiss_fft_cfg kissFftAlloc(int nfft,int inverse_fft,void * mem,size_t * lenmem )
+ */
+kiss_fft_cfg kissFftAlloc(int nfft, int inverse_fft, void * mem, size_t *lenmem )
 {
     kiss_fft_cfg st=NULL;
     size_t memneeded = sizeof(struct kiss_fft_state)
@@ -345,7 +344,7 @@ kiss_fft_cfg kissFftAlloc(int nfft,int inverse_fft,void * mem,size_t * lenmem )
             kf_cexp(st->twiddles+i, phase );
         }
 
-        kfFactor(nfft,st->factors);
+        kissFftFactor(nfft,st->factors);
     }
     return st;
 }

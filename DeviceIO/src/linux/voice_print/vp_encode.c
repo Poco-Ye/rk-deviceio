@@ -4,8 +4,8 @@
 #include "vp_common.h"
 #include "voice_print.h"
 
-unsigned char sync_word[2]=
-{0x0f, 0x0f};
+/* must be equal to decoder sync_str */
+static unsigned char sync_str[2] = {0x0a, 0x0a};
 
 static int lag_sync_table[3][4] = {
 	5500, 4700, 5500, 4700,
@@ -13,16 +13,16 @@ static int lag_sync_table[3][4] = {
 	0,0,0,0,
 };
 
-#define STATE_INIT 0
-#define STATE_FRAMEEND 1
-#define STATE_PRE_ENCODE 2
-#define STATE_ENCODE 3
-#define STATE_END 4
+#define INIT_STATE 0
+#define FRAME_END_STATE 1
+#define PRE_ENCODE_STATE 2
+#define ENCODE_STATE 3
+#define END_STATE 4
 
 typedef struct
 {
 	/* Reed Solomon codec */
-	RS* rs;
+	RS_INFO_T* rs;
 	/* input buffer */
 	unsigned char* input;
 	/* encode buffer */
@@ -60,24 +60,23 @@ typedef struct
 	int lag_count;
 	/* lag interval*/
 	int lag_symbol_num_interval;
-}encoder_t;
+}ENCODER_INFO_T;
 
-static int setPrms(encoder_t* encoder, config_encoder_t* encoder_config)
+static int setParameters(ENCODER_INFO_T* encoder, ENCOEDR_CONFIG_T* encoder_config)
 {
 	if(encoder_config != NULL)
 	{
-		if(( encoder_config->freq_type == FREQ_TYPE_LOW && encoder_config->sample_rate < 11025)
-		   || ( encoder_config->freq_type == FREQ_TYPE_MIDDLE && encoder_config->sample_rate < 32000)
-		   || ( encoder_config->freq_type == FREQ_TYPE_HIGH && encoder_config->sample_rate < 44100))
+		if(( encoder_config->freq_type == LOW_FREQ_TYPE && encoder_config->sample_rate < 11025)
+			|| ( encoder_config->freq_type == MIDDLE_FREQ_TYPE && encoder_config->sample_rate < 32000)
+			|| ( encoder_config->freq_type == HIGH_FREQ_TYPE && encoder_config->sample_rate < 44100))
 		{
-		    printf("set param error freq_type: %d, rate: %d\n", encoder_config->freq_type, encoder_config->sample_rate);
+			printf("set parameter error type: %d, rate: %d\n", encoder_config->freq_type, encoder_config->sample_rate);
 			return -1;
 		}
 		encoder->freqrange_select = encoder_config->freq_type;
 		encoder->sample_rate = encoder_config->sample_rate;
 		encoder->max_strlen = encoder_config->max_strlen;
 		encoder->error_correct = encoder_config->error_correct;
-		
 		encoder->grouping_symbol_num = encoder_config->group_symbol_num+1;
 		if(encoder->error_correct)
 		{
@@ -91,30 +90,27 @@ static int setPrms(encoder_t* encoder, config_encoder_t* encoder_config)
 		{
 		case 11025:
 		case 16000:
-			encoder->symbol_length = 2*1024*SYMB_LENGTH_FACTOR;
+			encoder->symbol_length = 2 * 1024 * SYMBOL_LENGTH_FACTOR;
 			break;
 		case 22050:
 		case 24000:
 		case 32000:
-			encoder->symbol_length = 4*1024*SYMB_LENGTH_FACTOR;
+			encoder->symbol_length = 4 * 1024 * SYMBOL_LENGTH_FACTOR;
 			break;
 		case 44100:
 		case 48000:
-			encoder->symbol_length = 8*1024*SYMB_LENGTH_FACTOR;
+			encoder->symbol_length = 8 * 1024 * SYMBOL_LENGTH_FACTOR;
 			break;
 		default:
-			printf("sample rate invaild! %d", encoder->sample_rate);
+			printf("sample rate invaild: %d\n", encoder->sample_rate);
 			return -1;
-
 		}
-
-	}else
-	{
+	}else {
 		encoder->grouping_symbol_num = 10;
 		encoder->check_symbol_num = 8;
-		encoder->freqrange_select = FREQ_TYPE_MIDDLE;
+		encoder->freqrange_select = MIDDLE_FREQ_TYPE;
 		encoder->max_strlen = 256;
-		encoder->symbol_length = 8*1024; 
+		encoder->symbol_length = 8*1024;
 		encoder->sample_rate = 48000;
 		encoder->error_correct = 1;
 	}
@@ -123,86 +119,81 @@ static int setPrms(encoder_t* encoder, config_encoder_t* encoder_config)
 										+ encoder->sync_symbol_num + encoder->check_symbol_num;
 
 	encoder->lag_count = 0;
-	encoder->lag_symbol_num_interval = SYNC_TONE_SYMB_LENGTH;
+	encoder->lag_symbol_num_interval = SYNC_TONE_SYMBOL_LENGTH;
 
-	if(encoder->grouping_symbol_num + encoder->check_symbol_num > (255-encoder->sync_symbol_num))
-	{
+	if(encoder->grouping_symbol_num + encoder->check_symbol_num > (255-encoder->sync_symbol_num)) {
 		return -1;
 	}
 	return 0;
 }
 
-void* encoderCreate(config_encoder_t* encoder_config)
+void* encoderInit(ENCOEDR_CONFIG_T* encoder_config, int flag)
 {
-	encoder_t* encoder;
-#ifdef MEMORYLEAK_DIAGNOSE
-	vp_memdiagnoseinit();
+	ENCODER_INFO_T* encoder;
+#ifdef MEMORY_LEAK_DIAGNOSE
+	vp_mem_diagnose_init();
 #endif
-	printf("Encoder Init\n");
-	encoder = (encoder_t*)vp_alloc(sizeof(encoder_t));
+	encoder = (ENCODER_INFO_T*)vp_alloc(sizeof(ENCODER_INFO_T));
 	if(encoder != NULL)
 	{
-		if(setPrms(encoder, encoder_config) != 0)
+		if(setParameters(encoder, encoder_config) != 0)
 		{
-			encoderDestroy((void*)encoder);
+			encoderDeinit((void*)encoder, flag);
 			return NULL;
 		}
 		encoder->input = (unsigned char*)vp_alloc(encoder->max_strlen+1);
-		
 		if(encoder->error_correct)
 		{
-			encoder->rs = initRsChar(8, 285, 1, 1, encoder->check_symbol_num, 255-encoder->internal_symbol_num);
+			encoder->rs = rsInitChar(8, 285, 1, 1, encoder->check_symbol_num, 255-encoder->internal_symbol_num);
 		}
 
 		encoder->enc_buf = (unsigned char*)vp_alloc(encoder->internal_symbol_num);
 		if(encoder->input  == NULL || (encoder->error_correct && encoder->rs == NULL) || encoder->enc_buf == NULL)
 		{
-			encoderDestroy((void*)encoder);
+			encoderDeinit((void*)encoder, flag);
 			return NULL;
-		
 		}
 		encoder->idx = 0;
-		encoder->state = STATE_INIT;
+		encoder->state = INIT_STATE;
 	}
-	return encoder;
 
+	return encoder;
 }
 
-void encoderReset(void* handle)
+void encoderReset(void* handle, int flag)
 {
-	encoder_t* encoder = (encoder_t*)handle;
-	printf("Encoder Reset");
+	ENCODER_INFO_T* encoder = (ENCODER_INFO_T*)handle;
 	encoder->bidx = 0;
 	encoder->idx = 0;
 	encoder->input_idx  = 0;
-	encoder->state = STATE_INIT;
+	encoder->state = INIT_STATE;
 	encoder->lag_count = 0;
 }
 
-int encoderSetInput(void* handle,  unsigned char* input)
+int encoderSetStr(void* handle,  unsigned char* input)
 {
 	int len = strlen((const char *)input);
-	encoder_t* encoder = (encoder_t*) handle;
+	ENCODER_INFO_T* encoder = (ENCODER_INFO_T*) handle;
 	if(len > encoder->max_strlen)
 	{
 		return -1;
 	}
 	strcpy(encoder->input, input);
 	encoder->input_len = len+1;
-	
+
 	//encoder->input[encoder->input_len+8] = '\0';
 	return 0;
 }
 
-int encoderGetOutsize(void* handle)
+int encoderGetsize(void* handle)
 {
-	encoder_t* encoder = (encoder_t*)handle;
+	ENCODER_INFO_T* encoder = (ENCODER_INFO_T*)handle;
 	return encoder->symbol_length/2*sizeof(short);
 }
 
-static void genTone(encoder_t* encoder, short* outpcm, int freq, int len, int fs)
+static void genTone(ENCODER_INFO_T* encoder, short* outpcm, int freq, int len, int fs)
 {
-	int i; 
+	int i;
 	int w1, w2;
 	for(i = 0; i < len; i++)
 	{
@@ -211,35 +202,35 @@ static void genTone(encoder_t* encoder, short* outpcm, int freq, int len, int fs
 		/* haming(N) = 0.54 - 0.46*cos(2*pi*n/(N-1)), n = 0, 1, 2, ... N-1 */
 		w1 = vp_sin(w1);
 		w2 = vp_sin(w2);
-		w2 = HAM_COEF1 - VPMUL(HAM_COEF2,w2);
-		w1 = VPMUL(w1,w2);
+		w2 = HAMMING_COEF1 - VPMUL(HAMMING_COEF2, w2);
+		w1 = VPMUL(w1, w2);
 		outpcm[i] = w1;
 	}
 }
 
-int encoderGetPcm(void* handle, short* outpcm)
+int encoderStrData(void* handle, short* outpcm)
 {
 	int i, freqidx;
-	encoder_t* encoder = (encoder_t*)handle;
-#ifdef ADD_SYNC_TONE
-    if(encoder->state == STATE_INIT)
+	ENCODER_INFO_T* encoder = (ENCODER_INFO_T*)handle;
+#ifdef HAVE_SYNC_TONE
+    if(encoder->state == INIT_STATE)
 	{
 		genTone(encoder, outpcm, lag_sync_table[encoder->freqrange_select][encoder->lag_count], encoder->symbol_length/2, encoder->sample_rate);
 		encoder->lag_count++;
 		if(encoder->lag_count == encoder->lag_symbol_num_interval*2)
 		{
-			encoder->state = STATE_PRE_ENCODE;
+			encoder->state = PRE_ENCODE_STATE;
 			encoder->lag_count = 0;
 		}
-		return RET_ENC_NORMAL;
+		return ENC_NORMAL;
 	}
-	if(encoder->state == STATE_PRE_ENCODE)
+	if(encoder->state == PRE_ENCODE_STATE)
 	{
 		genTone(encoder, outpcm, 0, encoder->symbol_length/2, encoder->sample_rate);
 		encoder->lag_count++;
 		if(encoder->lag_count == 2)
-			encoder->state = STATE_ENCODE;
-		return RET_ENC_NORMAL;
+			encoder->state = ENCODE_STATE;
+		return ENC_NORMAL;
 	}
 #endif
 
@@ -247,7 +238,7 @@ int encoderGetPcm(void* handle, short* outpcm)
 	{
 		for(i = 0; i < encoder->sync_symbol_num; i++)
 		{
-			encoder->enc_buf[i] = sync_word[i];
+			encoder->enc_buf[i] = sync_str[i];
 		}
 		for(i = 0; encoder->input_idx < encoder->input_len && i < encoder->grouping_symbol_num; i++)
 		{
@@ -260,14 +251,14 @@ int encoderGetPcm(void* handle, short* outpcm)
 		}
 		if(encoder->error_correct)
 		{
-			encodeRsChar(encoder->rs, encoder->enc_buf, encoder->enc_buf+encoder->sync_symbol_num+encoder->grouping_symbol_num);
+			rsEncodeChar(encoder->rs, encoder->enc_buf, encoder->enc_buf+encoder->sync_symbol_num+encoder->grouping_symbol_num);
 		}
 	}
 
-	if((8 - encoder->bidx) > SYMBITS) 
+	if((8 - encoder->bidx) > SYMBOL_BITS)
 	{
 		freqidx = encoder->enc_buf[encoder->idx] >> encoder->bidx;
-		encoder->bidx += SYMBITS;
+		encoder->bidx += SYMBOL_BITS;
 	}else
 	{
 		freqidx = encoder->enc_buf[encoder->idx] >> encoder->bidx;
@@ -275,33 +266,32 @@ int encoderGetPcm(void* handle, short* outpcm)
 		if(encoder->idx < encoder->internal_symbol_num)
 		{
 			freqidx |= encoder->enc_buf[encoder->idx] << (8-encoder->bidx);
-			encoder->bidx = SYMBITS-(8-encoder->bidx);
+			encoder->bidx = SYMBOL_BITS-(8-encoder->bidx);
 		}
-		
-	}
-	freqidx &= ((1<<SYMBITS) - 1);
 
-	genTone(encoder, outpcm, freq_point[encoder->freqrange_select][freqidx], encoder->symbol_length/2, encoder->sample_rate);
+	}
+	freqidx &= ((1<<SYMBOL_BITS) - 1);
+
+	genTone(encoder, outpcm, vp_freq_point[encoder->freqrange_select][freqidx], encoder->symbol_length/2, encoder->sample_rate);
 
 	if(encoder->idx >= encoder->internal_symbol_num)
 	{
 		if(encoder->input_idx >= encoder->input_len)
 		{
-			encoder->state = STATE_END;
-			return RET_ENC_END;
+			encoder->state = END_STATE;
+			return ENC_END;
 		}
 		encoder->idx = encoder->bidx = 0;
 		encoder->lag_count = 0;
-		encoder->state = STATE_FRAMEEND;
+		encoder->state = FRAME_END_STATE;
 	}
 	
-	return RET_ENC_NORMAL;
+	return ENC_NORMAL;
 }
 
-void encoderDestroy(void* handle)
+void encoderDeinit(void* handle ,int flag)
 {
-	encoder_t* encoder  = (encoder_t*)handle;
-	printf("Encoder Destroy");
+	ENCODER_INFO_T* encoder  = (ENCODER_INFO_T*)handle;
 	if(encoder != NULL)
 	{
 		if(encoder->input != NULL)
@@ -311,8 +301,7 @@ void encoderDestroy(void* handle)
 		}
 		if(encoder->error_correct && encoder->rs != NULL)
 		{
-			freeRsChar(encoder->rs);
-			
+			rsFreeChar(encoder->rs);
 			encoder->rs = NULL;
 		}
 		if(encoder->enc_buf != NULL)
@@ -324,7 +313,7 @@ void encoderDestroy(void* handle)
 		vp_free(encoder);
 		encoder = NULL;
 	}
-#ifdef MEMORYLEAK_DIAGNOSE
-	vp_memdiagnose();
+#ifdef MEMORY_LEAK_DIAGNOSE
+	vp_mem_diagnose();
 #endif
 }
