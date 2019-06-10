@@ -3540,3 +3540,21 @@ int reconn_last_devices(BtDeviceType type)
 	return 0;
 }
 
+int disconnect_current_devices()
+{
+	if (!default_dev) {
+		printf("No connected device, do nuthing!\n");
+		return -1;
+	}
+
+	if (g_dbus_proxy_method_call(default_dev, "Disconnect", NULL, disconn_reply,
+							default_dev, NULL) == FALSE) {
+		printf("Failed to disconnect\n");
+		return -1;
+	}
+
+	printf("Attempting to disconnect from %s\n", proxy_address(default_dev));
+
+	return 0;
+}
+

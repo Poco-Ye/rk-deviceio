@@ -471,6 +471,7 @@ int bt_close_sink(void)
 		system("killall bluealsa-aplay");
 	} else {
 		system("killall bluealsa-aplay");
+		disconnect_current_devices();
 		release_avrcp_ctrl();
 		system("killall bluealsa");
 		bt_control.type = BtControlType::BT_NONE;

@@ -839,8 +839,6 @@ int release_avrcp_ctrl(void)
 {
 	//g_main_loop_quit(main_loop);
 	printf("=== release_avrcp_ctrl ===\n");
-	if (disconn_device())
-		sleep(3);
 	A2DP_SINK_FLAG = false;
 	g_btsrc_connect_status = RK_BT_SINK_STATE_IDLE;
 	system("hciconfig hci0 noscan");
