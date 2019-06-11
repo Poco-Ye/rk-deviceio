@@ -134,6 +134,16 @@ static void *init_bt_spp_server(void *arg)
 					(*g_recv_callback)(buf, bytes_read);
 
 				memset(buf, 0, bytes_read);
+			} else {
+				if (g_client_sk > 0) {
+					close(g_client_sk);
+					g_client_sk = 0;
+				}
+				g_spp_server_status = RK_BT_SPP_STATE_DISCONNECT;
+				if (g_status_callback)
+					(*g_status_callback)(RK_BT_SPP_STATE_DISCONNECT);
+
+				break;
 			}
 		}
 	}
