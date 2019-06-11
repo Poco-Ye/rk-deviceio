@@ -2,7 +2,7 @@
 
 ---
 
-发布版本：1.3
+发布版本：1.4
 
 作者：francis.fan
 
@@ -36,6 +36,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 | 2019-4-16 | V1.1 | V1.2.0 | francis.fan | 新增BLE配网Demo<br />修复BtSource接口<br />新增BSA库的支持<br />修复文档排版 |
 | 2019-4-29 | V1.2 | V1.2.1 | francis.fan | 修复BSA分支deviceio_test测试失败<br />修复BLUEZ初始化失败程序卡住的BUG<br />修改A2DP SOURCE 获取playrole方法 |
 | 2019-5-27 | V1.3 | V1.2.2 | francis.fan | 增加A2DP SOURCE 反向控制事件通知<br />添加HFP HF接口支持<br />添加蓝牙类设置接口<br />添加蓝牙自动重连属性设置接口<br />添加A2DP SINK 音量反向控制（BSA only） |
+| 2019-6-4 | V1.4 | V1.2.3 | francis.fan | Bluez：实现A2DP SINK音量正反向控制<br />Bluez：取消SPP与A2DP SINK的关联<br />Bluez：rk_bt_enable_reconnec 保存属性到文件，设备重启后属性设置依旧生效<br />Bluez：修复A2DP SOURCE 反向控制功能初始化概率性失败<br/>Bluez：修复 rk_bt_sink_set_visibilit <br />BSA: 修复A2DP SOURCE自动重连失败<br/>BSA：修复 rk_bt_hfp_hangup api<br />删除rk_bt_sink_set_auto_reconnect接口<br /> |
 
 ---
 
@@ -105,9 +106,6 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
   启动/关闭HFP/A2DP SINK的自动重连功能。value：0表示关闭自动重连功能，1表示开启自动重连功能。
   
-  BLUEZ DEVICEIO：该属性重启后会失效，推荐该接口紧接在`rk_bt_init`接口后调用。
-  
-  BSA DEVICEIO：该属性保存在/data/bt_reconnect中，重启后仍能生效。
 
 ## 2、BLE接口介绍（RkBle.h） ##
 
@@ -191,12 +189,9 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
   打开SPP，设备处于可连接状态。
 
-  BLUEZ DEVICEIO：SPP连接管理对A2DP SINK有依赖，因此该接口内部会检测A2DP Sink是否开启，若没开启则会先打开A2DP Sink。
-  BSA DEVICEIO：SPP可独立开启，与A2DP SINK没有依赖关系。
-
 - `int rk_bt_spp_close(void)`
 
-	关闭SPP。BLUEZ DEVICEIO在打开SPP时会触发A2DP SINK打开，但关闭接口仅关闭SPP的服务。
+	关闭SPP。
 
 - `int rk_bt_spp_get_state(RK_BT_SPP_STATE *pState)`
 
@@ -225,9 +220,18 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
   状态回调函数。
 
+- `typedef void (*RK_BT_SINK_VOLUME_CALLBACK)(int volume)`
+
+  音量变化回调函数。当手机端音量变化时，调用该回调函数。volume：新的音量值。
+  *注：因AVRCP版本以及不同手机厂商实现不同，因此有的手机并不兼容该功能。iPhone系列手机对该接口支持良好。*
+
 - `int rk_bt_sink_register_callback(RK_BT_SINK_CALLBACK cb)`
 
   注册状态回调函数。
+
+- `int rk_bt_sink_register_volume_callback(RK_BT_SINK_VOLUME_CALLBACK cb)`
+
+  注册音量变化回调函数。
 
 - `int rk_bt_sink_open()`
 
@@ -267,19 +271,21 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
 - i`nt rk_bt_sink_volume_up(void)`
 
-  反向控制：音量增大。（BSA only）
+  反向控制：音量增大。音量范围[0, 127]，调用该接口，音量每次增加8。
+
+  *注：因AVRCP版本以及不同手机厂商实现不同，因此有的手机并不兼容该功能。iPhone系列手机对该接口支持良好。*
 
 - i`nt rk_bt_sink_volume_down(void)`
 
-  反向控制：音量减小。（BSA only）
+  反向控制：音量减小。音量范围[0, 127]，调用该接口，音量每次减小8。
+
+  *注：因AVRCP版本以及不同手机厂商实现不同，因此有的手机并不兼容该功能。iPhone系列手机对该接口支持良好。*
 
 - `int rk_bt_sink_set_volume(int volume)`
 
-     反向控制：设置A2DP SOURCE端音量。（BSA only）
+     反向控制：设置A2DP SOURCE端音量。volume取值范围[0, 127]。若超过取值范围，该接口内部自动修正。
 
-- `int rk_bt_sink_set_auto_reconnect(int enable)`
-
-  设置A2DP Sink自动连接属性。enable：1表示可自动连接，0表示不可自动连接。其用法与`rk_bt_enable_reconnect`接口功能重复。***未来将摒弃该接口，不推荐使用！***
+     *注：因AVRCP版本以及不同手机厂商实现不同，因此有的手机并不兼容该功能。iPhone系列手机对该接口支持良好。*
 
 - `int rk_bt_sink_disconnect()`
 
@@ -714,7 +720,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 1、执行测试程序命令：`DeviceIOTest bluetooth`显示如下界面：
 
 ```
-# deviceio_test bluethood
+# deviceio_test bluetooth
 version:V1.2.3
 #### Please Input Your Test Command Index ####
 01.  bt_server_open 
@@ -735,28 +741,27 @@ version:V1.2.3
 16.  bt_test_sink_music_next 
 17.  bt_test_sink_music_previous 
 18.  bt_test_sink_music_stop 
-19.  bt_test_sink_reconnect_disenable 
-20.  bt_test_sink_reconnect_enable 
-21.  bt_test_sink_disconnect 
-22.  bt_test_sink_close 
-23.  bt_test_ble_start 
-24.  bt_test_ble_write 
-25.  bt_test_ble_stop 
-26.  bt_test_ble_get_status 
-27.  bt_test_spp_open 
-28.  bt_test_spp_write 
-29.  bt_test_spp_close 
-30.  bt_test_spp_status 
-31.  bt_test_hfp_sink_open 
-32.  bt_test_hfp_hp_open 
-33.  bt_test_hfp_hp_accept 
-34.  bt_test_hfp_hp_hungup 
-35.  bt_test_hfp_hp_redail 
-36.  bt_test_hfp_hp_report_battery 
-37.  bt_test_hfp_hp_set_volume 
-38.  bt_test_hfp_hp_close 
-39.  bt_server_close 
-Which would you like:
+19.  bt_test_sink_disconnect 
+20.  bt_test_sink_set_volume 
+21.  bt_test_sink_close 
+22.  bt_test_ble_start 
+23.  bt_test_ble_write 
+24.  bt_test_ble_stop 
+25.  bt_test_ble_get_status 
+26.  bt_test_spp_open 
+27.  bt_test_spp_write 
+28.  bt_test_spp_close 
+29.  bt_test_spp_status 
+30.  bt_test_hfp_sink_open 
+31.  bt_test_hfp_hp_open 
+32.  bt_test_hfp_hp_accept 
+33.  bt_test_hfp_hp_hungup 
+34.  bt_test_hfp_hp_redail 
+35.  bt_test_hfp_hp_report_battery 
+36.  bt_test_hfp_hp_set_volume 
+37.  bt_test_hfp_hp_close 
+38.  bt_server_close 
+Which would you like: 
 ```
 
 2、选择对应测试程序编号。首先要选择01进行初始化蓝牙基础服务。比如测试BT Source功能

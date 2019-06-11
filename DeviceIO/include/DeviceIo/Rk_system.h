@@ -6,6 +6,14 @@ extern "C" {
 #endif
 
 /*
+ *Version 1.2.3 Release 2019/06/05
+  1.bluez:add a2dp sink volume api
+  2.bluez:fix rk_bt_sink_set_visibility api
+  3.bluez:fix rk_bt_enable_reconnect api
+  4.bluez:cancel spp's dependence on a2dp sink
+  5.bluez:fix automatic reconnection coredump
+  6.bsa: fix a2dp source can't auto-connect sink devices
+  7.bsa：fix rk_bt_hfp_hangup api
  *Version 1.2.2 Release 2019/05/27
   1.add bt source avrcp function
   2.add hfp hf api
@@ -52,7 +60,7 @@ extern "C" {
  *Version 1.0.0 Release 2018/12/22
  */
 
-#define DEVICEIO_VERSION "V1.2.2"
+#define DEVICEIO_VERSION "V1.2.3"
 
 int RK_read_chip_id(char *buffer, const int size);
 int RK_read_version(char *buffer, const int size);
