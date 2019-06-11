@@ -584,7 +584,7 @@ int rk_bt_sink_stop(void)
 
 int rk_bt_sink_disconnect()
 {
-	disconn_device();
+	disconnect_current_devices();
 	return 0;
 }
 
@@ -989,7 +989,8 @@ int rk_bt_hfp_close(void)
 		return 0;
 
 	bt_control.is_hfp_open = 0;
-
+	if (g_hfp_cb)
+		g_hfp_cb(RK_BT_HFP_DISCONNECT_EVT, NULL);
 	if (bt_control.type == BtControlType::BT_HFP_HF) {
 		bt_control.type = BtControlType::BT_NONE;
 		bt_control.last_type = BtControlType::BT_NONE;
@@ -1001,7 +1002,7 @@ int rk_bt_hfp_close(void)
 		return 0;
 	}
 
-	disconn_device();
+	disconnect_current_devices();
 	system("hciconfig hci0 noscan");
 	system("killall bluealsa-aplay");
 	system("killall bluealsa");

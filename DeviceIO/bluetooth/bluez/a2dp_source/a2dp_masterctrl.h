@@ -26,6 +26,7 @@ void a2dp_master_clear_cb();
 int a2dp_master_avrcp_open();
 int a2dp_master_avrcp_close();
 int reconn_last_devices(BtDeviceType type);
+int disconnect_current_devices();
 
 int ble_disconnect(void);
 
