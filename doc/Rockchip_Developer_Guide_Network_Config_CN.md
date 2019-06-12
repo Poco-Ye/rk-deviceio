@@ -210,7 +210,9 @@ V1.2.1以上，不包含V1.2.1
 
 - 简介
 
-  目前微信airkiss配网只支持realtek，请参照本文档第一章节 ’WIFI/BT 配置‘，正确配置kernel和rkwifibt，并且airkiss配网已集成到deviceio中，接口位于Rk_wifi.h。
+  目前airkiss配网只支持rtl8723ds，请参照本文档第一章节 ’WIFI/BT 配置‘进行相应配置；ap模组请参考external/wifiAutoSetup目录下的说明。
+
+  airkiss兼容性很差，不建议客户使用，原因请参考 /docs/Develop reference documents/WIFIBT/RK平台_RTL8723DS_AIRKISS配网说明.pdf。目前airkiss配网已集成到deviceio中，接口位于Rk_wifi.h。
 
 - kernel 修改
 
