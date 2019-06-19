@@ -5304,7 +5304,7 @@ void app_av_deinitialize()
 
 int app_av_scan(BtScanParam *data)
 {
-    int index;
+    int index, addr_len, name_len, playrole_len;
 
     memset((char *)data, 0, sizeof(BtScanParam));
 
@@ -5326,6 +5326,11 @@ int app_av_scan(BtScanParam *data)
 
     for (index = 0; index < APP_DISC_NB_DEVICES; index++) {
         if(app_discovery_cb.devs[index].in_use == TRUE) {
+            addr_len = sizeof(data->devices[index].address);
+            if(addr_len < 17) {
+                APP_ERROR1("address buffer overflow, addr_len: %d", addr_len);
+                return -1;
+            }
             sprintf(data->devices[index].address, "%02X:%02X:%02X:%02X:%02X:%02X",
                 app_discovery_cb.devs[index].device.bd_addr[0],
                 app_discovery_cb.devs[index].device.bd_addr[1],
@@ -5334,8 +5339,14 @@ int app_av_scan(BtScanParam *data)
                 app_discovery_cb.devs[index].device.bd_addr[4],
                 app_discovery_cb.devs[index].device.bd_addr[5]);
 
-            memcpy(data->devices[index].name, app_discovery_cb.devs[index].device.name, 128);
-            memcpy(data->devices[index].playrole, app_discovery_cb.devs[index].device.playrole, 48);
+            name_len = sizeof(data->devices[index].name);
+            memcpy(data->devices[index].name, app_discovery_cb.devs[index].device.name,
+                name_len > (BD_NAME_LEN + 1) ? (BD_NAME_LEN + 1) : name_len);
+
+            playrole_len = sizeof(data->devices[index].playrole);
+            memcpy(data->devices[index].playrole, app_discovery_cb.devs[index].device.playrole,
+                playrole_len > 25 ? 25 : playrole_len);
+
             data->devices[index].rssi = app_discovery_cb.devs[index].device.rssi;
             data->devices[index].rssi_valid = TRUE;
 

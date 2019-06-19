@@ -13,7 +13,8 @@ typedef struct _bt_device_info {
     char address[17]; // bt address
     bool rssi_valid;
     int rssi;
-    char playrole[12]; // Audio Sink? Audio Source? Unknown?
+    /* Audio Sink? Audio Source? Unknown? Audio Sink | Audio Source(Some devices have sink and source attributes) */
+    char playrole[25];
 } BtDeviceInfo;
 
 /*

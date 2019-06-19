@@ -719,6 +719,22 @@ int app_disc_complete()
     return app_discovery_complete;
 }
 
+static void app_disc_get_playrole_by_cod(UINT8 *playrole, DEV_CLASS class_of_device)
+{
+    UINT8 major;
+    UINT16 services;
+
+    APP_DEBUG1("playrole: %s", playrole);
+
+    BTM_COD_MAJOR_CLASS(major, class_of_device);
+    BTM_COD_SERVICE_CLASS(services, class_of_device);
+
+    if((services & BTM_COD_SERVICE_AUDIO) && (major == BTM_COD_MAJOR_AUDIO))
+        memcpy((char *)playrole, "Audio Sink", strlen("Audio Sink"));
+    else if((services & BTM_COD_SERVICE_TELEPHONY) && (major == BTM_COD_MAJOR_PHONE))
+        memcpy((char *)playrole, "Audio Source", strlen("Audio Source"));
+}
+
 /*******************************************************************************
  **
  ** Function         app_generic_disc_cback
@@ -774,11 +790,11 @@ void app_generic_disc_cback(tBSA_DISC_EVT event, tBSA_DISC_MSG *p_data)
         if (index >= APP_DISC_NB_DEVICES)
         {
             APP_INFO0("No room to save new discovered");
+        } else {
+            memset((char *)app_discovery_cb.devs[index].device.playrole, 0, 25);
+            memcpy((char *)app_discovery_cb.devs[index].device.playrole,
+                    "Unknow", strlen("Unknow"));
         }
-
-        memset((char *)app_discovery_cb.devs[index].device.playrole, 0, 48);
-        memcpy((char *)app_discovery_cb.devs[index].device.playrole,
-                "Unknow", strlen("Unknow"));
 
         APP_INFO1("\tBdaddr:%02x:%02x:%02x:%02x:%02x:%02x",
                 p_data->disc_new.bd_addr[0],
@@ -812,13 +828,16 @@ void app_generic_disc_cback(tBSA_DISC_EVT event, tBSA_DISC_MSG *p_data)
                 app_disc_inquiry_type_desc(p_data->disc_new.inq_result_type),
                 app_disc_address_type_desc(p_data->disc_new.ble_addr_type));
 #endif
-   
-        if (p_data->disc_new.eir_data[0])
-        {
-            app_disc_parse_eir(p_data->disc_new.eir_data, app_discovery_cb.devs[index].device.playrole);
-        }
 
-        APP_INFO1("playrole: %s", app_discovery_cb.devs[index].device.playrole);
+        if(index < APP_DISC_NB_DEVICES) {
+            if (p_data->disc_new.eir_data[0])
+                app_disc_parse_eir(p_data->disc_new.eir_data, app_discovery_cb.devs[index].device.playrole);
+
+            if(strcmp((char *)app_discovery_cb.devs[index].device.playrole, "Unknow") == 0)
+                app_disc_get_playrole_by_cod(app_discovery_cb.devs[index].device.playrole,
+                    app_discovery_cb.devs[index].device.class_of_device);
+            APP_INFO1("playrole: %s", app_discovery_cb.devs[index].device.playrole);
+        }
         break;
 
     case BSA_DISC_CMPL_EVT: /* Discovery complete. */
