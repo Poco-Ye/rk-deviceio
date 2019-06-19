@@ -18,9 +18,6 @@
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <ctype.h>
-#include <sys/ioctl.h>
-#include <net/if.h>
-#include <arpa/inet.h>
 
 #include "bsa_api.h"
 

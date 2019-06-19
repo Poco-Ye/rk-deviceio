@@ -119,5 +119,9 @@ int app_ble_start(void);
  **
  *******************************************************************************/
 int app_ble_wake_configure(void);
-
+#if defined (APP_BLE_DLE_TEST) /* for test purposes only */
+int app_ble_read_default_data_len(void);
+int app_ble_write_default_data_len(void);
+int app_ble_read_max_data_len(void);
+#endif
 #endif

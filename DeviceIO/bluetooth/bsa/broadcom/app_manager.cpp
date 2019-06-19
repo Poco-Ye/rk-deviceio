@@ -239,7 +239,9 @@ int app_mgr_set_bt_config(BOOLEAN enable)
 {
     int status;
     tBSA_DM_SET_CONFIG bt_config;
-
+#if (IOS_IAP_INCLUDED == TRUE)
+    UINT8 iap_eir_data[] = {0x00, 0x00, 0x00, 0x00, 0xDE, 0xCA, 0xFA, 0xDE, 0xDE, 0xCA, 0xDE, 0xAF, 0xDE, 0xCA, 0xCA, 0xFF};
+#endif
     /* Init config parameter */
     status = BSA_DmSetConfigInit(&bt_config);
 
@@ -253,6 +255,11 @@ int app_mgr_set_bt_config(BOOLEAN enable)
     strncpy((char *)bt_config.name, (char *)app_xml_config.name, sizeof(bt_config.name));
     bt_config.name[sizeof(bt_config.name) - 1] = '\0';
     memcpy(bt_config.class_of_device, app_xml_config.class_of_device, sizeof(DEV_CLASS));
+#if (IOS_IAP_INCLUDED == TRUE)
+    bt_config.config_mask |= BSA_DM_CONFIG_EIR_MASK;
+    bt_config.eir_length = sizeof(iap_eir_data);
+    memcpy(bt_config.eir_data, iap_eir_data, bt_config.eir_length); 
+#endif
 
     APP_DEBUG1("Enable:%d", bt_config.enable);
     APP_DEBUG1("Discoverable:%d", bt_config.discoverable);

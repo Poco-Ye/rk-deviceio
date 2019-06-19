@@ -1057,9 +1057,8 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
 
     case BSA_BLE_SE_EXEC_WRITE_EVT:
         APP_INFO1("BSA_BLE_SE_EXEC_WRITE_EVT status:%d", p_data->ser_exec_write.status);
-        APP_INFO1("BSA_BLE_SE_EXEC_WRITE_EVT trans_id:%d, conn_id:%d, flag:%d",
-            p_data->ser_exec_write.trans_id, p_data->ser_exec_write.conn_id,
-            p_data->ser_exec_write.flag);
+        APP_INFO1("BSA_BLE_SE_EXEC_WRITE_EVT trans_id:%d, conn_id:%d",
+            p_data->ser_exec_write.trans_id, p_data->ser_exec_write.conn_id);
 
 #if 0
         BSA_BleSeSendRspInit(&send_server_resp);

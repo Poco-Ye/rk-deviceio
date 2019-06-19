@@ -27,7 +27,7 @@ tAPP_BLE_CB app_ble_cb;
 /*
  * Local functions
  */
-
+static int app_ble_config_bdaddr_for_wakeup(BD_ADDR tgt_addr);
 
 /*
  * BLE common functions
@@ -39,6 +39,7 @@ tAPP_BLE_CB app_ble_cb;
  */
 #define APP_BLE_ENABLE_WAKE_GPIO_VSC 0xFD60
 #define APP_BLE_PF_MANU_DATA_CO_ID   0x000F  /* Company ID for BRCM */
+#define APP_BLE_PF_ADDR_FILTER_COND_TYPE 0
 #define APP_BLE_PF_MANU_DATA_COND_TYPE 5
 
 /*******************************************************************************
@@ -205,7 +206,98 @@ int app_ble_start(void)
 
     return 0;
 }
+#if defined (APP_BLE_DLE_TEST) /* for test purposes only */
+/*******************************************************************************
+ **
+ ** Function        app_ble_read_default_data_len
+ **
+ ** Description     Send HCI LE Read Default Data Length
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+int app_ble_read_default_data_len(void)
+{
+    tBSA_TM_HCI_CMD hci_cmd;
 
+    BSA_TmHciInit(&hci_cmd);
+
+    hci_cmd.opcode = HCI_BLE_READ_DFLT_DATA_LENGTH;
+    hci_cmd.length = 0;
+    hci_cmd.no_opcode_swap = TRUE;
+
+    BSA_TmHciCmd(&hci_cmd);
+
+    APP_INFO1("\tStatus:\t\t\t%d", hci_cmd.status);
+
+    return 0;
+}
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_write_default_data_len
+ **
+ ** Description     Send HCI LE Write Default Data Length
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+int app_ble_write_default_data_len(void)
+{
+    tBSA_TM_HCI_CMD hci_cmd;
+    UINT8 *p_data;
+
+    BSA_TmHciInit(&hci_cmd);
+
+    hci_cmd.opcode = HCI_BLE_WRITE_DFLT_DATA_LENGTH;
+    hci_cmd.length = 4;
+    hci_cmd.no_opcode_swap = TRUE;
+    p_data = hci_cmd.data;
+
+    p_data[0] = 0xfb;
+    p_data[1] = 0x00;
+    p_data[2] = 0x48;
+    p_data[3] = 0x08;
+
+    BSA_TmHciCmd(&hci_cmd);
+
+    APP_INFO1("\tStatus:\t\t\t%d", hci_cmd.status);
+
+    return 0;
+}
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_read_max_data_len
+ **
+ ** Description     Send HCI LE Read Max Data Length
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+int app_ble_read_max_data_len(void)
+{
+    tBSA_TM_HCI_CMD hci_cmd;
+
+    BSA_TmHciInit(&hci_cmd);
+
+    hci_cmd.opcode = HCI_BLE_READ_MAX_DATA_LENGTH;
+    hci_cmd.length = 0;
+    hci_cmd.no_opcode_swap = TRUE;
+
+    BSA_TmHciCmd(&hci_cmd);
+
+    APP_INFO1("\tStatus:\t\t\t%d", hci_cmd.status);
+
+    return 0;
+}
+#endif
 /*******************************************************************************
  **
  ** Function        app_ble_wake_configure
@@ -224,7 +316,10 @@ int app_ble_wake_configure(void)
     tBSA_STATUS bsa_status;
     tBSA_TM_VSC bsa_vsc;
     char manu_pattern[] = "WAKEUP";
+    BD_ADDR tgt_addr_1 = {0x43, 0x39, 0x00, 0x07, 0xDF, 0xA7};
+    BD_ADDR tgt_addr_2 = {0x43, 0x39, 0x00, 0x07, 0xDF, 0xFF};
 
+    /* Configure Manufacturer data pattern */
     bsa_status = BSA_BleWakeCfgInit(&bsa_ble_wake_cfg);
 
     bsa_ble_wake_cfg.cond.manu_data.company_id = APP_BLE_PF_MANU_DATA_CO_ID;
@@ -239,6 +334,23 @@ int app_ble_wake_configure(void)
         return(-1);
     }
 
+    /* Configure BDADDR of remote device allowed to do wake-up */
+    bsa_status = app_ble_config_bdaddr_for_wakeup(tgt_addr_1);
+    if (bsa_status != BSA_SUCCESS)
+    {
+        APP_ERROR1("Config remote bdaddr failed status:%d", bsa_status);
+        return(-1);
+    }
+
+    /* Configure BDADDR of additional remote device allowed to do wake-up */
+    bsa_status = app_ble_config_bdaddr_for_wakeup(tgt_addr_2);
+    if (bsa_status != BSA_SUCCESS)
+    {
+        APP_ERROR1("Config 2nd remote bdaddr failed status:%d", bsa_status);
+        return(-1);
+    }
+
+    /* Enable Wake on BLE */
     bsa_status = BSA_BleWakeEnableInit(&bsa_ble_wake_enable);
     bsa_ble_wake_enable.enable = TRUE;
     bsa_status = BSA_BleWakeEnable(&bsa_ble_wake_enable);
@@ -257,6 +369,37 @@ int app_ble_wake_configure(void)
     if (bsa_status != BSA_SUCCESS)
     {
         APP_ERROR1("Unable to Send Enable Wake on BLE GPIO VSC status:%d", bsa_status);
+        return(-1);
+    }
+
+    return 0;
+}
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_config_bdaddr_for_wakeup
+ **
+ ** Description     Configure bdaddr of remote device allowed to do wakeup
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+static int app_ble_config_bdaddr_for_wakeup(BD_ADDR tgt_addr)
+{
+    tBSA_BLE_WAKE_CFG bsa_ble_wake_cfg;
+    tBSA_STATUS bsa_status;
+
+    bsa_status = BSA_BleWakeCfgInit(&bsa_ble_wake_cfg);
+    memcpy(&bsa_ble_wake_cfg.cond.target_addr.bda, tgt_addr,sizeof(BD_ADDR));
+    bsa_ble_wake_cfg.cond.target_addr.type = 0;  /* BLE addr type = PUBLIC*/
+    bsa_ble_wake_cfg.cond_type = APP_BLE_PF_ADDR_FILTER_COND_TYPE;
+
+    bsa_status = BSA_BleWakeCfg(&bsa_ble_wake_cfg);
+    if (bsa_status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_BleWakeCfg failed status:%d", bsa_status);
         return(-1);
     }
 

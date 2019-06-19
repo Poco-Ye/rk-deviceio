@@ -750,16 +750,18 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
                 p_data->reg_notif.rsp.opcode,
                 p_data->reg_notif.rsp.pdu);
 */
-        if (p_data->reg_notif.rsp.event_id == AVRC_EVT_VOLUME_CHANGE) {
-            APP_INFO1("Volume changed :0x%x", p_data->reg_notif.rsp.param.volume);
+
+        if (p_data->reg_notif_rsp.rsp.event_id == AVRC_EVT_VOLUME_CHANGE)
+        {
+            APP_DEBUG1("Volume changed :0x%x", p_data->reg_notif_rsp.rsp.param.volume);
         }
 
-        if (p_data->reg_notif.rsp.event_id == AVRC_EVT_PLAY_STATUS_CHANGE) {
+        if (p_data->reg_notif_rsp.rsp.event_id == AVRC_EVT_PLAY_STATUS_CHANGE) {
             BOOLEAN do_it = FALSE;
             int index;
-            connection = app_avk_find_connection_by_rc_handle(p_data->reg_notif.handle);
+            connection = app_avk_find_connection_by_rc_handle(p_data->reg_notif_rsp.handle);
             for (index = 0; index < APP_AVK_MAX_CONNECTIONS; index++) {
-                if (app_avk_cb.connections[index].rc_handle == p_data->reg_notif.handle)
+                if (app_avk_cb.connections[index].rc_handle == p_data->reg_notif_rsp.handle)
                     break;
             }
             if (index == APP_AVK_MAX_CONNECTIONS) {
@@ -767,8 +769,8 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
                 break;
             }
 
-            play_status[index] = p_data->reg_notif.rsp.param.play_status;
-            switch(p_data->reg_notif.rsp.param.play_status) {
+            play_status[index] = p_data->reg_notif_rsp.rsp.param.play_status;
+            switch(p_data->reg_notif_rsp.rsp.param.play_status) {
                 case AVRC_PLAYSTATE_PLAYING:
                     APP_INFO1("Play Status Playing, index: %d", index);
                     pthread_mutex_lock(&ps_mutex);
@@ -784,7 +786,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
                 case AVRC_PLAYSTATE_STOPPED:
                     enum APP_AVK_PLAYSTATE previous_state;
                     APP_INFO1("Play Status %s, index: %d",
-                              p_data->reg_notif.rsp.param.play_status ==
+                              p_data->reg_notif_rsp.rsp.param.play_status ==
                                 AVRC_PLAYSTATE_PAUSED ? "Paused" : "Stopped",
                               index);
                     pthread_mutex_lock(&ps_mutex);
@@ -802,9 +804,9 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
                     }
                     break;
                 default:
-                    APP_INFO1("Play Status Playing : %02x",
-                        p_data->reg_notif.rsp.param.play_status);
-                break;
+                     APP_DEBUG1("Play Status Playing : %02x",
+                         p_data->reg_notif_rsp.rsp.param.play_status);
+                     break;
             }
         }
         break;
@@ -1590,7 +1592,7 @@ int app_avk_set_volume(int volume)
     for (index = 0; index < APP_AVK_MAX_CONNECTIONS; index++) {
         connection = app_avk_find_connection_by_index(index);
         if(connection->in_use) {
-            if ((connection->peer_features & BSA_AVK_FEAT_RCCT) && connection->is_rc_open) {
+            if (connection->is_rc_open) {
                 APP_DEBUG1("connection->m_bAbsVolumeSupported: %d", connection->m_bAbsVolumeSupported);
                 if (connection->m_bAbsVolumeSupported) {
                     app_avk_cb.volume = volume;
@@ -1629,7 +1631,7 @@ void app_avk_volume_up(UINT8 rc_handle)
         return;
     }
 
-    if ((connection->peer_features & BSA_AVK_FEAT_RCCT) && connection->is_rc_open)
+    if (connection->is_rc_open)
     {
         APP_DEBUG1("connection->m_bAbsVolumeSupported: %d", connection->m_bAbsVolumeSupported);
         /* If abs vol is not supported, send vol pass thru command */
@@ -1671,7 +1673,7 @@ void app_avk_volume_down(UINT8 rc_handle)
         return;
     }
 
-    if ((connection->peer_features & BSA_AVK_FEAT_RCCT) && connection->is_rc_open)
+    if (connection->is_rc_open)
     {
         APP_DEBUG1("connection->m_bAbsVolumeSupported: %d", connection->m_bAbsVolumeSupported);
         /* If abs vol is not supported, send vol pass thru command */
@@ -1860,6 +1862,7 @@ void app_avk_play_previous_track(UINT8 rc_handle)
 void app_avk_rc_cmd(UINT8 rc_handle)
 {
     int choice;
+    int value;
 
     do
     {
@@ -1869,11 +1872,22 @@ void app_avk_rc_cmd(UINT8 rc_handle)
         printf("    2 pause\n");
         printf("    3 forward\n");
         printf("    4 backward\n");
-        printf("    5 rewind key_press\n");
-        printf("    6 rewind key_release\n");
-        printf("    7 fast forward key_press\n");
-        printf("    8 fast forward key_release\n");
-
+        printf("    5 angle\n");
+        printf("    6 rewind key_press\n");
+        printf("    7 rewind key_release\n");
+        printf("    8 fast forward key_press\n");
+        printf("    9 fast forward key_release\n");
+        printf("    10 eject key press\n");
+        printf("    11 eject key release\n");
+        printf("    12 subpicture\n");
+        printf("    13 0 key\n");
+        printf("    14 1 key\n");
+        printf("    15 2 key\n");
+        printf("    16 3 key\n");
+        printf("    17 4 key\n");
+        printf("    18 5 key\n");
+        printf("    19 mute key\n");
+        printf("    20 raw value\n");
         printf("    99 exit\n");
 
         choice = app_get_choice("Select source");
@@ -1901,19 +1915,68 @@ void app_avk_rc_cmd(UINT8 rc_handle)
                 break;
 
             case 5:
-                app_avk_rc_send_command(BSA_AV_STATE_PRESS, BSA_AVK_RC_REWIND, rc_handle);
+                app_avk_rc_send_click(BSA_AVK_RC_ANGLE, rc_handle);
                 break;
 
             case 6:
-                app_avk_rc_send_command(BSA_AV_STATE_RELEASE, BSA_AVK_RC_REWIND, rc_handle);
+                app_avk_rc_send_command(BSA_AV_STATE_PRESS, BSA_AVK_RC_REWIND, rc_handle);
                 break;
 
             case 7:
-                app_avk_rc_send_command(BSA_AV_STATE_PRESS, BSA_AVK_RC_FAST_FOR, rc_handle);
+                app_avk_rc_send_command(BSA_AV_STATE_RELEASE, BSA_AVK_RC_REWIND, rc_handle);
                 break;
 
             case 8:
+                app_avk_rc_send_command(BSA_AV_STATE_PRESS, BSA_AVK_RC_FAST_FOR, rc_handle);
+                break;
+
+            case 9:
                 app_avk_rc_send_command(BSA_AV_STATE_RELEASE, BSA_AVK_RC_FAST_FOR, rc_handle);
+                break;
+
+            case 10:
+                app_avk_rc_send_command(BSA_AV_STATE_PRESS, BSA_AVK_RC_EJECT, rc_handle);
+                break;
+
+            case 11:
+                app_avk_rc_send_command(BSA_AV_STATE_RELEASE, BSA_AVK_RC_EJECT, rc_handle);
+                break;
+
+            case 12:
+                app_avk_rc_send_click(BSA_AVK_RC_SUBPICT, rc_handle);
+                break;
+
+            case 13:
+                app_avk_rc_send_click(BSA_AVK_RC_0, rc_handle);
+                break;
+
+            case 14:
+                app_avk_rc_send_click(BSA_AVK_RC_1, rc_handle);
+                break;
+
+            case 15:
+                app_avk_rc_send_click(BSA_AVK_RC_2, rc_handle);
+                break;
+
+            case 16:
+                app_avk_rc_send_click(BSA_AVK_RC_3, rc_handle);
+                break;
+
+            case 17:
+                app_avk_rc_send_click(BSA_AVK_RC_4, rc_handle);
+                break;
+
+            case 18:
+                app_avk_rc_send_click(BSA_AVK_RC_5, rc_handle);
+                break;
+
+            case 19:
+                app_avk_rc_send_click(BSA_AVK_RC_MUTE, rc_handle);
+                break;
+
+            case 20:
+                value = app_get_choice("value to press");
+                app_avk_rc_send_click(value, rc_handle);
                 break;
 
             default:
@@ -2598,6 +2661,8 @@ void app_avk_send_get_capabilities(UINT8 rc_handle)
 
     bsa_avk_vendor_cmd.rc_handle = rc_handle;
     bsa_avk_vendor_cmd.ctype = BSA_AVK_CMD_STATUS;
+    bsa_avk_vendor_cmd.subunit_type = AVRC_SUB_PANEL;
+    bsa_avk_vendor_cmd.subunit_id = 0;
     bsa_avk_vendor_cmd.data[0] = BSA_AVK_RC_VD_GET_CAPABILITIES;
     bsa_avk_vendor_cmd.data[1] = 0; /* reserved & packet type */
     bsa_avk_vendor_cmd.data[2] = 0; /* length high*/
@@ -2633,6 +2698,8 @@ void app_avk_send_register_notification(int evt, UINT8 rc_handle)
 
     bsa_avk_vendor_cmd.rc_handle = rc_handle;
     bsa_avk_vendor_cmd.ctype = BSA_AVK_CMD_NOTIF;
+    bsa_avk_vendor_cmd.subunit_type = AVRC_SUB_PANEL;
+    bsa_avk_vendor_cmd.subunit_id = 0;
     bsa_avk_vendor_cmd.data[0] = BSA_AVK_RC_VD_REGISTER_NOTIFICATION;
     bsa_avk_vendor_cmd.data[1] = 0; /* reserved & packet type */
     bsa_avk_vendor_cmd.data[2] = 0; /* length high*/
