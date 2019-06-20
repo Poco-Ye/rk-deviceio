@@ -426,6 +426,7 @@ int app_dm_set_ble_adv_data(tBSA_DM_BLE_ADV_CONFIG *p_data)
     bt_config.adv_config.appearance_data = p_data->appearance_data;
     bt_config.adv_config.num_service = p_data->num_service;
     bt_config.adv_config.is_scan_rsp = p_data->is_scan_rsp;
+    bt_config.adv_config.inst_id = p_data->inst_id;
 
     memcpy(bt_config.adv_config.uuid_val, p_data->uuid_val,p_data->num_service * sizeof(UINT16));
     memcpy(bt_config.adv_config.p_val,p_data->p_val,p_data->len);
@@ -466,7 +467,8 @@ int app_dm_set_ble_adv_param(tBSA_DM_BLE_ADV_PARAM *p_req)
             p_req->dir_bda.bd_addr[2], p_req->dir_bda.bd_addr[3],
             p_req->dir_bda.bd_addr[4], p_req->dir_bda.bd_addr[5]);
 
-    APP_DEBUG1("adv_int_min:%d adv_int_max:%d", p_req->adv_int_min, p_req->adv_int_max);
+    APP_DEBUG1("adv_int_min:%d adv_int_max:%d inst_id:%d",
+            p_req->adv_int_min, p_req->adv_int_max, p_req->inst_id);
 
     /* Set Bluetooth configuration */
     BSA_DmSetConfigInit(&bt_config);
@@ -479,6 +481,7 @@ int app_dm_set_ble_adv_param(tBSA_DM_BLE_ADV_PARAM *p_req)
     bdcpy(bt_config.ble_adv_param.dir_bda.bd_addr, p_req->dir_bda.bd_addr);
     bt_config.ble_adv_param.adv_int_min = p_req->adv_int_min;
     bt_config.ble_adv_param.adv_int_max = p_req->adv_int_max;
+    bt_config.ble_adv_param.inst_id = p_req->inst_id;
 
     bsa_status = BSA_DmSetConfig(&bt_config);
     if (bsa_status != BSA_SUCCESS)

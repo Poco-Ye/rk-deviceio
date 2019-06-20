@@ -1084,7 +1084,7 @@ static void app_xml_dev_db_tagBeginCallbackFunc(nxml_t handle,
         app_xml_param_cb.dev_tag = DEV_DEVICE_TYPE_KEY;
     }
     else if (strncmp(tagName, APP_XML_DEV_INQ_RESULT_TYPE, strlen(
-            APP_XML_DEV_DEVICE_TYPE)) == 0)
+            APP_XML_DEV_INQ_RESULT_TYPE)) == 0)
     {
         app_xml_param_cb.dev_tag = DEV_INQ_RESULT_TYPE;
     }

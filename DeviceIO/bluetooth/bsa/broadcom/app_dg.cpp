@@ -1032,10 +1032,13 @@ int app_dg_listen(void)
     int connection;
     int choice, i;
     int uarr[16];
+#if (IOS_IAP_INCLUDED ==FALSE)
     char szKeyName[256];
     /* char szKeyName[] = "453994D5-D58B-96F9-6616-B37F586BA2EC"; PandoraLink*/
     /* char szKeyName[] = "FA87C0D0-AFAC-11DE-8A39-0800200C9A66"; BtChat Android App - Secure auth*/
-
+#else
+    char szKeyName[] = "00000000-DECA-FADE-DECA-DEAFDECACAFF"; /*Wireless iAP*/    
+#endif
     APP_DEBUG0("app_dg_listen");
 
     connection = app_dg_con_alloc();
@@ -1059,18 +1062,23 @@ int app_dg_listen(void)
     if (choice == BSA_SPP_SERVICE_ID)
     {
         param.service = BSA_SPP_SERVICE_ID;
+#if (IOS_IAP_INCLUDED == FALSE)
 #if 0
         APP_INFO0("Create a custom 128-bit UUID serial service ?:");
         APP_INFO0("    0 No");
         APP_INFO0("    1 Yes");
         choice = app_get_choice("Select choice");
 #else
-        choice = 0;
+		choice = 0;
+#endif
+#else
+        choice = 1;
 #endif
 
         if(choice)
         {
             /* Creating custom serial serivce with 128 bit UUID */
+        #if (IOS_IAP_INCLUDED ==FALSE)
             memset(szKeyName, 0, sizeof(szKeyName));
             APP_INFO0("Enter 128-bit UUID in this format: FA87C0D0-AFAC-11DE-8A39-0800200C9A66");
             APP_INFO0("Sample BtChat Android App - Secure Auth 128-bit UUID is: FA87C0D0-AFAC-11DE-8A39-0800200C9A66");
@@ -1080,7 +1088,9 @@ int app_dg_listen(void)
             APP_INFO0("Sample BtChat Android App - Secure Auth service name is: BluetoothChatSecure");
             memset(param.service_name, 0, sizeof(param.service_name));
             app_get_string("Enter service name", param.service_name, sizeof(param.service_name));
-
+        #else
+            strcpy(param.service_name, "Wireless iAP");
+        #endif
             param.uuid.len = LEN_UUID_128;
 
             APP_INFO1("Creating DG connection: %s", szKeyName);
@@ -1097,6 +1107,7 @@ int app_dg_listen(void)
         }
         else
         {
+#if (IOS_IAP_INCLUDED == FALSE)
 #if 0
             APP_INFO0("Listen for specific service name?:");
             APP_INFO0("    0 No");
@@ -1114,6 +1125,10 @@ int app_dg_listen(void)
 
             /*strcpy(param.service_name, "Bluetooth Serial Port");*/
             /*strcpy(param.service_name, "ActiveSync"); */
+#else
+            /* Create a Service name based on connection number */
+            snprintf(param.service_name, sizeof(param.service_name), "SPP%d", connection);
+#endif
         }
     }
     else if (choice == BSA_DUN_SERVICE_ID)
@@ -1378,11 +1393,14 @@ int app_dg_open_ex(int single_conn_only)
     int choice;
     int i;
     int uarr[16];
+#if (IOS_IAP_INCLUDED ==FALSE)
     char szKeyName[256];
 
     /* char szKeyName[] = "453994D5-D58B-96F9-6616-B37F586BA2EC"; PandoraLink */
     /* char szKeyName[] = "FA87C0D0-AFAC-11DE-8A39-0800200C9A66"; BtChat Android App - Secure auth*/
-
+#else
+    char szKeyName[] = "00000000-DECA-FADE-DECA-DEAFDECACAFE";
+#endif
     APP_DEBUG0("app_dg_open");
 
     if (single_conn_only)
@@ -1463,9 +1481,11 @@ int app_dg_open_ex(int single_conn_only)
     APP_INFO1("   Serial Port Profile: %d", BSA_SPP_SERVICE_ID);
     APP_INFO1("   dial Up Networking Profile: %d", BSA_DUN_SERVICE_ID);
 
-
+#if (IOS_IAP_INCLUDED ==FALSE)
     choice = app_get_choice("Select service");
-
+#else
+    choice = BSA_SPP_SERVICE_ID;
+#endif
     if (choice == BSA_SPP_SERVICE_ID)
     {
         param.service = BSA_SPP_SERVICE_ID;
@@ -1473,10 +1493,14 @@ int app_dg_open_ex(int single_conn_only)
         APP_INFO0("Connect to 128-bit UUID serial service ?:");
         APP_INFO0("    0 No");
         APP_INFO0("    1 Yes");
+    #if (IOS_IAP_INCLUDED ==FALSE)
         choice = app_get_choice("Select choice");
-
+    #else
+        choice = 1;
+    #endif
         if(choice)
         {
+        #if (IOS_IAP_INCLUDED ==FALSE)
             memset(szKeyName, 0, sizeof(szKeyName));
             APP_INFO0("Enter 128-bit UUID in this format: FA87C0D0-AFAC-11DE-8A39-0800200C9A66");
             APP_INFO0("Sample BtChat Android App - Secure Auth 128-bit UUID is: FA87C0D0-AFAC-11DE-8A39-0800200C9A66");
@@ -1487,6 +1511,9 @@ int app_dg_open_ex(int single_conn_only)
             memset(param.service_name, 0, sizeof(param.service_name));
             app_get_string("Enter remote service name", param.service_name, sizeof(param.service_name));
 
+        #else
+            strcpy(param.service_name, "Wireless iAP");
+        #endif
             param.uuid.len = LEN_UUID_128;
 
             APP_INFO1("Opening DG connection before scanf %s", szKeyName);
@@ -1502,6 +1529,7 @@ int app_dg_open_ex(int single_conn_only)
         }
         else
         {
+        #if (IOS_IAP_INCLUDED ==FALSE)
             APP_INFO0("Connect to specific service name?:");
             APP_INFO0("    0 No");
             APP_INFO0("    1 Yes");
@@ -1514,6 +1542,9 @@ int app_dg_open_ex(int single_conn_only)
 
             /*strcpy(param.service_name, "Bluetooth Serial Port");*/
             /*strcpy(param.service_name, "ActiveSync"); */
+        #else
+            snprintf(param.service_name, sizeof(param.service_name), "SPP%d", connection);
+        #endif
         }
 
     }

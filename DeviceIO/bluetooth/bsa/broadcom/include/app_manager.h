@@ -397,6 +397,19 @@ void app_mgr_set_remote_oob();
  *******************************************************************************/
 void app_mgr_set_link_policy(BD_ADDR bd_addr, tBSA_DM_LP_MASK policy_mask, BOOLEAN set);
 
+/*******************************************************************************
+ **
+ ** Function         app_mgt_set_cod
+ **
+ ** Description      Configure local class of device
+ **
+ ** Parameters       None
+ **
+ ** Returns          Status of the operation
+ **
+ *******************************************************************************/
+int app_mgt_set_cod(void);
+
 int app_mgr_get_latest_device(void);
 
 int app_manager_init(const char *bt_name, app_mgr_callback cb);

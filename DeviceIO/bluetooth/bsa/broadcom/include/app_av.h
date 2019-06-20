@@ -735,6 +735,28 @@ int app_av_rc_play_item_meta_response(int index, tBSA_AV_META_MSG_MSG *pMetaMsg)
 
 /*******************************************************************************
  **
+ ** Function         app_av_rc_add_to_now_playing_meta_response
+ **
+ ** Description      Example of add to now playing response
+ **
+ ** Returns          0 if successful, error code otherwise
+ **
+ *******************************************************************************/
+int app_av_rc_add_to_now_playing_meta_response(int index, tBSA_AV_META_MSG_MSG *pMetaMsg);
+
+/*******************************************************************************
+ **
+ ** Function         app_av_change_song
+ **
+ ** Description      change current play song
+ **
+ ** Returns          none
+ **
+ *******************************************************************************/
+void app_av_change_song(BOOLEAN forward);
+
+/*******************************************************************************
+ **
  ** Function         app_av_auto_connect_start
  **
  ** Description      discovery devices, automatically connected the strongest sink device

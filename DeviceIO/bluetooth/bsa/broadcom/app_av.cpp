@@ -19,10 +19,6 @@
 #include <unistd.h>
 /* for EINTR */
 #include <errno.h>
-/* for socket */
-#include <sys/un.h>
-#include <sys/signalfd.h>
-#include <sys/socket.h>
 
 #include "bsa_api.h"
 
@@ -43,6 +39,7 @@
 #include "app_thread.h"
 #include "app_xml_utils.h"
 #include "app_dm.h"
+#include "app_av_file_info.h"
 #include "app_manager.h"
 
 #ifdef PCM_ALSA
@@ -54,9 +51,11 @@
  */
 
 #ifndef APP_AV_FEAT_MASK
-/* Default: Target (receive command) and Controller (send command) enabled and Copy Protection Enabled*/
-#define APP_AV_FEAT_MASK (BSA_AV_FEAT_RCTG     | BSA_AV_FEAT_RCCT   | BSA_AV_FEAT_VENDOR | \
-                          BSA_AV_FEAT_METADATA | BSA_AV_FEAT_BROWSE | BSA_AV_FEAT_PROTECT)
+/* Default: Target (receive command) and Controller
+ * (send command) enabled and Copy Protection Enabled*/
+#define APP_AV_FEAT_MASK (BSA_AV_FEAT_RCTG     | BSA_AV_FEAT_RCCT   | \
+                          BSA_AV_FEAT_VENDOR | BSA_AV_FEAT_METADATA | \
+                          BSA_AV_FEAT_BROWSE | BSA_AV_FEAT_PROTECT)
 #endif
 
 #ifndef APP_AV_USE_RC
@@ -166,430 +165,24 @@ static char app_av_sock_path[] = "/data/bsa/config/bsa_socket";
 #define APP_AV_PLAYTYPE_AVK         4
 #define APP_AV_PLAYTYPE_PCM_DATA    5   /* Play pcm data */
 
-/* Sample media players for peer browsing */
-#define BSA_AV_PLAYER_ID_INVALID           0
-#define BSA_AV_PLAYER_ID_FILES             1
-#define BSA_AV_PLAYER_ID_MPLAYER           2
-#define BSA_AV_PLAYER_ID_FM                3
-
-#define BSA_AV_NUM_MPLAYERS                3
-
-tBSA_ITEM_PLAYER bsa_av_player1_file =
-{
-    /* A unique identifier for this media player.*/
-    BSA_AV_PLAYER_ID_FILES,
-    /* Use AVRC_MJ_TYPE_AUDIO, AVRC_MJ_TYPE_VIDEO, AVRC_MJ_TYPE_BC_AUDIO, or AVRC_MJ_TYPE_BC_VIDEO.*/
-    (AVRC_MJ_TYPE_AUDIO|AVRC_MJ_TYPE_VIDEO),
-    /* Use AVRC_SUB_TYPE_NONE, AVRC_SUB_TYPE_AUDIO_BOOK, or AVRC_SUB_TYPE_PODCAST*/
-    AVRC_SUB_TYPE_NONE,
-    /* Use AVRC_PLAYSTATE_STOPPED, AVRC_PLAYSTATE_PLAYING, AVRC_PLAYSTATE_PAUSED, AVRC_PLAYSTATE_FWD_SEEK,
-           AVRC_PLAYSTATE_REV_SEEK, or AVRC_PLAYSTATE_ERROR*/
-    AVRC_PLAYSTATE_STOPPED,
-    {   /* Supported feature bit mask*/
-        0x1F, /* octet 0 bit mask: 0=SELECT, 1=UP, 2=DOWN, 3=LEFT,
-                                   4=RIGHT, 5=RIGHT_UP, 6=RIGHT_DOWN, 7=LEFT_UP */
-        0x02, /* octet 1 bit mask: 0=LEFT_DOWN, 1=ROOT_MENU, 2=SETUP_MENU, 3=CONT_MENU,
-                                   4=FAV_MENU, 5=EXIT, 6=0, 7=1 */
-        0x00, /* octet 2 bit mask: 0=2, 1=3, 2=4, 3=5,
-                                   4=6, 5=7, 6=8, 7=9 */
-        0x18, /* octet 3 bit mask: 0=DOT, 1=ENTER, 2=CLEAR, 3=CHAN_UP,
-                                   4=CHAN_DOWN, 5=PREV_CHAN, 6=SOUND_SEL, 7=INPUT_SEL */
-        0x00, /* octet 4 bit mask: 0=DISP_INFO, 1=HELP, 2=PAGE_UP, 3=PAGE_DOWN,
-                                   4=POWER, 5=VOL_UP, 6=VOL_DOWN, 7=MUTE */
-        0x87, /* octet 5 bit mask: 0=PLAY, 1=STOP, 2=PAUSE, 3=RECORD,
-                                   4=REWIND, 5=FAST_FOR, 6=EJECT, 7=FORWARD */
-        0x01, /* octet 6 bit mask: 0=BACKWARD, 1=ANGLE, 2=SUBPICT, 3=F1,
-                                   4=F2, 5=F3, 6=F4, 7=F5 */
-        0x6C, /* octet 7 bit mask: 0=PassThru Vendor, 1=GroupNavi, 2=AdvCtrl, 3=Browsing,
-                                   4=Searching, 5=AddToNowPlaying, 6=UID_unique, 7=BrowsableWhenAddressed */
-        0x06, /* octet 8 bit mask: 0=SearchableWhenAddressed, 1=NowPlaying, 2=UID_Persistency */
-        0x00, /* octet 9 bit mask: not used */
-        0x00, /* octet 10 bit mask: not used */
-        0x00, /* octet 11 bit mask: not used */
-        0x00, /* octet 12 bit mask: not used */
-        0x00, /* octet 13 bit mask: not used */
-        0x00, /* octet 14 bit mask: not used */
-        0x00  /* octet 15 bit mask: not used */
-    },
-    {   /* The player name, name length and character set id.*/
-        AVRC_CHARSET_ID_UTF8,
-        12,
-        (UINT8 *)"File Player"
-    }
-};
-
-tBSA_ITEM_PLAYER bsa_av_player2_media_player =
-{
-    /* A unique identifier for this media player.*/
-    BSA_AV_PLAYER_ID_MPLAYER,
-    /* Use AVRC_MJ_TYPE_AUDIO, AVRC_MJ_TYPE_VIDEO, AVRC_MJ_TYPE_BC_AUDIO, or AVRC_MJ_TYPE_BC_VIDEO.*/
-    AVRC_MJ_TYPE_AUDIO,
-    /* Use AVRC_SUB_TYPE_NONE, AVRC_SUB_TYPE_AUDIO_BOOK, or AVRC_SUB_TYPE_PODCAST*/
-    AVRC_SUB_TYPE_NONE,
-    /* Use AVRC_PLAYSTATE_STOPPED, AVRC_PLAYSTATE_PLAYING, AVRC_PLAYSTATE_PAUSED, AVRC_PLAYSTATE_FWD_SEEK,
-       AVRC_PLAYSTATE_REV_SEEK, or AVRC_PLAYSTATE_ERROR*/
-    AVRC_PLAYSTATE_STOPPED,
-    {   /* Supported feature bit mask*/
-        0x1F, /* octet 0 bit mask: 0=SELECT, 1=UP, 2=DOWN, 3=LEFT,
-                                   4=RIGHT, 5=RIGHT_UP, 6=RIGHT_DOWN, 7=LEFT_UP */
-        0x02, /* octet 1 bit mask: 0=LEFT_DOWN, 1=ROOT_MENU, 2=SETUP_MENU, 3=CONT_MENU,
-                                   4=FAV_MENU, 5=EXIT, 6=0, 7=1 */
-        0x00, /* octet 2 bit mask: 0=2, 1=3, 2=4, 3=5,
-                                   4=6, 5=7, 6=8, 7=9 */
-        0x18, /* octet 3 bit mask: 0=DOT, 1=ENTER, 2=CLEAR, 3=CHAN_UP,
-                                   4=CHAN_DOWN, 5=PREV_CHAN, 6=SOUND_SEL, 7=INPUT_SEL */
-        0x00, /* octet 4 bit mask: 0=DISP_INFO, 1=HELP, 2=PAGE_UP, 3=PAGE_DOWN,
-                                   4=POWER, 5=VOL_UP, 6=VOL_DOWN, 7=MUTE */
-        0x87, /* octet 5 bit mask: 0=PLAY, 1=STOP, 2=PAUSE, 3=RECORD,
-                                   4=REWIND, 5=FAST_FOR, 6=EJECT, 7=FORWARD */
-        0x01, /* octet 6 bit mask: 0=BACKWARD, 1=ANGLE, 2=SUBPICT, 3=F1,
-                                   4=F2, 5=F3, 6=F4, 7=F5 */
-        0x00, /* octet 7 bit mask: 0=PassThru Vendor, 1=GroupNavi, 2=AdvCtrl, 3=Browsing,
-                                   4=Searching, 5=AddToNowPlaying, 6=UID_unique, 7=BrowsableWhenAddressed */
-        0x00, /* octet 8 bit mask: 0=SearchableWhenAddressed, 1=NowPlaying, 2=UID_Persistency */
-        0x00, /* octet 9 bit mask: not used */
-        0x00, /* octet 10 bit mask: not used */
-        0x00, /* octet 11 bit mask: not used */
-        0x00, /* octet 12 bit mask: not used */
-        0x00, /* octet 13 bit mask: not used */
-        0x00, /* octet 14 bit mask: not used */
-        0x00  /* octet 15 bit mask: not used */
-    },
-    {   /* The player name, name length and character set id.*/
-        AVRC_CHARSET_ID_UTF8,
-        12,
-        (UINT8 *)"Media Player"
-    }
-};
-
-tBSA_ITEM_PLAYER bsa_av_player3_fm =
-{
-    /* A unique identifier for this media player.*/
-    BSA_AV_PLAYER_ID_FM,
-    /* Use AVRC_MJ_TYPE_AUDIO, AVRC_MJ_TYPE_VIDEO, AVRC_MJ_TYPE_BC_AUDIO, or AVRC_MJ_TYPE_BC_VIDEO.*/
-    (AVRC_MJ_TYPE_BC_AUDIO),
-    /* Use AVRC_SUB_TYPE_NONE, AVRC_SUB_TYPE_AUDIO_BOOK, or AVRC_SUB_TYPE_PODCAST*/
-    AVRC_SUB_TYPE_NONE,
-    /* Use AVRC_PLAYSTATE_STOPPED, AVRC_PLAYSTATE_PLAYING, AVRC_PLAYSTATE_PAUSED, AVRC_PLAYSTATE_FWD_SEEK,
-           AVRC_PLAYSTATE_REV_SEEK, or AVRC_PLAYSTATE_ERROR*/
-    AVRC_PLAYSTATE_STOPPED,
-    {   /* Supported feature bit mask*/
-        0x1F, /* octet 0 bit mask: 0=SELECT, 1=UP, 2=DOWN, 3=LEFT,
-                                   4=RIGHT, 5=RIGHT_UP, 6=RIGHT_DOWN, 7=LEFT_UP */
-        0x02, /* octet 1 bit mask: 0=LEFT_DOWN, 1=ROOT_MENU, 2=SETUP_MENU, 3=CONT_MENU,
-                                   4=FAV_MENU, 5=EXIT, 6=0, 7=1 */
-        0x00, /* octet 2 bit mask: 0=2, 1=3, 2=4, 3=5,
-                                   4=6, 5=7, 6=8, 7=9 */
-        0x18, /* octet 3 bit mask: 0=DOT, 1=ENTER, 2=CLEAR, 3=CHAN_UP,
-                                   4=CHAN_DOWN, 5=PREV_CHAN, 6=SOUND_SEL, 7=INPUT_SEL */
-        0x00, /* octet 4 bit mask: 0=DISP_INFO, 1=HELP, 2=PAGE_UP, 3=PAGE_DOWN,
-                                   4=POWER, 5=VOL_UP, 6=VOL_DOWN, 7=MUTE */
-        0x87, /* octet 5 bit mask: 0=PLAY, 1=STOP, 2=PAUSE, 3=RECORD,
-                                   4=REWIND, 5=FAST_FOR, 6=EJECT, 7=FORWARD */
-        0x01, /* octet 6 bit mask: 0=BACKWARD, 1=ANGLE, 2=SUBPICT, 3=F1,
-                                   4=F2, 5=F3, 6=F4, 7=F5 */
-        0x00, /* octet 7 bit mask: 0=PassThru Vendor, 1=GroupNavi, 2=AdvCtrl, 3=Browsing,
-                                   4=Searching, 5=AddToNowPlaying, 6=UID_unique, 7=BrowsableWhenAddressed */
-        0x00, /* octet 8 bit mask: 0=SearchableWhenAddressed, 1=NowPlaying, 2=UID_Persistency */
-        0x00, /* octet 9 bit mask: not used */
-        0x00, /* octet 10 bit mask: not used */
-        0x00, /* octet 11 bit mask: not used */
-        0x00, /* octet 12 bit mask: not used */
-        0x00, /* octet 13 bit mask: not used */
-        0x00, /* octet 14 bit mask: not used */
-        0x00  /* octet 15 bit mask: not used */
-    },
-    {   /* The player name, name length and character set id.*/
-        AVRC_CHARSET_ID_UTF8,
-        8,
-        (UINT8 *)"FM Radio"
-    }
-};
-
-/* do not use const - the player state may be changed by platform code */
-tBSA_ITEM_PLAYER * bsa_av_players [] =
-{
-    /* player1 - when using files (wave, SBC, mp3) in btui_app */
-    &bsa_av_player1_file,
-    /* player2 - when using windows media player */
-    &bsa_av_player2_media_player,
-    /* player3 - when using FM Radio */
-    &bsa_av_player3_fm
-};
-
-typedef struct
-{
-    tBSA_UID           uid;            /* The uid of this media element item */
-    UINT8               type;           /* Use AVRC_MEDIA_TYPE_AUDIO or AVRC_MEDIA_TYPE_VIDEO. */
-    tBSA_FULL_NAME     name;           /* The media name, name length and character set id. */
-    UINT8               attr_count;     /* The number of attributes in p_attr_list */
-    tBSA_ATTR_ENTRY    p_attr_list[7];    /* Attribute entry list. */
-} tBSA_APP_ITEM_MEDIA;
-
-/* App defined data */
-
-tBSA_APP_ITEM_MEDIA song1 =
-{
-    . uid = { 0x01 },
-    .type = AVRC_MEDIA_TYPE_AUDIO,
-    .name =
-    {   /* The player name, name length and character set id.*/
-        AVRC_CHARSET_ID_UTF8,
-        8,
-        (UINT8 *)"Beat It ",
-    },
-    .attr_count = 7,
-
-    .p_attr_list = {
-        {
-            AVRC_MEDIA_ATTR_ID_TITLE,
-            {   /* The player name, name length and character set id.*/
-                AVRC_CHARSET_ID_UTF8,
-                8,
-                (UINT8 *)"Beat It ",
-            },
-        },
-
-        {
-            AVRC_MEDIA_ATTR_ID_ARTIST,
-            {   /* The player name, name length and character set id.*/
-                AVRC_CHARSET_ID_UTF8,
-                16,
-                (UINT8 *)"Michael Jackson "
-            },
-        },
-
-        {
-            AVRC_MEDIA_ATTR_ID_ALBUM,
-            {   /* The player name, name length and character set id.*/
-                AVRC_CHARSET_ID_UTF8,
-                8,
-                (UINT8 *)"Thriller"
-            },
-        },
-
-        {
-            AVRC_MEDIA_ATTR_ID_GENRE,
-            {   /* The player name, name length and character set id.*/
-                AVRC_CHARSET_ID_UTF8,
-                8,
-                (UINT8 *)"SoftRock"
-            },
-        },
-
-        {
-            AVRC_MEDIA_ATTR_ID_NUM_TRACKS,
-            {   /* The player name, name length and character set id.*/
-                AVRC_CHARSET_ID_UTF8,
-                4,
-                (UINT8 *)"3   "
-            },
-        },
-
-        {
-            AVRC_MEDIA_ATTR_ID_TRACK_NUM,
-            {   /* The player name, name length and character set id.*/
-                AVRC_CHARSET_ID_UTF8,
-                4,
-                (UINT8 *)"1   "
-            },
-        },
-
-        {
-            AVRC_MEDIA_ATTR_ID_PLAYING_TIME,
-            {   /* The player name, name length and character set id.*/
-                AVRC_CHARSET_ID_UTF8,
-                8,
-                (UINT8 *)"269000  "
-            },
-        },
-    }
-};
-
-
-tBSA_APP_ITEM_MEDIA song2 =
-{
-     .uid = { 0x02 },
-    .type = AVRC_MEDIA_TYPE_AUDIO,
-    .name =
-    {   /* The player name, name length and character set id.*/
-        AVRC_CHARSET_ID_UTF8,
-        16,
-        (UINT8 *)"Happy Nation    ",
-    },
-    .attr_count = 7,
-
-    .p_attr_list = {
-        {
-            AVRC_MEDIA_ATTR_ID_TITLE,
-            {   /* The player name, name length and character set id.*/
-                AVRC_CHARSET_ID_UTF8,
-                16,
-                (UINT8 *)"Happy Nation    "
-            },
-        },
-
-        {
-            AVRC_MEDIA_ATTR_ID_ARTIST,
-            {   /* The player name, name length and character set id.*/
-                AVRC_CHARSET_ID_UTF8,
-                16,
-                (UINT8 *)"Jonas, Jenny    "
-            },
-        },
-
-        {
-            AVRC_MEDIA_ATTR_ID_ALBUM,
-            {   /* The player name, name length and character set id.*/
-                AVRC_CHARSET_ID_UTF8,
-                16,
-                (UINT8 *)"Ace of Base     "
-            },
-        },
-
-        {
-            AVRC_MEDIA_ATTR_ID_GENRE,
-            {   /* The player name, name length and character set id.*/
-                AVRC_CHARSET_ID_UTF8,
-                4,
-                (UINT8 *)"Pop "
-            },
-        },
-
-        {
-            AVRC_MEDIA_ATTR_ID_NUM_TRACKS,
-            {   /* The player name, name length and character set id.*/
-                AVRC_CHARSET_ID_UTF8,
-                4,
-                (UINT8 *)"2   "
-            },
-        },
-
-        {
-            AVRC_MEDIA_ATTR_ID_TRACK_NUM,
-            {   /* The player name, name length and character set id.*/
-                AVRC_CHARSET_ID_UTF8,
-                4,
-                (UINT8 *)"3   "
-            },
-        },
-
-        {
-            AVRC_MEDIA_ATTR_ID_PLAYING_TIME,
-            {   /* The player name, name length and character set id.*/
-                AVRC_CHARSET_ID_UTF8,
-                8,
-                (UINT8 *)"255000  "
-            },
-        },
-    }
-};
-
-
-tBSA_APP_ITEM_MEDIA song3 =
-{
-    . uid = { 0x03 },
-    .type = AVRC_MEDIA_TYPE_AUDIO,
-    .name =
-    {   /* The player name, name length and character set id.*/
-        AVRC_CHARSET_ID_UTF8,
-        16,
-        (UINT8 *)"River of Dreams ",
-    },
-    .attr_count = 7,
-    .p_attr_list = {
-        {
-            AVRC_MEDIA_ATTR_ID_TITLE,
-            {   /* The player name, name length and character set id.*/
-                AVRC_CHARSET_ID_UTF8,
-                16,
-                (UINT8 *)"River of Dreams "
-            },
-        },
-
-        {
-            AVRC_MEDIA_ATTR_ID_ARTIST,
-            {   /* The player name, name length and character set id.*/
-                AVRC_CHARSET_ID_UTF8,
-                16,
-                (UINT8 *)"Billy Joel      "
-            },
-        },
-
-        {
-            AVRC_MEDIA_ATTR_ID_ALBUM,
-            {   /* The player name, name length and character set id.*/
-                AVRC_CHARSET_ID_UTF8,
-                16,
-                (UINT8 *)"River of Dreams "
-            },
-        },
-
-        {
-            AVRC_MEDIA_ATTR_ID_GENRE,
-            {   /* The player name, name length and character set id.*/
-                AVRC_CHARSET_ID_UTF8,
-                4,
-                (UINT8 *)"Soul"
-            },
-        },
-
-        {
-            AVRC_MEDIA_ATTR_ID_NUM_TRACKS,
-            {   /* The player name, name length and character set id.*/
-                AVRC_CHARSET_ID_UTF8,
-                4,
-                (UINT8 *)"3    "
-            },
-        },
-
-        {
-            AVRC_MEDIA_ATTR_ID_TRACK_NUM,
-            {   /* The player name, name length and character set id.*/
-                AVRC_CHARSET_ID_UTF8,
-                4,
-                (UINT8 *)"3   "
-            },
-        },
-
-        {
-            AVRC_MEDIA_ATTR_ID_PLAYING_TIME,
-            {   /* The player name, name length and character set id.*/
-                AVRC_CHARSET_ID_UTF8,
-                8,
-                (UINT8 *)"211000  "
-            },
-        },
-    }
-};
-
-#define BSA_AV_NUMSONGS                3
-
-tBSA_APP_ITEM_MEDIA * bsa_av_songs[] =
-{
-    &song1,
-    &song2,
-    &song3
-};
-
 typedef UINT16          tBSA_AV_EVT_MASK;
 typedef struct {
     tBSA_AV_EVT_MASK    evt_mask;
     UINT8               label[AVRC_NUM_NOTIF_EVENTS];
 } tBSA_AV_REG_EVT;
 
-#define BSA_ATTR_STRING_LEN 15
+#define APP_AV_ATTR_STRING_LEN 15
 
 typedef struct {
-    UINT8   val1[BSA_ATTR_STRING_LEN];
-    UINT8   val2[BSA_ATTR_STRING_LEN];
+    UINT8   val1[APP_AV_ATTR_STRING_LEN];
+    UINT8   val2[APP_AV_ATTR_STRING_LEN];
 } tBSA_AV_META_ATTRIB_SETTINGS;
 
 typedef struct {
     UINT8   attrib_id;
     UINT8   curr_value;
     BOOLEAN value_updated;
-    UINT8   attrib_str[BSA_ATTR_STRING_LEN];
+    UINT8   attrib_str[APP_AV_ATTR_STRING_LEN];
     tBSA_AV_META_ATTRIB_SETTINGS attr_settings[2];
 } tBSA_AV_META_ATTRIB;
 
@@ -615,7 +208,6 @@ typedef struct {
     UINT8   sys_stat;
 } tBSA_AV_STAT_INFO;
 
-
 typedef struct {
     tBSA_AV_REG_EVT        registered_events;
     UINT16                 charset_id;
@@ -629,24 +221,14 @@ typedef struct {
     UINT16                 cur_uid_counter;    /* always 0 -> for database unaware players */
 } tBSA_AV_METADATA;
 
-
 typedef struct
 {
     UINT8               cur_play;
     UINT8               play_count;
     tBSA_AV_METADATA    meta_info;
-} tBSA_AV_CB;
+} tAPP_AV_CB;
 
-tBSA_AV_CB *p_bsa_av_cb = NULL;
-
-/* UID is composed of FOLDER ID and FILE ID */
-#define AVRCP_NOW_PLAYING_FOLDER_ID_FIRST_BYTE  0x02/* First byte of NOW_PLAYING folder UID 0x02 */
-#define AVRCP_NOW_PLAYING_FOLDER_ID     0x02000000  /* NOW_PLAYING folder UID */
-#define AVRCP_PLAY_LISTS_FOLDER_ID      0x00000000  /* PLAY_LISTS folder UID */
-#define AVRCP_NOW_PLAYING_FILE_ID       0x00000000  /* First now playing file UID */
-#define AVRCP_NO_NOW_PLAYING_FOLDER_ID  0xFFFFFFFF  /* No folder is selected */
-#define AVRCP_NO_NOW_PLAYING_FILE_ID    0xFFFFFFFF  /* No file is selected */
-
+tAPP_AV_CB *p_app_av_cb = NULL;
 
 /*
  * Global variables
@@ -751,7 +333,8 @@ static const char *app_av_display_vendor_command(UINT8 command);
 static int app_av_uipc_reconfig(void);
 static void app_av_delay_start(tAPP_AV_DELAY *p_delay);
 static int app_av_stop_current(void);
-static int app_av_build_notification_response(UINT8 event_id, tBSA_AV_META_RSP_CMD *bsa_av_meta_rsp_cmd);
+static int app_av_build_notification_response(UINT8 event_id,
+                    tBSA_AV_META_RSP_CMD *p_cmd);
 static void app_av_init_meta_data();
 static int app_av_rc_send_register_volume_change_notify_vd_command(UINT8 rc_handle);
 static int app_av_save_status(const RK_BT_SOURCE_EVENT event);
@@ -1029,8 +612,6 @@ void app_av_cback(tBSA_AV_EVT event, tBSA_AV_MSG *p_data)
         {
             if (p_data->open.status == BSA_SUCCESS)
             {
-
-
                 /* Copy the BD address of the connected device */
                 bdcpy(connection->bd_addr, p_data->open.bd_addr);
                 connection->is_open = TRUE;
@@ -1518,10 +1099,58 @@ void app_av_cback(tBSA_AV_EVT event, tBSA_AV_MSG *p_data)
             break;
 
         case BSA_AVRC_PDU_PLAY_ITEM:
+            APP_DEBUG0("BSA_AVRC_PDU_PLAY_ITEM");
             app_av_rc_play_item_meta_response(0, &p_data->meta_msg);
+            break;
+
+        case BSA_AVRC_PDU_ADD_TO_NOW_PLAYING:
+            APP_DEBUG0("BSA_AVRC_PDU_ADD_TO_NOW_PLAYING");
+            app_av_rc_add_to_now_playing_meta_response(0, &p_data->meta_msg);
             break;
         }
 
+        break;
+
+    case BSA_AV_META_RSP_EVT:
+        APP_DEBUG1("BSA_AV_META_RSP_EVT handle:%d", p_data->meta_rsp.rc_handle);
+
+        APP_DEBUG1("    label=%d, pdu=%d",
+            p_data->meta_rsp.label, p_data->meta_rsp.pdu);
+
+        app_av_cb.label = p_data->meta_rsp.label;
+
+        switch(p_data->meta_rsp.pdu)
+        {
+            case BSA_AVRC_PDU_REGISTER_NOTIFICATION:
+                APP_DEBUG1("BSA_AVRC_PDU_REGISTER_NOTIFICATION event_id:0x%x, code:0x%x\n",
+                    p_data->meta_rsp.param.notify_status.event_id,
+                    p_data->meta_rsp.param.notify_status.code);
+
+                if (p_data->meta_rsp.param.notify_status.event_id == AVRC_EVT_VOLUME_CHANGE &&
+                    p_data->meta_rsp.param.notify_status.code == AVRC_RSP_CHANGED)
+                {
+                    APP_DEBUG1("Volume changed :0x%x", p_data->meta_rsp.param.notify_status.param.volume);
+                }
+
+                if (p_data->meta_rsp.param.notify_status.event_id == AVRC_EVT_PLAY_STATUS_CHANGE)
+                {
+                    switch(p_data->meta_rsp.param.notify_status.param.play_status)
+                    {
+                        case AVRC_PLAYSTATE_PLAYING:
+                             APP_DEBUG0("Play Status Playing");
+                             break;
+                        case AVRC_PLAYSTATE_STOPPED:
+                        case AVRC_PLAYSTATE_PAUSED:
+                             APP_DEBUG0("Play Status Stopped");
+                             break;
+                        default:
+                             APP_DEBUG1("Play Status Playing : %02x",
+                                 p_data->meta_rsp.param.notify_status.param.play_status);
+                             break;
+                    }
+                }
+                break;
+        }
         break;
 
     case BSA_AV_FEAT_EVT:
@@ -1567,17 +1196,12 @@ static void app_avk_rc_command_thread(void)
 
     if(app_av_cb.s_command == APP_AV_FORWARD)
     {
-        p_bsa_av_cb->cur_play++;
-        if(p_bsa_av_cb->cur_play >= BSA_AV_NUMSONGS)
-            p_bsa_av_cb->cur_play = 0;
+        app_av_change_song(TRUE);
         app_av_rc_change_track();
     }
     else if(app_av_cb.s_command == APP_AV_BACKWARD)
     {
-        if(p_bsa_av_cb->cur_play > 0)
-            p_bsa_av_cb->cur_play--;
-        else
-            p_bsa_av_cb->cur_play = BSA_AV_NUMSONGS -1;
+        app_av_change_song(FALSE);
         app_av_rc_change_track();
     }
 }
@@ -1604,7 +1228,6 @@ int app_av_open(BD_ADDR *bd_addr_in)
 
     if(bd_addr_in == NULL)
     {
-
     APP_INFO0("Bluetooth AV Open menu:");
     APP_INFO0("    0 Device from XML database (already paired)");
     APP_INFO0("    1 Device found in last discovery");
@@ -1820,7 +1443,7 @@ void app_av_toggle_tone(void)
 int app_av_play_tone(void)
 {
     int status;
-    tBSA_AV_START start_param;
+    tBSA_AV_START srt;
 
     if( ((app_av_cb.play_state != APP_AV_PLAY_STOPPED) || app_av_cb.play_list) &&
             (app_av_cb.play_state != APP_AV_PLAY_PAUSED))
@@ -1834,23 +1457,23 @@ int app_av_play_tone(void)
     app_av_cb.sinus_type = 0;
 
     /* start AV stream */
-    BSA_AvStartInit(&start_param);
-    start_param.media_feeding.format = BSA_AV_CODEC_PCM;
+    BSA_AvStartInit(&srt);
+    srt.media_feeding.format = BSA_AV_CODEC_PCM;
 
-    start_param.media_feeding.cfg.pcm.sampling_freq = app_av_cb.tone_sample_freq;
-    start_param.media_feeding.cfg.pcm.num_channel = 2;
-    start_param.media_feeding.cfg.pcm.bit_per_sample = 16;
-    start_param.feeding_mode = app_av_cb.uipc_cfg.is_blocking? BSA_AV_FEEDING_ASYNCHRONOUS: BSA_AV_FEEDING_SYNCHRONOUS;
-    start_param.latency = app_av_cb.uipc_cfg.period/1000; /* convert us to ms, synchronous feeding mode only*/
+    srt.media_feeding.cfg.pcm.sampling_freq = app_av_cb.tone_sample_freq;
+    srt.media_feeding.cfg.pcm.num_channel = 2;
+    srt.media_feeding.cfg.pcm.bit_per_sample = 16;
+    srt.feeding_mode = app_av_cb.uipc_cfg.is_blocking? BSA_AV_FEEDING_ASYNCHRONOUS: BSA_AV_FEEDING_SYNCHRONOUS;
+    srt.latency = app_av_cb.uipc_cfg.period/1000; /* convert us to ms, synchronous feeding mode only*/
 
     /* Content Protection */
-    start_param.cp_id = app_av_cb.cp_id;
-    start_param.scmst_flag = app_av_cb.cp_scms_flag;
+    srt.cp_id = app_av_cb.cp_id;
+    srt.scmst_flag = app_av_cb.cp_scms_flag;
 
     app_av_cb.play_type = APP_AV_PLAYTYPE_TONE;
     app_av_cb.play_list = FALSE;
 
-    status = BSA_AvStart(&start_param);
+    status = BSA_AvStart(&srt);
     if (status != BSA_SUCCESS)
     {
         APP_ERROR1("BSA_AvStart failed:%d", status);
@@ -1863,7 +1486,7 @@ int app_av_play_tone(void)
 int app_av_play_from_avk()
 {
     int status;
-    tBSA_AV_START start_param;
+    tBSA_AV_START srt;
 
     if ((app_av_cb.play_state != APP_AV_PLAY_STOPPED) || app_av_cb.play_list)
     {
@@ -1872,12 +1495,12 @@ int app_av_play_from_avk()
     }
 
     /* start AV stream */
-    BSA_AvStartInit(&start_param);
+    BSA_AvStartInit(&srt);
 
     app_av_cb.play_type = APP_AV_PLAYTYPE_AVK;
     app_av_cb.play_list = FALSE;
 
-    status = BSA_AvStart(&start_param);
+    status = BSA_AvStart(&srt);
     if (status != BSA_SUCCESS)
     {
         APP_ERROR1("BSA_AvStart failed:%d", status);
@@ -1899,7 +1522,7 @@ int app_av_play_from_avk()
 int app_av_play_file(void)
 {
     int status;
-    tBSA_AV_START start_param;
+    tBSA_AV_START srt;
     int choice;
     tAPP_WAV_FILE_FORMAT wav_format;
 
@@ -1934,49 +1557,49 @@ int app_av_play_file(void)
     app_av_cb.file_name[sizeof(app_av_cb.file_name)-1] = '\0';
 
     /* start AV stream */
-    BSA_AvStartInit(&start_param);
+    BSA_AvStartInit(&srt);
 
-    start_param.media_feeding.format = wav_format.codec;
+    srt.media_feeding.format = wav_format.codec;
     switch(wav_format.codec)
     {
     case BSA_AV_CODEC_PCM:
-        start_param.media_feeding.cfg.pcm.sampling_freq = wav_format.sample_rate;
-        start_param.media_feeding.cfg.pcm.num_channel = wav_format.nb_channels;
-        start_param.media_feeding.cfg.pcm.bit_per_sample = wav_format.bits_per_sample;
+        srt.media_feeding.cfg.pcm.sampling_freq = wav_format.sample_rate;
+        srt.media_feeding.cfg.pcm.num_channel = wav_format.nb_channels;
+        srt.media_feeding.cfg.pcm.bit_per_sample = wav_format.bits_per_sample;
         break;
     case BSA_AV_CODEC_APTX:
-        start_param.media_feeding.cfg.aptx.sampling_freq = wav_format.sample_rate;
+        srt.media_feeding.cfg.aptx.sampling_freq = wav_format.sample_rate;
         if (wav_format.nb_channels == 2)
         {
             if (wav_format.stereo_mode == 2)
             {
-                start_param.media_feeding.cfg.aptx.ch_mode = BSA_AV_CHANNEL_MODE_STEREO;
+                srt.media_feeding.cfg.aptx.ch_mode = BSA_AV_CHANNEL_MODE_STEREO;
             }
             else
             {
-                start_param.media_feeding.cfg.aptx.ch_mode = BSA_AV_CHANNEL_MODE_JOINT;
+                srt.media_feeding.cfg.aptx.ch_mode = BSA_AV_CHANNEL_MODE_JOINT;
             }
         }
         else
         {
-            start_param.media_feeding.cfg.aptx.ch_mode = BSA_AV_CHANNEL_MODE_MONO;
+            srt.media_feeding.cfg.aptx.ch_mode = BSA_AV_CHANNEL_MODE_MONO;
         }
         break;
     default:
         APP_ERROR1("Unsupported codec (x%x) in WAV file (%s)", wav_format.codec, app_av_cb.soundfile_list[choice]);
         return -1;
     }
-    start_param.feeding_mode = app_av_cb.uipc_cfg.is_blocking? BSA_AV_FEEDING_ASYNCHRONOUS: BSA_AV_FEEDING_SYNCHRONOUS;
-    start_param.latency = app_av_cb.uipc_cfg.period/1000; /* convert us to ms, synchronous feeding mode only*/
+    srt.feeding_mode = app_av_cb.uipc_cfg.is_blocking? BSA_AV_FEEDING_ASYNCHRONOUS: BSA_AV_FEEDING_SYNCHRONOUS;
+    srt.latency = app_av_cb.uipc_cfg.period/1000; /* convert us to ms, synchronous feeding mode only*/
 
     /* Content Protection */
-    start_param.cp_id = app_av_cb.cp_id;
-    start_param.scmst_flag = app_av_cb.cp_scms_flag;
+    srt.cp_id = app_av_cb.cp_id;
+    srt.scmst_flag = app_av_cb.cp_scms_flag;
 
     app_av_cb.play_type = APP_AV_PLAYTYPE_FILE;
     app_av_cb.play_list = FALSE;
 
-    status = BSA_AvStart(&start_param);
+    status = BSA_AvStart(&srt);
     if (status == BSA_ERROR_SRV_AV_FEEDING_NOT_SUPPORTED)
     {
         APP_ERROR0("BSA_AvStart failed because file encoding is not supported by remote devices");
@@ -2013,7 +1636,7 @@ int app_av_play_file(void)
 int app_av_play_playlist(UINT8 command)
 {
     int status;
-    tBSA_AV_START start_param;
+    tBSA_AV_START srt;
     tAPP_WAV_FILE_FORMAT wav_format;
     BOOLEAN format_known;
     int attempt = 0;
@@ -2069,7 +1692,7 @@ int app_av_play_playlist(UINT8 command)
         status = -1;
 
         /* Initialize the start parameters */
-        BSA_AvStartInit(&start_param);
+        BSA_AvStartInit(&srt);
         if (app_wav_format(app_av_cb.soundfile_list[app_av_cb.file_index], &wav_format) < 0)
         {
             APP_ERROR1("Unable to extract WAV format from:%s", app_av_cb.soundfile_list[app_av_cb.file_index]);
@@ -2079,30 +1702,30 @@ int app_av_play_playlist(UINT8 command)
             APP_INFO1("Let's try to play WAV file:%s format:", app_av_cb.soundfile_list[app_av_cb.file_index]);
             APP_INFO1("    codec(%s) ch(%d) bits(%d) rate(%d)", (wav_format.codec==BSA_AV_CODEC_PCM)?"PCM":"apt-X",
                     wav_format.nb_channels, wav_format.bits_per_sample, (int)wav_format.sample_rate);
-            start_param.media_feeding.format = wav_format.codec;
+            srt.media_feeding.format = wav_format.codec;
             switch(wav_format.codec)
             {
             case BSA_AV_CODEC_PCM:
-                start_param.media_feeding.cfg.pcm.sampling_freq = wav_format.sample_rate;
-                start_param.media_feeding.cfg.pcm.num_channel = wav_format.nb_channels;
-                start_param.media_feeding.cfg.pcm.bit_per_sample = wav_format.bits_per_sample;
+                srt.media_feeding.cfg.pcm.sampling_freq = wav_format.sample_rate;
+                srt.media_feeding.cfg.pcm.num_channel = wav_format.nb_channels;
+                srt.media_feeding.cfg.pcm.bit_per_sample = wav_format.bits_per_sample;
                 break;
             case BSA_AV_CODEC_APTX:
-                start_param.media_feeding.cfg.aptx.sampling_freq = wav_format.sample_rate;
+                srt.media_feeding.cfg.aptx.sampling_freq = wav_format.sample_rate;
                 if (wav_format.nb_channels == 2)
                 {
                     if (wav_format.stereo_mode == 2)
                     {
-                        start_param.media_feeding.cfg.aptx.ch_mode = BSA_AV_CHANNEL_MODE_STEREO;
+                        srt.media_feeding.cfg.aptx.ch_mode = BSA_AV_CHANNEL_MODE_STEREO;
                     }
                     else
                     {
-                        start_param.media_feeding.cfg.aptx.ch_mode = BSA_AV_CHANNEL_MODE_JOINT;
+                        srt.media_feeding.cfg.aptx.ch_mode = BSA_AV_CHANNEL_MODE_JOINT;
                     }
                 }
                 else
                 {
-                    start_param.media_feeding.cfg.aptx.ch_mode = BSA_AV_CHANNEL_MODE_MONO;
+                    srt.media_feeding.cfg.aptx.ch_mode = BSA_AV_CHANNEL_MODE_MONO;
                 }
                 break;
             default:
@@ -2110,8 +1733,8 @@ int app_av_play_playlist(UINT8 command)
                 format_known = FALSE;
                 break;
             }
-            start_param.feeding_mode = app_av_cb.uipc_cfg.is_blocking? BSA_AV_FEEDING_ASYNCHRONOUS: BSA_AV_FEEDING_SYNCHRONOUS;
-            start_param.latency = app_av_cb.uipc_cfg.period/1000; /* convert us to ms, synchronous feeding mode only */
+            srt.feeding_mode = app_av_cb.uipc_cfg.is_blocking? BSA_AV_FEEDING_ASYNCHRONOUS: BSA_AV_FEEDING_SYNCHRONOUS;
+            srt.latency = app_av_cb.uipc_cfg.period/1000; /* convert us to ms, synchronous feeding mode only */
         }
 
         if (format_known)
@@ -2120,10 +1743,10 @@ int app_av_play_playlist(UINT8 command)
             app_av_cb.file_name[sizeof(app_av_cb.file_name)-1] = '\0';
 
             /* Content Protection */
-            start_param.cp_id = app_av_cb.cp_id;
-            start_param.scmst_flag = app_av_cb.cp_scms_flag;
+            srt.cp_id = app_av_cb.cp_id;
+            srt.scmst_flag = app_av_cb.cp_scms_flag;
 
-            status = BSA_AvStart(&start_param);
+            status = BSA_AvStart(&srt);
             if (status != BSA_SUCCESS)
             {
                 APP_ERROR1("BSA_AvStart failed: %d", status);
@@ -2187,7 +1810,7 @@ int app_av_play_mic(void)
 #ifdef PCM_ALSA
     int status;
     tAPP_ALSA_CAPTURE_OPEN asla_capture;
-    tBSA_AV_START start_param;
+    tBSA_AV_START srt;
 
     if (app_av_cb.play_state != APP_AV_PLAY_STOPPED)
     {
@@ -2213,21 +1836,21 @@ int app_av_play_mic(void)
     app_av_cb.alsa_capture_opened = TRUE;
 
     /* start Av stream */
-    BSA_AvStartInit(&start_param);
-    start_param.media_feeding.format = BSA_AV_CODEC_PCM;
-    start_param.media_feeding.cfg.pcm.sampling_freq = 48000;
-    start_param.media_feeding.cfg.pcm.num_channel = 2;
-    start_param.media_feeding.cfg.pcm.bit_per_sample = 16;
-    start_param.feeding_mode = app_av_cb.uipc_cfg.is_blocking? BSA_AV_FEEDING_ASYNCHRONOUS: BSA_AV_FEEDING_SYNCHRONOUS;
-    start_param.latency = app_av_cb.uipc_cfg.period/1000; /* convert us to ms, synchronous feeding mode only */
+    BSA_AvStartInit(&srt);
+    srt.media_feeding.format = BSA_AV_CODEC_PCM;
+    srt.media_feeding.cfg.pcm.sampling_freq = 48000;
+    srt.media_feeding.cfg.pcm.num_channel = 2;
+    srt.media_feeding.cfg.pcm.bit_per_sample = 16;
+    srt.feeding_mode = app_av_cb.uipc_cfg.is_blocking? BSA_AV_FEEDING_ASYNCHRONOUS: BSA_AV_FEEDING_SYNCHRONOUS;
+    srt.latency = app_av_cb.uipc_cfg.period/1000; /* convert us to ms, synchronous feeding mode only */
 
     /* Content Protection */
-    start_param.cp_id = app_av_cb.cp_id;
-    start_param.scmst_flag = app_av_cb.cp_scms_flag;
+    srt.cp_id = app_av_cb.cp_id;
+    srt.scmst_flag = app_av_cb.cp_scms_flag;
 
     app_av_cb.play_type = APP_AV_PLAYTYPE_MIC;
 
-    status = BSA_AvStart(&start_param);
+    status = BSA_AvStart(&srt);
     if (status != BSA_SUCCESS)
     {
         APP_ERROR1("BSA_AvStart failed: %d", status);
@@ -2404,7 +2027,7 @@ int app_av_pause(void)
 int app_av_resume(void)
 {
     int status;
-    tBSA_AV_START start_param;
+    tBSA_AV_START srt;
 
     if (app_av_cb.play_state == APP_AV_PLAY_STARTED)
     {
@@ -2413,16 +2036,16 @@ int app_av_resume(void)
     }
 
     /* start Av stream */
-    BSA_AvStartInit(&start_param);
-    start_param.media_feeding = app_av_cb.media_feeding;
-    start_param.feeding_mode = app_av_cb.uipc_cfg.is_blocking? BSA_AV_FEEDING_ASYNCHRONOUS: BSA_AV_FEEDING_SYNCHRONOUS;
-    start_param.latency = app_av_cb.uipc_cfg.period/1000; /* convert us to ms, synchronous feeding mode only*/
+    BSA_AvStartInit(&srt);
+    srt.media_feeding = app_av_cb.media_feeding;
+    srt.feeding_mode = app_av_cb.uipc_cfg.is_blocking? BSA_AV_FEEDING_ASYNCHRONOUS: BSA_AV_FEEDING_SYNCHRONOUS;
+    srt.latency = app_av_cb.uipc_cfg.period/1000; /* convert us to ms, synchronous feeding mode only*/
 
     /* Content Protection */
-    start_param.cp_id = app_av_cb.cp_id;
-    start_param.scmst_flag = app_av_cb.cp_scms_flag;
+    srt.cp_id = app_av_cb.cp_id;
+    srt.scmst_flag = app_av_cb.cp_scms_flag;
 
-    status = BSA_AvStart(&start_param);
+    status = BSA_AvStart(&srt);
     if (status != BSA_SUCCESS)
     {
         APP_ERROR1("BSA_AvStart failed: %d", status);
@@ -2531,7 +2154,7 @@ void app_av_rc_send_click(int index, int command)
 int app_av_rc_send_command(int index, int command, tBSA_AV_STATE key_state)
 {
     int status;
-    tBSA_AV_REM_CMD bsa_av_rc_cmd;
+    tBSA_AV_REM_CMD cmd;
 
     /* Sanity check */
     if ((index < 0) || (index >= APP_NUM_ELEMENTS(app_av_cb.connections)))
@@ -2541,12 +2164,12 @@ int app_av_rc_send_command(int index, int command, tBSA_AV_STATE key_state)
     }
 
     /* Send remote control command */
-    status = BSA_AvRemoteCmdInit(&bsa_av_rc_cmd);
-    bsa_av_rc_cmd.rc_handle = app_av_cb.connections[index].rc_handle;
-    bsa_av_rc_cmd.key_state = key_state;
-    bsa_av_rc_cmd.rc_id = (tBSA_AV_RC)command;
-    bsa_av_rc_cmd.label = app_av_get_label(); /* Just used to distinguish commands */
-    status = BSA_AvRemoteCmd(&bsa_av_rc_cmd);
+    status = BSA_AvRemoteCmdInit(&cmd);
+    cmd.rc_handle = app_av_cb.connections[index].rc_handle;
+    cmd.key_state = key_state;
+    cmd.rc_id = (tBSA_AV_RC)command;
+    cmd.label = app_av_get_label(); /* Just used to distinguish commands */
+    status = BSA_AvRemoteCmd(&cmd);
     if (status != BSA_SUCCESS)
     {
         APP_ERROR1("BSA_AvRemoteCmd failed: %d", status);
@@ -2597,7 +2220,7 @@ static int app_av_rc_send_register_volume_change_notify_vd_command(UINT8 rc_hand
 int app_av_rc_send_absolute_volume_vd_command(int index, int volume)
 {
     int status;
-    tBSA_AV_VEN_CMD bsa_av_vd_cmd;
+    tBSA_AV_VEN_CMD cmd;
 
     /* Sanity check */
     if ((index < 0) || (index >= APP_NUM_ELEMENTS(app_av_cb.connections)))
@@ -2607,17 +2230,17 @@ int app_av_rc_send_absolute_volume_vd_command(int index, int volume)
     }
 
     /* Send remote control command */
-    status = BSA_AvVendorCmdInit(&bsa_av_vd_cmd);
-    bsa_av_vd_cmd.rc_handle = app_av_cb.connections[index].rc_handle;
-    bsa_av_vd_cmd.ctype = BSA_AV_CMD_CTRL;
-    bsa_av_vd_cmd.data[0] = BSA_AV_RC_VD_SET_ABSOLUTE_VOLUME;
-    bsa_av_vd_cmd.data[1] = 0; /* reserved & packet type */
-    bsa_av_vd_cmd.data[2] = 0; /* length high*/
-    bsa_av_vd_cmd.data[3] = 1; /* length low*/
-    bsa_av_vd_cmd.data[4] = volume; /* Absolute volume */
-    bsa_av_vd_cmd.length = 5;
-    bsa_av_vd_cmd.label = app_av_get_label(); /* Just used to distinguish commands */
-    status = BSA_AvVendorCmd(&bsa_av_vd_cmd);
+    status = BSA_AvVendorCmdInit(&cmd);
+    cmd.rc_handle = app_av_cb.connections[index].rc_handle;
+    cmd.ctype = BSA_AV_CMD_CTRL;
+    cmd.data[0] = BSA_AV_RC_VD_SET_ABSOLUTE_VOLUME;
+    cmd.data[1] = 0; /* reserved & packet type */
+    cmd.data[2] = 0; /* length high*/
+    cmd.data[3] = 1; /* length low*/
+    cmd.data[4] = volume; /* Absolute volume */
+    cmd.length = 5;
+    cmd.label = app_av_get_label(); /* Just used to distinguish commands */
+    status = BSA_AvVendorCmd(&cmd);
     if (status != BSA_SUCCESS)
     {
         APP_ERROR1("BSA_AvVendorCmd failed: %d", status);
@@ -2638,7 +2261,7 @@ int app_av_rc_send_absolute_volume_vd_command(int index, int volume)
 int app_av_rc_send_get_element_attributes_vd_command(int index)
 {
     int status;
-    tBSA_AV_VEN_CMD bsa_av_vd_cmd;
+    tBSA_AV_VEN_CMD cmd;
 
     /* Sanity check */
     if ((index < 0) || (index >= APP_NUM_ELEMENTS(app_av_cb.connections)))
@@ -2648,27 +2271,27 @@ int app_av_rc_send_get_element_attributes_vd_command(int index)
     }
 
     /* Send remote control command */
-    status = BSA_AvVendorCmdInit(&bsa_av_vd_cmd);
-    bsa_av_vd_cmd.rc_handle = app_av_cb.connections[index].rc_handle;
-    bsa_av_vd_cmd.ctype = BSA_AV_CMD_STATUS;
-    bsa_av_vd_cmd.data[0] = BSA_AV_RC_VD_GET_ELEMENT_ATTR;
-    bsa_av_vd_cmd.data[1] = 0; /* reserved & packet type */
-    bsa_av_vd_cmd.data[2] = 0; /* length high*/
-    bsa_av_vd_cmd.data[3] = 0x11; /* length low*/
+    status = BSA_AvVendorCmdInit(&cmd);
+    cmd.rc_handle = app_av_cb.connections[index].rc_handle;
+    cmd.ctype = BSA_AV_CMD_STATUS;
+    cmd.data[0] = BSA_AV_RC_VD_GET_ELEMENT_ATTR;
+    cmd.data[1] = 0; /* reserved & packet type */
+    cmd.data[2] = 0; /* length high*/
+    cmd.data[3] = 0x11; /* length low*/
 
     /* data 4 ~ 11 are 0, which means "identifier 0x0 PLAYING" */
 
-    bsa_av_vd_cmd.data[12] = 2; /* num of attributes */
+    cmd.data[12] = 2; /* num of attributes */
 
     /* data 13 ~ 16 are 0x1, which means "attribute ID 1 : Title of media" */
-    bsa_av_vd_cmd.data[16] = 0x1;
+    cmd.data[16] = 0x1;
 
     /* data 17 ~ 20 are 0x7, which means "attribute ID 2 : Playing Time" */
-    bsa_av_vd_cmd.data[20] = 0x7;
+    cmd.data[20] = 0x7;
 
-    bsa_av_vd_cmd.length = 21;
-    bsa_av_vd_cmd.label = app_av_get_label(); /* Just used to distinguish commands */
-    status = BSA_AvVendorCmd(&bsa_av_vd_cmd);
+    cmd.length = 21;
+    cmd.label = app_av_get_label(); /* Just used to distinguish commands */
+    status = BSA_AvVendorCmd(&cmd);
     if (status != BSA_SUCCESS)
     {
         APP_ERROR1("BSA_AvVendorCmd failed: %d", status);
@@ -2693,7 +2316,7 @@ int app_av_rc_send_get_element_attributes_vd_response(int index)
     /* data associated with BSA_AvVendorRsp */
     int status, attr_id;
     UINT8   xx, attr_count;
-    tBSA_AV_VEN_RSP bsa_av_vd_rsp;
+    tBSA_AV_VEN_RSP rsp;
     char    *p_str;
     UINT16 charset_id, str_len, len;
     UINT8   *p_data;
@@ -2706,17 +2329,17 @@ int app_av_rc_send_get_element_attributes_vd_response(int index)
     }
 
     /* Send remote control command */
-    status = BSA_AvVendorRspInit(&bsa_av_vd_rsp);
-    bsa_av_vd_rsp.rc_handle = app_av_cb.connections[index].rc_handle;
-    bsa_av_vd_rsp.ctype = 0xc; /*BTA_AV_RSP_IMPL_STBL - Stable*/
-    bsa_av_vd_rsp.data[0] = BSA_AV_RC_VD_GET_ELEMENT_ATTR;
-    bsa_av_vd_rsp.data[1] = 0; /* reserved & packet type */
+    status = BSA_AvVendorRspInit(&rsp);
+    rsp.rc_handle = app_av_cb.connections[index].rc_handle;
+    rsp.ctype = 0xc; /*BTA_AV_RSP_IMPL_STBL - Stable*/
+    rsp.data[0] = BSA_AV_RC_VD_GET_ELEMENT_ATTR;
+    rsp.data[1] = 0; /* reserved & packet type */
 
     len = 0;
     str_len = 0;
     attr_count =  7;    /*  Fill all the media attributes or only those requested by the AVRCP controller */
 
-    p_data = &bsa_av_vd_rsp.data[4];
+    p_data = &rsp.data[4];
     UINT8_TO_BE_STREAM(p_data, attr_count);
     len = 1 ;
 
@@ -2766,15 +2389,15 @@ int app_av_rc_send_get_element_attributes_vd_response(int index)
     }
 
     /*  reposition and update with length of GetElementAttribute response block */
-    p_data = &bsa_av_vd_rsp.data[2];
+    p_data = &rsp.data[2];
     UINT16_TO_BE_STREAM(p_data, len);
-    /* bsa_av_vd_rsp.data[2] - length high*/
-    /* bsa_av_vd_rsp.data[3] - length low*/
+    /* rsp.data[2] - length high*/
+    /* rsp.data[3] - length low*/
 
-    bsa_av_vd_rsp.length = 4 + len; /* Add the length of first four bytes to payload length */
+    rsp.length = 4 + len; /* Add the length of first four bytes to payload length */
 
-    bsa_av_vd_rsp.label = app_av_get_label(); /* Just used to distinguish commands */
-    status = BSA_AvVendorRsp(&bsa_av_vd_rsp);
+    rsp.label = app_av_get_label(); /* Just used to distinguish commands */
+    status = BSA_AvVendorRsp(&rsp);
     if (status != BSA_SUCCESS)
     {
         APP_ERROR1("BSA_AvVendorRsp failed: %d", status);
@@ -2801,9 +2424,10 @@ int app_av_rc_send_get_element_attributes_meta_response(int index)
     /* data associated with BSA_AvMetaRsp */
     int status;
     UINT8   xx, attr_count;
-    tBSA_AV_META_RSP_CMD bsa_av_meta_rsp_cmd;
+    tBSA_AV_META_RSP_CMD cmd;
 
     tBSA_AV_ATTR_ENTRY *p_attr = NULL;
+    tBSA_ATTR_ENTRY *p_app_av_attr = NULL;
 
     /* Sanity check */
     if ((index < 0) || (index >= APP_NUM_ELEMENTS(app_av_cb.connections)))
@@ -2812,44 +2436,49 @@ int app_av_rc_send_get_element_attributes_meta_response(int index)
         return -1;
     }
 
-    if(p_bsa_av_cb->cur_play >= BSA_AV_NUMSONGS)
+    if(p_app_av_cb->cur_play >= APP_AV_NUMSONGS)
     {
         APP_ERROR0("song index out of bounds");
         return -1;
     }
 
     /* Send remote control response */
-    status = BSA_AvMetaRspInit(&bsa_av_meta_rsp_cmd);
+    status = BSA_AvMetaRspInit(&cmd);
 
-    bsa_av_meta_rsp_cmd.rc_handle = app_av_cb.connections[index].rc_handle;
-    bsa_av_meta_rsp_cmd.pdu = BSA_AVRC_PDU_GET_ELEMENT_ATTR;
+    cmd.rc_handle = app_av_cb.connections[index].rc_handle;
+    cmd.pdu = BSA_AVRC_PDU_GET_ELEMENT_ATTR;
 
-    attr_count =  bsa_av_songs[p_bsa_av_cb->cur_play]->attr_count;
-    bsa_av_meta_rsp_cmd.param.get_elem_attrs.num_attrs = attr_count;
+    attr_count =  app_av_songs[p_app_av_cb->cur_play]->attr_count;
+    cmd.param.get_elem_attrs.num_attrs = attr_count;
 
-    p_attr = (tBSA_AV_ATTR_ENTRY *) &bsa_av_meta_rsp_cmd.param.get_elem_attrs.attrs;
+    p_attr = (tBSA_AV_ATTR_ENTRY *) &cmd.param.get_elem_attrs.attrs;
 
     for (xx=0; xx<attr_count; xx++)
     {
-        p_attr[xx].name.charset_id = bsa_av_songs[p_bsa_av_cb->cur_play]->p_attr_list[xx].name.charset_id;
-        p_attr[xx].name.str_len = bsa_av_songs[p_bsa_av_cb->cur_play]->p_attr_list[xx].name.str_len;
-        p_attr[xx].attr_id = bsa_av_songs[p_bsa_av_cb->cur_play]->p_attr_list[xx].attr_id;
+        p_app_av_attr = &(app_av_songs[p_app_av_cb->cur_play]->p_attr_list[xx]);
+        p_attr[xx].name.charset_id = p_app_av_attr->name.charset_id;
+        p_attr[xx].name.str_len = p_app_av_attr->name.str_len;
+        p_attr[xx].attr_id = p_app_av_attr->attr_id;
 
-        if(bsa_av_songs[p_bsa_av_cb->cur_play]->p_attr_list[xx].name.str_len != 0 && bsa_av_songs[p_bsa_av_cb->cur_play]->p_attr_list[xx].name.p_str)
+        if(p_app_av_attr->name.str_len != 0 && p_app_av_attr->name.p_str)
         {
-            strncpy((char*) p_attr[xx].str, (char*) bsa_av_songs[p_bsa_av_cb->cur_play]->p_attr_list[xx].name.p_str, BSA_AV_META_INFO_LEN_MAX - 1);
-            APP_INFO1("Attr ID %d, string name %s", bsa_av_songs[p_bsa_av_cb->cur_play]->p_attr_list[xx].attr_id, p_attr[xx].str);
+            strncpy((char*) p_attr[xx].str, (char*) p_app_av_attr->name.p_str,
+                        BSA_AV_META_INFO_LEN_MAX - 1);
+            APP_INFO1("Attr ID %d, string name %s",
+                        p_app_av_attr->attr_id, p_attr[xx].str);
         }
     }
 
-    bsa_av_meta_rsp_cmd.label = app_av_cb.label;
+    cmd.label = app_av_cb.label;
 
-    status = BSA_AvMetaRsp(&bsa_av_meta_rsp_cmd);
+    status = BSA_AvMetaRsp(&cmd);
     if (status != BSA_SUCCESS)
     {
         APP_ERROR1("BSA_AvMetaRsp failed: %d", status);
         return status;
     }
+
+    app_av_change_song(TRUE);
     return 0;
 }
 
@@ -2867,7 +2496,7 @@ int app_av_rc_send_play_status_meta_response(int index)
     APP_INFO0("app_av_rc_send_play_status_meta_response");
     /* data associated with BSA_AvMetaRsp */
     int status;
-    tBSA_AV_META_RSP_CMD bsa_av_meta_rsp_cmd;
+    tBSA_AV_META_RSP_CMD cmd;
 
     /* Sanity check */
     if ((index < 0) || (index >= APP_NUM_ELEMENTS(app_av_cb.connections)))
@@ -2877,24 +2506,30 @@ int app_av_rc_send_play_status_meta_response(int index)
     }
 
     /* Send remote control response */
-    status = BSA_AvMetaRspInit(&bsa_av_meta_rsp_cmd);
+    status = BSA_AvMetaRspInit(&cmd);
 
-    bsa_av_meta_rsp_cmd.rc_handle = app_av_cb.connections[index].rc_handle;
-    bsa_av_meta_rsp_cmd.pdu = BSA_AVRC_PDU_GET_PLAY_STATUS;
-    bsa_av_meta_rsp_cmd.label = app_av_cb.label;
-    bsa_av_meta_rsp_cmd.param.get_play_status.song_len = (UINT32) 255000;    /*  Sample lenth of song 4' 15 seconds */
-    bsa_av_meta_rsp_cmd.param.get_play_status.song_pos = (UINT32) 120000;    /*  Sample current position 2' 00 seconds */
+    cmd.rc_handle = app_av_cb.connections[index].rc_handle;
+    cmd.pdu = BSA_AVRC_PDU_GET_PLAY_STATUS;
+    cmd.label = app_av_cb.label;
+    cmd.param.get_play_status.song_len = (UINT32) 255000;    /*  Sample lenth of song 4' 15 seconds */
+    cmd.param.get_play_status.song_pos = (UINT32) 120000;    /*  Sample current position 2' 00 seconds */
 
     if(app_av_cb.play_state == APP_AV_PLAY_STARTED)
-    bsa_av_meta_rsp_cmd.param.get_play_status.play_status = BSA_AVRC_PLAYSTATE_PLAYING ;
+    {
+        cmd.param.get_play_status.play_status = BSA_AVRC_PLAYSTATE_PLAYING ;
+    }
     else if(app_av_cb.play_state == APP_AV_PLAY_PAUSED)
-        bsa_av_meta_rsp_cmd.param.get_play_status.play_status = BSA_AVRC_PLAYSTATE_PAUSED;
+    {
+        cmd.param.get_play_status.play_status = BSA_AVRC_PLAYSTATE_PAUSED;
+    }
     else
-        bsa_av_meta_rsp_cmd.param.get_play_status.play_status = BSA_AVRC_PLAYSTATE_STOPPED;
+    {
+        cmd.param.get_play_status.play_status = BSA_AVRC_PLAYSTATE_STOPPED;
+    }
 
-    APP_INFO1("Play status = %d", bsa_av_meta_rsp_cmd.param.get_play_status.play_status);
+    APP_INFO1("Play status = %d", cmd.param.get_play_status.play_status);
 
-    status = BSA_AvMetaRsp(&bsa_av_meta_rsp_cmd);
+    status = BSA_AvMetaRsp(&cmd);
     if (status != BSA_SUCCESS)
     {
         APP_ERROR1("BSA_AvMetaRsp failed: %d", status);
@@ -2916,7 +2551,7 @@ int app_av_rc_set_addr_player_meta_response(int index, tBSA_AV_META_MSG_MSG *pMe
 {
     /* data associated with BSA_AvMetaRsp */
     int status;
-    tBSA_AV_META_RSP_CMD bsa_av_meta_rsp_cmd;
+    tBSA_AV_META_RSP_CMD cmd;
     UINT8       xx;
 
     /* Sanity check */
@@ -2933,7 +2568,7 @@ int app_av_rc_set_addr_player_meta_response(int index, tBSA_AV_META_MSG_MSG *pMe
     }
 
     /* Send remote control response */
-    status = BSA_AvMetaRspInit(&bsa_av_meta_rsp_cmd);
+    status = BSA_AvMetaRspInit(&cmd);
 
     if (status != BSA_SUCCESS)
     {
@@ -2941,31 +2576,31 @@ int app_av_rc_set_addr_player_meta_response(int index, tBSA_AV_META_MSG_MSG *pMe
         return status;
     }
 
-    bsa_av_meta_rsp_cmd.rc_handle = app_av_cb.connections[index].rc_handle;
-    bsa_av_meta_rsp_cmd.pdu = BSA_AVRC_PDU_SET_ADDRESSED_PLAYER;
-    bsa_av_meta_rsp_cmd.label = app_av_cb.label;
-    bsa_av_meta_rsp_cmd.param.addr_player_status.opcode = pMetaMsg->opcode;
-    bsa_av_meta_rsp_cmd.param.addr_player_status.status = AVRC_STS_NO_ERROR;
+    cmd.rc_handle = app_av_cb.connections[index].rc_handle;
+    cmd.pdu = BSA_AVRC_PDU_SET_ADDRESSED_PLAYER;
+    cmd.label = app_av_cb.label;
+    cmd.param.addr_player_status.opcode = pMetaMsg->opcode;
+    cmd.param.addr_player_status.status = AVRC_STS_NO_ERROR;
 
 
     /* make sure the player_id is valid */
-    for (xx=0; xx<BSA_AV_NUM_MPLAYERS; xx++)
+    for (xx=0; xx<APP_AV_NUM_MPLAYERS; xx++)
     {
-        if (bsa_av_players[xx] && pMetaMsg->player_id == bsa_av_players[xx]->player_id)
+        if (app_av_players[xx] && pMetaMsg->player_id == app_av_players[xx]->player_id)
         {
             APP_INFO1("SetAddressedPlayer succeeded ID %d", pMetaMsg->player_id);
-            p_bsa_av_cb->meta_info.addr_player_id = pMetaMsg->player_id;
+            p_app_av_cb->meta_info.addr_player_id = pMetaMsg->player_id;
             break;
         }
     }
 
-    if (xx == BSA_AV_NUM_MPLAYERS)
+    if (xx == APP_AV_NUM_MPLAYERS)
     {
-        bsa_av_meta_rsp_cmd.param.addr_player_status.status = AVRC_STS_BAD_PLAYER_ID;
+        cmd.param.addr_player_status.status = AVRC_STS_BAD_PLAYER_ID;
         APP_INFO1("SetAddressedPlayer failed bad ID %d", pMetaMsg->player_id);
     }
 
-    status = BSA_AvMetaRsp(&bsa_av_meta_rsp_cmd);
+    status = BSA_AvMetaRsp(&cmd);
     if (status != BSA_SUCCESS)
     {
         APP_ERROR1("BSA_AvMetaRsp failed: %d", status);
@@ -2988,7 +2623,7 @@ int app_av_rc_set_browsed_player_meta_response(int index, tBSA_AV_META_MSG_MSG *
 {
     /* data associated with BSA_AvMetaRsp */
     int status;
-    tBSA_AV_META_RSP_CMD bsa_av_meta_rsp_cmd;
+    tBSA_AV_META_RSP_CMD cmd;
     UINT8       xx;
 
     /* Sanity check */
@@ -3005,7 +2640,7 @@ int app_av_rc_set_browsed_player_meta_response(int index, tBSA_AV_META_MSG_MSG *
     }
 
     /* Send remote control response */
-    status = BSA_AvMetaRspInit(&bsa_av_meta_rsp_cmd);
+    status = BSA_AvMetaRspInit(&cmd);
 
     if (status != BSA_SUCCESS)
     {
@@ -3013,39 +2648,40 @@ int app_av_rc_set_browsed_player_meta_response(int index, tBSA_AV_META_MSG_MSG *
         return status;
     }
 
-    bsa_av_meta_rsp_cmd.rc_handle = app_av_cb.connections[index].rc_handle;
-    bsa_av_meta_rsp_cmd.pdu = BSA_AVRC_PDU_SET_BROWSED_PLAYER;
-    bsa_av_meta_rsp_cmd.label = app_av_cb.label;
-    bsa_av_meta_rsp_cmd.param.browsed_player_status.opcode = pMetaMsg->opcode;
-    bsa_av_meta_rsp_cmd.param.browsed_player_status.status = AVRC_STS_NO_ERROR;
+    cmd.rc_handle = app_av_cb.connections[index].rc_handle;
+    cmd.pdu = BSA_AVRC_PDU_SET_BROWSED_PLAYER;
+    cmd.label = app_av_cb.label;
+    cmd.param.browsed_player_status.opcode = pMetaMsg->opcode;
+    cmd.param.browsed_player_status.status = AVRC_STS_NO_ERROR;
 
 
     /* make sure the player_id is valid */
-    for (xx=0; xx<BSA_AV_NUM_MPLAYERS; xx++)
+    for (xx=0; xx<APP_AV_NUM_MPLAYERS; xx++)
     {
-        if (bsa_av_players[xx] && pMetaMsg->player_id == bsa_av_players[xx]->player_id &&
-            AVRC_PF_BROWSE_SUPPORTED(bsa_av_players[xx]->features))
+        if (app_av_players[xx] && pMetaMsg->player_id == app_av_players[xx]->player_id &&
+            AVRC_PF_BROWSE_SUPPORTED(app_av_players[xx]->features))
         {
             APP_INFO1("SetBorwsedPlayer succeeded ID %d", pMetaMsg->player_id);
-            p_bsa_av_cb->meta_info.browsed_player_id = pMetaMsg->player_id;
+            p_app_av_cb->meta_info.browsed_player_id = pMetaMsg->player_id;
 
-            bsa_av_meta_rsp_cmd.param.browsed_player_status.num_items = BSA_AV_NUMSONGS;
-            bsa_av_meta_rsp_cmd.param.browsed_player_status.charset_id = AVRC_CHARSET_ID_UTF8;
-            bsa_av_meta_rsp_cmd.param.browsed_player_status.folder_depth = 0;
-            bsa_av_meta_rsp_cmd.param.browsed_player_status.folder_name_size = 14;
-            strcpy((char *)bsa_av_meta_rsp_cmd.param.browsed_player_status.folder_name_str, "Player 1 files");
+            cmd.param.browsed_player_status.num_items = APP_AV_NUMSONGS;
+            cmd.param.browsed_player_status.charset_id = AVRC_CHARSET_ID_UTF8;
+            cmd.param.browsed_player_status.folder_depth = 0;
+            cmd.param.browsed_player_status.folder_name_size = 14;
+            strcpy((char *)cmd.param.browsed_player_status.folder_name_str,
+                    "Player 1 files");
 
             break;
         }
     }
 
-    if (xx == BSA_AV_NUM_MPLAYERS)
+    if (xx == APP_AV_NUM_MPLAYERS)
     {
-        bsa_av_meta_rsp_cmd.param.browsed_player_status.status = AVRC_STS_BAD_PLAYER_ID;
+        cmd.param.browsed_player_status.status = AVRC_STS_BAD_PLAYER_ID;
         APP_INFO1("SetBrowsedPlayer failed bad ID %d", pMetaMsg->player_id);
     }
 
-    status = BSA_AvMetaRsp(&bsa_av_meta_rsp_cmd);
+    status = BSA_AvMetaRsp(&cmd);
     if (status != BSA_SUCCESS)
     {
         APP_ERROR1("BSA_AvMetaRsp failed: %d", status);
@@ -3068,7 +2704,7 @@ int app_av_rc_change_path_meta_response(int index, tBSA_AV_META_MSG_MSG *pMetaMs
     APP_INFO0("app_av_rc_change_path_meta_response");
     /* data associated with BSA_AvMetaRsp */
     int status;
-    tBSA_AV_META_RSP_CMD bsa_av_meta_rsp_cmd;
+    tBSA_AV_META_RSP_CMD cmd;
 
     /* Sanity check */
     if ((index < 0) || (index >= APP_NUM_ELEMENTS(app_av_cb.connections)))
@@ -3084,7 +2720,7 @@ int app_av_rc_change_path_meta_response(int index, tBSA_AV_META_MSG_MSG *pMetaMs
     }
 
     /* Send remote control response */
-    status = BSA_AvMetaRspInit(&bsa_av_meta_rsp_cmd);
+    status = BSA_AvMetaRspInit(&cmd);
 
     if (status != BSA_SUCCESS)
     {
@@ -3092,16 +2728,37 @@ int app_av_rc_change_path_meta_response(int index, tBSA_AV_META_MSG_MSG *pMetaMs
         return status;
     }
 
-    bsa_av_meta_rsp_cmd.rc_handle = app_av_cb.connections[index].rc_handle;
-    bsa_av_meta_rsp_cmd.pdu = BSA_AVRC_PDU_CHANGE_PATH;
-    bsa_av_meta_rsp_cmd.label = app_av_cb.label;
-    bsa_av_meta_rsp_cmd.param.change_path.opcode = pMetaMsg->opcode;
+    cmd.rc_handle = app_av_cb.connections[index].rc_handle;
+    cmd.pdu = BSA_AVRC_PDU_CHANGE_PATH;
+    cmd.label = app_av_cb.label;
+    cmd.param.change_path.opcode = pMetaMsg->opcode;
 
-    /* For this app, will respond that change path is not supported, we have just one level flat directory structure */
-    bsa_av_meta_rsp_cmd.param.change_path.status = AVRC_STS_BAD_DIR;
-    bsa_av_meta_rsp_cmd.param.change_path.num_items = 0;
+    APP_INFO1("direction 0x%x", pMetaMsg->param.change_path.direction);
 
-    status = BSA_AvMetaRsp(&bsa_av_meta_rsp_cmd);
+    cmd.param.change_path.status = AVRC_STS_NO_ERROR;
+
+    if ( pMetaMsg->param.change_path.direction == AVRC_DIR_UP )
+    {
+        if(++app_av_cur_folder_position > APP_AV_CHANGE_FOLDER_MAX)
+        {
+            cmd.param.change_path.status = AVRC_STS_NOT_EXIST;
+            --app_av_cur_folder_position;
+        }
+    }
+    else if (pMetaMsg->param.change_path.direction == AVRC_DIR_DOWN )
+    {
+        if(--app_av_cur_folder_position < APP_AV_CHANGE_FOLDER_MIN)
+        {
+            cmd.param.change_path.status = AVRC_STS_NOT_EXIST;
+            ++app_av_cur_folder_position;
+        }
+    }
+    /* For this app, will respond that change path is not supported,
+     * we have just one level flat directory structure */
+    cmd.param.change_path.num_items = 3;
+    cmd.param.change_path.pdu = BSA_AVRC_PDU_CHANGE_PATH;
+
+    status = BSA_AvMetaRsp(&cmd);
     if (status != BSA_SUCCESS)
     {
         APP_ERROR1("BSA_AvMetaRsp failed: %d", status);
@@ -3126,10 +2783,11 @@ int app_av_rc_get_item_attr_meta_response(int index, tBSA_AV_META_MSG_MSG *pMeta
 
     /* data associated with BSA_AvMetaRsp */
     UINT8   xx, attr_count;
-    tBSA_AV_META_RSP_CMD bsa_av_meta_rsp_cmd;
+    tBSA_AV_META_RSP_CMD cmd;
     int status;
 
     tBSA_AV_ATTR_ENTRY *p_attr = NULL;
+    tBSA_ATTR_ENTRY *p_av_attr = NULL;
 
     /* Sanity check */
     if ((index < 0) || (index >= APP_NUM_ELEMENTS(app_av_cb.connections)))
@@ -3138,36 +2796,51 @@ int app_av_rc_get_item_attr_meta_response(int index, tBSA_AV_META_MSG_MSG *pMeta
         return -1;
     }
 
+    APP_INFO1("get_item_attr pdu:0x%x, opcode:0x%x, scope:0x%x, num_attr:0x%x",
+        pMetaMsg->param.get_item_attrs.pdu,
+        pMetaMsg->param.get_item_attrs.opcode,
+        pMetaMsg->param.get_item_attrs.scope,
+        pMetaMsg->param.get_item_attrs.num_attr);
+
     /* Send remote control response */
-    status = BSA_AvMetaRspInit(&bsa_av_meta_rsp_cmd);
+    status = BSA_AvMetaRspInit(&cmd);
 
-    bsa_av_meta_rsp_cmd.rc_handle = app_av_cb.connections[index].rc_handle;
-    bsa_av_meta_rsp_cmd.pdu = BSA_AVRC_PDU_GET_ITEM_ATTRIBUTES;
+    cmd.rc_handle = app_av_cb.connections[index].rc_handle;
+    cmd.pdu = BSA_AVRC_PDU_GET_ITEM_ATTRIBUTES;
 
-    bsa_av_meta_rsp_cmd.param.get_item_attrs.opcode = pMetaMsg->param.get_item_attrs.opcode;
+    cmd.param.get_item_attrs.opcode = pMetaMsg->param.get_item_attrs.opcode;
 
-    attr_count =  bsa_av_songs[p_bsa_av_cb->cur_play]->attr_count;
-    bsa_av_meta_rsp_cmd.param.get_elem_attrs.num_attrs = attr_count;
-
-    p_attr = (tBSA_AV_ATTR_ENTRY *) &bsa_av_meta_rsp_cmd.param.get_elem_attrs.attrs;
+    attr_count = pMetaMsg->param.get_item_attrs.num_attr;
+    if (attr_count == 0)
+    {
+        attr_count = app_av_songs[p_app_av_cb->cur_play]->attr_count;
+    }
+    p_attr = (tBSA_AV_ATTR_ENTRY *) &cmd.param.get_elem_attrs.attrs;
+    cmd.param.get_item_attrs.num_attrs = attr_count;
 
     for (xx=0; xx<attr_count; xx++)
     {
-        p_attr[xx].name.charset_id = bsa_av_songs[p_bsa_av_cb->cur_play]->p_attr_list[xx].name.charset_id;
-        p_attr[xx].name.str_len = bsa_av_songs[p_bsa_av_cb->cur_play]->p_attr_list[xx].name.str_len;
-        p_attr[xx].attr_id = bsa_av_songs[p_bsa_av_cb->cur_play]->p_attr_list[xx].attr_id;
+        p_av_attr = &(app_av_songs[p_app_av_cb->cur_play]->p_attr_list[xx]);
+        p_attr[xx].name.charset_id = p_av_attr->name.charset_id;
+        p_attr[xx].name.str_len = p_av_attr->name.str_len;
+        p_attr[xx].attr_id = p_av_attr->attr_id;
 
-        if(bsa_av_songs[p_bsa_av_cb->cur_play]->p_attr_list[xx].name.str_len != 0 && bsa_av_songs[p_bsa_av_cb->cur_play]->p_attr_list[xx].name.p_str)
+        if(p_av_attr->name.str_len != 0 && p_av_attr->name.p_str)
         {
-            strncpy((char*) p_attr[xx].str, (char*) bsa_av_songs[p_bsa_av_cb->cur_play]->p_attr_list[xx].name.p_str, BSA_AV_META_INFO_LEN_MAX - 1);
-            APP_INFO1("Attr ID %d, string name %s", bsa_av_songs[p_bsa_av_cb->cur_play]->p_attr_list[xx].attr_id, p_attr[xx].str);
+            strncpy((char*) p_attr[xx].str, (char*) p_av_attr->name.p_str,
+                    BSA_AV_META_INFO_LEN_MAX - 1);
+            APP_INFO1("Attr ID %d, string name %s", p_av_attr->attr_id, p_attr[xx].str);
         }
     }
 
+    memcpy(cmd.param.get_item_attrs.attrs, p_attr, attr_count * sizeof(tBSA_AV_ATTR_ENTRY));
+    cmd.label = app_av_cb.label;
 
-    bsa_av_meta_rsp_cmd.label = app_av_cb.label;
+    APP_INFO1("num of attr:0x%x, opcode:0x%x",
+        cmd.param.get_item_attrs.num_attrs,
+        cmd.param.get_item_attrs.opcode);
 
-    status = BSA_AvMetaRsp(&bsa_av_meta_rsp_cmd);
+    status = BSA_AvMetaRsp(&cmd);
     if (status != BSA_SUCCESS)
     {
         APP_ERROR1("BSA_AvMetaRsp failed: %d", status);
@@ -3190,9 +2863,12 @@ int app_av_rc_get_folder_items(int index, tBSA_AV_META_MSG_MSG *pMetaMsg)
     APP_INFO0("app_av_rc_get_folder_items");
 
     int status;
-    UINT8       xx;
-    /* data associated with BSA_AvMetaRsp */
-    tBSA_AV_META_RSP_CMD bsa_av_meta_rsp_cmd;
+    UINT8  xx, yy, attr_count, item_count;
+    tBSA_AV_META_RSP_CMD rsp_cmd;
+    tBSA_AV_ATTR_ENTRY *p_attr = NULL;
+    tBSA_AV_META_GET_ITEMS_RSP *p_items_rsp = NULL;
+    UINT32 s_item, e_item;
+    tBSA_AV_ITEM *p_item = NULL;
 
     /* Sanity check */
     if ((index < 0) || (index >= APP_NUM_ELEMENTS(app_av_cb.connections)))
@@ -3208,7 +2884,7 @@ int app_av_rc_get_folder_items(int index, tBSA_AV_META_MSG_MSG *pMetaMsg)
     }
 
     /* Send remote control response */
-    status = BSA_AvMetaRspInit(&bsa_av_meta_rsp_cmd);
+    status = BSA_AvMetaRspInit(&rsp_cmd);
 
     if (status != BSA_SUCCESS)
     {
@@ -3216,74 +2892,198 @@ int app_av_rc_get_folder_items(int index, tBSA_AV_META_MSG_MSG *pMetaMsg)
         return status;
     }
 
-    bsa_av_meta_rsp_cmd.rc_handle = app_av_cb.connections[index].rc_handle;
-    bsa_av_meta_rsp_cmd.pdu = BSA_AVRC_PDU_GET_FOLDER_ITEMS;
-    bsa_av_meta_rsp_cmd.label = app_av_cb.label;
+    rsp_cmd.rc_handle = app_av_cb.connections[index].rc_handle;
+    rsp_cmd.pdu = BSA_AVRC_PDU_GET_FOLDER_ITEMS;
+    rsp_cmd.label = app_av_cb.label;
 
-    bsa_av_meta_rsp_cmd.param.get_items_status.scope = pMetaMsg->param.get_folder_items.scope;
-    bsa_av_meta_rsp_cmd.param.get_items_status.opcode = pMetaMsg->opcode;
+    p_items_rsp = &(rsp_cmd.param.get_items_status);
+    p_items_rsp->scope = pMetaMsg->param.get_folder_items.scope;
+    p_items_rsp->opcode = pMetaMsg->opcode;
 
-    if(bsa_av_meta_rsp_cmd.param.get_items_status.scope == AVRC_SCOPE_PLAYER_LIST)
+    APP_INFO1("app_av_rc_get_folder_items sizeof(tBSA_AV_META_RSP_CMD):%d",
+        sizeof(tBSA_AV_META_RSP_CMD));
+
+    item_count = 0;
+
+    s_item = pMetaMsg->param.get_folder_items.start_item;
+    e_item = pMetaMsg->param.get_folder_items.end_item;
+
+    if(p_items_rsp->scope == AVRC_SCOPE_PLAYER_LIST)
     {
         APP_INFO0("AVRC_SCOPE_PLAYER_LIST");
 
-        bsa_av_meta_rsp_cmd.param.get_items_status.num_items = 0;
-        bsa_av_meta_rsp_cmd.param.get_items_status.status = AVRC_STS_NO_ERROR;
+        p_items_rsp->num_items = 0;
+        p_items_rsp->status = AVRC_STS_NO_ERROR;
 
-        APP_INFO1("GetFolderItems - list player range %d to %d", pMetaMsg->param.get_folder_items.start_item, pMetaMsg->param.get_folder_items.end_item);
-        APP_INFO1("num of available players %d", BSA_AV_NUM_MPLAYERS);
+        APP_INFO1("GetFolderItems - list player range %d to %d", s_item, e_item);
+        APP_INFO1("num of available players %d", APP_AV_NUM_MPLAYERS);
 
-        for (xx=pMetaMsg->param.get_folder_items.start_item; xx<BSA_AV_NUM_MPLAYERS && xx <=pMetaMsg->param.get_folder_items.end_item ; xx++)
+        for (xx = s_item; (xx < APP_AV_NUM_MPLAYERS) && (xx <= e_item) ; xx++)
         {
-            if (bsa_av_players[xx])
+            if (app_av_players[xx] && (item_count < BSA_AVRC_MAX_ITEM_COUNT))
             {
-                bsa_av_meta_rsp_cmd.param.get_items_status.item_list[xx].item_type = AVRC_ITEM_PLAYER;
-                memcpy(&bsa_av_meta_rsp_cmd.param.get_items_status.item_list[xx].u.player, bsa_av_players[xx], sizeof(tBSA_ITEM_PLAYER));
-                strncpy((char *)bsa_av_meta_rsp_cmd.param.get_items_status.item_list[xx].item_str, (char *)bsa_av_players[xx]->name.p_str, BSA_AV_ITEM_NAME_LEN_MAX - 1);
-                bsa_av_meta_rsp_cmd.param.get_items_status.num_items++;
-                APP_INFO1("Media player ID %d, name %s", bsa_av_players[xx]->player_id, bsa_av_players[xx]->name.p_str);
+                p_item = &(p_items_rsp->item_list[item_count]);
+                p_item->item_type = AVRC_ITEM_PLAYER;
+                memcpy(&p_item->u.player, app_av_players[xx], sizeof(tBSA_ITEM_PLAYER));
+                strncpy((char *)p_item->item_str,
+                        (char *)app_av_players[xx]->name.p_str,
+                        BSA_AV_ITEM_NAME_LEN_MAX - 1);
+                p_items_rsp->num_items++;
+                APP_INFO1("Media player ID %d, name %s", app_av_players[xx]->player_id,
+                        app_av_players[xx]->name.p_str);
+                item_count++;
             }
         }
     }
 
-    else if(bsa_av_meta_rsp_cmd.param.get_items_status.scope == AVRC_SCOPE_FILE_SYSTEM)
+    else if(p_items_rsp->scope == AVRC_SCOPE_FILE_SYSTEM)
     {
         APP_INFO0("AVRC_SCOPE_FILE_SYSTEM");
 
-        bsa_av_meta_rsp_cmd.param.get_items_status.status = AVRC_STS_NO_ERROR;
-        bsa_av_meta_rsp_cmd.param.get_items_status.uid_counter = BSA_AV_NUMSONGS;
+        p_items_rsp->status = AVRC_STS_NO_ERROR;
+        p_items_rsp->uid_counter = APP_AV_NUMFOLDERS_L1;
 
-        for (xx=pMetaMsg->param.get_folder_items.start_item; xx<BSA_AV_NUMSONGS && xx <=pMetaMsg->param.get_folder_items.end_item ; xx++)
+        for (xx = s_item;(xx<APP_AV_NUMFOLDERS_L1) && (xx <= e_item);xx++)
         {
-            if (bsa_av_songs[xx])
+            if (app_av_cur_folder_position >= 3)
             {
-                bsa_av_meta_rsp_cmd.param.get_items_status.item_list[xx].item_type = AVRC_ITEM_MEDIA;
-                memcpy(&bsa_av_meta_rsp_cmd.param.get_items_status.item_list[xx].u.media.uid, bsa_av_songs[xx]->uid, sizeof(tBSA_UID));
-                bsa_av_meta_rsp_cmd.param.get_items_status.item_list[xx].u.media.type = bsa_av_songs[xx]->type;
-                bsa_av_meta_rsp_cmd.param.get_items_status.item_list[xx].u.media.name.charset_id = bsa_av_songs[xx]->name.charset_id;
-                bsa_av_meta_rsp_cmd.param.get_items_status.item_list[xx].u.media.name.str_len = bsa_av_songs[xx]->name.str_len;
-                bsa_av_meta_rsp_cmd.param.get_items_status.item_list[xx].u.media.attr_count = 0;
+            if ((xx < APP_AV_NUMFOLDERS_L1) && (item_count < BSA_AVRC_MAX_ITEM_COUNT))
+            {
+                if (app_av_folders1[xx])
+                {
+                    p_item = &(p_items_rsp->item_list[item_count]);
+                    p_item->item_type = AVRC_ITEM_FOLDER;
+                    memcpy(&p_item->u.folder.uid, app_av_folders1[xx]->uid, sizeof(tBSA_UID));
+                    p_item->u.folder.type = app_av_folders1[xx]->type;
+                    p_item->u.folder.name.charset_id = app_av_folders1[xx]->name.charset_id;
+                    p_item->u.folder.name.str_len = app_av_folders1[xx]->name.str_len;
+                    p_item->u.folder.playable = app_av_folders1[xx]->playable;
 
-                strncpy((char *)bsa_av_meta_rsp_cmd.param.get_items_status.item_list[xx].item_str, (char *)bsa_av_songs[xx]->name.p_str, BSA_AV_ITEM_NAME_LEN_MAX - 1);
-                bsa_av_meta_rsp_cmd.param.get_items_status.num_items++;
+                    strncpy((char *)p_item->item_str, (char *)app_av_folders1[xx]->name.p_str, BSA_AV_ITEM_NAME_LEN_MAX - 1);
+                    p_items_rsp->num_items++;
 
-                APP_INFO1("song name %s", bsa_av_songs[xx]->name.p_str);
+                    APP_INFO1("folder name %s", app_av_folders1[xx]->name.p_str);
+                    item_count++;
+                }
+            }
+            }
+            else if (app_av_cur_folder_position == 2)
+            {
+                if ((xx < APP_AV_NUMFOLDERS_L2) && (item_count < BSA_AVRC_MAX_ITEM_COUNT))
+                {
+                    if (app_av_folders2[xx])
+                    {
+                        p_item = &(p_items_rsp->item_list[item_count]);
+                        p_item->item_type = AVRC_ITEM_FOLDER;
+                        memcpy(&p_item->u.folder.uid, app_av_folders2[xx]->uid, sizeof(tBSA_UID));
+                        p_item->u.folder.type = app_av_folders2[xx]->type;
+                        p_item->u.folder.name.charset_id = app_av_folders2[xx]->name.charset_id;
+                        p_item->u.folder.name.str_len = app_av_folders2[xx]->name.str_len;
+                        p_item->u.folder.playable = app_av_folders2[xx]->playable;
+
+                        strncpy((char *)p_item->item_str, (char *)app_av_folders2[xx]->name.p_str, BSA_AV_ITEM_NAME_LEN_MAX - 1);
+                        p_items_rsp->num_items++;
+
+                        APP_INFO1("folder name %s", app_av_folders2[xx]->name.p_str);
+                        item_count++;
+                    }
+                }
+            }
+            else if (app_av_cur_folder_position == 1)
+            {
+                if ((xx < APP_AV_NUMSONGS) && (item_count < BSA_AVRC_MAX_ITEM_COUNT))
+                {
+                    p_attr = (tBSA_AV_ATTR_ENTRY *) &p_items_rsp->item_list[item_count].u.media.attr_list;
+                    APP_INFO1("track num %d", xx);
+                    if (app_av_songs[xx])
+                    {
+                        p_item = &(p_items_rsp->item_list[item_count]);
+                        p_item->item_type = AVRC_ITEM_MEDIA;
+                        memcpy(&p_item->u.media.uid, app_av_songs[xx]->uid, sizeof(tBSA_UID));
+                        p_item->u.media.type = app_av_songs[xx]->type;
+                        p_item->u.media.name.charset_id = app_av_songs[xx]->name.charset_id;
+                        p_item->u.media.name.str_len = app_av_songs[xx]->name.str_len;
+                        p_item->u.media.attr_count = app_av_songs[xx]->attr_count;
+
+                        strncpy((char *)p_item->item_str, (char *)app_av_songs[xx]->name.p_str, BSA_AV_ITEM_NAME_LEN_MAX - 1);
+                        p_items_rsp->num_items++;
+
+                        APP_INFO1("song name %s", app_av_songs[xx]->name.p_str);
+                        attr_count =  app_av_songs[xx]->attr_count;
+                        for (yy = 0;yy<attr_count;yy++)
+                        {
+                            p_attr[yy].name.charset_id = app_av_songs[xx]->p_attr_list[yy].name.charset_id;
+                            p_attr[yy].name.str_len = app_av_songs[xx]->p_attr_list[yy].name.str_len;
+                            p_attr[yy].attr_id = app_av_songs[xx]->p_attr_list[yy].attr_id;
+
+                            if(app_av_songs[xx]->p_attr_list[yy].name.str_len != 0 && app_av_songs[xx]->p_attr_list[yy].name.p_str)
+                            {
+                                strncpy((char*) p_attr[yy].str, (char*) app_av_songs[xx]->p_attr_list[yy].name.p_str, BSA_AV_META_INFO_LEN_MAX - 1);
+                                APP_INFO1("Attr ID %d, string name %s", app_av_songs[xx]->p_attr_list[yy].attr_id, p_attr[yy].str);
+                            }
+                            APP_INFO1("Attr ID %d", p_attr[yy].attr_id);
+                            APP_INFO1("string name %s", p_attr[yy].str);
+                        }
+                        item_count++;
+                    }
+                }
+            }
+        }
+    }
+    else if(p_items_rsp->scope == AVRC_SCOPE_NOW_PLAYING)
+    {
+        APP_INFO0("AVRC_SCOPE_NOW_PLAYING");
+
+        p_items_rsp->num_items = 0;
+        p_items_rsp->status = AVRC_STS_NO_ERROR;
+
+        APP_INFO1("GetFolderItems - list player range %d to %d", pMetaMsg->param.get_folder_items.start_item, pMetaMsg->param.get_folder_items.end_item);
+
+        for (xx=s_item; xx<APP_AV_NUMSONGS && xx <=e_item ; xx++)
+        {
+            if (xx < 1)
+            {
+                APP_INFO1("track num %d", p_app_av_cb->cur_play);
+                if (app_av_songs[p_app_av_cb->cur_play])
+                {
+                    p_item = &(p_items_rsp->item_list[item_count]);
+                    p_item->item_type = AVRC_ITEM_MEDIA;
+                    memcpy(&p_item->u.media.uid, app_av_songs[p_app_av_cb->cur_play]->uid, sizeof(tBSA_UID));
+                    p_item->u.media.type = app_av_songs[p_app_av_cb->cur_play]->type;
+                    p_item->u.media.name.charset_id = app_av_songs[p_app_av_cb->cur_play]->name.charset_id;
+                    p_item->u.media.name.str_len = app_av_songs[p_app_av_cb->cur_play]->name.str_len;
+                    p_item->u.media.attr_count = 0;
+
+                    strncpy((char *)p_item->item_str, (char *)app_av_songs[p_app_av_cb->cur_play]->name.p_str, BSA_AV_ITEM_NAME_LEN_MAX - 1);
+                    p_items_rsp->num_items++;
+
+                    APP_INFO1("song name %s", app_av_songs[p_app_av_cb->cur_play]->name.p_str);
+                    item_count++;
+                }
             }
         }
     }
     else
     {
-        APP_INFO1("GetFolderItems, scope %d not supported", bsa_av_meta_rsp_cmd.param.get_items_status.scope);
-        bsa_av_meta_rsp_cmd.param.get_items_status.status = AVRC_STS_BAD_CMD;
+        APP_INFO1("GetFolderItems, scope %d not supported", p_items_rsp->scope);
+        p_items_rsp->status = AVRC_STS_BAD_CMD;
     }
 
-    status = BSA_AvMetaRsp(&bsa_av_meta_rsp_cmd);
+    status = BSA_AvMetaRsp(&rsp_cmd);
     if (status != BSA_SUCCESS)
     {
         APP_ERROR1("BSA_AvMetaRsp failed: %d", status);
         return status;
     }
     return 0;
+}
+
+
+void app_av_reset_folder_info(void)
+{
+    app_av_cur_folder_position = 3;
+    p_app_av_cb->meta_info.track_num = 0;
+    p_app_av_cb->cur_play = 0;
 }
 
 /*******************************************************************************
@@ -3299,9 +3099,10 @@ int app_av_rc_play_item_meta_response(int index, tBSA_AV_META_MSG_MSG *pMetaMsg)
 {
     /* data associated with BSA_AvMetaRsp */
     int status;
-    tBSA_AV_META_RSP_CMD bsa_av_meta_rsp_cmd;
+    tBSA_AV_META_RSP_CMD rsp_cmd;
     int xx=0;
 
+    APPL_TRACE_DEBUG0("app_av_rc_play_item_meta_response");
     /* Sanity check */
     if ((index < 0) || (index >= APP_NUM_ELEMENTS(app_av_cb.connections)))
     {
@@ -3316,7 +3117,7 @@ int app_av_rc_play_item_meta_response(int index, tBSA_AV_META_MSG_MSG *pMetaMsg)
     }
 
     /* Send remote control response */
-    status = BSA_AvMetaRspInit(&bsa_av_meta_rsp_cmd);
+    status = BSA_AvMetaRspInit(&rsp_cmd);
 
     if (status != BSA_SUCCESS)
     {
@@ -3324,37 +3125,148 @@ int app_av_rc_play_item_meta_response(int index, tBSA_AV_META_MSG_MSG *pMetaMsg)
         return status;
     }
 
-    APPL_TRACE_DEBUG3("app_av_rc_play_item_meta_response scope:%d, uid[0]:0x%02d, uid[7]:0x%02d",
+    APPL_TRACE_DEBUG3("app_av_rc_play_item_meta_response scope:%d, uid[0]:0x%02d, uid[7]:0x%02",
         pMetaMsg->param.play_item.scope,pMetaMsg->param.play_item.uid[0], pMetaMsg->param.play_item.uid[7]);
     switch (pMetaMsg->param.play_item.scope)
     {
     case AVRC_SCOPE_FILE_SYSTEM:
-        bsa_av_meta_rsp_cmd.param.play_item.status = BTA_AV_RSP_REJ;
-        for (xx=0; xx<BSA_AV_NUMSONGS; xx++)
+        rsp_cmd.param.play_item.status = AVRC_STS_BAD_CMD;
+        for (xx=0; xx<APP_AV_NUMSONGS; xx++)
         {
-            if(memcmp(bsa_av_songs[xx]->uid, pMetaMsg->param.play_item.uid, sizeof(tBSA_UID)) == 0)
+            if(memcmp(app_av_songs[xx]->uid, pMetaMsg->param.play_item.uid, sizeof(tBSA_UID)) == 0)
             {
-                p_bsa_av_cb->cur_play = xx;
-                bsa_av_meta_rsp_cmd.param.play_item.status = BTA_AV_RSP_ACCEPT;
+                p_app_av_cb->cur_play = xx;
+                rsp_cmd.param.play_item.status = AVRC_STS_NO_ERROR;
+                app_av_rc_change_track();
+                app_av_change_song(TRUE);
+                break;
+            }
+        }
+        break;
+
+    case AVRC_SCOPE_NOW_PLAYING:
+        rsp_cmd.param.play_item.status = AVRC_STS_BAD_CMD;
+        for (xx=0; xx<APP_AV_NUMSONGS; xx++)
+        {
+            APPL_TRACE_DEBUG3("AVRC_SCOPE_NOW_PLAYING scope:%d, uid[0]:0x%02d, uid[7]:0x%02",
+                pMetaMsg->param.play_item.scope,pMetaMsg->param.play_item.uid[0], pMetaMsg->param.play_item.uid[7]);
+            if(memcmp(app_av_songs[xx]->uid, pMetaMsg->param.play_item.uid, sizeof(tBSA_UID)) == 0)
+            {
+                p_app_av_cb->cur_play = xx;
+                rsp_cmd.param.play_item.status = AVRC_STS_NO_ERROR;
                 app_av_rc_change_track();
                 break;
             }
         }
-
         break;
 
     default:
         /* TODO AVRC_SCOPE_SEARCH, AVRC_SCOPE_NOW_PLAYING*/
-        bsa_av_meta_rsp_cmd.param.play_item.status = BTA_AV_RSP_NOT_IMPL;
+        rsp_cmd.param.play_item.status = BTA_AV_RSP_NOT_IMPL;
     }
 
-    bsa_av_meta_rsp_cmd.param.play_item.pdu = BSA_AVRC_PDU_PLAY_ITEM;
-    bsa_av_meta_rsp_cmd.param.play_item.opcode = pMetaMsg->opcode;
-    bsa_av_meta_rsp_cmd.rc_handle = app_av_cb.connections[index].rc_handle;
-    bsa_av_meta_rsp_cmd.pdu = BSA_AVRC_PDU_PLAY_ITEM;
-    bsa_av_meta_rsp_cmd.label = app_av_cb.label;
+    rsp_cmd.param.play_item.pdu = BSA_AVRC_PDU_PLAY_ITEM;
+    rsp_cmd.param.play_item.opcode = pMetaMsg->opcode;
+    rsp_cmd.rc_handle = app_av_cb.connections[index].rc_handle;
+    rsp_cmd.pdu = BSA_AVRC_PDU_PLAY_ITEM;
+    rsp_cmd.label = app_av_cb.label;
 
-    status = BSA_AvMetaRsp(&bsa_av_meta_rsp_cmd);
+    status = BSA_AvMetaRsp(&rsp_cmd);
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_AvMetaRsp failed: %d", status);
+        return status;
+    }
+    return 0;
+}
+
+
+/*******************************************************************************
+ **
+ ** Function         app_av_rc_add_to_now_playing_meta_response
+ **
+ ** Description      Example of add to now playing response
+ **
+ ** Returns          0 if successful, error code otherwise
+ **
+ *******************************************************************************/
+int app_av_rc_add_to_now_playing_meta_response(int index, tBSA_AV_META_MSG_MSG *pMetaMsg)
+{
+    /* data associated with BSA_AvMetaRsp */
+    int status;
+    tBSA_AV_META_RSP_CMD rcmd;
+    int xx=0;
+
+    APPL_TRACE_DEBUG0("app_av_rc_add_to_now_playing_meta_response");
+    /* Sanity check */
+    if ((index < 0) || (index >= APP_NUM_ELEMENTS(app_av_cb.connections)))
+    {
+        APP_ERROR0("Connection index out of bounds");
+        return -1;
+    }
+
+    if(pMetaMsg == NULL)
+    {
+        APP_ERROR0("Null tBSA_AV_META_MSG_MSG pointer");
+        return -1;
+    }
+
+    /* Send remote control response */
+    status = BSA_AvMetaRspInit(&rcmd);
+
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_AvMetaRspInit failed: %d", status);
+        return status;
+    }
+
+    APPL_TRACE_DEBUG3("app_av_rc_add_to_now_playing_meta_response scope:%d, uid[0]:0x%02d, uid[7]:0x%02",
+        pMetaMsg->param.add_to_play.scope,pMetaMsg->param.add_to_play.uid[0], pMetaMsg->param.add_to_play.uid[7]);
+    switch (pMetaMsg->param.add_to_play.scope)
+    {
+    case AVRC_SCOPE_FILE_SYSTEM:
+        rcmd.param.add_to_play.status = AVRC_STS_INTERNAL_ERR;
+        for (xx=0; xx<APP_AV_NUMSONGS; xx++)
+        {
+            if(memcmp(app_av_songs[xx]->uid, pMetaMsg->param.add_to_play.uid, sizeof(tBSA_UID)) == 0)
+            {
+                p_app_av_cb->cur_play = xx;
+                rcmd.param.add_to_play.status = AVRC_STS_NO_ERROR;
+                app_av_rc_change_track();
+                break;
+            }
+        }
+        break;
+
+    case AVRC_SCOPE_NOW_PLAYING:
+        rcmd.param.add_to_play.status = AVRC_STS_INTERNAL_ERR;
+        for (xx=0; xx<APP_AV_NUMSONGS; xx++)
+        {
+            APPL_TRACE_DEBUG3("AVRC_SCOPE_NOW_PLAYING scope:%d, uid[0]:0x%02d, uid[7]:0x%02",
+                pMetaMsg->param.add_to_play.scope,pMetaMsg->param.add_to_play.uid[0],
+                pMetaMsg->param.add_to_play.uid[7]);
+            if(memcmp(app_av_songs[xx]->uid, pMetaMsg->param.add_to_play.uid, sizeof(tBSA_UID)) == 0)
+            {
+                p_app_av_cb->cur_play = xx;
+                rcmd.param.add_to_play.status = AVRC_STS_NO_ERROR;
+                app_av_rc_change_track();
+                break;
+            }
+        }
+        break;
+
+    default:
+        /* TODO AVRC_SCOPE_SEARCH */
+        rcmd.param.add_to_play.status = BTA_AV_RSP_NOT_IMPL;
+    }
+
+    rcmd.param.add_to_play.pdu = BSA_AVRC_PDU_ADD_TO_NOW_PLAYING;
+    rcmd.param.add_to_play.opcode = pMetaMsg->opcode;
+    rcmd.rc_handle = app_av_cb.connections[index].rc_handle;
+    rcmd.pdu = BSA_AVRC_PDU_ADD_TO_NOW_PLAYING;
+    rcmd.label = app_av_cb.label;
+
+    status = BSA_AvMetaRsp(&rcmd);
     if (status != BSA_SUCCESS)
     {
         APP_ERROR1("BSA_AvMetaRsp failed: %d", status);
@@ -3377,9 +3289,9 @@ int app_av_rc_register_notifications(int index, tBSA_AV_META_MSG_MSG *pMetaMsg)
     UINT16  evt_mask = 1, index_x;
 
     /* data associated with BSA_AvMetaRsp */
-    tBSA_AV_META_RSP_CMD bsa_av_meta_rsp_cmd;
+    tBSA_AV_META_RSP_CMD rcmd;
 
-    int status = BSA_AvMetaRspInit(&bsa_av_meta_rsp_cmd);
+    int status = BSA_AvMetaRspInit(&rcmd);
 
     if (status != BSA_SUCCESS)
     {
@@ -3403,17 +3315,17 @@ int app_av_rc_register_notifications(int index, tBSA_AV_META_MSG_MSG *pMetaMsg)
     index_x = pMetaMsg->param.reg_notif.event_id - 1;
     evt_mask <<= index_x;
 
-    bsa_av_meta_rsp_cmd.rc_handle = app_av_cb.connections[index].rc_handle;
-    bsa_av_meta_rsp_cmd.label = app_av_cb.label;
+    rcmd.rc_handle = app_av_cb.connections[index].rc_handle;
+    rcmd.label = app_av_cb.label;
 
-    bsa_av_meta_rsp_cmd.param.notify_status.opcode = pMetaMsg->opcode;
-    bsa_av_meta_rsp_cmd.param.notify_status.code = BTA_AV_RSP_INTERIM;
+    rcmd.param.notify_status.opcode = pMetaMsg->opcode;
+    rcmd.param.notify_status.code = BTA_AV_RSP_INTERIM;
 
     /* Register event to the BSA AV control block  */
-    p_bsa_av_cb->meta_info.registered_events.evt_mask |= evt_mask;
-    p_bsa_av_cb->meta_info.registered_events.label[index_x] = pMetaMsg->label;
+    p_app_av_cb->meta_info.registered_events.evt_mask |= evt_mask;
+    p_app_av_cb->meta_info.registered_events.label[index_x] = pMetaMsg->label;
 
-    return app_av_build_notification_response(pMetaMsg->param.reg_notif.event_id, &bsa_av_meta_rsp_cmd);
+    return app_av_build_notification_response(pMetaMsg->param.reg_notif.event_id, &rcmd);
 }
 
 /*******************************************************************************
@@ -3429,9 +3341,9 @@ int app_av_rc_register_notifications(int index, tBSA_AV_META_MSG_MSG *pMetaMsg)
 void app_av_rc_complete_notification(UINT8 event_id)
 {
     /* data associated with BSA_AvMetaRsp */
-    tBSA_AV_META_RSP_CMD bsa_av_meta_rsp_cmd;
+    tBSA_AV_META_RSP_CMD rcmd;
 
-    int status = BSA_AvMetaRspInit(&bsa_av_meta_rsp_cmd);
+    int status = BSA_AvMetaRspInit(&rcmd);
 
     if (status != BSA_SUCCESS)
     {
@@ -3446,25 +3358,27 @@ void app_av_rc_complete_notification(UINT8 event_id)
     /* Check if it is one of the supported events  */
     evt_mask <<= (event_id - 1);
 
-   if (p_bsa_av_cb->meta_info.registered_events.evt_mask & evt_mask)
-   {
+    if (p_app_av_cb->meta_info.registered_events.evt_mask & evt_mask)
+    {
         APPL_TRACE_DEBUG2("Event(0x%x) was registered(0x%x) evt_mask:0x%x",
                            event_id,
-                           p_bsa_av_cb->meta_info.registered_events.evt_mask);
+                           p_app_av_cb->meta_info.registered_events.evt_mask );
 
-        rc_label = p_bsa_av_cb->meta_info.registered_events.label[event_id - 1];
-        bsa_av_meta_rsp_cmd.param.notify_status.code = BTA_AV_RSP_CHANGED;
-        bsa_av_meta_rsp_cmd.rc_handle = app_av_cb.connections[0].rc_handle;
-        bsa_av_meta_rsp_cmd.label = app_av_cb.label;
 
-        app_av_build_notification_response(event_id, &bsa_av_meta_rsp_cmd);
+        rc_label = p_app_av_cb->meta_info.registered_events.label[event_id-1];
+            rcmd.param.notify_status.code = BTA_AV_RSP_CHANGED;
+            rcmd.rc_handle = app_av_cb.connections[0].rc_handle;
+            rcmd.label = app_av_cb.label;
 
-        /* De-register the event */
-        p_bsa_av_cb->meta_info.registered_events.evt_mask &= ~evt_mask;
-        p_bsa_av_cb->meta_info.registered_events.label[event_id - 1] = 0xFF;
+            app_av_build_notification_response(event_id, &rcmd);
+
+            /* De-register the event */
+        p_app_av_cb->meta_info.registered_events.evt_mask &= ~evt_mask;
+        p_app_av_cb->meta_info.registered_events.label[event_id-1] = 0xFF;
 
         APPL_TRACE_DEBUG3("EVENT NOTIF - Registered evt val after 0x%x clearing:0x%x label %d",
-                           p_bsa_av_cb->meta_info.registered_events.evt_mask, evt_mask, rc_label);
+                           p_app_av_cb->meta_info.registered_events.evt_mask, evt_mask, rc_label );
+
     }
     else
     {
@@ -3485,7 +3399,7 @@ BOOLEAN app_av_is_event_registered(UINT8 event_id)
 {
     tBSA_AV_EVT_MASK evt_mask = 1;
     evt_mask <<= (event_id - 1);
-    if (p_bsa_av_cb->meta_info.registered_events.evt_mask & evt_mask)
+    if (p_app_av_cb->meta_info.registered_events.evt_mask & evt_mask)
         return (TRUE);
 
     return (FALSE);
@@ -3500,29 +3414,29 @@ BOOLEAN app_av_is_event_registered(UINT8 event_id)
  ** Returns          0 if successful, error code otherwise
  **
  *******************************************************************************/
-static int app_av_build_notification_response(UINT8 event_id, tBSA_AV_META_RSP_CMD *p_bsa_av_meta_rsp_cmd)
+static int app_av_build_notification_response(UINT8 event_id, tBSA_AV_META_RSP_CMD *p_cmd)
 {
     int status;
     tBSA_AV_META_ATTRIB *p_pas_attrib;
     UINT8       xx;
     UINT8   *p;
 
-    p_bsa_av_meta_rsp_cmd->param.notify_status.status = AVRC_STS_NO_ERROR;
+    p_cmd->param.notify_status.status = AVRC_STS_NO_ERROR;
 
-    p_bsa_av_meta_rsp_cmd->param.notify_status.event_id = event_id;
-    p_bsa_av_meta_rsp_cmd->pdu = BSA_AVRC_PDU_REGISTER_NOTIFICATION;
+    p_cmd->param.notify_status.event_id = event_id;
+    p_cmd->pdu = BSA_AVRC_PDU_REGISTER_NOTIFICATION;
 
     switch(event_id)
     {
     case AVRC_EVT_PLAY_STATUS_CHANGE:   /* 0x01 */
-        p_bsa_av_meta_rsp_cmd->param.notify_status.param.play_status = p_bsa_av_cb->meta_info.play_status.play_status;
+        p_cmd->param.notify_status.param.play_status = p_app_av_cb->meta_info.play_status.play_status;
         break;
 
     case AVRC_EVT_TRACK_CHANGE:         /* 0x02 */
-        p = p_bsa_av_meta_rsp_cmd->param.notify_status.param.track;
-        APPL_TRACE_DEBUG2("play_count %d cur_play %d",p_bsa_av_cb->play_count, p_bsa_av_cb->cur_play);
+        p = p_cmd->param.notify_status.param.track;
+        APPL_TRACE_DEBUG2("play_count %d cur_play %d",p_app_av_cb->play_count, p_app_av_cb->cur_play);
         /* Check whether folder and file is selected or not */
-        if (p_bsa_av_cb->play_count == 0 )
+        if (p_app_av_cb->play_count == 0 )
         {
             /* If not, add track ID to be 0xFFFFFFFF-FFFFFFFF */
             UINT32_TO_BE_STREAM(p, AVRCP_NO_NOW_PLAYING_FOLDER_ID); /* the id from the no now playing folder */
@@ -3532,7 +3446,7 @@ static int app_av_build_notification_response(UINT8 event_id, tBSA_AV_META_RSP_C
         {
             /* If selected, add track ID to be the current playing file ID  */
             UINT32_TO_BE_STREAM(p, AVRCP_NOW_PLAYING_FOLDER_ID); /* the id from the now playing folder */
-            UINT32_TO_BE_STREAM(p, p_bsa_av_cb->cur_play+1);         /* the id from the current playing file */
+            UINT32_TO_BE_STREAM(p, p_app_av_cb->cur_play+1);         /* the id from the current playing file */
         }
         break;
 
@@ -3541,24 +3455,24 @@ static int app_av_build_notification_response(UINT8 event_id, tBSA_AV_META_RSP_C
         break;
 
     case AVRC_EVT_PLAY_POS_CHANGED:     /* 0x05 */
-        p_bsa_av_meta_rsp_cmd->param.notify_status.param.play_pos = p_bsa_av_cb->meta_info.play_status.song_pos;
+        p_cmd->param.notify_status.param.play_pos = p_app_av_cb->meta_info.play_status.song_pos;
         break;
 
     case AVRC_EVT_BATTERY_STATUS_CHANGE:/* 0x06 */
-        p_bsa_av_meta_rsp_cmd->param.notify_status.param.battery_status = p_bsa_av_cb->meta_info.notif_info.bat_stat;
+        p_cmd->param.notify_status.param.battery_status = p_app_av_cb->meta_info.notif_info.bat_stat;
         break;
 
     case AVRC_EVT_SYSTEM_STATUS_CHANGE: /* 0x07 */
-        p_bsa_av_meta_rsp_cmd->param.notify_status.param.system_status = p_bsa_av_cb->meta_info.notif_info.sys_stat;
+        p_cmd->param.notify_status.param.system_status = p_app_av_cb->meta_info.notif_info.sys_stat;
         break;
 
     case AVRC_EVT_APP_SETTING_CHANGE:   /* 0x08 */
-        p_bsa_av_meta_rsp_cmd->param.notify_status.param.player_setting.num_attr = p_bsa_av_cb->meta_info.max_attrib_num;
-        p_pas_attrib = &p_bsa_av_cb->meta_info.pas_info.equalizer;
-        for (xx=0; xx<p_bsa_av_meta_rsp_cmd->param.notify_status.param.player_setting.num_attr; xx++)
+        p_cmd->param.notify_status.param.player_setting.num_attr = p_app_av_cb->meta_info.max_attrib_num;
+        p_pas_attrib = &p_app_av_cb->meta_info.pas_info.equalizer;
+        for (xx=0; xx<p_cmd->param.notify_status.param.player_setting.num_attr; xx++)
         {
-            p_bsa_av_meta_rsp_cmd->param.notify_status.param.player_setting.attr_id[xx] = p_pas_attrib->attrib_id;
-            p_bsa_av_meta_rsp_cmd->param.notify_status.param.player_setting.attr_value[xx] = p_pas_attrib->curr_value;
+            p_cmd->param.notify_status.param.player_setting.attr_id[xx] = p_pas_attrib->attrib_id;
+            p_cmd->param.notify_status.param.player_setting.attr_value[xx] = p_pas_attrib->curr_value;
             p_pas_attrib++;
         }
         break;
@@ -3568,24 +3482,24 @@ static int app_av_build_notification_response(UINT8 event_id, tBSA_AV_META_RSP_C
         break;
 
     case AVRC_EVT_ADDR_PLAYER_CHANGE:   /* 0x0b */
-        p_bsa_av_meta_rsp_cmd->param.notify_status.param.addr_player.player_id = p_bsa_av_cb->meta_info.addr_player_id;
+        p_cmd->param.notify_status.param.addr_player.player_id = p_app_av_cb->meta_info.addr_player_id;
         /* UID counter is always 0 for Database Unaware Players */
-        p_bsa_av_meta_rsp_cmd->param.notify_status.param.addr_player.uid_counter = p_bsa_av_cb->meta_info.cur_uid_counter;
+        p_cmd->param.notify_status.param.addr_player.uid_counter = p_app_av_cb->meta_info.cur_uid_counter;
         break;
 
     case AVRC_EVT_UIDS_CHANGE:          /* 0x0c */
-        p_bsa_av_meta_rsp_cmd->param.notify_status.param.uid_counter = 0;
+        p_cmd->param.notify_status.param.uid_counter = 0;
         break;
 
     case AVRC_EVT_VOLUME_CHANGE:        /* 0x0d */
-        p_bsa_av_meta_rsp_cmd->param.notify_status.param.volume = 0;
+        p_cmd->param.notify_status.param.volume = 0;
         break;
 
     default:
-        p_bsa_av_meta_rsp_cmd->param.notify_status.status = BTA_AV_RSP_NOT_IMPL;
+        p_cmd->param.notify_status.status = BTA_AV_RSP_NOT_IMPL;
     }
 
-    status = BSA_AvMetaRsp(p_bsa_av_meta_rsp_cmd);
+    status = BSA_AvMetaRsp(p_cmd);
     if (status != BSA_SUCCESS)
     {
         APP_ERROR1("BSA_AvMetaRsp failed: %d", status);
@@ -3610,11 +3524,11 @@ void app_av_rc_change_play_status(UINT8 new_play_status)
 {
     if(new_play_status <= (UINT8)AVRC_PLAYSTATE_REV_SEEK)
     {
-        UINT8   old_play_status = p_bsa_av_cb->meta_info.play_status.play_status;
+        UINT8   old_play_status = p_app_av_cb->meta_info.play_status.play_status;
 
-        p_bsa_av_cb->meta_info.play_status.play_status = new_play_status;
-        APPL_TRACE_DEBUG2("play_status = %d/%d", old_play_status, p_bsa_av_cb->meta_info.play_status.play_status );
-        if (old_play_status != p_bsa_av_cb->meta_info.play_status.play_status)
+        p_app_av_cb->meta_info.play_status.play_status = new_play_status;
+        APPL_TRACE_DEBUG2("play_status = %d/%d", old_play_status, p_app_av_cb->meta_info.play_status.play_status );
+        if (old_play_status != p_app_av_cb->meta_info.play_status.play_status)
         {
             app_av_rc_complete_notification(AVRC_EVT_PLAY_STATUS_CHANGE);
             app_av_rc_complete_notification(AVRC_EVT_PLAY_POS_CHANGED);
@@ -3639,7 +3553,7 @@ void app_av_rc_change_play_status(UINT8 new_play_status)
 *******************************************************************************/
 void app_av_rc_change_track()
 {
-    p_bsa_av_cb->meta_info.track_num++;
+    p_app_av_cb->meta_info.track_num++;
     app_av_rc_complete_notification(AVRC_EVT_TRACK_CHANGE);
 }
 
@@ -3656,15 +3570,15 @@ void app_av_rc_change_track()
 void app_av_rc_addressed_player_change(UINT16 addr_player)
 {
     /* vaid addressed players in this app */
-    if((addr_player != BSA_AV_PLAYER_ID_FILES) &&
-       (addr_player != BSA_AV_PLAYER_ID_MPLAYER) &&
-       (addr_player != BSA_AV_PLAYER_ID_FM))
+    if((addr_player != APP_AV_PLAYER_ID_FILES) &&
+       (addr_player != APP_AV_PLAYER_ID_MPLAYER) &&
+       (addr_player != APP_AV_PLAYER_ID_FM))
     {
         APPL_TRACE_ERROR1("Illegal value of addressed player = %d", addr_player);
         return;
     }
 
-    p_bsa_av_cb->meta_info.addr_player_id = addr_player;
+    p_app_av_cb->meta_info.addr_player_id = addr_player;
     app_av_rc_complete_notification(AVRC_EVT_ADDR_PLAYER_CHANGE);
 }
 
@@ -3699,13 +3613,13 @@ void app_av_rc_settings_change(UINT8 setting, UINT8 value)
     switch(setting)
     {
     case 1:
-        p_bsa_av_cb->meta_info.pas_info.equalizer.curr_value = value;
+        p_app_av_cb->meta_info.pas_info.equalizer.curr_value = value;
         break;
     case 2:
-        p_bsa_av_cb->meta_info.pas_info.repeat.curr_value = value;
+        p_app_av_cb->meta_info.pas_info.repeat.curr_value = value;
         break;
     case 3:
-        p_bsa_av_cb->meta_info.pas_info.repeat.curr_value = value;
+        p_app_av_cb->meta_info.pas_info.repeat.curr_value = value;
         break;
     }
 
@@ -3724,41 +3638,41 @@ void app_av_rc_settings_change(UINT8 setting, UINT8 value)
 
 static void app_av_init_meta_data()
 {
-    if(p_bsa_av_cb == NULL)
-        p_bsa_av_cb = (tBSA_AV_CB *)malloc(sizeof(tBSA_AV_CB));
+    if(p_app_av_cb == NULL)
+        p_app_av_cb = malloc(sizeof(tAPP_AV_CB));
 
-    p_bsa_av_cb->meta_info.pas_info.equalizer.attrib_id = 1;
-    p_bsa_av_cb->meta_info.pas_info.equalizer.curr_value = 1;
+    p_app_av_cb->meta_info.pas_info.equalizer.attrib_id = 1;
+    p_app_av_cb->meta_info.pas_info.equalizer.curr_value = 1;
 
-    strcpy((char *)p_bsa_av_cb->meta_info.pas_info.equalizer.attrib_str, "Equalizer");
-    strcpy((char *)p_bsa_av_cb->meta_info.pas_info.equalizer.attr_settings[0].val1, "Off");
-    strcpy((char *)p_bsa_av_cb->meta_info.pas_info.equalizer.attr_settings[1].val2, "On");
+    strcpy((char *)p_app_av_cb->meta_info.pas_info.equalizer.attrib_str, "Equalizer");
+    strcpy((char *)p_app_av_cb->meta_info.pas_info.equalizer.attr_settings[0].val1, "Off");
+    strcpy((char *)p_app_av_cb->meta_info.pas_info.equalizer.attr_settings[1].val2, "On");
 
-    p_bsa_av_cb->meta_info.pas_info.repeat.attrib_id = 2;
-    p_bsa_av_cb->meta_info.pas_info.repeat.curr_value = 2;
+    p_app_av_cb->meta_info.pas_info.repeat.attrib_id = 2;
+    p_app_av_cb->meta_info.pas_info.repeat.curr_value = 2;
 
-    strcpy((char *)p_bsa_av_cb->meta_info.pas_info.repeat.attrib_str, "Repeat");
-    strcpy((char *)p_bsa_av_cb->meta_info.pas_info.repeat.attr_settings[0].val1, "Repeat Off");
-    strcpy((char *)p_bsa_av_cb->meta_info.pas_info.repeat.attr_settings[1].val2, "Repeat Single");
+    strcpy((char *)p_app_av_cb->meta_info.pas_info.repeat.attrib_str, "Repeat");
+    strcpy((char *)p_app_av_cb->meta_info.pas_info.repeat.attr_settings[0].val1, "Repeat Off");
+    strcpy((char *)p_app_av_cb->meta_info.pas_info.repeat.attr_settings[1].val2, "Repeat Single");
 
-    p_bsa_av_cb->meta_info.pas_info.shuffle.attrib_id = 3;
-    p_bsa_av_cb->meta_info.pas_info.shuffle.curr_value = 2;
+    p_app_av_cb->meta_info.pas_info.shuffle.attrib_id = 3;
+    p_app_av_cb->meta_info.pas_info.shuffle.curr_value = 2;
 
-    strcpy((char *)p_bsa_av_cb->meta_info.pas_info.shuffle.attrib_str, "Shuffle");
-    strcpy((char *)p_bsa_av_cb->meta_info.pas_info.shuffle.attr_settings[0].val1, "Shuffle Off");
-    strcpy((char *)p_bsa_av_cb->meta_info.pas_info.shuffle.attr_settings[1].val2, "Shuffle All");
+    strcpy((char *)p_app_av_cb->meta_info.pas_info.shuffle.attrib_str, "Shuffle");
+    strcpy((char *)p_app_av_cb->meta_info.pas_info.shuffle.attr_settings[0].val1, "Shuffle Off");
+    strcpy((char *)p_app_av_cb->meta_info.pas_info.shuffle.attr_settings[1].val2, "Shuffle All");
 
-    p_bsa_av_cb->meta_info.max_attrib_num = 3;
+    p_app_av_cb->meta_info.max_attrib_num = 3;
 
-    memcpy(&p_bsa_av_cb->meta_info.play_status, &playst, sizeof(tBSA_AV_META_PLAYSTAT));
+    memcpy(&p_app_av_cb->meta_info.play_status, &playst, sizeof(tBSA_AV_META_PLAYSTAT));
 
-    p_bsa_av_cb->meta_info.addr_player_id = 1;
-    p_bsa_av_cb->meta_info.browsed_player_id = 1;
-    p_bsa_av_cb->meta_info.cur_uid_counter = 0;
-    p_bsa_av_cb->meta_info.registered_events.evt_mask = 0;
-    p_bsa_av_cb->meta_info.track_num = 1;
-    p_bsa_av_cb->cur_play = 0;
-    p_bsa_av_cb->play_count = BSA_AV_NUMSONGS;
+    p_app_av_cb->meta_info.addr_player_id = 1;
+    p_app_av_cb->meta_info.browsed_player_id = 1;
+    p_app_av_cb->meta_info.cur_uid_counter = 0;
+    p_app_av_cb->meta_info.registered_events.evt_mask = 0;
+    p_app_av_cb->meta_info.track_num = 1;
+    p_app_av_cb->cur_play = 0;
+    p_app_av_cb->play_count = APP_AV_NUMSONGS;
 
 }
 
@@ -4532,10 +4446,10 @@ int app_av_end(void)
     BSA_AvDisableInit(&disable_param);
     int iRet = BSA_AvDisable(&disable_param);
 
-    if(p_bsa_av_cb != NULL)
+    if(p_app_av_cb != NULL)
     {
-        free(p_bsa_av_cb);
-        p_bsa_av_cb = NULL;
+        free(p_app_av_cb);
+        p_app_av_cb = NULL;
     }
 
     return iRet;
@@ -4935,8 +4849,6 @@ void app_av_wait_delay(int count, tAPP_AV_DELAY *p_delay, tAPP_AV_UIPC *p_uipc_c
             err = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &(p_delay->timestamp), NULL);
         } while (err < 0 && errno == EINTR);
 
-
-
         /* This trace is useful to see the compensation mechanism */
 #if 0
         {
@@ -4977,7 +4889,7 @@ static void app_av_delay_start(tAPP_AV_DELAY *p_delay)
 int app_av_test_sec_codec(BOOLEAN use_prev_samp_freq)
 {
     int status, choice;
-    tBSA_AV_START start_param;
+    tBSA_AV_START srt;
 
     if ((app_av_cb.play_state != APP_AV_PLAY_STOPPED) || app_av_cb.play_list)
     {
@@ -4986,8 +4898,8 @@ int app_av_test_sec_codec(BOOLEAN use_prev_samp_freq)
     }
 
     /* start AV stream */
-    BSA_AvStartInit(&start_param);
-    start_param.media_feeding.format = BSA_AV_CODEC_SEC;
+    BSA_AvStartInit(&srt);
+    srt.media_feeding.format = BSA_AV_CODEC_SEC;
 
     if( use_prev_samp_freq == TRUE)
     {
@@ -5005,17 +4917,17 @@ int app_av_test_sec_codec(BOOLEAN use_prev_samp_freq)
 
     if(choice == 0)
     {
-        start_param.media_feeding.cfg.sec.sampling_freq = 48000;
+        srt.media_feeding.cfg.sec.sampling_freq = 48000;
         app_av_cb.sec_frame_size = 116;
     }
     else if(choice == 1)
     {
-        start_param.media_feeding.cfg.sec.sampling_freq = 44100;
+        srt.media_feeding.cfg.sec.sampling_freq = 44100;
         app_av_cb.sec_frame_size = 124;
     }
     else if(choice == 2)
     {
-        start_param.media_feeding.cfg.sec.sampling_freq = 32000;
+        srt.media_feeding.cfg.sec.sampling_freq = 32000;
         app_av_cb.sec_frame_size = 176;
     }
     else
@@ -5024,20 +4936,20 @@ int app_av_test_sec_codec(BOOLEAN use_prev_samp_freq)
         return -1;
     }
 
-    start_param.media_feeding.cfg.sec.ch_mode = 2;
-    start_param.feeding_mode = app_av_cb.uipc_cfg.is_blocking? BSA_AV_FEEDING_ASYNCHRONOUS: BSA_AV_FEEDING_SYNCHRONOUS;
-    start_param.latency = app_av_cb.uipc_cfg.period/1000; /* convert us to ms, synchronous feeding mode only*/
+    srt.media_feeding.cfg.sec.ch_mode = 2;
+    srt.feeding_mode = app_av_cb.uipc_cfg.is_blocking? BSA_AV_FEEDING_ASYNCHRONOUS: BSA_AV_FEEDING_SYNCHRONOUS;
+    srt.latency = app_av_cb.uipc_cfg.period/1000; /* convert us to ms, synchronous feeding mode only*/
 
     APP_INFO1("app_av_test_sec_codec freq:%d, c_m:%d, f_m:%d,lat:%d",
-            start_param.media_feeding.cfg.sec.sampling_freq,
-            start_param.media_feeding.cfg.sec.ch_mode,
-            start_param.feeding_mode,
-            start_param.latency);
+            srt.media_feeding.cfg.sec.sampling_freq,
+            srt.media_feeding.cfg.sec.ch_mode,
+            srt.feeding_mode,
+            srt.latency);
 
     app_av_cb.play_type = APP_AV_PLAYTYPE_TEST;
     app_av_cb.play_list = FALSE;
 
-    status = BSA_AvStart(&start_param);
+    status = BSA_AvStart(&srt);
     if (status != BSA_SUCCESS)
     {
         APP_ERROR1("BSA_AvStart failed:%d", status);
@@ -5114,7 +5026,6 @@ const char *app_av_get_current_cp_desc(void)
         return "Unknown";
     }
 }
-
 
 /*******************************************************************************
  **
@@ -5225,6 +5136,24 @@ UINT8 app_av_get_play_state()
 UINT8 app_av_get_play_type()
 {
     return app_av_cb.play_type;
+}
+
+void app_av_change_song(BOOLEAN forward)
+{
+    if(forward == TRUE)
+    {
+        p_app_av_cb->cur_play++;
+
+        if(p_app_av_cb->cur_play >= APP_AV_NUMSONGS)
+            p_app_av_cb->cur_play = 0;
+    }
+    else /* backward */
+    {
+        if(p_app_av_cb->cur_play > 0)
+            p_app_av_cb->cur_play--;
+        else
+            p_app_av_cb->cur_play = APP_AV_NUMSONGS -1;
+    }
 }
 
 static int app_av_find_strongest_sink_device()
