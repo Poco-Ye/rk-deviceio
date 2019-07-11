@@ -357,6 +357,10 @@ int RK_wifi_enable(const int enable)
 			usleep(600000);
 			system("dhcpcd -L -f /etc/dhcpcd.conf");
 			system("dhcpcd wlan0 -t 0 &");
+
+			RK_WIFI_RUNNING_State_e state = RK_WIFI_State_OPEN;
+			if (m_cb != NULL)
+				m_cb(state);
 		}
 		if (start_wifi_monitor_threadId <= 0) {
 			pthread_create(&start_wifi_monitor_threadId, nullptr, RK_wifi_start_monitor, nullptr);
@@ -367,6 +371,10 @@ int RK_wifi_enable(const int enable)
 		system("killall wpa_supplicant");
 		if (start_wifi_monitor_threadId > 0)
 			pthread_cancel(start_wifi_monitor_threadId);
+
+		RK_WIFI_RUNNING_State_e state = RK_WIFI_State_OFF;
+		if (m_cb != NULL)
+			m_cb(state);
 	}
 
 	return 0;

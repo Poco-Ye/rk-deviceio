@@ -196,6 +196,9 @@ void bt_spp_register_status_callback(RK_BT_SPP_STATUS_CALLBACK cb)
 
 void bt_spp_server_close()
 {
+	if (!g_bt_spp_server_thread)
+		return 0;
+
 	printf("[BT SPP] close start...\n");
 	g_spp_server_running = false;
 	usleep(220000);

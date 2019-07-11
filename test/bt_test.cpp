@@ -36,7 +36,7 @@ static RkBtContent bt_content;
 void bt_test_bluetooth_init(void *data)
 {
 	printf("--------------- BT BLUETOOTH INIT ----------------\n");
-	bt_content.bt_name = "ROCKCHIP_AUDIO";
+	bt_content.bt_name = "ROCKCHIP_888";
 	bt_content.ble_content.ble_name = "ROCKCHIP_AUDIO BLE";
 	bt_content.ble_content.server_uuid.uuid = BLE_UUID_SERVICE;
 	bt_content.ble_content.server_uuid.len = UUID_128;
@@ -381,6 +381,14 @@ void bt_test_ble_stop(void *data) {
 	rk_ble_stop();
 }
 
+void bt_test_ble_setup(void *data) {
+	rk_ble_setup(NULL);
+}
+
+void bt_test_ble_clean(void *data) {
+	rk_ble_clean();
+}
+
 /* SPP */
 void _btspp_status_callback(RK_BT_SPP_STATE type)
 {
@@ -417,7 +425,7 @@ void bt_test_spp_open(void *data)
 
 void bt_test_spp_write(void *data)
 {
-	int ret = 0;
+	unsigned int ret = 0;
 	char buff[100] = {"This is a message from rockchip board!"};
 
 	ret = rk_bt_spp_write(buff, strlen(buff));
@@ -568,4 +576,45 @@ void bt_test_hfp_sink_open(void *data)
 	rk_bt_sink_register_callback(bt_sink_callback);
 	rk_bt_hfp_register_callback(bt_test_hfp_hp_cb);
 	rk_bt_hfp_sink_open();
+}
+
+/* OBEX FOR PBAP */
+void bt_test_obex_init(void *data)
+{
+	rk_bt_obex_init();
+}
+
+void bt_test_obex_pbap_connect(void *data)
+{
+	rk_bt_obex_pbap_connect("24:31:54:8E:00:0A");
+}
+
+void bt_test_obex_pbap_get_pb_vcf(void *data)
+{
+	rk_bt_obex_pbap_get_vcf("pb", "/data/pb.vcf");
+}
+
+void bt_test_obex_pbap_get_ich_vcf(void *data)
+{
+	rk_bt_obex_pbap_get_vcf("ich", "/data/ich.vcf");
+}
+
+void bt_test_obex_pbap_get_och_vcf(void *data)
+{
+	rk_bt_obex_pbap_get_vcf("och", "/data/och.vcf");
+}
+
+void bt_test_obex_pbap_get_mch_vcf(void *data)
+{
+	rk_bt_obex_pbap_get_vcf("mch", "/data/mch.vcf");
+}
+
+void bt_test_obex_pbap_disconnect(void *data)
+{
+	rk_bt_obex_pbap_disconnect(NULL);
+}
+
+void bt_test_obex_close(void *data)
+{
+	rk_bt_obex_close();
 }

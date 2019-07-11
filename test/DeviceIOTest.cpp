@@ -84,6 +84,8 @@ static command_t bt_command_table[] = {
 	{"bt_test_ble_start", bt_test_ble_start},
 	{"bt_test_ble_write", bt_test_ble_write},
 	{"bt_test_ble_stop", bt_test_ble_stop},
+	{"bt_test_ble_setup", bt_test_ble_setup},
+	{"bt_test_ble_clean", bt_test_ble_clean},
 	{"bt_test_ble_get_status", bt_test_ble_get_status},
 	{"bt_test_spp_open", bt_test_spp_open},
 	{"bt_test_spp_write", bt_test_spp_write},
@@ -97,6 +99,14 @@ static command_t bt_command_table[] = {
 	{"bt_test_hfp_hp_report_battery", bt_test_hfp_hp_report_battery},
 	{"bt_test_hfp_hp_set_volume", bt_test_hfp_hp_set_volume},
 	{"bt_test_hfp_hp_close", bt_test_hfp_hp_close},
+	{"bt_test_obex_init", bt_test_obex_init},
+	{"bt_test_obex_pbap_connect", bt_test_obex_pbap_connect},
+	{"bt_test_obex_pbap_get_pb_vcf", bt_test_obex_pbap_get_pb_vcf},
+	{"bt_test_obex_pbap_get_ich_vcf", bt_test_obex_pbap_get_ich_vcf},
+	{"bt_test_obex_pbap_get_och_vcf", bt_test_obex_pbap_get_och_vcf},
+	{"bt_test_obex_pbap_get_mch_vcf", bt_test_obex_pbap_get_mch_vcf},
+	{"bt_test_obex_pbap_disconnect", bt_test_obex_pbap_disconnect},
+	{"bt_test_obex_close", bt_test_obex_close},
 	{"bt_server_close", bt_test_bluetooth_deinit},
 };
 

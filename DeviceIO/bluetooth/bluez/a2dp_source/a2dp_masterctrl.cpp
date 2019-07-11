@@ -75,6 +75,7 @@ static GMainLoop *btsrc_main_loop;
 volatile bool A2DP_SINK_FLAG;
 volatile bool A2DP_SRC_FLAG;
 volatile bool BLE_FLAG;
+volatile bool BT_OPENED = 0;
 
 RK_BT_SOURCE_CALLBACK g_btmaster_cb;
 void *g_btmaster_userdata;
@@ -2783,7 +2784,7 @@ static void a2dp_source_clean(void)
 	default_attr = NULL;
 
 	btsrc_client = NULL;
-	btsrc_main_loop = NULL;
+	//btsrc_main_loop = NULL;
 
 	A2DP_SRC_FLAG = 0;
 	A2DP_SINK_FLAG = 0;
@@ -2826,36 +2827,61 @@ void bluetooth_open(RkBtContent *bt_content)
 	g_dbus_client_set_signal_watch(btsrc_client, message_handler, NULL);
 	g_dbus_client_set_proxy_handlers(btsrc_client, proxy_added, proxy_removed,
 						  property_changed, NULL);
+
 	printf("#### %s server start...\n", __func__);
+	BT_OPENED = 1;
+
 	g_main_loop_run(btsrc_main_loop);
+
+	//clean up
 	g_dbus_client_unref(btsrc_client);
 	dbus_connection_unref(dbus_conn);
 	g_main_loop_unref(btsrc_main_loop);
-	a2dp_source_clean();
-	printf("#### %s server end...\n", __func__);
+
+
+	g_list_free_full(ctrl_list, proxy_leak);
+	g_free(auto_register_agent);
+	//a2dp_source_clean();
+
+	printf("#### %s server exit!\n", __func__);
 	pthread_exit(0);
 }
 
 static pthread_t bt_thread = 0;
 int bt_open(RkBtContent *bt_content)
 {
+	int confirm_cnt = 10;
+
 	if (bt_thread)
 		return 0;
 
-	pthread_create(&bt_thread, NULL, bluetooth_open, bt_content);
-	return 0;
+	if (pthread_create(&bt_thread, NULL, bluetooth_open, bt_content))
+		return -1;
+
+	while (confirm_cnt--) {
+		if (BT_OPENED)
+			return 0;
+		usleep(100 * 1000);
+	}
+
+	return -1;
 }
 
-int bt_close()
+int bt_close(void)
 {
 	int ret = 0;
 
 	g_main_loop_quit(btsrc_main_loop);
-	ret = pthread_join (bt_thread, NULL);
+	printf("%s g_main_loop_quit\n", __func__);
+	/*
+	ret = pthread_join(bt_thread, NULL);
 	if (ret) {
 		printf("ERROR: %s waite for bt server thread exit failed!\n", __func__);
 		return -1;
-	}
+	} else
+		printf("%s exit ok\n", __func__);
+	*/
+	bt_thread = 0;
 
 	return 0;
 }

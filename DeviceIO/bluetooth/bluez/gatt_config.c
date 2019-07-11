@@ -118,6 +118,8 @@ char CMD_RA[256] = "hcitool -i hci0 cmd 0x08 0x0005";
 #define CMD_EN                   "hcitool -i hci0 cmd 0x08 0x000a 1"
 #define CMD_DISEN                "hcitool -i hci0 cmd 0x08 0x000a 0"
 
+static GDBusProxy *ble_proxy = NULL;
+
 struct adapter {
 	GDBusProxy *proxy;
 	GDBusProxy *ad_proxy;
@@ -413,64 +415,9 @@ static gboolean service_get_uuid(const GDBusPropertyTable *property,
 	return TRUE;
 }
 
-static gboolean service_get_includes(const GDBusPropertyTable *property,
-					DBusMessageIter *iter, void *user_data)
-{
-	const char *uuid = user_data;
-	char service_path[100] = {0,};
-	DBusMessageIter array;
-	char *p = NULL;
-
-	snprintf(service_path, 100, "/service3");
-	printf("Get Includes: %s\n", uuid);
-
-	p = service_path;
-
-	printf("Includes path: %s\n", p);
-
-	dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY,
-			DBUS_TYPE_OBJECT_PATH_AS_STRING, &array);
-
-	dbus_message_iter_append_basic(&array, DBUS_TYPE_OBJECT_PATH,
-							&p);
-
-	snprintf(service_path, 100, "/service2");
-	p = service_path;
-	printf("Get Includes: %s\n", p);
-
-	dbus_message_iter_append_basic(&array, DBUS_TYPE_OBJECT_PATH,
-							&p);
-	dbus_message_iter_close_container(iter, &array);
-
-
-	return TRUE;
-
-}
-
-
-static gboolean service_exist_includes(const GDBusPropertyTable *property,
-							void *user_data)
-{
-	const char *uuid = user_data;
-
-	printf("Exist Includes: %s\n", uuid);
-
-#ifdef DUEROS
-	if (strncmp(uuid, "00001111", 8) == 0)
-		return TRUE;
-#else
-	if (strncmp(uuid, "1B7E8251", 8) == 0)
-		return TRUE;
-#endif
-
-	return FALSE;
-}
-
 static const GDBusPropertyTable service_properties[] = {
 	{ "Primary", "b", service_get_primary },
 	{ "UUID", "s", service_get_uuid },
-	//{ "Includes", "ao", service_get_includes, NULL,
-	//				service_exist_includes },
 	{ }
 };
 
@@ -974,12 +921,79 @@ static void register_app_setup(DBusMessageIter *iter, void *user_data)
 
 void register_app(GDBusProxy *proxy)
 {
+	ble_proxy = proxy;
+
 	if (!g_dbus_proxy_method_call(proxy, "RegisterApplication",
 					register_app_setup, register_app_reply,
 					NULL, NULL)) {
 		printf("Unable to call RegisterApplication\n");
 		return;
 	}
+}
+
+static void unregister_app_reply(DBusMessage *message, void *user_data)
+{
+	DBusError error;
+
+	dbus_error_init(&error);
+
+	if (dbus_set_error_from_message(&error, message) == TRUE) {
+		printf("Failed to unregister application: %s\n",
+				error.name);
+		dbus_error_free(&error);
+		return bt_shell_noninteractive_quit(EXIT_FAILURE);
+	}
+
+	printf("Application unregistered\n");
+
+	//return bt_shell_noninteractive_quit(EXIT_SUCCESS);
+}
+
+static void unregister_app_setup(DBusMessageIter *iter, void *user_data)
+{
+	const char *path = "/";
+
+	dbus_message_iter_append_basic(iter, DBUS_TYPE_OBJECT_PATH, &path);
+}
+
+static void gatt_unregister_app(GDBusProxy *proxy)
+{
+	if (g_dbus_proxy_method_call(proxy, "UnregisterApplication",
+						unregister_app_setup,
+						unregister_app_reply, NULL,
+						NULL) == FALSE) {
+		printf("Failed unregister profile\n");
+		return bt_shell_noninteractive_quit(EXIT_FAILURE);
+	}
+}
+
+int gatt_setup(void)
+{
+	printf("gatt_setup\n");
+	gatt_create_services();
+	register_app(ble_proxy);
+
+	return 1;
+}
+
+void gatt_cleanup(void)
+{
+	int i;
+
+	printf("gatt_cleanup\n");
+
+	//gatt_unregister_app(ble_proxy);
+
+	sleep(1);
+
+	for (i = 0; i < ble_content_internal->char_cnt; i++) {
+		printf("char_uuid[%d]: %s\n", i,  gchr[i]->path);
+		g_dbus_unregister_interface(dbus_conn,  gchr[i]->path,
+							GATT_CHR_IFACE);
+	}
+
+	g_dbus_unregister_interface(dbus_conn, "/service1",
+						GATT_SERVICE_IFACE);
 }
 
 int gatt_open(void)

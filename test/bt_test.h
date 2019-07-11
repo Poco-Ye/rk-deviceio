@@ -22,6 +22,8 @@ void bt_test_ble_start(void *data);
 void bt_test_ble_write(void *data);
 void bt_test_ble_get_status(void *data);
 void bt_test_ble_stop(void *data);
+void bt_test_ble_setup(void *data);
+void bt_test_ble_clean(void *data);
 
 /******************************************/
 /*             A2DP SINK Test             */
@@ -67,6 +69,16 @@ void bt_test_hfp_hp_redial(void *data);
 void bt_test_hfp_hp_report_battery(void *data);
 void bt_test_hfp_hp_set_volume(void *data);
 void bt_test_hfp_hp_close(void *data);
+
+//obex pbap
+void bt_test_obex_init(void *data);
+void bt_test_obex_pbap_connect(void *data);
+void bt_test_obex_pbap_get_pb_vcf(void *data);
+void bt_test_obex_pbap_get_ich_vcf(void *data);
+void bt_test_obex_pbap_get_och_vcf(void *data);
+void bt_test_obex_pbap_get_mch_vcf(void *data);
+void bt_test_obex_pbap_disconnect(void *data);
+void bt_test_obex_close(void *data);
 
 #ifdef __cplusplus
 }

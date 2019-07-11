@@ -28,6 +28,13 @@ int rk_bt_hfp_redial(void);
 int rk_bt_hfp_report_battery(int value);
 int rk_bt_hfp_set_volume(int volume);
 
+/* OBEX FOR PBAP */
+int rk_bt_obex_init();
+int rk_bt_obex_pbap_connect(char *btaddr);
+int rk_bt_obex_pbap_get_vcf(char *dir_name, char *dir_file);
+int rk_bt_obex_pbap_disconnect(char *btaddr);
+int rk_bt_obex_close();
+
 #ifdef __cplusplus
 }
 #endif
