@@ -7,6 +7,9 @@ message(${PROJECT_BINARY_DIR})
 
 add_definitions("-Wall -g")
 
+if(BUILD_RK_MEDIAPLAYER)
 add_subdirectory("librkmediaplayer")
+endif()
+
 add_subdirectory("DeviceIO")
 add_subdirectory("test")
