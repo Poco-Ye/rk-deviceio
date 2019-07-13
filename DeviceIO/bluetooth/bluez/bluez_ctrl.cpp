@@ -36,6 +36,7 @@
 #include <DeviceIo/RkBle.h>
 #include <DeviceIo/RK_log.h>
 #include <DeviceIo/Rk_shell.h>
+#include "../utility/utility.h"
 
 #define BT_IS_BLE_SINK_COEXIST 1
 
@@ -90,34 +91,26 @@ static int bt_gethostname(char *hostname_buf, const size_t size)
 	return 0;
 }
 
-static void _bt_close_server()
+static int _bt_close_server(void)
 {
-	char ret_buff[1024];
-
 	RK_LOGD("=== _bt_close_server ===\n");
-	RK_shell_system("killall bluealsa");
-	RK_shell_system("killall bluealsa-aplay");
-	RK_shell_system("killall bluetoothctl");
-	RK_shell_system("killall bluetoothd");
 
-	msleep(100);
-	RK_shell_exec("pidof bluetoothd", ret_buff, 1024);
-	while (ret_buff[0]) {
-		msleep(10);
-		RK_shell_system("killall bluetoothd");
-		msleep(100);
-		RK_shell_exec("pidof bluetoothd", ret_buff, 1024);
-	}
+	if (bt_kill_task("bluealsa") < 0)
+		return -1;
 
-	RK_shell_system("killall rtk_hciattach");
-	msleep(800);
-	RK_shell_exec("pidof rtk_hciattach", ret_buff, 1024);
-	while (ret_buff[0]) {
-		msleep(10);
-		RK_shell_system("killall rtk_hciattach");
-		msleep(800);
-		RK_shell_exec("pidof rtk_hciattach", ret_buff, 1024);
-	}
+	if (bt_kill_task("bluealsa-aplay") < 0)
+		return -1;
+
+	if (bt_kill_task("bluetoothctl") < 0)
+		return -1;
+
+	if (bt_kill_task("bluetoothd") < 0)
+		return -1;
+
+	if (bt_kill_task("rtk_hciattach") < 0)
+		return -1;
+
+	return 0;
 }
 
 static int _bt_open_server(const char *bt_name)
@@ -127,16 +120,17 @@ static int _bt_open_server(const char *bt_name)
 	char ret_buff[1024];
 	char bt_buff[1024];
 
-	RK_shell_exec("pidof bluetoothd", ret_buff, 1024);
-	if (ret_buff[0]) {
+	if (bt_get_ps_pid("bluetoothd")) {
 		RK_LOGD("_bt_open_server bt has already opened\n");
 		return 0;
 	}
 
 	RK_LOGD("[BT_OPEN] _bt_open_server \n");
-	RK_shell_system("echo 0 > /sys/class/rfkill/rfkill0/state && sleep 2");
-	RK_shell_system("echo 1 > /sys/class/rfkill/rfkill0/state && usleep 200000");
 
+	bt_exec_command_system("echo 0 > /sys/class/rfkill/rfkill0/state && sleep 1");
+	bt_exec_command_system("echo 1 > /sys/class/rfkill/rfkill0/state && usleep 200000");
+
+	/* check bt vendor (exteran/rkwifibt) */
 	if (access("/usr/bin/bt_init.sh", F_OK)) {
 		RK_LOGE("[BT_OPEN]  bt_init.sh not exist !!!\n");
 		if (access("/userdata/bt_pcba_test", F_OK)) {
@@ -145,58 +139,56 @@ static int _bt_open_server(const char *bt_name)
 		}
 	}
 
-	RK_shell_exec("cat /usr/bin/bt_init.sh | grep rtk_hciattach", bt_buff, 1024);
+	/* realtek init */
+	bt_exec_command("cat /usr/bin/bt_init.sh | grep rtk_hciattach", bt_buff, 1024);
 	if (bt_buff[0]) {
-		RK_shell_system("insmod /usr/lib/modules/hci_uart.ko && usleep 300000");
-		RK_shell_exec("lsmod", ret_buff, 1024);
+		bt_exec_command_system("insmod /usr/lib/modules/hci_uart.ko && usleep 300000");
+		bt_exec_command("lsmod", ret_buff, 1024);
 		if (!strstr(ret_buff, "hci_uart")) {
-			RK_LOGE("open bt server failed! error: insmod hci_uart.ko failed!\n");
+			RK_LOGE("open bt server: insmod hci_uart.ko failed!\n");
 			return -1;
 		}
 
 		RK_LOGE("bt_buff: %s \n", bt_buff);
-		RK_shell_system(bt_buff);
+		bt_exec_command_system(bt_buff);
 
-		sleep(2);
+		sleep(1);
 
-		RK_shell_exec("pidof rtk_hciattach", ret_buff, 1024);
-		if (!ret_buff[0]) {
-			RK_LOGE("open bt server failed! error: rtk_hciattach failed!\n");
+		if (!bt_get_ps_pid("rtk_hciattach")) {
+			RK_LOGE("open bt server error: rtk_hciattach failed!\n");
 			return -1;
 		}
 	}
 
-	RK_shell_exec("cat /usr/bin/bt_init.sh | grep brcm_patchram_plus1", bt_buff, 1024);
+	/* broadcom or cypress init */
+	bt_exec_command("cat /usr/bin/bt_init.sh | grep brcm_patchram_plus1", bt_buff, 1024);
 	if (bt_buff[0]) {
 		RK_LOGE("bt_buff: %s \n", bt_buff);
-		RK_shell_system(bt_buff);
+		bt_exec_command_system(bt_buff);
 		sleep(2);
-		RK_shell_exec("pidof brcm_patchram_plus1", ret_buff, 1024);
+		bt_exec_command("pidof brcm_patchram_plus1", ret_buff, 1024);
 		if (!ret_buff[0]) {
 			RK_LOGE("open bt server failed! error: brcm_patchram_plus1 failed!\n");
 			return -1;
 		}
 	}
 
-	//RK_shell_system("hcidump -i hci0 -w /tmp/h.log &");
-	//sleep(1);
+	bt_exec_command_system("hciconfig hci0 up");
 
-	RK_shell_system("hciconfig hci0 up");
-	RK_shell_system("/usr/libexec/bluetooth/bluetoothd -C -n -d -E &");
-	sleep(2);
-	RK_shell_exec("pidof bluetoothd", ret_buff, 1024);
-	if (!ret_buff[0]) {
+	/* run bluetoothd */
+	if (bt_run_task("bluetoothd", "/usr/libexec/bluetooth/bluetoothd -C -n -d -E &")) {
 		RK_LOGE("open bt server failed! error: bluetoothd failed!\n");
 		return -1;
 	}
 
-	RK_shell_system("hciconfig hci0 up");
+	bt_exec_command_system("hciconfig hci0 up");
 	msleep(10);
+
 	//set Bluetooth NoInputNoOutput mode
-	RK_shell_system("bluetoothctl -a NoInputNoOutput &");
+	bt_exec_command_system("bluetoothctl -a NoInputNoOutput &");
 	sleep(1);
 
-	RK_shell_system("hciconfig hci0 piscan");
+	bt_exec_command_system("hciconfig hci0 piscan");
 	msleep(10);
 
 	/* Use a user-specified name or a device default name? */
@@ -207,13 +199,13 @@ static int _bt_open_server(const char *bt_name)
 		bt_gethostname(hostname_buf, sizeof(hostname_buf));
 		sprintf(cmd_buf, "hciconfig hci0 name \'%s\'", hostname_buf);
 	}
-	RK_shell_system(cmd_buf);
+	bt_exec_command_system(cmd_buf);
 
 	msleep(10);
-	RK_shell_system("hciconfig hci0 down");
+	bt_exec_command_system("hciconfig hci0 down");
 	msleep(10);
-	RK_shell_system("hciconfig hci0 up");
-	RK_shell_system("hciconfig hci0 up");
+	bt_exec_command_system("hciconfig hci0 up");
+	bt_exec_command_system("hciconfig hci0 up");
 	msleep(200);
 
 	return 0;
@@ -233,20 +225,20 @@ static int bt_start_a2dp_source()
 {
 	char ret_buff[1024];
 
-	RK_shell_system("killall bluealsa");
-	RK_shell_system("killall bluealsa-aplay");
+	bt_exec_command_system("killall bluealsa");
+	bt_exec_command_system("killall bluealsa-aplay");
 
 	msleep(500);
-	RK_shell_system("bluealsa --profile=a2dp-source &");
-	RK_shell_exec("pidof bluealsa", ret_buff, 1024);
+	bt_exec_command_system("bluealsa --profile=a2dp-source &");
+	bt_exec_command("pidof bluealsa", ret_buff, 1024);
 	if (!ret_buff[0]) {
 		RK_LOGE("start a2dp source profile failed!\n");
 		return -1;
 	}
 
-	RK_shell_system("hciconfig hci0 class 0x480400");
+	bt_exec_command_system("hciconfig hci0 class 0x480400");
 	msleep(100);
-	RK_shell_system("hciconfig hci0 class 0x480400");
+	bt_exec_command_system("hciconfig hci0 class 0x480400");
 	msleep(100);
 
 	return 0;
@@ -256,30 +248,30 @@ static int bt_start_a2dp_sink(int sink_only)
 {
 	char ret_buff[1024];
 
-	RK_shell_system("killall bluealsa");
-	RK_shell_system("killall bluealsa-aplay");
+	bt_kill_task("bluealsa");
+	bt_kill_task("bluealsa-aplay");
 
 	msleep(500);
 	if (sink_only)
-		RK_shell_system("bluealsa --profile=a2dp-sink --a2dp-volume &");
+		bt_exec_command_system("bluealsa --profile=a2dp-sink --a2dp-volume &");
 	else
-		RK_shell_system("bluealsa --a2dp-volume &");
-	RK_shell_exec("pidof bluealsa", ret_buff, 1024);
+		bt_exec_command_system("bluealsa --a2dp-volume &");
+	bt_exec_command("pidof bluealsa", ret_buff, 1024);
 	if (!ret_buff[0]) {
 		RK_LOGE("start a2dp sink profile failed!\n");
 		return -1;
 	}
 
-	RK_shell_system("bluealsa-aplay --profile-a2dp 00:00:00:00:00:00 &");
-	RK_shell_exec("pidof bluealsa-aplay", ret_buff, 1024);
+	bt_exec_command_system("bluealsa-aplay --profile-a2dp 00:00:00:00:00:00 &");
+	bt_exec_command("pidof bluealsa-aplay", ret_buff, 1024);
 	if (!ret_buff[0]) {
 		RK_LOGE("start a2dp sink play server failed!\n");
 		return -1;
 	}
 
-	RK_shell_system("hciconfig hci0 class 0x240404");
+	bt_exec_command_system("hciconfig hci0 class 0x240404");
 	msleep(100);
-	RK_shell_system("hciconfig hci0 class 0x240404");
+	bt_exec_command_system("hciconfig hci0 class 0x240404");
 	msleep(200);
 	RK_LOGD("bt_start_a2dp_sink exit\n");
 
@@ -290,20 +282,20 @@ static int bt_start_hfp()
 {
 	char ret_buff[1024];
 
-	RK_shell_system("killall bluealsa");
-	RK_shell_system("killall bluealsa-aplay");
+	bt_exec_command_system("killall bluealsa");
+	bt_exec_command_system("killall bluealsa-aplay");
 
 	msleep(500);
-	RK_shell_system("bluealsa --profile=hfp-hf &");
-	RK_shell_exec("pidof bluealsa", ret_buff, 1024);
+	bt_exec_command_system("bluealsa --profile=hfp-hf &");
+	bt_exec_command("pidof bluealsa", ret_buff, 1024);
 	if (!ret_buff[0]) {
 		RK_LOGE("start hfp-hf profile failed!\n");
 		return -1;
 	}
 
-	RK_shell_system("hciconfig hci0 class 0x240404");
+	bt_exec_command_system("hciconfig hci0 class 0x240404");
 	msleep(100);
-	RK_shell_system("hciconfig hci0 class 0x240404");
+	bt_exec_command_system("hciconfig hci0 class 0x240404");
 	msleep(200);
 	RK_LOGD("%s exit\n", __func__);
 
@@ -340,7 +332,7 @@ bool bt_sink_is_open(void)
 	if (bt_control.is_a2dp_sink_open) {
 		RK_LOGD("bt_sink has been opened.\n");
 		if (get_ps_pid("bluetoothd") && get_ps_pid("bluealsa") && get_ps_pid("bluealsa-aplay")) {
-			RK_LOGD("Bluetooth has been opened.\n");
+			RK_LOGD("bt_sink has been opened.\n");
 			return 1;
 		} else {
 			RK_LOGE("bt_sink has been opened but bluetoothd server exit.\n");
@@ -601,8 +593,8 @@ static int get_bt_mac(char *bt_mac)
 	char ret_buff[1024] = {0};
 	bool ret;
 
-	ret = RK_shell_exec("hciconfig hci0 | grep Address | awk '{print $3}'",ret_buff, 1024);
-	if(!ret){
+	bt_exec_command("hciconfig hci0 | grep Address | awk '{print $3}'", ret_buff, 1024);
+	if (!ret_buff[0]) {
 		RK_LOGE("get bt address failed.\n");
 		return false;
 	}
@@ -622,16 +614,26 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 	switch (cmd) {
 	case BtControl::BT_OPEN:
 		GBt_Content = *((RkBtContent *)data);
-		_bt_close_server();
-		_bt_open_server(GBt_Content.bt_name);
 
-		//FOR HISENSE
-		//bt_adv_set((RkBtContent *)data);
-		bt_open(&GBt_Content);
+		if (_bt_close_server() < 0) {
+			RK_LOGD("_bt_close_server failed\n");
+			return -1;
+		}
+
+		if (_bt_open_server(GBt_Content.bt_name) < 0) {
+			RK_LOGD("_bt_open_server failed\n");
+			return -1;
+		}
+
+		if (bt_open(&GBt_Content) < 0) {
+			RK_LOGD("bt_open failed\n");
+			return -1;
+		}
 
 		bt_control.is_bt_open = 1;
 		bt_control.type = BtControlType::BT_NONE;
 		bt_control.last_type = BtControlType::BT_NONE;
+
 		break;
 	case BtControl::BT_SINK_OPEN:
 		if (!bt_control.is_bt_open)
@@ -817,6 +819,12 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		break;
 	case BtControl::BT_BLE_DISCONNECT:
 		ret = ble_disconnect();
+		break;
+	case BtControl::BT_BLE_SETUP:
+		ret = gatt_setup();
+		break;
+	case BtControl::BT_BLE_CLEAN:
+		gatt_cleanup();
 		break;
 	default:
 		RK_LOGD("%s, cmd <%d> is not implemented.\n", __func__,

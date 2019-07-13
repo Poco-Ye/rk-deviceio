@@ -15,6 +15,7 @@ message("build bluez...")
 add_definitions(-DBLUEZ5_UTILS -DFIXED_POINT=16)
 file(GLOB_RECURSE DeviceIo_BLUZ_CXX "${DeviceIo_SOURCE_DIR}/bluetooth/bluez/*.cpp")
 file(GLOB_RECURSE DeviceIo_BLUZ_C "${DeviceIo_SOURCE_DIR}/bluetooth/bluez/*.c")
+file(GLOB_RECURSE DeviceIo_BLUZ_U_C "${DeviceIo_SOURCE_DIR}/bluetooth/utility/*.c")
 
 add_library(DeviceIo SHARED
 		${DeviceIo_SRC}
@@ -26,9 +27,11 @@ add_library(DeviceIo SHARED
                 ${DeviceIo_voiceprint}
 		${DeviceIo_BLUZ_CXX}
 		${DeviceIo_BLUZ_C}
+		${DeviceIo_BLUZ_U_C}
 		)
 target_include_directories(DeviceIo PUBLIC
-		"${DeviceIo_SOURCE_DIR}/bluetooth/bluez/include")
+		"${DeviceIo_SOURCE_DIR}/bluetooth/bluez/include"
+		"${DeviceIo_SOURCE_DIR}/bluetooth/utility")
 find_package(PkgConfig)
 pkg_check_modules (GLIB2 glib-2.0 REQUIRED)
 pkg_check_modules (DBUS dbus-1 REQUIRED)
@@ -96,6 +99,6 @@ target_include_directories(DeviceIo PUBLIC
 		"${DeviceIo_SOURCE_DIR}/src/linux/bluetooth/include"
 		"${RAPIDJSON_INCLUDE_DIR}")
 
-add_definitions("-Wall -g -O0 -fpermissive")
+add_definitions("-Wall -g -O0 -fpermissive -Wno-unused-variable -Wno-write-strings -Wno-unused-function -Wno-write-strings")
 # install target
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)

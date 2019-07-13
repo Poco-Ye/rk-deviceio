@@ -117,6 +117,9 @@ enum class BtControl {
 	BT_HFP_OPEN,
 	BT_HFP_SINK_OPEN,
 
+	BT_BLE_SETUP,
+	BT_BLE_CLEAN,
+
     GET_BT_MAC,
 };
 

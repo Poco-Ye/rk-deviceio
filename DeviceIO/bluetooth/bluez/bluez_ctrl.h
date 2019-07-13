@@ -46,6 +46,6 @@ int bt_close_source(void);
 int rk_bt_control(BtControl cmd, void *data, int len);
 int bt_control_cmd_send(enum BtControl bt_ctrl_cmd);
 
-#define msleep(x) usleep(x * 1000)
+//#define msleep(x) usleep(x * 1000)
 
 #endif /* __BLUEZ_CTRL_P__ */

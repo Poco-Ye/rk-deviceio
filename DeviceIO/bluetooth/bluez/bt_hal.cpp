@@ -23,6 +23,8 @@
 #include "spp_server/spp_server.h"
 #include "bluez_alsa_client/ctl-client.h"
 #include "bluez_alsa_client/rfcomm_msg.h"
+#include "obex_client.h"
+#include "../utility/utility.h"
 
 extern RkBtContent GBt_Content;
 extern volatile bt_control_t bt_control;
@@ -57,6 +59,19 @@ int rk_ble_start(RkBleContent *ble_content)
 int rk_ble_stop(void)
 {
 	rk_bt_control(BtControl::BT_BLE_COLSE, NULL, 0);
+	return 0;
+}
+
+int rk_ble_setup(RkBleContent *ble_content)
+{
+	rk_bt_control(BtControl::BT_BLE_SETUP, NULL, 0);
+
+	return 0;
+}
+
+int rk_ble_clean(void)
+{
+	rk_bt_control(BtControl::BT_BLE_CLEAN, NULL, 0);
 	return 0;
 }
 
@@ -308,6 +323,9 @@ int rk_bt_source_open(void)
 
 int rk_bt_source_close(void)
 {
+	if (!bt_control.is_a2dp_source_open)
+		return 0;
+
 	bt_close_source();
 	a2dp_master_clear_cb();
 	return 0;
@@ -762,19 +780,18 @@ int rk_bt_spp_write(char *data, int len)
 //====================================================//
 int rk_bt_init(RkBtContent *p_bt_content)
 {
-	rk_bt_control(BtControl::BT_OPEN, p_bt_content, sizeof(RkBtContent));
-	sleep(1);
+	int wait_cnt = 3;
+
+	setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/var/run/dbus/system_bus_socket", 1);
+	if (rk_bt_control(BtControl::BT_OPEN, p_bt_content, sizeof(RkBtContent)))
+		return -1;
 
 	return 0;
 }
 
-int rk_bt_deinit()
+int rk_bt_deinit(void)
 {
-#if 0
-	char ret_buff[1024] = {0};
-	int retry_cnt;
-	int ret = 0;
-
+#if 1
 	rk_bt_hfp_close();
 	//rk_bt_sink_close();
 	rk_bt_source_close();
@@ -782,45 +799,19 @@ int rk_bt_deinit()
 	rk_ble_stop();
 	bt_close();
 
-	//printf("bluez don't support bt deinit\n");
-	RK_shell_system("killall bluealsa");
-	RK_shell_system("killall bluealsa-aplay");
-	RK_shell_system("killall bluetoothctl");
-	RK_shell_system("killall bluetoothd");
+	bt_kill_task("bluealsa");
+	bt_kill_task("bluealsa-aplay");
+	bt_kill_task("bluetoothctl");
+	bt_kill_task("bluetoothd");
 
-	msleep(100);
-	retry_cnt = 3;
-	RK_shell_exec("pidof bluetoothd", ret_buff, 1024);
-	while (ret_buff[0]) {
-		msleep(10);
-		RK_shell_system("killall bluetoothd");
-		msleep(100);
-		RK_shell_exec("pidof bluetoothd", ret_buff, 1024);
-		if ((retry_cnt--) <= 0) {
-			RK_LOGE("bluetoothd server can't be killed!");
-			ret = -1;
-		}
-	}
+	sleep(1);
+	rk_ble_clean();
 
-	retry_cnt = 3;
-	RK_shell_system("killall rtk_hciattach");
-	msleep(800);
-	RK_shell_exec("pidof rtk_hciattach", ret_buff, 1024);
-	while (ret_buff[0]) {
-		msleep(10);
-		RK_shell_system("killall rtk_hciattach");
-		msleep(800);
-		RK_shell_exec("pidof rtk_hciattach", ret_buff, 1024);
-		if ((retry_cnt--) <= 0) {
-			RK_LOGE("rtk_hciattach can't be killed!");
-			ret = -1;
-		}
-	}
-
-	return ret;
-#endif
+	return 0;
+#else
 	printf("bluez don't support bt deinit\n");
 	return -1;
+#endif
 }
 
 /*
@@ -1134,3 +1125,60 @@ int rk_bt_hfp_set_volume(int volume)
 	return ret;
 }
 
+static pthread_t g_obex_thread;
+int rk_bt_obex_init()
+{
+	char result_buf[256] = {0};
+	int ret = 0;
+
+	printf("[enter %s]\n", __func__);
+
+	setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/var/run/dbus/system_bus_socket", 1);
+	usleep(6000);
+	system("usr/libexec/bluetooth/obexd -d -n -l -a -r /data/ &");
+
+	/* Create thread to do connect task. */
+	ret = pthread_create(&g_obex_thread, NULL,
+						 obex_main_thread, NULL);
+	if (ret) {
+		printf("obex_main_thread thread create failed!\n");
+		return -1;
+	} else
+		printf("obex_main_thread thread create ok!\n");
+
+	return 0;
+}
+
+int rk_bt_obex_pbap_connect(char *btaddr)
+{
+	printf("[enter %s]\n", __func__);
+	obex_connect_pbap(btaddr);
+
+	return 0;
+}
+
+int rk_bt_obex_pbap_get_vcf(char *dir_name, char *dir_file)
+{
+	printf("[enter %s]\n", __func__);
+	obex_get_pbap_pb(dir_name, dir_file);
+
+	return 0;
+}
+
+int rk_bt_obex_pbap_disconnect(char *btaddr)
+{
+	printf("[enter %s]\n", __func__);
+	obex_disconnect(1, NULL);
+	return 0;
+}
+
+int rk_bt_obex_close()
+{
+	char result_buf[256] = {0};
+
+	printf("[enter %s]\n", __func__);
+	obex_quit();
+	bt_kill_task("obexd");
+
+	return 0;
+}

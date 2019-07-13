@@ -41,13 +41,7 @@ static pthread_t wificonfig_tid = 0;
 static pthread_t wificonfig_scan_tid = 0;
 
 static char wifi_ssid[256];
-static char wifi_ssid_bk[256];
 static char wifi_password[256];
-static char wifi_password_bk[256];
-static char wifi_security[256];
-static char wifi_hide[256];
-static char check_data[256];
-static int priority = 0;
 
 struct wifi_config {
 	char ssid[512];
@@ -84,50 +78,6 @@ typedef struct {
 typedef struct {
 	uint8_t data[16];
 } uuid128_t;
-
-static int bt_string_to_uuid128(uuid128_t *uuid, const char *string, int rever)
-{
-	uint32_t data0, data4;
-	uint16_t data1, data2, data3, data5;
-	uuid128_t u128;
-	uint8_t *val = (uint8_t *) &u128;
-	uint8_t tmp[16];
-
-	if (sscanf(string, "%08x-%04hx-%04hx-%04hx-%08x%04hx",
-				&data0, &data1, &data2,
-				&data3, &data4, &data5) != 6)
-		return -1;
-
-	data0 = htonl(data0);
-	data1 = htons(data1);
-	data2 = htons(data2);
-	data3 = htons(data3);
-	data4 = htonl(data4);
-	data5 = htons(data5);
-
-	memcpy(&val[0], &data0, 4);
-	memcpy(&val[4], &data1, 2);
-	memcpy(&val[6], &data2, 2);
-	memcpy(&val[8], &data3, 2);
-	memcpy(&val[10], &data4, 4);
-	memcpy(&val[14], &data5, 2);
-
-	if (rever) {
-		memcpy(tmp, val, 16);
-		printf("UUID: ");
-		for (int i = 0; i < 16; i++) {
-			val[15 - i] = tmp[i];
-			printf("0x%x ", tmp[i]);
-		}
-		printf("\n");
-	}
-
-	//bt_uuid128_create(uuid, u128);
-	memset(uuid, 0, sizeof(uuid128_t));
-	memcpy(uuid, &u128, sizeof(uuid128_t));
-
-	return 0;
-}
 
 int rk_ble_status_cb(RK_BLE_STATE state)
 {
