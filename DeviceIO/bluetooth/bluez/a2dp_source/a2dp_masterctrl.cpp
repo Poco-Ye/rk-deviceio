@@ -3584,3 +3584,56 @@ int disconnect_current_devices()
 	return 0;
 }
 
+int get_dev_platform(char *address)
+{
+	int vendor, platform = DEV_PLATFORM_UNKNOWN;
+	char *str;
+	const char *valstr;
+	GDBusProxy *proxy;
+	DBusMessageIter iter;
+
+	if(!address) {
+		printf("%s: Invalid address\n", __func__);
+		return DEV_PLATFORM_UNKNOWN;
+	}
+
+	proxy = find_device_by_address(address);
+	if (!proxy) {
+		printf("%s: Invalid proxy\n", __func__);
+		return DEV_PLATFORM_UNKNOWN;
+	}
+
+	if (g_dbus_proxy_get_property(proxy, "Modalias", &iter) == FALSE) {
+		printf("%s: WARING: can't get Modalias!\n", __func__);
+		return DEV_PLATFORM_UNKNOWN;
+	}
+
+	dbus_message_iter_get_basic(&iter, &valstr);
+	printf("%s: Modalias valstr = %s\n", __func__, valstr);
+
+	str = strstr(valstr, "v");
+	if(str) {
+		if(!strncasecmp(str + 1, "004c", 4))
+			vendor = IOS_VENDOR_SOURCE_BT;
+		else if(!strncasecmp(str + 1, "05ac", 4))
+			vendor = IOS_VENDOR_SOURCE_USB;
+	}
+
+	if(vendor == IOS_VENDOR_SOURCE_BT || vendor == IOS_VENDOR_SOURCE_USB)
+		platform = DEV_PLATFORM_IOS;
+
+	printf("%s: %s is %s\n", __func__, address,
+		platform == DEV_PLATFORM_UNKNOWN ? "Unknown Platform" : "Apple IOS");
+
+	return platform;
+}
+
+int get_current_dev_platform()
+{
+	if (!default_dev) {
+		printf("%s: No connected device\n", __func__);
+		return DEV_PLATFORM_UNKNOWN;
+	}
+
+	return get_dev_platform(proxy_address(default_dev));
+}

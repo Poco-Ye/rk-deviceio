@@ -452,7 +452,7 @@ void app_avk_select_streaming_device(BD_ADDR bd_addr)
     }
 }
 
-static app_avk_set_master_volume(int volume)
+static void app_avk_set_master_volume(int volume)
 {
     char buffer[100];
     memset(buffer, 0 ,100);
@@ -1070,7 +1070,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
                 /* Change the code below based on which interface audio is going out to. */
                 //app_avk_set_master_volume(app_avk_cb.volume);
 
-                app_avk_register_volume_cb(app_avk_cb.volume);
+                app_avk_volume_notify(app_avk_cb.volume);
                 app_avk_set_abs_vol_rsp(app_avk_cb.volume, p_data->abs_volume.handle, p_data->abs_volume.label);
             }
         }

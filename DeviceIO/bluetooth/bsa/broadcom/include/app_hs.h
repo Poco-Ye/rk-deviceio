@@ -181,7 +181,7 @@ void app_hs_close_rec_file(void);
 ** Returns          bsa status error code
 **
 *******************************************************************************/
-int app_hs_start(tHsCallback cb /* = NULL*/);
+int app_hs_start(tHsCallback cb);
 
 /*******************************************************************************
 **
@@ -580,6 +580,7 @@ int app_hs_hang_up(void);
 int app_hs_redial(void);
 int app_hs_report_battery(int value);
 int app_hs_set_vol(int volume);
+void app_hs_set_cvsd(BOOLEAN enable);
 
 #ifdef  __cplusplus
 }

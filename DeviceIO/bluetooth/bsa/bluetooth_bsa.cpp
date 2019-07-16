@@ -11,7 +11,6 @@
 #include <signal.h>
 #include <pthread.h>
 #include <unistd.h>
-
 #include "bsa_api.h"
 #include "app_xml_utils.h"
 #include "app_dm.h"
@@ -26,32 +25,32 @@
 #include "bluetooth_bsa.h"
 
 enum class BtControlType {
-	BT_NONE = 0,
-	BT_SINK,
-	BT_SOURCE,
-	BT_BLE_MODE,
-	BLE_SINK_BLE_MODE,
-	BLE_WIFI_INTRODUCER
+    BT_NONE = 0,
+    BT_SINK,
+    BT_SOURCE,
+    BT_BLE_MODE,
+    BLE_SINK_BLE_MODE,
+    BLE_WIFI_INTRODUCER
 };
 
 typedef struct {
-	bool is_bt_connected;
-	bool is_bt_open;
-	bool is_ble_open;
-	bool is_a2dp_sink_open;
-	bool is_a2dp_source_open;
-	bool is_spp_open;
-	bool is_hfp_open;
+    bool is_bt_connected;
+    bool is_bt_open;
+    bool is_ble_open;
+    bool is_a2dp_sink_open;
+    bool is_a2dp_source_open;
+    bool is_spp_open;
+    bool is_hfp_open;
 } bt_control_t;
 
 volatile bt_control_t g_bt_control = {
-	false,
-	false,
-	false,
-	false,
-	false,
-	false,
-	false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
 };
 
 static bool bt_is_open();
@@ -61,132 +60,27 @@ static bool a2dp_source_is_open();
 static bool spp_is_open();
 static bool hfp_is_open();
 
-static void bt_print_cmd(DeviceIOFramework::BtControl cmd)
-{
-    switch (cmd) {
-        case DeviceIOFramework::BtControl::BT_OPEN:
-            APP_DEBUG0("bluetooth receive command: BT_OPEN");
-            break;
-        case DeviceIOFramework::BtControl::BT_CLOSE:
-            APP_DEBUG0("bluetooth receive command: BT_CLOSE");
-            break;
-        case DeviceIOFramework::BtControl::BT_SOURCE_OPEN:
-            APP_DEBUG0("bluetooth receive command: BT_SOURCE_OPEN");
-            break;
-        case DeviceIOFramework::BtControl::BT_SOURCE_SCAN:
-            APP_DEBUG0("bluetooth receive command: BT_SOURCE_SCAN");
-            break;
-        case DeviceIOFramework::BtControl::BT_SOURCE_CONNECT:
-            APP_DEBUG0("bluetooth receive command: BT_SOURCE_CONNECT");
-            break;
-        case DeviceIOFramework::BtControl::BT_SOURCE_DISCONNECT:
-            APP_DEBUG0("bluetooth receive command: BT_SOURCE_DISCONNECT");
-            break;
-        case DeviceIOFramework::BtControl::BT_SOURCE_STATUS:
-            APP_DEBUG0("bluetooth receive command: BT_SOURCE_STATUS");
-            break;
-        case DeviceIOFramework::BtControl::BT_SOURCE_REMOVE:
-            APP_DEBUG0("bluetooth receive command: BT_SOURCE_REMOVE");
-            break;
-        case DeviceIOFramework::BtControl::BT_SOURCE_CLOSE:
-            APP_DEBUG0("bluetooth receive command: BT_SOURCE_CLOSE");
-            break;
-        case DeviceIOFramework::BtControl::BT_SOURCE_IS_OPENED:
-            APP_DEBUG0("bluetooth receive command: BT_SOURCE_IS_OPENED");
-            break;
-        case DeviceIOFramework::BtControl::BT_SINK_OPEN:
-            APP_DEBUG0("bluetooth receive command: BT_SINK_OPEN");
-            break;
-        case DeviceIOFramework::BtControl::BT_SINK_CLOSE:
-            APP_DEBUG0("bluetooth receive command: BT_SINK_CLOSE");
-            break;
-        case DeviceIOFramework::BtControl::BT_SINK_RECONNECT:
-            APP_DEBUG0("bluetooth receive command: BT_SINK_RECONNECT");
-            break;
-        case DeviceIOFramework::BtControl::BT_SINK_IS_OPENED:
-            APP_DEBUG0("bluetooth receive command: BT_SINK_IS_OPENED");
-            break;
-        case DeviceIOFramework::BtControl::BT_IS_CONNECTED:
-            APP_DEBUG0("bluetooth receive command: BT_IS_CONNECTED");
-            break;
-        case DeviceIOFramework::BtControl::BT_UNPAIR:
-            APP_DEBUG0("bluetooth receive command: BT_UNPAIR");
-            break;
-        case DeviceIOFramework::BtControl::BT_PLAY:
-            APP_DEBUG0("bluetooth receive command: BT_PLAY");
-            break;
-        case DeviceIOFramework::BtControl::BT_PAUSE_PLAY:
-            APP_DEBUG0("bluetooth receive command: BT_PAUSE_PLAY");
-            break;
-        case DeviceIOFramework::BtControl::BT_RESUME_PLAY:
-            APP_DEBUG0("bluetooth receive command: BT_RESUME_PLAY");
-            break;
-        case DeviceIOFramework::BtControl::BT_VOLUME_UP:
-            APP_DEBUG0("bluetooth receive command: BT_VOLUME_UP");
-            break;
-        case DeviceIOFramework::BtControl::BT_VOLUME_DOWN:
-            APP_DEBUG0("bluetooth receive command: BT_VOLUME_DOWN");
-            break;
-        case DeviceIOFramework::BtControl::BT_AVRCP_FWD:
-            APP_DEBUG0("bluetooth receive command: BT_AVRCP_FWD");
-            break;
-        case DeviceIOFramework::BtControl::BT_AVRCP_BWD:
-            APP_DEBUG0("bluetooth receive command: BT_AVRCP_BWD");
-            break;
-        case DeviceIOFramework::BtControl::BT_AVRCP_STOP:
-            APP_DEBUG0("bluetooth receive command: BT_AVRCP_STOP");
-            break;
-        case DeviceIOFramework::BtControl::BT_HFP_RECORD:
-            APP_DEBUG0("bluetooth receive command: BT_HFP_RECORD");
-            break;
-        case DeviceIOFramework::BtControl::BT_BLE_OPEN:
-            APP_DEBUG0("bluetooth receive command: BT_BLE_OPEN");
-            break;
-        case DeviceIOFramework::BtControl::BT_BLE_COLSE:
-            APP_DEBUG0("bluetooth receive command: BT_BLE_COLSE");
-            break;
-        case DeviceIOFramework::BtControl::BT_BLE_IS_OPENED:
-            APP_DEBUG0("bluetooth receive command: BT_BLE_IS_OPENED");
-            break;
-        case DeviceIOFramework::BtControl::BT_BLE_WRITE:
-            APP_DEBUG0("bluetooth receive command: BT_BLE_WRITE");
-            break;
-        case DeviceIOFramework::BtControl::BT_BLE_READ:
-            APP_DEBUG0("bluetooth receive command: BT_BLE_READ");
-            break;
-        case DeviceIOFramework::BtControl::BT_VISIBILITY:
-            APP_DEBUG0("bluetooth receive command: BT_VISIBILITY");
-            break;
-        case DeviceIOFramework::BtControl::GET_BT_MAC:
-            APP_DEBUG0("bluetooth receive command: GET_BT_MAC");
-            break;
-        default:
-            APP_DEBUG0("bluetooth receive command: unknown");
-            break;
-    }
-}
-
 static void bt_mgr_notify_callback(tBSA_MGR_EVT evt)
 {
-	switch(evt) {
-		case BT_LINK_UP_EVT:
-			APP_DEBUG0("BT_LINK_UP_EVT\n");
-			g_bt_control.is_bt_connected = true;
-			break;
-		case BT_LINK_DOWN_EVT:
-			APP_DEBUG0("BT_LINK_DOWN_EVT\n");
-			g_bt_control.is_bt_connected = false;
-			break;
-		case BT_WAIT_PAIR_EVT:
-			APP_DEBUG0("BT_WAIT_PAIR_EVT\n");
-			break;
-		case BT_PAIR_SUCCESS_EVT:
-			APP_DEBUG0("BT_PAIR_SUCCESS_EVT\n");
-			break;
-		case BT_PAIR_FAILED_EVT:
-			APP_DEBUG0("BT_PAIR_FAILED_EVT\n");
-			break;
-	}
+    switch(evt) {
+        case BT_LINK_UP_EVT:
+            APP_DEBUG0("BT_LINK_UP_EVT\n");
+            g_bt_control.is_bt_connected = true;
+            break;
+        case BT_LINK_DOWN_EVT:
+            APP_DEBUG0("BT_LINK_DOWN_EVT\n");
+            g_bt_control.is_bt_connected = false;
+            break;
+        case BT_WAIT_PAIR_EVT:
+            APP_DEBUG0("BT_WAIT_PAIR_EVT\n");
+            break;
+        case BT_PAIR_SUCCESS_EVT:
+            APP_DEBUG0("BT_PAIR_SUCCESS_EVT\n");
+            break;
+        case BT_PAIR_FAILED_EVT:
+            APP_DEBUG0("BT_PAIR_FAILED_EVT\n");
+            break;
+    }
 }
 
 static void bsa_get_bt_mac(char *bt_mac)
@@ -204,26 +98,26 @@ static void bsa_get_bt_mac(char *bt_mac)
 
 static int get_ps_pid(const char Name[])
 {
-	int len, pid = 0;
-	char name[20] = {0};
-	char cmdresult[256] = {0};
-	char cmd[20] = {0};
-	FILE *pFile = NULL;
+    int len, pid = 0;
+    char name[20] = {0};
+    char cmdresult[256] = {0};
+    char cmd[20] = {0};
+    FILE *pFile = NULL;
 
-	len = strlen(Name);
-	strncpy(name,Name,len);
-	name[len] ='\0';
+    len = strlen(Name);
+    strncpy(name,Name,len);
+    name[len] ='\0';
 
-	sprintf(cmd, "pidof %s", name);
-	pFile = popen(cmd, "r");
-	if (pFile != NULL)  {
-		while (fgets(cmdresult, sizeof(cmdresult), pFile)) {
-			pid = atoi(cmdresult);
-			break;
-		}
-	}
-	pclose(pFile);
-	return pid;
+    sprintf(cmd, "pidof %s", name);
+    pFile = popen(cmd, "r");
+    if (pFile != NULL)  {
+        while (fgets(cmdresult, sizeof(cmdresult), pFile)) {
+            pid = atoi(cmdresult);
+            break;
+        }
+    }
+    pclose(pFile);
+    return pid;
 }
 
 typedef void (*sighandler_t)(int);
@@ -277,7 +171,7 @@ static int bt_bsa_server_close()
 
 int rk_bt_is_connected()
 {
-	if(g_bt_control.is_bt_connected)
+    if(g_bt_control.is_bt_connected)
         return 1;
     else
         return 0;
@@ -557,6 +451,16 @@ int rk_ble_write(const char *uuid, char *data, int len)
     return 0;
 }
 
+int rk_ble_setup(RkBleContent *ble_content)
+{
+    return 0;
+}
+
+int rk_ble_clean(void)
+{
+    return 0; 
+}
+
 /******************************************/
 /*              A2DP SOURCE               */
 /******************************************/
@@ -575,7 +479,7 @@ int rk_bt_source_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, int name_l
                                     char *address, int addr_len)
 {
     app_av_get_status(pstatus, name, name_len, address, addr_len);
-	return 0;
+    return 0;
 }
 
 /*
@@ -726,8 +630,8 @@ int rk_bt_source_remove(char *address)
 
 int rk_bt_source_get_device_name(char *name, int len)
 {
-	if (!name || (len <= 0))
-		return -1;
+    if (!name || (len <= 0))
+        return -1;
 
     memset(name, 0, len);
     app_mgr_get_bt_config(name, len, NULL, 0);
@@ -737,8 +641,8 @@ int rk_bt_source_get_device_name(char *name, int len)
 
 int rk_bt_source_get_device_addr(char *addr, int len)
 {
-	if (!addr || (len < 17))
-		return -1;
+    if (!addr || (len < 17))
+        return -1;
 
     memset(addr, 0, len);
     bsa_get_bt_mac(addr);
@@ -898,12 +802,12 @@ int rk_bt_hfp_close()
 
 int rk_bt_hfp_pickup()
 {
-    app_hs_pick_up();
+    return app_hs_pick_up();
 }
 
 int rk_bt_hfp_hangup()
 {
-    app_hs_hang_up();
+    return app_hs_hang_up();
 }
 
 int rk_bt_hfp_set_volume(int volume)
@@ -921,6 +825,42 @@ int rk_bt_hfp_report_battery(int value)
     return app_hs_report_battery(value);
 }
 
+void rk_bt_hfp_enable_cvsd()
+{
+    app_hs_set_cvsd(true);
+}
+
+void rk_bt_hfp_disable_cvsd()
+{
+    app_hs_set_cvsd(false);
+}
+
+/* OBEX FOR PBAP */
+int rk_bt_obex_init()
+{
+    return 0;
+}
+
+int rk_bt_obex_pbap_connect(char *btaddr)
+{
+    return 0;
+}
+
+int rk_bt_obex_pbap_get_vcf(char *dir_name, char *dir_file)
+{
+    return 0;
+}
+
+int rk_bt_obex_pbap_disconnect(char *btaddr)
+{
+    return 0;
+}
+
+int rk_bt_obex_close()
+{
+    return 0;
+}
+
 int rk_bt_control(DeviceIOFramework::BtControl cmd, void *data, int len)
 {
     using BtControl_rep_type = std::underlying_type<DeviceIOFramework::BtControl>::type;
@@ -930,7 +870,7 @@ int rk_bt_control(DeviceIOFramework::BtControl cmd, void *data, int len)
     int ret = 0;
     bool scan;
 
-    bt_print_cmd(cmd);
+    APP_DEBUG1("cmd: %d", cmd);
 
     switch (cmd) {
     case DeviceIOFramework::BtControl::BT_OPEN:

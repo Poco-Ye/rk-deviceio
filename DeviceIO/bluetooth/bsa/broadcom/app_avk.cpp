@@ -420,7 +420,7 @@ static void app_avk_handle_start(tBSA_AVK_MSG *p_data, tAPP_AVK_CONNECTION *conn
 
 }
 
-static app_avk_set_master_volume(int volume)
+static void app_avk_set_master_volume(int volume)
 {
     char buffer[100];
     memset(buffer, 0 ,100);

@@ -144,42 +144,21 @@ static tHsCallback *s_pHsCallback = NULL;
 
 #ifdef PCM_ALSA
 #ifndef PCM_ALSA_DISABLE_HS
-#if (BSA_SCO_ROUTE_DEFAULT == BSA_SCO_ROUTE_PCM)
-#define APP_HS_PCM_SAMPLE_RATE  16000
-#define APP_HS_PCM_CHANNEL_NB  2
-#define READ_FRAME  256
-#define BUFFER_SIZE 1024
-#define PERIOD_SIZE READ_FRAME
-
-#define READ_FRAME_1024  1024
-#define BUFFER_SIZE_4096 4096
-#define PERIOD_SIZE_1024 READ_FRAME_1024
-
-static const char *alsa_playback_device = "default"; /* ALSA playback device */
-static const char *alsa_capture_device = "6mic_loopback"; /* ALSA capture device */
-static const char *bt_playback_device = "bluetooth"; /* Bt pcm playback device */
-static const char *bt_capture_device = "bluetooth"; /* Bt pcm capture device */
-static BOOLEAN alsa_duplex_opened = FALSE;
-static BOOLEAN bt_duplex_opened = FALSE;
-static pthread_t alsa_tid = 0;
-static pthread_t bt_tid = 0;
-
-static int app_hs_open_bt_duplex(void);
-static int app_hs_close_bt_duplex(void);
-#else
+#if (BSA_SCO_ROUTE_DEFAULT == BSA_SCO_ROUTE_HCI)
 static const char *alsa_device = "default"; /* ALSA playback device */
 static snd_pcm_t *alsa_handle_playback = NULL;
 static snd_pcm_t *alsa_handle_capture = NULL;
 static BOOLEAN alsa_capture_opened = FALSE;
 static BOOLEAN alsa_playback_opened = FALSE;
-#endif
 
 static int app_hs_open_alsa_duplex(void);
 static int app_hs_close_alsa_duplex(void);
 #endif
+#endif
 #endif /* PCM_ALSA */
 
 static int app_hs_battery_report = 0;
+static BOOLEAN app_hs_enable_cvsd = FALSE;
 static RK_BT_HFP_CALLBACK app_hs_send_cb = NULL;
 static void app_hs_send_event(RK_BT_HFP_EVENT event, void *data) {
     if(app_hs_send_cb)
@@ -1232,19 +1211,13 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
 
 #ifdef PCM_ALSA
 #ifndef PCM_ALSA_DISABLE_HS
+#if (BSA_SCO_ROUTE_DEFAULT == BSA_SCO_ROUTE_HCI)
         if(BSA_HS_GETSTATUS(p_conn, BSA_HS_ST_SCOOPEN))
             app_hs_close_alsa_duplex();
         app_hs_open_alsa_duplex();
-
-#if (BSA_SCO_ROUTE_DEFAULT == BSA_SCO_ROUTE_PCM)
-        if(BSA_HS_GETSTATUS(p_conn, BSA_HS_ST_SCOOPEN))
-            app_hs_close_bt_duplex();
-        app_hs_open_bt_duplex();
 #endif
-
 #endif
 #endif /* PCM_ALSA */
-
         p_conn->call_state = BSA_HS_CALL_CONN;
         BSA_HS_SETSTATUS(p_conn, BSA_HS_ST_SCOOPEN);
         app_hs_send_event(RK_BT_HFP_AUDIO_OPEN_EVT, NULL);
@@ -1255,9 +1228,8 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
 
 #ifdef PCM_ALSA
 #ifndef PCM_ALSA_DISABLE_HS
+#if (BSA_SCO_ROUTE_DEFAULT == BSA_SCO_ROUTE_HCI)
         app_hs_close_alsa_duplex();
-#if (BSA_SCO_ROUTE_DEFAULT == BSA_SCO_ROUTE_PCM)
-        app_hs_close_bt_duplex();
 #endif
 #endif
 #endif /* PCM_ALSA */
@@ -1388,8 +1360,15 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         break;
 
     case BSA_HS_BCS_EVT:
+        UINT16 codec_type;
         fprintf(stdout, "BSA_HS_BCS_EVT: codec %d (%s)\n",p_data->val.num,
             (p_data->val.num == BSA_SCO_CODEC_MSBC) ? "mSBC":"CVSD");
+        if(p_data->val.num == BSA_SCO_CODEC_MSBC)
+            codec_type = BT_SCO_CODEC_MSBC;
+        else
+            codec_type = BT_SCO_CODEC_CVSD;
+
+        app_hs_send_event(RK_BT_HFP_BCS_EVT, &codec_type);
         break;
 
     case BSA_HS_OPEN_EVT:
@@ -1476,7 +1455,7 @@ int app_hs_enable(void)
 ** Returns          0 if ok -1 in case of error
 **
 *******************************************************************************/
-int app_hs_register(void)
+int app_hs_register()
 {
     int index, status = 0;
     tBSA_HS_REGISTER   param;
@@ -1493,7 +1472,7 @@ int app_hs_register(void)
     param.sec_mask = BSA_SEC_NONE;
     /* Use BSA_HS_FEAT_CODEC (for WBS) for SCO over PCM only, not for SCO over HCI*/
     param.features = APP_HS_FEATURES;
-    if(app_hs_cb.sco_route == BSA_SCO_ROUTE_HCI)
+    if(app_hs_enable_cvsd)
         param.features &= ~BSA_HS_FEAT_CODEC;
     param.settings.ecnr_enabled = (param.features & BSA_HS_FEAT_ECNR) ? TRUE : FALSE;
     param.settings.mic_vol = APP_HS_MIC_VOL;
@@ -2069,456 +2048,7 @@ int app_hs_getallIndicatorValues(tBSA_HS_IND_VALS *pIndVals)
 
 #ifdef PCM_ALSA
 #ifndef PCM_ALSA_DISABLE_HS
-#if (BSA_SCO_ROUTE_DEFAULT == BSA_SCO_ROUTE_PCM)
-static int set_sw_params(snd_pcm_t *pcm, snd_pcm_uframes_t buffer_size,
-                snd_pcm_uframes_t period_size, char **msg)
-{
-    snd_pcm_sw_params_t *params;
-    int err;
-
-    snd_pcm_sw_params_malloc(&params);
-    if ((err = snd_pcm_sw_params_current(pcm, params)) != 0) {
-        APP_ERROR1("Get current params: %s", snd_strerror(err));
-        return -1;
-    }
-
-    /* start the transfer when the buffer is full (or almost full) */
-    snd_pcm_uframes_t threshold = (buffer_size / period_size) * period_size;
-    if ((err = snd_pcm_sw_params_set_start_threshold(pcm, params, threshold)) != 0) {
-        APP_ERROR1("Set start threshold: %s: %lu", snd_strerror(err), threshold);
-        return -1;
-    }
-
-    /* allow the transfer when at least period_size samples can be processed */
-    if ((err = snd_pcm_sw_params_set_avail_min(pcm, params, period_size)) != 0) {
-        APP_ERROR1("Set avail min: %s: %lu", snd_strerror(err), period_size);
-        return -1;
-    }
-
-    if ((err = snd_pcm_sw_params(pcm, params)) != 0) {
-        APP_ERROR1("snd_pcm_sw_params: %s", snd_strerror(err));
-        return -1;
-    }
-
-    if(params)
-        snd_pcm_sw_params_free(params);
-    return 0;
-}
-
-static int app_hs_playback_device_open(snd_pcm_t** playback_handle,
-        const char* device_name, int channels, uint32_t write_sampleRate,
-        snd_pcm_uframes_t write_periodSize, snd_pcm_uframes_t write_bufferSize)
-{
-    snd_pcm_hw_params_t *write_params;
-    int write_err;
-    int dir_write = 0;
-
-    write_err = snd_pcm_open(playback_handle, device_name, SND_PCM_STREAM_PLAYBACK, 0);
-    if (write_err) {
-        APP_ERROR1( "Unable to open playback PCM device: %s", device_name);
-        return -1;
-    }
-    APP_DEBUG1("Open playback PCM device: %s", device_name);
-
-    write_err = snd_pcm_hw_params_malloc(&write_params);
-    if (write_err) {
-        APP_ERROR1("cannot malloc hardware parameter structure (%s)", snd_strerror(write_err));
-        return -1;
-    }
-
-    write_err = snd_pcm_hw_params_any(*playback_handle, write_params);
-    if (write_err) {
-        APP_ERROR1("cannot initialize hardware parameter structure (%s)", snd_strerror(write_err));
-        return -1;
-    }
-
-    write_err = snd_pcm_hw_params_set_access(*playback_handle, write_params, SND_PCM_ACCESS_RW_INTERLEAVED);
-    if (write_err) {
-        APP_ERROR0("Error setting interleaved mode");
-        return -1;
-    }
-
-    write_err = snd_pcm_hw_params_set_format(*playback_handle, write_params, SND_PCM_FORMAT_S16_LE);
-    if (write_err) {
-        APP_ERROR1("Error setting format: %s", snd_strerror(write_err));
-        return -1;
-    }
-
-    write_err = snd_pcm_hw_params_set_channels(*playback_handle, write_params, channels);
-    if (write_err) {
-        APP_ERROR1( "Error setting channels: %s", snd_strerror(write_err));
-        return -1;
-    }
-
-    APP_DEBUG1("WANT-RATE =%d", write_sampleRate);
-    if (write_sampleRate) {
-        write_err = snd_pcm_hw_params_set_rate_near(*playback_handle, write_params,&write_sampleRate, 0 /*&write_dir*/);
-        if (write_err) {
-            APP_ERROR1("Error setting sampling rate (%d): %s", write_sampleRate, snd_strerror(write_err));
-            return -1;
-        }
-        APP_DEBUG1("setting sampling rate (%d)", write_sampleRate);
-    }
-
-    write_err = snd_pcm_hw_params_set_period_size_near(*playback_handle, write_params, &write_periodSize, &dir_write/*0*/);
-    if (write_err) {
-        APP_ERROR1("Error setting period time (%ld): %s", write_periodSize, snd_strerror(write_err));
-        return -1;
-    }
-    APP_DEBUG1("write_periodSize = %d", (int)write_periodSize);
-
-    write_err = snd_pcm_hw_params_set_buffer_size_near(*playback_handle, write_params, &write_bufferSize);
-    if (write_err) {
-        APP_ERROR1("Error setting buffer size (%ld): %s", write_bufferSize, snd_strerror(write_err));
-        return -1;
-    }
-    APP_DEBUG1("write_bufferSize = %d", (int)write_bufferSize);
-
-    /* Write the parameters to the driver */
-    write_err = snd_pcm_hw_params(*playback_handle, write_params);
-    if (write_err < 0) {
-        APP_ERROR1( "Unable to set HW parameters: %s", snd_strerror(write_err));
-        return -1;
-    }
-
-    APP_DEBUG1("Open playback device is successful: %s", device_name);
-
-    set_sw_params(*playback_handle, write_bufferSize, write_periodSize, NULL);
-    if (write_params)
-        snd_pcm_hw_params_free(write_params);
-
-    return 0;
-}
-
-static int app_hs_capture_device_open(snd_pcm_t** capture_handle,
-        const char* device_name, int channels, uint32_t rate,
-        snd_pcm_uframes_t periodSize, snd_pcm_uframes_t bufferSize)
-{
-    snd_pcm_hw_params_t *hw_params;
-    int err;
-
-    err = snd_pcm_open(capture_handle, device_name, SND_PCM_STREAM_CAPTURE, 0);
-    if (err) {
-        APP_ERROR1( "Unable to open capture PCM device: %s", device_name);
-        return -1;
-    }
-    APP_DEBUG1("Open capture PCM device: %s", device_name);
-
-    err = snd_pcm_hw_params_malloc(&hw_params);
-    if (err) {
-        APP_ERROR1("cannot allocate hardware parameter structure (%s)", snd_strerror(err));
-        return -1;
-    }
-
-    err = snd_pcm_hw_params_any(*capture_handle, hw_params);
-    if (err) {
-        APP_ERROR1("cannot initialize hardware parameter structure (%s)", snd_strerror(err));
-        return -1;
-    }
-
-    err = snd_pcm_hw_params_set_access(*capture_handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED);
-    if (err) {
-        APP_ERROR0("Error setting interleaved mode");
-        return -1;
-    }
-
-    err = snd_pcm_hw_params_set_format(*capture_handle, hw_params, SND_PCM_FORMAT_S16_LE);
-    if (err) {
-        APP_ERROR1("Error setting format: %s", snd_strerror(err));
-        return -1;
-    }
-
-    err = snd_pcm_hw_params_set_channels(*capture_handle, hw_params, channels);
-    if (err) {
-        APP_ERROR1( "Error setting channels: %s, channels = %d", snd_strerror(err), channels);
-        return -1;
-    }
-
-    if (rate) {
-        err = snd_pcm_hw_params_set_rate_near(*capture_handle, hw_params, &rate, 0);
-        if (err) {
-            APP_ERROR1("Error setting sampling rate (%d): %s", rate, snd_strerror(err));
-            return -1;
-        }
-        APP_DEBUG1("setting sampling rate (%d)", rate);
-    }
-
-    err = snd_pcm_hw_params_set_period_size_near(*capture_handle, hw_params, &periodSize, 0);
-    if (err) {
-        APP_ERROR1("Error setting period time (%d): %s", (int)periodSize, snd_strerror(err));
-        return -1;
-    }
-    APP_DEBUG1("periodSize = %d", (int)periodSize);
-
-    err = snd_pcm_hw_params_set_buffer_size_near(*capture_handle, hw_params, &bufferSize);
-    if (err) {
-        APP_ERROR1("Error setting buffer size (%d): %s", (int)bufferSize, snd_strerror(err));
-        return -1;
-    }
-    APP_DEBUG1("bufferSize = %d", (int)bufferSize);
-
-    /* Write the parameters to the driver */
-     err = snd_pcm_hw_params(*capture_handle, hw_params);
-     if (err < 0) {
-         APP_ERROR1( "Unable to set HW parameters: %s", snd_strerror(err));
-         return -1;
-     }
-
-     APP_DEBUG1("Open capture device is successful: %s", device_name);
-     if (hw_params)
-        snd_pcm_hw_params_free(hw_params);
-
-     return 0;
-}
-
-static void app_hs_pcm_close(snd_pcm_t *handle)
-{
-    if(handle)
-        snd_pcm_close(handle);
-}
-
-static void *app_hs_alsa_playback(void *arg)
-{
-    int err, ret = -1;
-    snd_pcm_t *capture_handle = NULL;
-    snd_pcm_t *playbcak_handle = NULL;
-    short buffer[READ_FRAME_1024 * 2] = {0};
-
-    snd_pcm_uframes_t periodSize = PERIOD_SIZE_1024;
-    snd_pcm_uframes_t bufferSize = BUFFER_SIZE_4096;
-
-device_open:
-    APP_DEBUG0("==========bt asound capture, alsa playback============");
-    ret = app_hs_capture_device_open(&capture_handle, bt_capture_device, APP_HS_PCM_CHANNEL_NB,
-                APP_HS_PCM_SAMPLE_RATE, periodSize, bufferSize);
-    if (ret == -1) {
-        APP_ERROR1("capture device open failed: %s", bt_capture_device);
-        goto exit;
-    }
-
-    ret = app_hs_playback_device_open(&playbcak_handle, alsa_playback_device, APP_HS_PCM_CHANNEL_NB,
-                APP_HS_PCM_SAMPLE_RATE, periodSize, bufferSize);
-    if (ret == -1) {
-        APP_ERROR1("playback device open failed: %s", alsa_playback_device);
-        goto exit;
-    }
-
-    alsa_duplex_opened = TRUE;
-
-    while (alsa_duplex_opened) {
-        err = snd_pcm_readi(capture_handle, buffer , READ_FRAME_1024);
-        if (!alsa_duplex_opened)
-            goto exit;
-
-        if (err != READ_FRAME_1024) {
-            APP_ERROR1("=====read frame error = %d=====", err);
-            //gettimeofday(&tv_begin, NULL);
-            //APP_ERROR1("timeread = %ld\n",(tv_begin.tv_sec * 1000 + tv_begin.tv_usec / 1000));
-        }
-
-        if (err == -EPIPE)
-            APP_ERROR1("Overrun occurred: %d", err);
-
-        if (err < 0) {
-            err = snd_pcm_recover(capture_handle, err, 0);
-            // Still an error, need to exit.
-            if (err < 0) {
-                APP_ERROR1( "Error occured while recording: %s", snd_strerror(err));
-                usleep(100 * 1000);
-                app_hs_pcm_close(capture_handle);
-                app_hs_pcm_close(playbcak_handle);
-                goto device_open;
-            }
-        }
-
-        err = snd_pcm_writei(playbcak_handle, buffer, READ_FRAME_1024);
-        if (!alsa_duplex_opened)
-            goto exit;
-
-        if (err != READ_FRAME_1024) {
-            //gettimeofday(&tv_begin, NULL);
-            APP_ERROR1("=====write frame error = %d=====", err);
-            //printf("time_write = %ld\n",(tv_begin.tv_sec * 1000 +tv_begin.tv_usec / 1000));
-        }
-
-        if (err == -EPIPE)
-            APP_ERROR1("Underrun occurred from write: %d", err);
-
-        if (err < 0) {
-            err = snd_pcm_recover(playbcak_handle, err, 0);
-            //std::this_thread::sleep_for(std::chrono::milliseconds(20));
-            // Still an error, need to exit.
-            if (err < 0) {
-                APP_ERROR1( "Error occured while writing: %s", snd_strerror(err));
-                usleep(100 * 1000);
-                app_hs_pcm_close(capture_handle);
-                app_hs_pcm_close(playbcak_handle);
-                goto device_open;
-            }
-        }
-    }
-
-exit:
-    app_hs_pcm_close(capture_handle);
-    app_hs_pcm_close(playbcak_handle);
-
-    APP_DEBUG0("Exit app hs alsa playback thread");
-    pthread_exit(0);
-}
-
-static void app_hs_tinymix_set(int group, int volume)
-{
-    char cmd[50] = {0};
-
-    sprintf(cmd, "tinymix set 'ADC MIC Group %d Left Volume' %d", group, volume);
-    if (-1 == system(cmd))
-        APP_ERROR1("tinymix set ADC MIC Group %d Left Volume failed", group);
-
-    memset(cmd, 0, 50);
-    sprintf(cmd, "tinymix set 'ADC MIC Group %d Right Volume' %d", group, volume);
-    if (-1 == system(cmd))
-        APP_ERROR1("tinymix set ADC MIC Group %d Right Volume failed", group);
-}
-
-static void *app_hs_bt_playback(void *arg)
-{
-    int err, ret = -1;
-    snd_pcm_t *capture_handle = NULL;
-    snd_pcm_t *playbcak_handle = NULL;
-    short buffer[READ_FRAME * 2] = {0};
-
-device_open:
-    APP_DEBUG0("==========microphone capture, bt asound playback============");
-    ret = app_hs_capture_device_open(&capture_handle, alsa_capture_device, APP_HS_PCM_CHANNEL_NB,
-                APP_HS_PCM_SAMPLE_RATE, PERIOD_SIZE, BUFFER_SIZE);
-    if (ret == -1) {
-        APP_ERROR1("capture device open failed: %s", alsa_capture_device);
-        goto exit;
-    }
-
-    app_hs_tinymix_set(1, 3);
-
-    ret = app_hs_playback_device_open(&playbcak_handle, bt_playback_device, APP_HS_PCM_CHANNEL_NB,
-                APP_HS_PCM_SAMPLE_RATE, PERIOD_SIZE, BUFFER_SIZE);
-    if (ret == -1) {
-        APP_ERROR1("playback device open failed: %s", bt_playback_device);
-        goto exit;
-    }
-
-    bt_duplex_opened = TRUE;
-
-    while (bt_duplex_opened) {
-        err = snd_pcm_readi(capture_handle, buffer , READ_FRAME);
-        if (!bt_duplex_opened)
-            goto exit;
-
-        if (err != READ_FRAME) {
-            APP_ERROR1("=====read frame error = %d=====", err);
-            //gettimeofday(&tv_begin, NULL);
-            //APP_ERROR1("timeread = %ld\n",(tv_begin.tv_sec * 1000 + tv_begin.tv_usec / 1000));
-        }
-
-        if (err == -EPIPE)
-            APP_ERROR1("Overrun occurred: %d", err);
-
-        if (err < 0) {
-            err = snd_pcm_recover(capture_handle, err, 0);
-            // Still an error, need to exit.
-            if (err < 0) {
-                APP_ERROR1( "Error occured while recording: %s", snd_strerror(err));
-                usleep(100 * 1000);
-                app_hs_pcm_close(capture_handle);
-                app_hs_pcm_close(playbcak_handle);
-                goto device_open;
-            }
-        }
-
-        err = snd_pcm_writei(playbcak_handle, buffer, READ_FRAME);
-        if (!bt_duplex_opened)
-            goto exit;
-
-        if (err != READ_FRAME) {
-            //gettimeofday(&tv_begin, NULL);
-            APP_ERROR1("====write frame error = %d===",err);
-            //printf("time_write = %ld\n",(tv_begin.tv_sec * 1000 +tv_begin.tv_usec / 1000));
-        }
-
-        if (err == -EPIPE)
-            APP_ERROR1("Underrun occurred from write: %d", err);
-
-        if (err < 0) {
-            err = snd_pcm_recover(playbcak_handle, err, 0);
-            //std::this_thread::sleep_for(std::chrono::milliseconds(20));
-            // Still an error, need to exit.
-            if (err < 0) {
-                APP_ERROR1( "Error occured while writing: %s", snd_strerror(err));
-                usleep(100 * 1000);
-                app_hs_pcm_close(capture_handle);
-                app_hs_pcm_close(playbcak_handle);
-                goto device_open;
-            }
-        }
-    }
-
-exit:
-    app_hs_pcm_close(capture_handle);
-    app_hs_pcm_close(playbcak_handle);
-
-    APP_DEBUG0("Exit app hs bt pcm playback thread");
-    pthread_exit(0);
-}
-
-static int app_hs_open_alsa_duplex(void)
-{
-    if (!alsa_duplex_opened) {
-        if (pthread_create(&alsa_tid, NULL, app_hs_alsa_playback, NULL)) {
-            APP_ERROR0("Create alsa duplex thread failed");
-            return -1;
-        }
-    }
-
-    return 0;
-}
-
-static int app_hs_close_alsa_duplex(void)
-{
-    APP_DEBUG0("app_hs_close_alsa_duplex start");
-    alsa_duplex_opened = FALSE;
-    if (alsa_tid) {
-        pthread_join(alsa_tid, NULL);
-        alsa_tid = 0;
-    }
-
-    APP_DEBUG0("app_hs_close_alsa_duplex end");
-    return 0;
-}
-
-static int app_hs_open_bt_duplex(void)
-{
-    if (!bt_duplex_opened) {
-        if (pthread_create(&bt_tid, NULL, app_hs_bt_playback, NULL)) {
-            APP_ERROR0("Create bt pcm duplex thread failed");
-            return -1;
-        }
-    }
-
-    return 0;
-}
-
-static int app_hs_close_bt_duplex(void)
-{
-    APP_DEBUG0("app_hs_close_bt_duplex start");
-    bt_duplex_opened = FALSE;
-    if (bt_tid) {
-        pthread_join(bt_tid, NULL);
-        bt_tid = 0;
-    }
-
-    APP_DEBUG0("app_hs_close_bt_duplex end");
-    return 0;
-}
-
-#else
+#if (BSA_SCO_ROUTE_DEFAULT == BSA_SCO_ROUTE_HCI)
 /*******************************************************************************
 **
 ** Function         app_hs_open_alsa_duplex
@@ -2744,5 +2274,10 @@ int app_hs_set_vol(int volume)
         return -1;
     }
 
-    return app_hs_set_volume(BSA_HS_SPK_CMD, volume);
+    return app_hs_set_volume(BTHF_VOLUME_TYPE_SPK, volume);
+}
+
+void app_hs_set_cvsd(BOOLEAN enable)
+{
+    app_hs_enable_cvsd = enable;
 }

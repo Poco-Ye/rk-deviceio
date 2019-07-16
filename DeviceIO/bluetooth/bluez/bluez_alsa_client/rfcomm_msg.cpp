@@ -8,10 +8,130 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
+#include "../a2dp_source/a2dp_masterctrl.h"
 #include "rfcomm_msg.h"
 
-RK_BT_HFP_CALLBACK g_rfcomm_hfp_cb;
+RK_BT_HFP_CALLBACK g_rfcomm_hfp_cb = NULL;
 static int g_hfp_sockfd;
+
+typedef struct {
+	const char *no_calls_active; //No calls (held or active)
+	const char *call_present_active; //Call is present (active or held)
+	const char *no_call_progress; //No call setup in progress
+	const char *incoming_call_progress; //Incoming call setup in progress
+	const char *outgoing_call_dialing; //Outgoing call setup in dialing state
+	const char *outgoing_call_alerting; //Outgoing call setup in alerting state
+} rfcomm_ciev_status_t;
+
+typedef struct {
+	bool is_call_present_active;
+	bool is_outgoing_call;
+	bool is_send_audio_open;
+	bool is_incoming_call;
+    int dev_platform;
+} rfcomm_control_t;
+
+rfcomm_control_t g_rfcomm_control = {
+	false,
+	false,
+	false,
+	false,
+	DEV_PLATFORM_UNKNOWN,
+};
+
+static void rfcomm_hfp_send_event(RK_BT_HFP_EVENT event, void *data) {
+	if(g_rfcomm_hfp_cb)
+		g_rfcomm_hfp_cb(event, data);
+}
+
+static void send_audio_open_evt(int time_ms)
+{
+	if(!g_rfcomm_control.is_send_audio_open) {
+		if(time_ms)
+			usleep(time_ms * 1000);
+
+		rfcomm_hfp_send_event(RK_BT_HFP_AUDIO_OPEN_EVT, NULL);
+		g_rfcomm_control.is_send_audio_open = true;
+	}
+}
+
+static void send_audio_close_evt(int time_ms)
+{
+	if(g_rfcomm_control.is_send_audio_open) {
+		if(time_ms)
+			usleep(time_ms * 1000);
+
+		rfcomm_hfp_send_event(RK_BT_HFP_AUDIO_CLOSE_EVT, NULL);
+		g_rfcomm_control.is_send_audio_open = false;
+	}
+}
+
+static void config_ciev_msg(rfcomm_ciev_status_t *rfcomm_ciev_status)
+{
+	if(rfcomm_ciev_status == NULL)
+		return;
+
+    g_rfcomm_control.dev_platform = get_current_dev_platform();
+
+	if(g_rfcomm_control.dev_platform == DEV_PLATFORM_IOS) {
+		rfcomm_ciev_status->no_calls_active = "2,0";
+		rfcomm_ciev_status->call_present_active = "2,1";
+		rfcomm_ciev_status->no_call_progress = "3,0";
+		rfcomm_ciev_status->incoming_call_progress = "3,1";
+		rfcomm_ciev_status->outgoing_call_dialing = "3,2";
+		rfcomm_ciev_status->outgoing_call_alerting = "3,3";
+	} else {
+		rfcomm_ciev_status->no_calls_active = "1,0";
+		rfcomm_ciev_status->call_present_active = "1,1";
+		rfcomm_ciev_status->no_call_progress = "2,0";
+		rfcomm_ciev_status->incoming_call_progress = "2,1";
+		rfcomm_ciev_status->outgoing_call_dialing = "2,2";
+		rfcomm_ciev_status->outgoing_call_alerting = "2,3";
+	}
+}
+
+static void process_ciev_msg(char *msg, rfcomm_ciev_status_t rfcomm_ciev_status)
+{
+	if(strstr(msg, rfcomm_ciev_status.no_calls_active)) {
+		send_audio_close_evt(1000);
+	} else if (strstr(msg, rfcomm_ciev_status.outgoing_call_dialing)) {
+		g_rfcomm_control.is_outgoing_call = true;
+	} else if (strstr(msg, rfcomm_ciev_status.outgoing_call_alerting)) {
+		if(g_rfcomm_control.is_outgoing_call) {
+			send_audio_open_evt(0);
+			g_rfcomm_control.is_outgoing_call = false;
+		}
+	} else if (strstr(msg, rfcomm_ciev_status.call_present_active)){
+		g_rfcomm_control.is_call_present_active = true;
+	} else if (strstr(msg, rfcomm_ciev_status.no_call_progress)) {
+		if(!g_rfcomm_control.is_call_present_active) {
+			send_audio_close_evt(1000);
+		} else {
+			if(g_rfcomm_control.dev_platform == DEV_PLATFORM_UNKNOWN)
+				send_audio_open_evt(500);
+			g_rfcomm_control.is_call_present_active = false;
+		}
+	} else if (strstr(msg, rfcomm_ciev_status.incoming_call_progress)) {
+		g_rfcomm_control.is_incoming_call = true; //for apple ios
+	}
+}
+
+static process_bcs_msg(char *msg)
+{
+	unsigned short codec_type = BT_SCO_CODEC_NONE;
+
+	if(strstr(msg, "1"))
+		codec_type = BT_SCO_CODEC_CVSD;
+	else if(strstr(msg, "2"))
+		codec_type = BT_SCO_CODEC_MSBC;
+
+	rfcomm_hfp_send_event(RK_BT_HFP_BCS_EVT, &codec_type);
+
+	if(g_rfcomm_control.dev_platform == DEV_PLATFORM_IOS && g_rfcomm_control.is_incoming_call) {
+		send_audio_open_evt(500);
+		g_rfcomm_control.is_incoming_call = false;
+	}
+}
 
 void *thread_get_ba_msg(void *arg)
 {
@@ -20,6 +140,7 @@ void *thread_get_ba_msg(void *arg)
 	struct sockaddr_un clientAddr;
 	struct sockaddr_un serverAddr;
 	socklen_t addr_len;
+	rfcomm_ciev_status_t rfcomm_ciev_status;
 
 	g_hfp_sockfd = socket(AF_UNIX, SOCK_DGRAM, 0);
 	if (g_hfp_sockfd < 0) {
@@ -48,27 +169,20 @@ void *thread_get_ba_msg(void *arg)
 		printf("###### FUCN:%s. Received a malformed message(%s)\n", __func__, buff);
 
 		if (strstr(buff, "rfcomm status:hfp_hf_ring;")) {
-			if (g_rfcomm_hfp_cb)
-				g_rfcomm_hfp_cb(RK_BT_HFP_RING_EVT, NULL);
+			rfcomm_hfp_send_event(RK_BT_HFP_RING_EVT, NULL);
 		} else if (strstr(buff, "rfcomm status:hfp_slc_connected;")) {
-			if (g_rfcomm_hfp_cb)
-				g_rfcomm_hfp_cb(RK_BT_HFP_CONNECT_EVT, NULL);
+			memset(&rfcomm_ciev_status, 0, sizeof(rfcomm_ciev_status_t));
+			memset(&g_rfcomm_control, 0, sizeof(rfcomm_control_t));
+			config_ciev_msg(&rfcomm_ciev_status);
+			rfcomm_hfp_send_event(RK_BT_HFP_CONNECT_EVT, NULL);
 		} else if (strstr(buff, "rfcomm status:hfp_slc_disconnected;")) {
-			rfcomm_hfp_close_audio_path();
-			if (g_rfcomm_hfp_cb)
-				g_rfcomm_hfp_cb(RK_BT_HFP_DISCONNECT_EVT, NULL);
+			rfcomm_hfp_send_event(RK_BT_HFP_DISCONNECT_EVT, NULL);
 		} else if (strstr(buff, "rfcomm status:hfp_hf_connected;")) {
-			rfcomm_hfp_open_audio_path();
-			if (g_rfcomm_hfp_cb)
-				g_rfcomm_hfp_cb(RK_BT_HFP_AUDIO_OPEN_EVT, NULL);
-		} else if (strstr(buff, "rfcomm status:hfp_hf_disconnected;")) {
-			rfcomm_hfp_close_audio_path();
-			if (g_rfcomm_hfp_cb)
-			    g_rfcomm_hfp_cb(RK_BT_HFP_AUDIO_CLOSE_EVT, NULL);
-		} else if (strstr(buff, "rfcomm status:hfp_hf_pickup;")) {
-			rfcomm_hfp_open_audio_path();
-		} else if (strstr(buff, "rfcomm status:hfp_hf_calling;")) {
-			rfcomm_hfp_open_audio_path();
+			//send_audio_open_evt(0);
+		} else if(strstr(buff, "rfcomm status:") && strstr(buff, "+CIEV")) {
+			process_ciev_msg(buff, rfcomm_ciev_status);
+		} else if(strstr(buff, "rfcomm status:") && strstr(buff, "+BCS")) {
+			process_bcs_msg(buff);
 		} else {
 			printf("FUCN:%s. Received a malformed message(%s)\n", __func__, buff);
 		}

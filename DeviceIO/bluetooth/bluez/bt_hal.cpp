@@ -883,7 +883,7 @@ void rk_bt_hfp_register_callback(RK_BT_HFP_CALLBACK cb)
 	rfcomm_hfp_hf_regist_cb(cb);
 }
 
-int rk_bt_hfp_open(void)
+int rk_bt_hfp_open()
 {
 	/* Init bluetooth */
 	if (!bt_control.is_bt_open) {
@@ -1054,30 +1054,28 @@ static int rk_bt_hfp_hp_send_cmd(char *cmd)
 
 int rk_bt_hfp_pickup(void)
 {
-	int ret = 0;
-
-	ret = rk_bt_hfp_hp_send_cmd("ATA");
-	if (ret)
-		return ret;
+	if(rk_bt_hfp_hp_send_cmd("ATA")) {
+		printf("%s: send ATA cmd error\n", __func__);
+		return -1;
+	}
 
 	if (g_hfp_cb)
 		g_hfp_cb(RK_BT_HFP_PICKUP_EVT, NULL);
 
-	return rfcomm_hfp_open_audio_path();
+	return 0;
 }
 
 int rk_bt_hfp_hangup(void)
 {
-	int ret = 0;
-
-	ret = rfcomm_hfp_close_audio_path();
-	if (ret)
-		return ret;
+	if(rk_bt_hfp_hp_send_cmd("AT+CHUP")) {
+		printf("%s: send AT+CHUP cmd error\n", __func__);
+		return -1;
+	}
 
 	if (g_hfp_cb)
 		g_hfp_cb(RK_BT_HFP_HANGUP_EVT, NULL);
 
-	return rk_bt_hfp_hp_send_cmd("AT+CHUP");
+	return 0;
 }
 
 int rk_bt_hfp_redial(void)
@@ -1123,6 +1121,16 @@ int rk_bt_hfp_set_volume(int volume)
 	ret =  rk_bt_hfp_hp_send_cmd(at_cmd);
 
 	return ret;
+}
+
+void rk_bt_hfp_enable_cvsd(void)
+{
+	//for compile
+}
+
+void rk_bt_hfp_disable_cvsd(void)
+{
+	//for compile
 }
 
 static pthread_t g_obex_thread;

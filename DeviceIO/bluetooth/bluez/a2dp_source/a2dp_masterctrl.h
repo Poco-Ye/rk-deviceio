@@ -4,6 +4,11 @@
 #include "DeviceIo/RkBtBase.h"
 #include "DeviceIo/RkBtSource.h"
 
+#define DEV_PLATFORM_UNKNOWN    0 /* unknown platform */
+#define DEV_PLATFORM_IOS        1 /* Apple iOS */
+#define IOS_VENDOR_SOURCE_BT    76 /* Bluetooth SIG, apple id = 0x4c */
+#define IOS_VENDOR_SOURCE_USB   1452 /* USB Implementer's Forum, apple id = 0x05ac */
+
 typedef enum _bt_devices_type {
 	BT_DEVICES_A2DP_SINK,
 	BT_DEVICES_A2DP_SOURCE,
@@ -27,6 +32,8 @@ int a2dp_master_avrcp_open();
 int a2dp_master_avrcp_close();
 int reconn_last_devices(BtDeviceType type);
 int disconnect_current_devices();
+int get_dev_platform(char *address);
+int get_current_dev_platform();
 
 int ble_disconnect(void);
 

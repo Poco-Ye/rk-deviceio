@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <alsa/asoundlib.h>
+#include <pthread.h>
 
 #include <DeviceIo/DeviceIo.h>
 #include <DeviceIo/RkBtBase.h>
@@ -20,11 +22,55 @@
 #define BLE_UUID_SEND		"dfd4416e-1810-47f7-8248-eb8be3dc47f9"
 #define BLE_UUID_RECV		"9884d812-1810-4a24-94d3-b2c11a851fac"
 
+#define HFP_PCM_CHANNEL_NB	2
+#define CVSD_SAMPLE_RATE	8000
+#define MSBC_SAMPLE_RATE	16000
+
+#define READ_FRAME_256		256
+#define BUFFER_SIZE_1024	1024
+#define PERIOD_SIZE_256		READ_FRAME_256
+
+#define READ_FRAME_512		512
+#define BUFFER_SIZE_2048	2048
+#define PERIOD_SIZE_512		READ_FRAME_512
+
+#define READ_FRAME_1024		1024
+#define BUFFER_SIZE_4096	4096
+#define PERIOD_SIZE_1024	READ_FRAME_1024
+
+static const char *alsa_playback_device = "default";
+static const char *alsa_capture_device = "2mic_loopback";
+static const char *bt_playback_device = "bluetooth";
+static const char *bt_capture_device = "bluetooth";
+
+typedef struct {
+	unsigned int channels;
+	unsigned int sample_rate;
+	snd_pcm_uframes_t period_size;
+	snd_pcm_uframes_t buffer_size;
+} alsa_config_t;
+
+typedef struct {
+	bool alsa_duplex_opened;
+	bool bt_duplex_opened;
+	pthread_t alsa_tid;
+	pthread_t bt_tid;
+} duplex_info_t;
+
+static duplex_info_t g_duplex_control = {
+	false,
+	false,
+	0,
+	0,
+};
+
 static void bt_test_ble_recv_data_callback(const char *uuid, char *data, int len);
 static void bt_test_ble_request_data_callback(const char *uuid);
 
 /* Must be initialized before using Bluetooth ble */
 static RkBtContent bt_content;
+
+static RK_BT_SCO_CODEC_TYPE sco_codec = BT_SCO_CODEC_CVSD;
 
 /******************************************/
 /*        BT base server init             */
@@ -36,7 +82,7 @@ static RkBtContent bt_content;
 void bt_test_bluetooth_init(void *data)
 {
 	printf("--------------- BT BLUETOOTH INIT ----------------\n");
-	bt_content.bt_name = "ROCKCHIP_888";
+	bt_content.bt_name = "ROCKCHIP_AUDIO";
 	bt_content.ble_content.ble_name = "ROCKCHIP_AUDIO BLE";
 	bt_content.ble_content.server_uuid.uuid = BLE_UUID_SERVICE;
 	bt_content.ble_content.server_uuid.len = UUID_128;
@@ -389,7 +435,9 @@ void bt_test_ble_clean(void *data) {
 	rk_ble_clean();
 }
 
-/* SPP */
+/******************************************/
+/*                  SPP                   */
+/******************************************/
 void _btspp_status_callback(RK_BT_SPP_STATE type)
 {
 	switch(type) {
@@ -461,6 +509,504 @@ void bt_test_spp_status(void *data)
 	}
 }
 
+/******************************************/
+/*                  HFP                   */
+/******************************************/
+static int hfp_set_sw_params(snd_pcm_t *pcm, snd_pcm_uframes_t buffer_size,
+				snd_pcm_uframes_t period_size, char **msg)
+{
+	int err;
+	snd_pcm_sw_params_t *params;
+
+	snd_pcm_sw_params_malloc(&params);
+	if ((err = snd_pcm_sw_params_current(pcm, params)) != 0) {
+		printf("Get current params: %s\n", snd_strerror(err));
+		return -1;
+	}
+
+	/* start the transfer when the buffer is full (or almost full) */
+	snd_pcm_uframes_t threshold = (buffer_size / period_size) * period_size;
+	if ((err = snd_pcm_sw_params_set_start_threshold(pcm, params, threshold)) != 0) {
+		printf("Set start threshold: %s: %lu\n", snd_strerror(err), threshold);
+		return -1;
+	}
+
+	/* allow the transfer when at least period_size samples can be processed */
+	if ((err = snd_pcm_sw_params_set_avail_min(pcm, params, period_size)) != 0) {
+		printf("Set avail min: %s: %lu\n", snd_strerror(err), period_size);
+		return -1;
+	}
+
+	if ((err = snd_pcm_sw_params(pcm, params)) != 0) {
+		printf("snd_pcm_sw_params: %s\n", snd_strerror(err));
+		return -1;
+	}
+
+	if(params)
+		snd_pcm_sw_params_free(params);
+
+	return 0;
+}
+
+static int hfp_playback_device_open(snd_pcm_t** playback_handle,
+		const char* device_name, alsa_config_t alsa_config)
+{
+	int err;
+	snd_pcm_hw_params_t *hw_params;
+	unsigned int rate = alsa_config.sample_rate;
+	snd_pcm_uframes_t period_size = alsa_config.period_size;
+	snd_pcm_uframes_t buffer_size = alsa_config.buffer_size;
+
+	err = snd_pcm_open(playback_handle, device_name, SND_PCM_STREAM_PLAYBACK, 0);
+	if (err) {
+		printf( "Unable to open playback PCM device: %s\n", device_name);
+		return -1;
+	}
+	printf("Open playback PCM device: %s\n", device_name);
+
+	err = snd_pcm_hw_params_malloc(&hw_params);
+	if (err) {
+		printf("cannot malloc hardware parameter structure (%s)\n", snd_strerror(err));
+		return -1;
+	}
+
+	err = snd_pcm_hw_params_any(*playback_handle, hw_params);
+	if (err) {
+		printf("cannot initialize hardware parameter structure (%s)\n", snd_strerror(err));
+		return -1;
+	}
+
+	err = snd_pcm_hw_params_set_access(*playback_handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED);
+	if (err) {
+		printf("Error setting interleaved mode: %s\n", snd_strerror(err));
+		return -1;
+	}
+
+	err = snd_pcm_hw_params_set_format(*playback_handle, hw_params, SND_PCM_FORMAT_S16_LE);
+	if (err) {
+		printf("Error setting format: %s\n", snd_strerror(err));
+		return -1;
+	}
+
+	err = snd_pcm_hw_params_set_channels(*playback_handle, hw_params, alsa_config.channels);
+	if (err) {
+		printf( "Error setting channels: %s\n", snd_strerror(err));
+		return -1;
+	}
+	printf("setting channels (%d)\n", alsa_config.channels);
+
+	printf("WANT-RATE = %d\n", rate);
+	err = snd_pcm_hw_params_set_rate_near(*playback_handle, hw_params, &rate, 0);
+	if (err) {
+		printf("Error setting sampling rate (%d): %s\n", rate, snd_strerror(err));
+		return -1;
+	}
+	printf("set sampling rate (%d)\n", rate);
+
+	err = snd_pcm_hw_params_set_period_size_near(*playback_handle, hw_params, &period_size, 0);
+	if (err) {
+		printf("Error setting period size (%ld): %s\n", period_size, snd_strerror(err));
+		return -1;
+	}
+	printf("period_size = %d\n", (int)period_size);
+
+	err = snd_pcm_hw_params_set_buffer_size_near(*playback_handle, hw_params, &buffer_size);
+	if (err) {
+		printf("Error setting buffer size (%ld): %s\n", buffer_size, snd_strerror(err));
+		return -1;
+	}
+	printf("buffer_size = %d\n", (int)buffer_size);
+
+	/* Write the parameters to the driver */
+	err = snd_pcm_hw_params(*playback_handle, hw_params);
+	if (err < 0) {
+		printf( "Unable to set HW parameters: %s\n", snd_strerror(err));
+		return -1;
+	}
+
+	printf("Open playback device is successful: %s\n", device_name);
+
+	hfp_set_sw_params(*playback_handle, buffer_size, period_size, NULL);
+	if (hw_params)
+		snd_pcm_hw_params_free(hw_params);
+
+	return 0;
+}
+
+static int hfp_capture_device_open(snd_pcm_t** capture_handle,
+		const char* device_name, alsa_config_t alsa_config)
+{
+	int err;
+	snd_pcm_hw_params_t *hw_params;
+	unsigned int rate = alsa_config.sample_rate;
+	snd_pcm_uframes_t period_size = alsa_config.period_size;
+	snd_pcm_uframes_t buffer_size = alsa_config.buffer_size;
+
+	err = snd_pcm_open(capture_handle, device_name, SND_PCM_STREAM_CAPTURE, 0);
+	if (err) {
+		printf( "Unable to open capture PCM device: %s\n", device_name);
+		return -1;
+	}
+	printf("Open capture PCM device: %s\n", device_name);
+
+	err = snd_pcm_hw_params_malloc(&hw_params);
+	if (err) {
+		printf("cannot allocate hardware parameter structure (%s)\n", snd_strerror(err));
+		return -1;
+	}
+
+	err = snd_pcm_hw_params_any(*capture_handle, hw_params);
+	if (err) {
+		printf("cannot initialize hardware parameter structure (%s)\n", snd_strerror(err));
+		return -1;
+	}
+
+	err = snd_pcm_hw_params_set_access(*capture_handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED);
+	if (err) {
+		printf("Error setting interleaved mode: %s\n", snd_strerror(err));
+		return -1;
+	}
+
+	err = snd_pcm_hw_params_set_format(*capture_handle, hw_params, SND_PCM_FORMAT_S16_LE);
+	if (err) {
+		printf("Error setting format: %s\n", snd_strerror(err));
+		return -1;
+	}
+
+	err = snd_pcm_hw_params_set_channels(*capture_handle, hw_params, alsa_config.channels);
+	if (err) {
+		printf( "Error setting channels: %s, channels = %d\n", snd_strerror(err), alsa_config.channels);
+		return -1;
+	}
+	printf("setting channels (%d)\n", alsa_config.channels);
+
+	printf("WANT-RATE = %d\n", rate);
+	err = snd_pcm_hw_params_set_rate_near(*capture_handle, hw_params, &rate, 0);
+	if (err) {
+		printf("Error setting sampling rate (%d): %s\n", rate, snd_strerror(err));
+		return -1;
+	}
+	printf("set sampling rate (%d)\n", rate);
+
+	err = snd_pcm_hw_params_set_period_size_near(*capture_handle, hw_params, &period_size, 0);
+	if (err) {
+		printf("Error setting period size (%d): %s\n", (int)period_size, snd_strerror(err));
+		return -1;
+	}
+	printf("period_size = %d\n", (int)period_size);
+
+	err = snd_pcm_hw_params_set_buffer_size_near(*capture_handle, hw_params, &buffer_size);
+	if (err) {
+		printf("Error setting buffer size (%d): %s\n", (int)buffer_size, snd_strerror(err));
+		return -1;
+	}
+	printf("buffer_size = %d\n", (int)buffer_size);
+
+	/* Write the parameters to the driver */
+	err = snd_pcm_hw_params(*capture_handle, hw_params);
+	if (err < 0) {
+		 printf( "Unable to set HW parameters: %s\n", snd_strerror(err));
+		 return -1;
+	 }
+
+	printf("Open capture device is successful: %s\n", device_name);
+	if (hw_params)
+		snd_pcm_hw_params_free(hw_params);
+
+	return 0;
+}
+
+static void hfp_pcm_close(snd_pcm_t *handle)
+{
+	if(handle)
+		snd_pcm_close(handle);
+}
+
+static void hfp_tinymix_set(int group, int volume)
+{
+	char cmd[50] = {0};
+
+	sprintf(cmd, "tinymix set 'ADC MIC Group %d Left Volume' %d", group, volume);
+	if (-1 == system(cmd))
+		printf("tinymix set ADC MIC Group %d Left Volume failed\n", group);
+
+	memset(cmd, 0, 50);
+	sprintf(cmd, "tinymix set 'ADC MIC Group %d Right Volume' %d", group, volume);
+	if (-1 == system(cmd))
+		printf("tinymix set ADC MIC Group %d Right Volume failed\n", group);
+}
+
+static void *hfp_alsa_playback(void *arg)
+{
+	int err, ret = -1;
+	snd_pcm_t *capture_handle = NULL;
+	snd_pcm_t *playbcak_handle = NULL;
+	short *buffer;
+	int read_frame, buffer_size;
+	alsa_config_t alsa_config;
+
+	switch(sco_codec) {
+		case BT_SCO_CODEC_CVSD:
+			read_frame = READ_FRAME_512;
+			alsa_config.sample_rate = CVSD_SAMPLE_RATE;
+			alsa_config.period_size = PERIOD_SIZE_512;
+			alsa_config.buffer_size = BUFFER_SIZE_2048;
+			break;
+		case BT_SCO_CODEC_MSBC:
+			read_frame = READ_FRAME_1024;
+			alsa_config.sample_rate = MSBC_SAMPLE_RATE;
+			alsa_config.period_size = PERIOD_SIZE_1024;
+			alsa_config.buffer_size = BUFFER_SIZE_4096;
+			break;
+		default:
+			printf("%s: invalid sco codec type: %d\n", __func__, sco_codec);
+			return NULL;
+	}
+	alsa_config.channels = HFP_PCM_CHANNEL_NB;
+	buffer_size = read_frame * HFP_PCM_CHANNEL_NB * sizeof(short);
+	buffer = (short *)malloc(buffer_size);
+	memset((char *)buffer, 0, buffer_size);
+
+device_open:
+	printf("==========bt capture, alsa playback============\n");
+	ret = hfp_capture_device_open(&capture_handle, bt_capture_device, alsa_config);
+	if (ret == -1) {
+		printf("capture device open failed: %s\n", bt_capture_device);
+		goto exit;
+	}
+
+	ret = hfp_playback_device_open(&playbcak_handle, alsa_playback_device, alsa_config);
+	if (ret == -1) {
+		printf("playback device open failed: %s\n", alsa_playback_device);
+		goto exit;
+	}
+
+	g_duplex_control.alsa_duplex_opened = true;
+
+	while (g_duplex_control.alsa_duplex_opened) {
+		err = snd_pcm_readi(capture_handle, buffer , read_frame);
+		if (!g_duplex_control.alsa_duplex_opened)
+			goto exit;
+
+		if (err != read_frame)
+			printf("=====read frame error = %d=====\n", err);
+
+		if (err == -EPIPE)
+			printf("Overrun occurred: %d\n", err);
+
+		if (err < 0) {
+			err = snd_pcm_recover(capture_handle, err, 0);
+			// Still an error, need to exit.
+			if (err < 0) {
+				printf( "Error occured while recording: %s\n", snd_strerror(err));
+				usleep(100 * 1000);
+				hfp_pcm_close(capture_handle);
+				hfp_pcm_close(playbcak_handle);
+				goto device_open;
+			}
+		}
+
+		err = snd_pcm_writei(playbcak_handle, buffer, read_frame);
+		if (!g_duplex_control.alsa_duplex_opened)
+			goto exit;
+
+		if (err != read_frame)
+			printf("=====write frame error = %d=====\n", err);
+
+		if (err == -EPIPE)
+			printf("Underrun occurred from write: %d\n", err);
+
+		if (err < 0) {
+			err = snd_pcm_recover(playbcak_handle, err, 0);
+			// Still an error, need to exit.
+			if (err < 0) {
+				printf( "Error occured while writing: %s\n", snd_strerror(err));
+				usleep(100 * 1000);
+				hfp_pcm_close(capture_handle);
+				hfp_pcm_close(playbcak_handle);
+				goto device_open;
+			}
+		}
+	}
+
+exit:
+	hfp_pcm_close(capture_handle);
+	hfp_pcm_close(playbcak_handle);
+	free(buffer);
+
+	printf("Exit app hs alsa playback thread\n");
+	pthread_exit(0);
+}
+
+static void *hfp_bt_playback(void *arg)
+{
+	int err, ret = -1;
+	snd_pcm_t *capture_handle = NULL;
+	snd_pcm_t *playbcak_handle = NULL;
+	short buffer[READ_FRAME_256 * HFP_PCM_CHANNEL_NB] = {0};
+	alsa_config_t alsa_config;
+
+	alsa_config.channels = HFP_PCM_CHANNEL_NB;
+	alsa_config.period_size = PERIOD_SIZE_256;
+	alsa_config.buffer_size = BUFFER_SIZE_1024;
+	switch(sco_codec) {
+		case BT_SCO_CODEC_CVSD:
+			alsa_config.sample_rate = CVSD_SAMPLE_RATE;
+			break;
+		case BT_SCO_CODEC_MSBC:
+			alsa_config.sample_rate = MSBC_SAMPLE_RATE;
+			break;
+		default:
+			printf("%s: invalid sco codec type: %d\n", __func__, sco_codec);
+			return NULL;
+	}
+
+device_open:
+	printf("==========mic capture, bt playback============\n");
+	ret = hfp_capture_device_open(&capture_handle, alsa_capture_device, alsa_config);
+	if (ret == -1) {
+		printf("capture device open failed: %s\n", alsa_capture_device);
+		goto exit;
+	}
+
+	hfp_tinymix_set(1, 3);
+
+	ret = hfp_playback_device_open(&playbcak_handle, bt_playback_device, alsa_config);
+	if (ret == -1) {
+		printf("playback device open failed: %s\n", bt_playback_device);
+		goto exit;
+	}
+
+	g_duplex_control.bt_duplex_opened = true;
+
+	while (g_duplex_control.bt_duplex_opened) {
+		err = snd_pcm_readi(capture_handle, buffer , READ_FRAME_256);
+		if (!g_duplex_control.bt_duplex_opened)
+			goto exit;
+
+		if (err != READ_FRAME_256)
+			printf("=====read frame error = %d=====\n", err);
+
+		if (err == -EPIPE)
+			printf("Overrun occurred: %d\n", err);
+
+		if (err < 0) {
+			err = snd_pcm_recover(capture_handle, err, 0);
+			// Still an error, need to exit.
+			if (err < 0) {
+				printf( "Error occured while recording: %s\n", snd_strerror(err));
+				usleep(100 * 1000);
+				hfp_pcm_close(capture_handle);
+				hfp_pcm_close(playbcak_handle);
+				goto device_open;
+			}
+		}
+
+		err = snd_pcm_writei(playbcak_handle, buffer, READ_FRAME_256);
+		if (!g_duplex_control.bt_duplex_opened)
+			goto exit;
+
+		if (err != READ_FRAME_256)
+			printf("====write frame error = %d===\n",err);
+
+		if (err == -EPIPE)
+			printf("Underrun occurred from write: %d\n", err);
+
+		if (err < 0) {
+			err = snd_pcm_recover(playbcak_handle, err, 0);
+			// Still an error, need to exit.
+			if (err < 0) {
+				printf( "Error occured while writing: %s\n", snd_strerror(err));
+				usleep(100 * 1000);
+				hfp_pcm_close(capture_handle);
+				hfp_pcm_close(playbcak_handle);
+				goto device_open;
+			}
+		}
+	}
+
+exit:
+	hfp_pcm_close(capture_handle);
+	hfp_pcm_close(playbcak_handle);
+
+	printf("Exit app hs bt pcm playback thread\n");
+	pthread_exit(0);
+}
+
+static int hfp_open_alsa_duplex()
+{
+	if (!g_duplex_control.alsa_duplex_opened) {
+		if (pthread_create(&g_duplex_control.alsa_tid, NULL, hfp_alsa_playback, NULL)) {
+			printf("Create alsa duplex thread failed\n");
+			return -1;
+		}
+	} else {
+		printf("hfp_open_alsa_duplex: alsa duplex already open\n");
+	}
+
+	return 0;
+}
+
+static void hfp_close_alsa_duplex(void)
+{
+	printf("app_hs_close_alsa_duplex start\n");
+	g_duplex_control.alsa_duplex_opened = false;
+	if (g_duplex_control.alsa_tid) {
+		pthread_join(g_duplex_control.alsa_tid, NULL);
+		g_duplex_control.alsa_tid = 0;
+	}
+
+	printf("app_hs_close_alsa_duplex end\n");
+}
+
+static int hfp_open_bt_duplex()
+{
+	if (!g_duplex_control.bt_duplex_opened) {
+		if (pthread_create(&g_duplex_control.bt_tid, NULL, hfp_bt_playback, NULL)) {
+			printf("Create bt pcm duplex thread failed\n");
+			return -1;
+		}
+	} else {
+		printf("hfp_open_bt_duplex: bt duplex already open\n");
+	}
+
+	return 0;
+}
+
+static void hfp_close_bt_duplex(void)
+{
+	printf("app_hs_close_bt_duplex start\n");
+	g_duplex_control.bt_duplex_opened = false;
+	if (g_duplex_control.bt_tid) {
+		pthread_join(g_duplex_control.bt_tid, NULL);
+		g_duplex_control.bt_tid = 0;
+	}
+
+	printf("app_hs_close_bt_duplex end\n");
+}
+
+static int hfp_open_audio_duplex()
+{
+	if(sco_codec != BT_SCO_CODEC_CVSD && sco_codec != BT_SCO_CODEC_MSBC) {
+		printf("%s: invalid sco codec type: %d\n", __func__, sco_codec);
+		return -1;
+	}
+
+	if(hfp_open_alsa_duplex() < 0)
+		return -1;
+
+	if(hfp_open_bt_duplex() < 0)
+		return -1;
+
+	return 0;
+}
+
+static void hfp_close_audio_duplex()
+{
+	hfp_close_alsa_duplex();
+	hfp_close_bt_duplex();
+}
+
 int bt_test_hfp_hp_cb(RK_BT_HFP_EVENT event, void *data)
 {
 	switch(event) {
@@ -475,9 +1021,11 @@ int bt_test_hfp_hp_cb(RK_BT_HFP_EVENT event, void *data)
 			break;
 		case RK_BT_HFP_AUDIO_OPEN_EVT:
 			printf("+++++ BT HFP AUDIO OPEN +++++\n");
+			hfp_open_audio_duplex();
 			break;
 		case RK_BT_HFP_AUDIO_CLOSE_EVT:
 			printf("+++++ BT HFP AUDIO CLOSE +++++\n");
+			hfp_close_audio_duplex();
 			break;
 		case RK_BT_HFP_PICKUP_EVT:
 			printf("+++++ BT HFP PICKUP +++++\n");
@@ -489,6 +1037,14 @@ int bt_test_hfp_hp_cb(RK_BT_HFP_EVENT event, void *data)
 		{
 			unsigned short volume = *(unsigned short*)data;
 			printf("+++++ BT HFP VOLUME CHANGE, volume: %d +++++\n", volume);
+			break;
+		}
+		case RK_BT_HFP_BCS_EVT:
+		{
+			unsigned short codec_type = *(unsigned short*)data;
+			printf("+++++ BT HFP BCS EVENT: %d(%s) +++++\n", codec_type,
+				(codec_type == BT_SCO_CODEC_MSBC) ? "mSBC":"CVSD");
+			sco_codec = (RK_BT_SCO_CODEC_TYPE)codec_type;
 			break;
 		}
 		default:
@@ -505,6 +1061,8 @@ void bt_test_hfp_hp_open(void *data)
 	/* must be placed before rk_bt_hfp_open */
 	rk_bt_hfp_register_callback(bt_test_hfp_hp_cb);
 
+	/* only bsa: if enable cvsd, sco_codec must be set to BT_SCO_CODEC_CVSD */
+	rk_bt_hfp_enable_cvsd();
 	ret = rk_bt_hfp_open();
 	if (ret < 0)
 		printf("%s hfp open failed!\n", __func__);
@@ -573,6 +1131,7 @@ void bt_test_hfp_hp_close(void *data)
 
 void bt_test_hfp_sink_open(void *data)
 {
+	rk_bt_sink_register_volume_callback(bt_sink_volume_callback);
 	rk_bt_sink_register_callback(bt_sink_callback);
 	rk_bt_hfp_register_callback(bt_test_hfp_hp_cb);
 	rk_bt_hfp_sink_open();
