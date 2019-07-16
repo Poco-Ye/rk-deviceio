@@ -458,7 +458,7 @@ int rk_ble_setup(RkBleContent *ble_content)
 
 int rk_ble_clean(void)
 {
-    return 0; 
+    return 0;
 }
 
 /******************************************/

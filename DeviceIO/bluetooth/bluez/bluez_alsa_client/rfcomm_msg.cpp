@@ -71,7 +71,7 @@ static void config_ciev_msg(rfcomm_ciev_status_t *rfcomm_ciev_status)
 	if(rfcomm_ciev_status == NULL)
 		return;
 
-    g_rfcomm_control.dev_platform = get_current_dev_platform();
+	g_rfcomm_control.dev_platform = get_current_dev_platform();
 
 	if(g_rfcomm_control.dev_platform == DEV_PLATFORM_IOS) {
 		rfcomm_ciev_status->no_calls_active = "2,0";
@@ -118,7 +118,7 @@ static void process_ciev_msg(char *msg, rfcomm_ciev_status_t rfcomm_ciev_status)
 
 static process_bcs_msg(char *msg)
 {
-	unsigned short codec_type = BT_SCO_CODEC_NONE;
+	unsigned short codec_type = 0;
 
 	if(strstr(msg, "1"))
 		codec_type = BT_SCO_CODEC_CVSD;
