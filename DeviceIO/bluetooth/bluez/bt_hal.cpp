@@ -602,8 +602,7 @@ int rk_bt_sink_stop(void)
 
 int rk_bt_sink_disconnect()
 {
-	disconnect_current_devices();
-	return 0;
+	return disconnect_current_devices();
 }
 
 static int _get_bluealsa_plugin_volume_ctrl_info(char *name, int *value)
@@ -1131,6 +1130,11 @@ void rk_bt_hfp_enable_cvsd(void)
 void rk_bt_hfp_disable_cvsd(void)
 {
 	//for compile
+}
+
+int rk_bt_hfp_disconnect()
+{
+	return disconnect_current_devices();
 }
 
 static pthread_t g_obex_thread;

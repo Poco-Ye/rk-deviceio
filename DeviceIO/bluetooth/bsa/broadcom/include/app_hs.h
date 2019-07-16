@@ -247,6 +247,16 @@ int app_hs_close(void);
 
 /*******************************************************************************
 **
+** Function         app_hs_close
+**
+** Description      release mono headset connections
+**
+** Returns          0 if success -1 if failure
+*******************************************************************************/
+int app_hs_close_all(void);
+
+/*******************************************************************************
+**
 ** Function         app_hs_cancel
 **
 ** Description      cancel connections

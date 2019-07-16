@@ -99,6 +99,7 @@ static command_t bt_command_table[] = {
 	{"bt_test_hfp_hp_report_battery", bt_test_hfp_hp_report_battery},
 	{"bt_test_hfp_hp_set_volume", bt_test_hfp_hp_set_volume},
 	{"bt_test_hfp_hp_close", bt_test_hfp_hp_close},
+	{"bt_test_hfp_hp_disconnect", bt_test_hfp_hp_disconnect},
 	{"bt_test_obex_init", bt_test_obex_init},
 	{"bt_test_obex_pbap_connect", bt_test_obex_pbap_connect},
 	{"bt_test_obex_pbap_get_pb_vcf", bt_test_obex_pbap_get_pb_vcf},

@@ -1497,6 +1497,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         p_conn->indicator_string_received = FALSE;
 
         BSA_HS_SETSTATUS(p_conn, BSA_HS_ST_CONNECTABLE);
+        memset(app_hs_battery_report, 0, BSA_HS_MAX_NUM_CONN * sizeof(int));
         app_hs_send_event(RK_BT_HFP_DISCONNECT_EVT, NULL);
         break;
 

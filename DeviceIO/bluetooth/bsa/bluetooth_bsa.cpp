@@ -835,6 +835,17 @@ void rk_bt_hfp_disable_cvsd()
     app_hs_set_cvsd(false);
 }
 
+int rk_bt_hfp_disconnect()
+{
+    if(!hfp_is_open()) {
+        APP_ERROR0("hfp don't open, please open");
+        return -1;
+    }
+
+    /* release mono headset connections */
+    return app_hs_close_all();
+}
+
 /* OBEX FOR PBAP */
 int rk_bt_obex_init()
 {

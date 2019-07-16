@@ -856,6 +856,19 @@ int app_hs_close(void)
 
 /*******************************************************************************
 **
+** Function         app_hs_close_all
+**
+** Description      release all mono headset connections
+**
+** Returns          0 if success -1 if failure
+*******************************************************************************/
+int app_hs_close_all()
+{
+    return app_hs_close();
+}
+
+/*******************************************************************************
+**
 ** Function         app_hs_cancel
 **
 ** Description      cancel connections
@@ -1188,6 +1201,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         p_conn->indicator_string_received = FALSE;
 
         BSA_HS_SETSTATUS(p_conn, BSA_HS_ST_CONNECTABLE);
+        app_hs_battery_report = 0;
         app_hs_send_event(RK_BT_HFP_DISCONNECT_EVT, NULL);
         break;
 

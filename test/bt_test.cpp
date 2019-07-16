@@ -1129,6 +1129,11 @@ void bt_test_hfp_hp_close(void *data)
 	rk_bt_hfp_close();
 }
 
+void bt_test_hfp_hp_disconnect(void *data)
+{
+	rk_bt_hfp_disconnect();
+}
+
 void bt_test_hfp_sink_open(void *data)
 {
 	rk_bt_sink_register_volume_callback(bt_sink_volume_callback);

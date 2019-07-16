@@ -35,6 +35,7 @@ int rk_bt_hfp_report_battery(int value);
 int rk_bt_hfp_set_volume(int volume);
 void rk_bt_hfp_enable_cvsd(void);
 void rk_bt_hfp_disable_cvsd(void);
+int rk_bt_hfp_disconnect(void);
 
 /* OBEX FOR PBAP */
 int rk_bt_obex_init();

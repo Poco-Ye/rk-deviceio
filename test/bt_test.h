@@ -69,6 +69,7 @@ void bt_test_hfp_hp_redial(void *data);
 void bt_test_hfp_hp_report_battery(void *data);
 void bt_test_hfp_hp_set_volume(void *data);
 void bt_test_hfp_hp_close(void *data);
+void bt_test_hfp_hp_disconnect(void *data);
 
 //obex pbap
 void bt_test_obex_init(void *data);
