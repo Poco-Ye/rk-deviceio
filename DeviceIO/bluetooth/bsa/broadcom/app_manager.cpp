@@ -2033,3 +2033,23 @@ int app_mgr_is_reconnect()
     close(fd);
     return (int)(enable - '0');
 }
+
+UINT8 app_mgr_get_dev_platform(BD_ADDR bd_addr)
+{
+    int index;
+    UINT8 dev_platform = BSA_DEV_PLATFORM_UNKNOWN;
+
+    if (app_read_xml_si_devices() < 0)
+        return dev_platform;
+
+    for (index = 0; index < APP_NUM_ELEMENTS(app_xml_si_devices_db); index++) {
+        if (app_xml_si_devices_db[index].in_use) {
+            if(!bdcmp(bd_addr, app_xml_si_devices_db[index].bd_addr)) {
+                dev_platform = app_xml_si_devices_db[index].platform;
+                break;
+            }
+        }
+    }
+
+    return dev_platform;
+}

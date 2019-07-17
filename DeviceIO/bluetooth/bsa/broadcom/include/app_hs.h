@@ -111,6 +111,7 @@ typedef struct
      UINT16            status;
 
      UINT8             call_list_info[BSA_HS_MAX_CL_IDX][BSA_HS_CL_BUF_SIZE];
+     UINT8             dev_platform;
 } tBSA_HS_CONN_CB;
 
 typedef struct {

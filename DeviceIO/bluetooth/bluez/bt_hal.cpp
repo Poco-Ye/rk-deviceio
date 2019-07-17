@@ -1058,9 +1058,6 @@ int rk_bt_hfp_pickup(void)
 		return -1;
 	}
 
-	if (g_hfp_cb)
-		g_hfp_cb(RK_BT_HFP_PICKUP_EVT, NULL);
-
 	return 0;
 }
 
@@ -1070,9 +1067,6 @@ int rk_bt_hfp_hangup(void)
 		printf("%s: send AT+CHUP cmd error\n", __func__);
 		return -1;
 	}
-
-	if (g_hfp_cb)
-		g_hfp_cb(RK_BT_HFP_HANGUP_EVT, NULL);
 
 	return 0;
 }

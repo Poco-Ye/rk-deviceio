@@ -422,4 +422,6 @@ int app_mgr_is_reconnect(void);
 
 int app_manager_set_auto_reconnect(int enable);
 
+UINT8 app_mgr_get_dev_platform(BD_ADDR bd_addr);
+
 #endif /* __APP_MANAGER_H__ */

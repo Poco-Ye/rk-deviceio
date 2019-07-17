@@ -93,6 +93,7 @@ static void config_ciev_msg(rfcomm_ciev_status_t *rfcomm_ciev_status)
 static void process_ciev_msg(char *msg, rfcomm_ciev_status_t rfcomm_ciev_status)
 {
 	if(strstr(msg, rfcomm_ciev_status.no_calls_active)) {
+		rfcomm_hfp_send_event(RK_BT_HFP_HANGUP_EVT, NULL);
 		send_audio_close_evt(1000);
 	} else if (strstr(msg, rfcomm_ciev_status.outgoing_call_dialing)) {
 		g_rfcomm_control.is_outgoing_call = true;
@@ -103,8 +104,10 @@ static void process_ciev_msg(char *msg, rfcomm_ciev_status_t rfcomm_ciev_status)
 		}
 	} else if (strstr(msg, rfcomm_ciev_status.call_present_active)){
 		g_rfcomm_control.is_call_present_active = true;
+		rfcomm_hfp_send_event(RK_BT_HFP_PICKUP_EVT, NULL);
 	} else if (strstr(msg, rfcomm_ciev_status.no_call_progress)) {
 		if(!g_rfcomm_control.is_call_present_active) {
+			rfcomm_hfp_send_event(RK_BT_HFP_HANGUP_EVT, NULL);
 			send_audio_close_evt(1000);
 		} else {
 			if(g_rfcomm_control.dev_platform == DEV_PLATFORM_UNKNOWN)

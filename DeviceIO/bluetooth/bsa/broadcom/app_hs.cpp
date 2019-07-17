@@ -98,13 +98,16 @@ typedef struct
     short              audio_buf[APP_HS_MAX_AUDIO_BUF];
     BOOLEAN            open_pending;
     BD_ADDR            open_pending_bda;
+    BOOLEAN            is_battery_report;
+    BOOLEAN            enable_cvsd;
+    BOOLEAN            is_pick_up;
 } tAPP_HS_CB;
 
 /*
  * Globales Variables
  */
 
-tAPP_HS_CB  app_hs_cb;
+tAPP_HS_CB app_hs_cb;
 
 const char *app_hs_service_ind_name[] =
 {
@@ -157,8 +160,6 @@ static int app_hs_close_alsa_duplex(void);
 #endif
 #endif /* PCM_ALSA */
 
-static int app_hs_battery_report = 0;
-static BOOLEAN app_hs_enable_cvsd = FALSE;
 static RK_BT_HFP_CALLBACK app_hs_send_cb = NULL;
 static void app_hs_send_event(RK_BT_HFP_EVENT event, void *data) {
     if(app_hs_send_cb)
@@ -1112,6 +1113,35 @@ int app_hs_play_file(char * filename)
     return 0;
 }
 
+static void app_hs_process_ciev_msg(char *msg, UINT8 dev_platform)
+{
+    if(dev_platform == BSA_DEV_PLATFORM_IOS) {
+        if(strstr(msg, "2,1")) {
+            app_hs_cb.is_pick_up = TRUE;
+            app_hs_send_event(RK_BT_HFP_PICKUP_EVT, NULL);
+        } else if(strstr(msg, "2,0")) {
+            app_hs_send_event(RK_BT_HFP_HANGUP_EVT, NULL);
+        } else if(strstr(msg, "3,0")) {
+            if(!app_hs_cb.is_pick_up)
+                app_hs_send_event(RK_BT_HFP_HANGUP_EVT, NULL);
+            else
+                app_hs_cb.is_pick_up = FALSE;
+        }
+    } else {
+        if(strstr(msg, "1,1")) {
+            app_hs_cb.is_pick_up = TRUE;
+            app_hs_send_event(RK_BT_HFP_PICKUP_EVT, NULL);
+        } else if(strstr(msg, "1,0")) {
+            app_hs_send_event(RK_BT_HFP_HANGUP_EVT, NULL);
+        } else if(strstr(msg, "2,0")) {
+            if(!app_hs_cb.is_pick_up)
+                app_hs_send_event(RK_BT_HFP_HANGUP_EVT, NULL);
+            else
+                app_hs_cb.is_pick_up = FALSE;
+        }
+    }
+}
+
 /*******************************************************************************
 **
 ** Function         app_hs_cback
@@ -1184,6 +1214,9 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         p_conn->connected_hs_service_id = p_data->conn.service;
         p_conn->peer_feature = p_data->conn.peer_features;
         p_conn->status = BSA_HS_ST_CONNECT;
+        p_conn->dev_platform = app_mgr_get_dev_platform(p_data->conn.bd_addr);
+        printf("device platform is %s\n",
+            p_conn->dev_platform == BSA_DEV_PLATFORM_UNKNOWN ? "Unknown Platform" : "Apple IOS");
         app_hs_send_event(RK_BT_HFP_CONNECT_EVT, NULL);
         break;
 
@@ -1191,6 +1224,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         /* Close event, reason BSA_HS_CLOSE_CLOSED or BSA_HS_CLOSE_CONN_LOSS */
         APP_DEBUG1("BSA_HS_CLOSE_EVT, reason %d", p_data->hdr.status);
         app_hs_cb.open_pending = FALSE;
+        app_hs_cb.is_battery_report = FALSE;
 
         if (!p_conn->connection_active)
         {
@@ -1201,7 +1235,6 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         p_conn->indicator_string_received = FALSE;
 
         BSA_HS_SETSTATUS(p_conn, BSA_HS_ST_CONNECTABLE);
-        app_hs_battery_report = 0;
         app_hs_send_event(RK_BT_HFP_DISCONNECT_EVT, NULL);
         break;
 
@@ -1274,6 +1307,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         strncpy(buf, p_data->val.str, 4);
         buf[5] ='\0';
         printf("Call Ind Status %s\n",buf);
+        app_hs_process_ciev_msg(buf, p_conn->dev_platform);
         break;
 
     case BSA_HS_CIND_EVT:                /* CIND event */
@@ -1356,6 +1390,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
 
     case BSA_HS_OK_EVT:
         fprintf(stdout, "BSA_HS_OK_EVT: command value %d, %s\n",p_data->val.num, p_data->val.str);
+#if 0
         switch(p_data->val.num) {
             case BSA_HS_A_CMD:
                 APP_DEBUG0("Call has been picked up");
@@ -1367,6 +1402,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
                 app_hs_send_event(RK_BT_HFP_HANGUP_EVT, NULL);
                 break;
         }
+#endif
         break;
 
     case BSA_HS_ERROR_EVT:
@@ -1486,7 +1522,7 @@ int app_hs_register()
     param.sec_mask = BSA_SEC_NONE;
     /* Use BSA_HS_FEAT_CODEC (for WBS) for SCO over PCM only, not for SCO over HCI*/
     param.features = APP_HS_FEATURES;
-    if(app_hs_enable_cvsd)
+    if(app_hs_cb.enable_cvsd)
         param.features &= ~BSA_HS_FEAT_CODEC;
     param.settings.ecnr_enabled = (param.features & BSA_HS_FEAT_ECNR) ? TRUE : FALSE;
     param.settings.mic_vol = APP_HS_MIC_VOL;
@@ -1540,7 +1576,6 @@ void app_hs_init(void)
 {
     UINT8 index;
 
-    app_hs_battery_report = 0;
     memset(&app_hs_cb, 0, sizeof(app_hs_cb));
 
     for(index=0; index<BSA_HS_MAX_NUM_CONN ; index++)
@@ -2266,12 +2301,12 @@ int app_hs_report_battery(int value)
         return -1;
     }
 
-    if(!app_hs_battery_report) {
+    if(!app_hs_cb.is_battery_report) {
         if(app_hs_send_unat("+XAPL=ABCD-1234-0100,2") < 0) {
             APP_ERROR0("send AT cmd failed: AT+XAPL=ABCD-1234-0100,2");
             return -1;
         } else {
-            app_hs_battery_report = 1;
+            app_hs_cb.is_battery_report = TRUE;
         }
     }
 
@@ -2293,5 +2328,5 @@ int app_hs_set_vol(int volume)
 
 void app_hs_set_cvsd(BOOLEAN enable)
 {
-    app_hs_enable_cvsd = enable;
+    app_hs_cb.enable_cvsd = enable;
 }

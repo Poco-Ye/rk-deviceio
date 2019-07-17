@@ -118,6 +118,7 @@ typedef struct
     UINT8               call_list_info[BSA_HS_MAX_CL_IDX][BSA_HS_CL_BUF_SIZE];
 
     UINT32              sample_rate;
+    UINT8               dev_platform;
 } tAPP_HS_CONNECTION;
 
 

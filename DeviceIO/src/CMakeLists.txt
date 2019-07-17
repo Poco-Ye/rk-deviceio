@@ -64,7 +64,7 @@ target_include_directories(DeviceIo PUBLIC
 		"${DeviceIo_SOURCE_DIR}/bluetooth/bsa"
 		"${DeviceIo_SOURCE_DIR}/bluetooth/bsa/cypress/include")
 target_link_libraries (DeviceIo libbsa.so libasound.so)
-add_definitions(-DCYPRESS_BSA -DBUILDCFG -DPCM_ALSA -DPCM_ALSA_OPEN_BLOCKING -DFIXED_POINT=16)
+add_definitions(-DCYPRESS_BSA -DBUILDCFG -DPCM_ALSA -DPCM_ALSA_OPEN_BLOCKING -DFIXED_POINT=16 -DBSA_PEER_IOS)
 
 elseif(BROADCOM)
 message("build broadcom bsa...")
@@ -86,7 +86,7 @@ target_include_directories(DeviceIo PUBLIC
 		"${DeviceIo_SOURCE_DIR}/bluetooth/bsa"
                 "${DeviceIo_SOURCE_DIR}/bluetooth/bsa/broadcom/include")
 target_link_libraries (DeviceIo libbsa.so libasound.so)
-add_definitions(-DBROADCOM_BSA -DBUILDCFG -DPCM_ALSA -DPCM_ALSA_OPEN_BLOCKING -DFIXED_POINT=16)
+add_definitions(-DBROADCOM_BSA -DBUILDCFG -DPCM_ALSA -DPCM_ALSA_OPEN_BLOCKING -DFIXED_POINT=16 -DBSA_PEER_IOS)
 endif()
 
 endif()
