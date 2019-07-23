@@ -34,6 +34,21 @@ int reconn_last_devices(BtDeviceType type);
 int disconnect_current_devices();
 int get_dev_platform(char *address);
 int get_current_dev_platform();
+int connect_by_address(char *addr);
+int disconnect_by_address(char *addr);
+int pair_by_addr(char *addr);
+int unpair_by_addr(char *addr);
+int bt_set_device_name(char *name);
+int bt_get_device_name(char *name_buf, int name_len);
+int bt_get_device_addr(char *addr_buf, int addr_len);
+int bt_get_default_dev_addr(char *addr_buf, int addr_len);
+void bt_display_devices();
+void bt_display_paired_devices();
+int bt_get_paired_devices(bt_paried_device **dev_list, int *count);
+int bt_free_paired_devices(bt_paried_device **dev_list);
+void bt_start_discovery(unsigned int mseconds);
+void bt_cancel_discovery();
+bool bt_is_discovering();
 
 int ble_disconnect(void);
 

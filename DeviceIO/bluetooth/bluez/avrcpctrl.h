@@ -93,6 +93,8 @@ bool disconn_device(void);
 int a2dp_sink_open(void);
 void rkbt_inquiry_scan(bool scan);
 void a2dp_sink_register_cb(RK_BT_SINK_CALLBACK cb);
+void a2dp_sink_register_track_cb(RK_BT_AVRCP_TRACK_CHANGE_CB cb);
+void a2dp_sink_register_position_cb(RK_BT_AVRCP_PLAY_POSITION_CB cb);
 void a2dp_sink_clear_cb();
 int a2dp_sink_status(RK_BT_SINK_STATE *pState);
 

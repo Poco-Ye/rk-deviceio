@@ -45,11 +45,31 @@ typedef struct {
 	const char *bt_name;
 } RkBtContent;
 
+struct paired_dev {
+	char *remote_address;
+	char *remote_name;
+	bool is_connected;
+	struct paired_dev *next;
+};
+typedef struct paired_dev bt_paried_device;
+
 int rk_bt_init(RkBtContent *p_bt_content);
 int rk_bt_deinit(void);
 int rk_bt_is_connected(void);
 int rk_bt_set_class(int value);
 int rk_bt_enable_reconnect(int value);
+void rk_bt_start_discovery(unsigned int mseconds);
+void rk_bt_cancel_discovery();
+bool rk_bt_is_discovering();
+void rk_bt_display_devices();
+void rk_bt_display_paired_devices();
+int rk_bt_pair_by_addr(char *addr);
+int rk_bt_unpair_by_addr(char *addr);
+int rk_bt_set_device_name(char *name);
+int rk_bt_get_device_name(char *name, int len);
+int rk_bt_get_device_addr(char *addr, int len);
+int rk_bt_get_paired_devices(bt_paried_device **dev_list,int *count);
+int rk_bt_free_paired_devices(bt_paried_device **dev_list);
 
 #ifdef __cplusplus
 }

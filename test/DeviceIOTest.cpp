@@ -26,11 +26,15 @@
 #include <DeviceIo/Rk_system.h>
 
 #include "bt_test.h"
+#include "bt_test_1s2.h"
 #include "rk_ble_app.h"
 #include "rk_wifi_test.h"
 
 static void deviceio_test_bluetooth();
 static void deviceio_test_wifi_config();
+#ifdef BLUEZ_USE
+static void deviceio_test_bluetooth_1s2();
+#endif
 
 typedef struct {
 	const char *cmd;
@@ -39,6 +43,9 @@ typedef struct {
 } menu_command_t;
 
 static menu_command_t menu_command_table[] = {
+#ifdef BLUEZ_USE
+	{"bluetooth_1s2", "show bluetooth_1s2 test cmd menu", deviceio_test_bluetooth_1s2},
+#endif
 	{"bluetooth", "show bluetooth test cmd menu", deviceio_test_bluetooth},
 	{"wificonfig", "show wifi config test cmd menu", deviceio_test_wifi_config},
 };
@@ -47,6 +54,13 @@ typedef struct {
 	const char *cmd;
 	void (*action)(void *userdata);
 } command_t;
+
+#ifdef BLUEZ_USE
+typedef struct {
+	const char *cmd;
+	void (*action)(char *data);
+} command_1s2_t;
+#endif
 
 static command_t wifi_config_command_table[] = {
 	{"", NULL},
@@ -62,6 +76,8 @@ static command_t bt_command_table[] = {
 	{"", NULL},
 	{"bt_server_open", bt_test_bluetooth_init},
 	{"bt_test_set_class", bt_test_set_class},
+	{"bt_test_get_device_name", bt_test_get_device_name},
+	{"bt_test_get_device_addr", bt_test_get_device_addr},
 	{"bt_test_enable_reconnect", bt_test_enable_reconnect},
 	{"bt_test_disable_reconnect", bt_test_disable_reconnect},
 	{"bt_test_source_auto_start", bt_test_source_auto_start},
@@ -111,6 +127,38 @@ static command_t bt_command_table[] = {
 	{"bt_server_close", bt_test_bluetooth_deinit},
 };
 
+#ifdef BLUEZ_USE
+static command_1s2_t btmg_1s2_command_table[] = {
+	{"", NULL},
+	{"btmg_init_test", btmg_init_test},
+	{"btmg_enable_reconnect_test", btmg_enable_reconnect_test},
+	{"btmg_disable_reconnect_test", btmg_disable_reconnect_test},
+	{"btmg_get_device_name_test", btmg_get_device_name_test},
+	{"btmg_get_device_addr_test", btmg_get_device_addr_test},
+	{"btmg_set_device_name_test", btmg_set_device_name_test},
+	{"btmg_set_scan_none_test", btmg_set_scan_none_test},
+	{"btmg_connectable_test", btmg_connectable_test},
+	{"btmg_connectable_discoverable_test", btmg_connectable_discoverable_test},
+	{"btmg_start_discovery_test", btmg_start_discovery_test},
+	{"btmg_cancel_discovery_test", btmg_cancel_discovery_test},
+	{"btmg_is_discovering_test", btmg_is_discovering_test},
+	{"btmg_display_devices_test", btmg_display_devices_test},
+	{"btmg_display_paired_devices_test", btmg_display_paired_devices_test},
+	{"btmg_get_paired_devices_test", btmg_get_paired_devices_test},
+	{"btmg_free_paired_devices_test", btmg_free_paired_devices_test},
+	{"btmg_pair_by_addr_test", btmg_pair_by_addr_test},
+	{"btmg_unpair_by_addr_test", btmg_unpair_by_addr_test},
+	{"btmg_sink_connect_by_addr_test", btmg_sink_connect_by_addr_test},
+	{"btmg_sink_disconnect_by_addr_test", btmg_sink_disconnect_by_addr_test},
+	{"btmg_sink_avrcp_play_test", btmg_sink_avrcp_play_test},
+	{"btmg_sink_avrcp_pause_test", btmg_sink_avrcp_pause_test},
+	{"btmg_sink_avrcp_stop_test", btmg_sink_avrcp_stop_test},
+	{"btmg_sink_avrcp_next_test", btmg_sink_avrcp_next_test},
+	{"btmg_sink_avrcp_previous_test", btmg_sink_avrcp_previous_test},
+	{"btmg_deinit_test", btmg_deinit_test},
+};
+#endif
+
 static void show_wifi_config_cmd() {
 	unsigned int i;
 	printf("#### Please Input Your Test Command Index ####\n");
@@ -128,6 +176,17 @@ static void show_bt_cmd() {
 	}
 	printf("Which would you like: ");
 }
+
+#ifdef BLUEZ_USE
+static void show_bt_1s2_cmd() {
+	unsigned int i;
+	printf("#### Please Input Your Test Command Index ####\n");
+	for (i = 1; i < sizeof(btmg_1s2_command_table) / sizeof(btmg_1s2_command_table[0]); i++) {
+		printf("%02d.  %s \n", i, btmg_1s2_command_table[i].cmd);
+	}
+	printf("Which would you like: ");
+}
+#endif
 
 static void show_help(char *bin_name) {
 	unsigned int i;
@@ -179,6 +238,41 @@ static void deviceio_test_bluetooth()
 
 	return;
 }
+
+#ifdef BLUEZ_USE
+static void deviceio_test_bluetooth_1s2()
+{
+	int i, item_cnt;
+	char *input_start;
+	char cmdBuf[64] = {0};
+	char szBuf[64] = {0};
+
+	item_cnt = sizeof(btmg_1s2_command_table) / sizeof(command_1s2_t);
+	while(true) {
+		memset(szBuf, 0, sizeof(szBuf));
+		show_bt_1s2_cmd();
+		if(!std::cin.getline(szBuf, 64)) {
+			std::cout << "error" << std::endl;
+			continue;
+		}
+
+		input_start = strstr(szBuf, "input");
+		if(input_start == NULL) {
+			i = atoi(szBuf);
+			if ((i >= 1) && (i < item_cnt))
+				btmg_1s2_command_table[i].action(NULL);
+		} else {
+			memset(cmdBuf, 0, sizeof(cmdBuf));
+			strncpy(cmdBuf, szBuf, strlen(szBuf) - strlen(input_start) - 1);
+			i = atoi(cmdBuf);
+			if ((i >= 1) && (i < item_cnt))
+				btmg_1s2_command_table[i].action(input_start + strlen("input") + 1);
+		}
+	}
+
+	return;
+}
+#endif
 
 int main(int argc, char *argv[])
 {

@@ -2053,3 +2053,10 @@ UINT8 app_mgr_get_dev_platform(BD_ADDR bd_addr)
 
     return dev_platform;
 }
+
+void app_manager_bd2str(BD_ADDR bd_addr, char *str)
+{
+    return sprintf(str, "%02x:%02x:%02x:%02x:%02x:%02x",
+                bd_addr[0], bd_addr[1], bd_addr[2],
+                bd_addr[3], bd_addr[4], bd_addr[5]);
+}

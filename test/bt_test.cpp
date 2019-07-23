@@ -71,7 +71,6 @@ static void bt_test_ble_request_data_callback(const char *uuid);
 static RkBtContent bt_content;
 
 static RK_BT_SCO_CODEC_TYPE sco_codec = BT_SCO_CODEC_CVSD;
-
 /******************************************/
 /*        BT base server init             */
 /******************************************/
@@ -121,6 +120,22 @@ void bt_test_disable_reconnect(void *data)
 	rk_bt_enable_reconnect(0);
 }
 
+void bt_test_get_device_name(void *data)
+{
+	char name[256];
+	memset(name, 0, 256);
+	rk_bt_get_device_name(name, 256);
+	printf("bt device name: %s\n", name);
+}
+
+void bt_test_get_device_addr(void *data)
+{
+	char addr[18];
+	memset(addr, 0, 18);
+	rk_bt_get_device_addr(addr, 18);
+	printf("bt device addr: %s\n", addr);
+}
+
 /******************************************/
 /*               A2DP SINK                */
 /******************************************/
@@ -155,9 +170,31 @@ void bt_sink_volume_callback(int volume)
 	printf("++++++++ bt sink volume change, volume: %d ++++++++\n", volume);
 }
 
+void bt_sink_track_change_callback(const char *bd_addr, BtTrackInfo track_info)
+{
+	printf("++++++++ bt sink track change ++++++++\n");
+	printf("    remote device address: %s\n", bd_addr);
+	printf("    title: %s\n", track_info.title);
+	printf("    artist: %s\n", track_info.artist);
+	printf("    album: %s\n", track_info.album);
+	printf("    genre: %s\n", track_info.genre);
+	printf("    num_tracks: %s\n", track_info.num_tracks);
+	printf("    track_num: %s\n", track_info.track_num);
+	printf("    playing_time: %s\n", track_info.playing_time);
+}
+
+void bt_sink_position_change_callback(const char *bd_addr, int song_len, int song_pos)
+{
+	printf("++++++++ bt sink position change ++++++++\n");
+	printf("    remote device address: %s\n", bd_addr);
+	printf("    song_len: %d, song_pos: %d\n", song_len, song_pos);
+}
+
 void bt_test_sink_open(void *data)
 {
 	rk_bt_sink_register_volume_callback(bt_sink_volume_callback);
+	rk_bt_sink_register_track_callback(bt_sink_track_change_callback);
+	rk_bt_sink_register_position_callback(bt_sink_position_change_callback);
 	rk_bt_sink_register_callback(bt_sink_callback);
 	rk_bt_sink_open();
 }
@@ -269,7 +306,6 @@ void bt_test_sink_set_volume(void *data)
 		rk_bt_sink_volume_down();
 		sleep(2);
 	}
-
 }
 
 /******************************************/
@@ -277,8 +313,6 @@ void bt_test_sink_set_volume(void *data)
 /******************************************/
 void bt_test_source_status_callback(void *userdata, const RK_BT_SOURCE_EVENT enEvent)
 {
-	char address[17], name[100];
-
 	switch(enEvent)
 	{
 		case BT_SOURCE_EVENT_CONNECT_FAILED:
@@ -286,9 +320,6 @@ void bt_test_source_status_callback(void *userdata, const RK_BT_SOURCE_EVENT enE
 			break;
 		case BT_SOURCE_EVENT_CONNECTED:
 			printf("++++++++++++ BT SOURCE EVENT:connect sucess ++++++++++\n");
-			rk_bt_source_get_device_name(name, 100);
-			rk_bt_source_get_device_addr(address, 17);
-			printf("DeviceName:%s. Address:%s\n", name, address);
 			break;
 		case BT_SOURCE_EVENT_DISCONNECTED:
 			printf("++++++++++++ BT SOURCE EVENT:disconnect ++++++++++\n");
@@ -1137,6 +1168,8 @@ void bt_test_hfp_hp_disconnect(void *data)
 void bt_test_hfp_sink_open(void *data)
 {
 	rk_bt_sink_register_volume_callback(bt_sink_volume_callback);
+	rk_bt_sink_register_track_callback(bt_sink_track_change_callback);
+	rk_bt_sink_register_position_callback(bt_sink_position_change_callback);
 	rk_bt_sink_register_callback(bt_sink_callback);
 	rk_bt_hfp_register_callback(bt_test_hfp_hp_cb);
 	rk_bt_hfp_sink_open();

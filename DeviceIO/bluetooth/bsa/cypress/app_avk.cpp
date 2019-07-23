@@ -554,6 +554,18 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
             else
                 app_avk_close_wave_file(connection);
         }
+
+        if(app_avk_cb.alsa_handle != NULL) {
+#ifdef PCM_ALSA_OPEN_BLOCKING
+            pthread_mutex_lock(&mutex);
+#endif
+            snd_pcm_close(app_avk_cb.alsa_handle);
+            app_avk_cb.alsa_handle = NULL;
+#ifdef PCM_ALSA_OPEN_BLOCKING
+            pthread_mutex_unlock(&mutex);
+#endif
+        }
+
         app_avk_reset_connection(connection->bda_connected);
         break;
 

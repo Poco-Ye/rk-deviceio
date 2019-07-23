@@ -14,6 +14,8 @@ void bt_test_bluetooth_deinit(void *data);
 void bt_test_set_class(void *data);
 void bt_test_enable_reconnect(void *data);
 void bt_test_disable_reconnect(void *data);
+void bt_test_get_device_name(void *data);
+void bt_test_get_device_addr(void *data);
 
 /******************************************/
 /*               BLE Test                 */

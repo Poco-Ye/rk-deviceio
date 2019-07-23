@@ -197,6 +197,7 @@ static int _bt_open_server(const char *bt_name)
 		sprintf(cmd_buf, "hciconfig hci0 name \'%s\'", bt_name);
 	} else {
 		bt_gethostname(hostname_buf, sizeof(hostname_buf));
+		RK_LOGD("[BT_OPEN]: bt_name: %s\n", hostname_buf);
 		sprintf(cmd_buf, "hciconfig hci0 name \'%s\'", hostname_buf);
 	}
 	bt_exec_command_system(cmd_buf);
@@ -613,21 +614,33 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 
 	switch (cmd) {
 	case BtControl::BT_OPEN:
-		GBt_Content = *((RkBtContent *)data);
-
 		if (_bt_close_server() < 0) {
 			RK_LOGD("_bt_close_server failed\n");
 			return -1;
 		}
 
-		if (_bt_open_server(GBt_Content.bt_name) < 0) {
-			RK_LOGD("_bt_open_server failed\n");
-			return -1;
-		}
+		if(data) {
+			GBt_Content = *((RkBtContent *)data);
 
-		if (bt_open(&GBt_Content) < 0) {
-			RK_LOGD("bt_open failed\n");
-			return -1;
+			if (_bt_open_server(GBt_Content.bt_name) < 0) {
+				RK_LOGD("_bt_open_server failed\n");
+				return -1;
+			}
+
+			if (bt_open(&GBt_Content) < 0) {
+				RK_LOGD("bt_open failed\n");
+				return -1;
+			}
+		} else {
+			if (_bt_open_server(NULL) < 0) {
+				RK_LOGD("_bt_open_server failed\n");
+				return -1;
+			}
+
+			if (bt_open(NULL) < 0) {
+				RK_LOGD("bt_open failed\n");
+				return -1;
+			}
 		}
 
 		bt_control.is_bt_open = 1;

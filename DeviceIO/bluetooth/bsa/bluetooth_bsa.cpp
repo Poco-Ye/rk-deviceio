@@ -247,6 +247,74 @@ int rk_bt_enable_reconnect(int enable)
     return app_manager_set_auto_reconnect(enable);
 }
 
+void rk_bt_start_discovery(unsigned int mseconds)
+{
+}
+
+void rk_bt_cancel_discovery()
+{
+}
+
+bool rk_bt_is_discovering()
+{
+    return false;
+}
+
+void rk_bt_display_devices()
+{
+}
+
+void rk_bt_display_paired_devices()
+{
+}
+
+int rk_bt_pair_by_addr(char *addr)
+{
+    return 0;
+}
+
+int rk_bt_unpair_by_addr(char *addr)
+{
+    return 0;
+}
+
+int rk_bt_set_device_name(char *name)
+{
+    return 0;
+}
+
+int rk_bt_get_device_name(char *name, int len)
+{
+    if (!name || (len <= 0))
+        return -1;
+
+    memset(name, 0, len);
+    app_mgr_get_bt_config(name, len, NULL, 0);
+
+    return 0;
+}
+
+int rk_bt_get_device_addr(char *addr, int len)
+{
+    if (!addr || (len < 17))
+        return -1;
+
+    memset(addr, 0, len);
+    bsa_get_bt_mac(addr);
+
+    return 0;
+}
+
+int rk_bt_get_paired_devices(bt_paried_device **dev_list,int *count)
+{
+    return 0;
+}
+
+int rk_bt_free_paired_devices(bt_paried_device **dev_list)
+{
+    return 0;
+}
+
 /******************************************/
 /*               A2DP SINK                */
 /******************************************/
@@ -264,6 +332,19 @@ int rk_bt_sink_register_callback(RK_BT_SINK_CALLBACK cb)
 int rk_bt_sink_register_volume_callback(RK_BT_SINK_VOLUME_CALLBACK cb)
 {
     app_avk_register_volume_cb(cb);
+    return 0;
+}
+
+int rk_bt_sink_register_track_callback(RK_BT_AVRCP_TRACK_CHANGE_CB cb)
+{
+}
+
+int rk_bt_sink_register_position_callback(RK_BT_AVRCP_PLAY_POSITION_CB cb)
+{
+}
+
+int rk_bt_sink_get_default_dev_addr(char *addr, int len)
+{
     return 0;
 }
 
@@ -384,6 +465,14 @@ int rk_bt_sink_disconnect()
     /* Close AVK connection (disconnect device) */
     app_avk_close_all();
     return 0;
+}
+
+int rk_bt_sink_connect_by_addr(char *addr)
+{
+}
+
+int rk_bt_sink_disconnect_by_addr(char *addr)
+{
 }
 
 /******************************************/
@@ -630,24 +719,12 @@ int rk_bt_source_remove(char *address)
 
 int rk_bt_source_get_device_name(char *name, int len)
 {
-    if (!name || (len <= 0))
-        return -1;
-
-    memset(name, 0, len);
-    app_mgr_get_bt_config(name, len, NULL, 0);
-
-    return 0;
+    return rk_bt_get_device_name(name, len);
 }
 
 int rk_bt_source_get_device_addr(char *addr, int len)
 {
-    if (!addr || (len < 17))
-        return -1;
-
-    memset(addr, 0, len);
-    bsa_get_bt_mac(addr);
-
-    return 0;
+    return rk_bt_get_device_addr(addr, len);
 }
 
 int rk_bt_source_resume()

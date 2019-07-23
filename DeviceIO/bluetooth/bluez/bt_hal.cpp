@@ -359,24 +359,12 @@ int rk_bt_source_register_status_cb(void *userdata, RK_BT_SOURCE_CALLBACK cb)
 
 int rk_bt_source_get_device_name(char *name, int len)
 {
-	if (!name || (len <= 0))
-		return -1;
-
-	if (a2dp_master_status(NULL, 0,  name, len))
-		return 0;
-
-	return -1;
+	return rk_bt_get_device_name(name, len);
 }
 
 int rk_bt_source_get_device_addr(char *addr, int len)
 {
-	if (!addr || (len < 17))
-		return -1;
-
-	if (a2dp_master_status(addr, len, NULL, 0))
-		return 0;
-
-	return -1;
+	return rk_bt_get_device_addr(addr, len);
 }
 
 int rk_bt_source_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, int name_len,
@@ -498,6 +486,23 @@ int rk_bt_sink_register_volume_callback(RK_BT_SINK_VOLUME_CALLBACK cb)
 	return 0;
 }
 
+int rk_bt_sink_register_track_callback(RK_BT_AVRCP_TRACK_CHANGE_CB cb)
+{
+	a2dp_sink_register_track_cb(cb);
+	return 0;
+}
+
+int rk_bt_sink_register_position_callback(RK_BT_AVRCP_PLAY_POSITION_CB cb)
+{
+	a2dp_sink_register_position_cb(cb);
+	return 0;
+}
+
+int rk_bt_sink_get_default_dev_addr(char *addr, int len)
+{
+	return bt_get_default_dev_addr(addr, len);
+}
+
 int rk_bt_sink_open()
 {
 	/* Init bluetooth */
@@ -603,6 +608,22 @@ int rk_bt_sink_stop(void)
 int rk_bt_sink_disconnect()
 {
 	return disconnect_current_devices();
+}
+
+int rk_bt_sink_connect_by_addr(char *addr)
+{
+	if(bt_sink_is_open())
+		return connect_by_address(addr);
+    else
+		return -1;
+}
+
+int rk_bt_sink_disconnect_by_addr(char *addr)
+{
+	if(bt_sink_is_open())
+		return disconnect_by_address(addr);
+	else
+		return -1;
 }
 
 static int _get_bluealsa_plugin_volume_ctrl_info(char *name, int *value)
@@ -867,6 +888,65 @@ int rk_bt_enable_reconnect(int value)
 
 	close(fd);
 	return (ret < 0) ? -1 : 0;
+}
+
+void rk_bt_start_discovery(unsigned int mseconds)
+{
+	bt_start_discovery(mseconds);
+}
+
+void rk_bt_cancel_discovery()
+{
+	bt_cancel_discovery();
+}
+
+bool rk_bt_is_discovering()
+{
+	return bt_is_discovering();
+}
+
+void rk_bt_display_devices()
+{
+	bt_display_devices();
+}
+void rk_bt_display_paired_devices()
+{
+	bt_display_paired_devices();
+}
+
+int rk_bt_pair_by_addr(char *addr)
+{
+	return pair_by_addr(addr);
+}
+
+int rk_bt_unpair_by_addr(char *addr)
+{
+	return unpair_by_addr(addr);
+}
+
+int rk_bt_set_device_name(char *name)
+{
+	return bt_set_device_name(name);
+}
+
+int rk_bt_get_device_name(char *name, int len)
+{
+	return bt_get_device_name(name, len);
+}
+
+int rk_bt_get_device_addr(char *addr, int len)
+{
+	return bt_get_device_addr(addr, len);
+}
+
+int rk_bt_get_paired_devices(bt_paried_device **dev_list, int *count)
+{
+	return bt_get_paired_devices(dev_list, count);
+}
+
+int rk_bt_free_paired_devices(bt_paried_device **dev_list)
+{
+	return bt_free_paired_devices(dev_list);
 }
 
 /*****************************************************************

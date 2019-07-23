@@ -24,7 +24,7 @@ typedef struct _bt_device_info {
  * device_list: Save scan results.
  */
 typedef struct _bt_scan_parameter {
-    unsigned short mseconds;
+    unsigned int mseconds;
     unsigned char item_cnt;
     BtDeviceInfo devices[BT_SOURCE_SCAN_DEVICES_CNT];
 } BtScanParam;
