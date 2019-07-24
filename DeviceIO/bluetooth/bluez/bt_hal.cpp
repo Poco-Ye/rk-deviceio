@@ -813,7 +813,7 @@ int rk_bt_deinit(void)
 {
 #if 1
 	rk_bt_hfp_close();
-	//rk_bt_sink_close();
+	rk_bt_sink_close();
 	rk_bt_source_close();
 	rk_bt_spp_close();
 	rk_ble_stop();

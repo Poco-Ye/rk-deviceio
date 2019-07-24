@@ -102,7 +102,7 @@ typedef struct BLE_CONTENT_T
 	void (*cb_ble_request_data)(char *uuid);
 } ble_content_t;
 
-ble_content_t *ble_content_internal;
+ble_content_t *ble_content_internal = NULL;
 ble_content_t ble_content_internal_bak;
 static int gid = 0;
 static int characteristic_id;
@@ -980,20 +980,23 @@ void gatt_cleanup(void)
 {
 	int i;
 
-	printf("gatt_cleanup\n");
+	if(ble_content_internal) {
+		printf("gatt_cleanup\n");
 
-	//gatt_unregister_app(ble_proxy);
+		//gatt_unregister_app(ble_proxy);
+		sleep(1);
 
-	sleep(1);
+		for (i = 0; i < ble_content_internal->char_cnt; i++) {
+			printf("char_uuid[%d]: %s\n", i,  gchr[i]->path);
+			g_dbus_unregister_interface(dbus_conn,	gchr[i]->path,
+								GATT_CHR_IFACE);
+		}
 
-	for (i = 0; i < ble_content_internal->char_cnt; i++) {
-		printf("char_uuid[%d]: %s\n", i,  gchr[i]->path);
-		g_dbus_unregister_interface(dbus_conn,  gchr[i]->path,
-							GATT_CHR_IFACE);
+		g_dbus_unregister_interface(dbus_conn, "/service1",
+							GATT_SERVICE_IFACE);
+
+		ble_content_internal = NULL;
 	}
-
-	g_dbus_unregister_interface(dbus_conn, "/service1",
-						GATT_SERVICE_IFACE);
 }
 
 int gatt_open(void)
