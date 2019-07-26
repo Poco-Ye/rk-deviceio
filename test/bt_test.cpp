@@ -74,6 +74,21 @@ static RK_BT_SCO_CODEC_TYPE sco_codec = BT_SCO_CODEC_CVSD;
 /******************************************/
 /*        BT base server init             */
 /******************************************/
+static void bt_test_bond_state_cb(const char *bd_addr, const char *name, RK_BT_BOND_STATE state)
+{
+	switch(state) {
+		case RK_BT_BOND_STATE_NONE:
+			printf("++++++++++ BT BOND NONE: %s, %s ++++++++++\n", name, bd_addr);
+			break;
+		case RK_BT_BOND_STATE_BONDING:
+			printf("++++++++++ BT BOND BONDING: %s, %s ++++++++++\n", name, bd_addr);
+			break;
+		case RK_BT_BOND_STATE_BONDED:
+			printf("++++++++++ BT BONDED: %s, %s ++++++++++\n", name, bd_addr);
+			break;
+	}
+}
+
 /*
  * The Bluetooth basic service is turned on and the function
  * must be called before using the Bluetooth function.
@@ -96,6 +111,7 @@ void bt_test_bluetooth_init(void *data)
 	bt_content.ble_content.cb_ble_recv_fun = bt_test_ble_recv_data_callback;
 	bt_content.ble_content.cb_ble_request_data = bt_test_ble_request_data_callback;
 
+	rk_bt_register_bond_callback(bt_test_bond_state_cb);
 	rk_bt_init(&bt_content);
 }
 
@@ -148,6 +164,10 @@ int bt_sink_callback(RK_BT_SINK_STATE state)
 		case RK_BT_SINK_STATE_CONNECT:
 			printf("++++++++++++ BT SINK EVENT: connect sucess ++++++++++\n");
 			break;
+		case RK_BT_SINK_STATE_DISCONNECT:
+			printf("++++++++++++ BT SINK EVENT: disconnected ++++++++++\n");
+			break;
+		//avrcp
 		case RK_BT_SINK_STATE_PLAY:
 			printf("++++++++++++ BT SINK EVENT: playing ++++++++++\n");
 			break;
@@ -157,8 +177,15 @@ int bt_sink_callback(RK_BT_SINK_STATE state)
 		case RK_BT_SINK_STATE_STOP:
 			printf("++++++++++++ BT SINK EVENT: stoped ++++++++++\n");
 			break;
-		case RK_BT_SINK_STATE_DISCONNECT:
-			printf("++++++++++++ BT SINK EVENT: disconnected ++++++++++\n");
+		//avdtp(a2dp)
+		case RK_BT_A2DP_SINK_STARTED:
+			printf("++++++++++++ BT A2DP SINK STATE: started ++++++++++\n");
+			break;
+		case RK_BT_A2DP_SINK_SUSPENDED:
+			printf("++++++++++++ BT A2DP SINK STATE: suspended ++++++++++\n");
+			break;
+		case RK_BT_A2DP_SINK_STOPPED:
+			printf("++++++++++++ BT A2DP SINK STATE: stoped ++++++++++\n");
 			break;
 	}
 

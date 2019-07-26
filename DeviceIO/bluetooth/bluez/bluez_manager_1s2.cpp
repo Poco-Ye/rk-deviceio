@@ -37,16 +37,10 @@ static void btmg_gap_status_cb(btmg_state_t status)
 		g_btmg_cb->btmg_gap_cb.gap_status_cb(status);
 }
 
-static void btmg_gap_bond_state_cb(btmg_bond_state_t state, const char *bd_addr, const char *name)
+static void btmg_gap_bond_state_cb(const char *bd_addr, const char *name, RK_BT_BOND_STATE state)
 {
 	if(g_btmg_cb)
-		g_btmg_cb->btmg_gap_cb.gap_bond_state_cb(state, bd_addr, name);
-}
-
-static void btmg_a2dp_sink_audio_state_cb(const char *bd_addr, btmg_a2dp_sink_audio_state_t state)
-{
-	if(g_btmg_cb)
-		g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_audio_state_cb(bd_addr, state);
+		g_btmg_cb->btmg_gap_cb.gap_bond_state_cb((btmg_bond_state_t)state, bd_addr, name);
 }
 
 static int btmg_sink_callback(RK_BT_SINK_STATE state)
@@ -62,6 +56,11 @@ static int btmg_sink_callback(RK_BT_SINK_STATE state)
 			if(g_btmg_cb)
 				g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_connection_state_cb(bd_addr, BTMG_A2DP_SINK_CONNECTED);
 			break;
+		case RK_BT_SINK_STATE_DISCONNECT:
+			if(g_btmg_cb)
+				g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_connection_state_cb(bd_addr, BTMG_A2DP_SINK_DISCONNECTED);
+			break;
+		//avrcp
 		case RK_BT_SINK_STATE_PLAY:
 			if(g_btmg_cb)
 				g_btmg_cb->btmg_avrcp_cb.avrcp_play_state_cb(bd_addr, BTMG_AVRCP_PLAYSTATE_PLAYING);
@@ -74,9 +73,18 @@ static int btmg_sink_callback(RK_BT_SINK_STATE state)
 			if(g_btmg_cb)
 				g_btmg_cb->btmg_avrcp_cb.avrcp_play_state_cb(bd_addr, BTMG_AVRCP_PLAYSTATE_STOPPED);
 			break;
-		case RK_BT_SINK_STATE_DISCONNECT:
+		//avdtp(a2dp)
+		case RK_BT_A2DP_SINK_STARTED:
 			if(g_btmg_cb)
-				g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_connection_state_cb(bd_addr, BTMG_A2DP_SINK_DISCONNECTED);
+				g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_audio_state_cb(bd_addr, BTMG_A2DP_SINK_AUDIO_STARTED);
+			break;
+		case RK_BT_A2DP_SINK_SUSPENDED:
+			if(g_btmg_cb)
+				g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_audio_state_cb(bd_addr, BTMG_A2DP_SINK_AUDIO_SUSPENDED);
+			break;
+		case RK_BT_A2DP_SINK_STOPPED:
+			if(g_btmg_cb)
+				g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_audio_state_cb(bd_addr, BTMG_A2DP_SINK_AUDIO_STOPPED);
 			break;
 	}
 
@@ -93,6 +101,18 @@ static void btmg_sink_position_change_callback(const char *bd_addr, int song_len
 {
 	if(g_btmg_cb)
 		g_btmg_cb->btmg_avrcp_cb.avrcp_play_position_cb(bd_addr, song_len, song_pos);
+}
+
+/*preinit function, to allocate room for callback struct, which will be free by bt_manager_deinit*/
+int bt_manager_preinit(btmg_callback_t **btmg_cb)
+{
+	*btmg_cb = (btmg_callback_t *)malloc(sizeof(btmg_callback_t));
+	if(*btmg_cb == NULL) {
+		printf("malloc bt manager callback failed\n");
+		return -1;
+	}
+
+	return 0;
 }
 
 /*init function, the callback functions will be registered*/
@@ -120,12 +140,13 @@ int bt_manager_enable(bool enable)
 {
 	int ret;
 	if(enable) {
+		rk_bt_register_bond_callback(btmg_gap_bond_state_cb);
 		if(rk_bt_init(NULL) < 0) {
 			printf("%s: rk_bt_init error\n", __func__);
 			return -1;
 		}
 
-		rk_bt_sink_register_volume_callback(NULL);
+		//rk_bt_sink_register_volume_callback(NULL);
 		rk_bt_sink_register_track_callback(btmg_sink_track_change_callback);
 		rk_bt_sink_register_position_callback(btmg_sink_position_change_callback);
 		rk_bt_sink_register_callback(btmg_sink_callback);
@@ -265,7 +286,7 @@ int bt_manager_disconnect(char *addr)
 	return 0;
 }
 
-/*send Getplaystatus cmd*/
+/*send GetPlayStatus cmd*/
 int bt_manager_send_get_play_status(void)
 {
 	return 0;

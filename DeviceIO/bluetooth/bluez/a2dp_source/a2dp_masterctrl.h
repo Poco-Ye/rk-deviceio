@@ -49,6 +49,9 @@ int bt_free_paired_devices(bt_paried_device **dev_list);
 void bt_start_discovery(unsigned int mseconds);
 void bt_cancel_discovery();
 bool bt_is_discovering();
+bool bt_is_connected();
+void bt_register_bond_callback(RK_BT_BOND_CALLBACK cb);
+void bt_deregister_bond_callback();
 
 int ble_disconnect(void);
 

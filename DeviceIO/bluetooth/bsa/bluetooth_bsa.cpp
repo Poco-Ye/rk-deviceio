@@ -177,6 +177,11 @@ int rk_bt_is_connected()
         return 0;
 }
 
+void rk_bt_register_bond_callback(RK_BT_BOND_CALLBACK cb)
+{
+
+}
+
 int rk_bt_init(RkBtContent *p_bt_content)
 {
     if(!p_bt_content) {

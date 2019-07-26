@@ -130,10 +130,13 @@ void bt_manager_debug_close_file(void);
 void bt_manager_debug_open_syslog(void);
 void bt_manager_debug_close_syslog(void);
 
-/*deinit function, must be called before exit*/
-int bt_manager_deinit(btmg_callback_t *btmg_cb);
+/*preinit function, to allocate room for callback struct, which will be free by bt_manager_deinit*/
+int bt_manager_preinit(btmg_callback_t **btmg_cb);
 /*init function, the callback functions will be registered*/
 int bt_manager_init(btmg_callback_t *btmg_cb);
+/*deinit function, must be called before exit*/
+int bt_manager_deinit(btmg_callback_t *btmg_cb);
+
 /*GAP APIs*/
 /*set BT discovery mode*/
 int bt_manager_set_discovery_mode(btmg_discovery_mode_t mode);
@@ -171,7 +174,7 @@ int bt_manager_get_paired_devices(bt_paried_device **dev_list,int *count);
 /* free paird device data resource*/
 int bt_manager_free_paired_devices(bt_paried_device **dev_list);
 
-/*send Getplaystatus cmd*/
+/*send GetPlayStatus cmd*/
 int bt_manager_send_get_play_status(void);
 
 /*if support avrcp EVENT_PLAYBACK_POS_CHANGED,*/

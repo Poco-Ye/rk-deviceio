@@ -22,6 +22,12 @@ enum {
 	BLE_ADVDATA_TYPE_SYSTEM
 };
 
+typedef enum {
+	RK_BT_BOND_STATE_NONE,
+	RK_BT_BOND_STATE_BONDING,
+	RK_BT_BOND_STATE_BONDED,
+} RK_BT_BOND_STATE;
+
 typedef struct {
 	Ble_Uuid_Type_t server_uuid;
 	Ble_Uuid_Type_t chr_uuid[12];
@@ -53,6 +59,9 @@ struct paired_dev {
 };
 typedef struct paired_dev bt_paried_device;
 
+typedef void (*RK_BT_BOND_CALLBACK)(const char *bd_addr, const char *name, RK_BT_BOND_STATE state);
+
+void rk_bt_register_bond_callback(RK_BT_BOND_CALLBACK cb);
 int rk_bt_init(RkBtContent *p_bt_content);
 int rk_bt_deinit(void);
 int rk_bt_is_connected(void);

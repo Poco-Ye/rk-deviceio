@@ -485,7 +485,7 @@ int bt_close_source(void)
 
 	RK_LOGD("bt_close_source close\n");
 
-	if (a2dp_master_disconnect(NULL))
+	if (!a2dp_master_disconnect(NULL))
 		sleep(3);
 	release_a2dp_master_ctrl();
 

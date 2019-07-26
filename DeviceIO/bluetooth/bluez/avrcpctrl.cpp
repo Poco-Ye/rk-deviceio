@@ -14,6 +14,7 @@
 
 #include "gdbus.h"
 #include "avrcpctrl.h"
+#include "a2dp_source/a2dp_masterctrl.h"
 #include "DeviceIo/DeviceIo.h"
 #include "DeviceIo/Rk_shell.h"
 //#include "../Timer.h"
@@ -67,6 +68,7 @@ static void device_connected_post(GDBusProxy *proxy);
 #define BLUEZ_MEDIA_PLAYER_INTERFACE "org.bluez.MediaPlayer1"
 #define BLUEZ_MEDIA_FOLDER_INTERFACE "org.bluez.MediaFolder1"
 #define BLUEZ_MEDIA_ITEM_INTERFACE "org.bluez.MediaItem1"
+#define BLUEZ_MEDIA_TRANSPORT_INTERFACE "org.bluez.MediaTransport1"
 
 extern DBusConnection *dbus_conn;
 static GDBusProxy *default_player;
@@ -81,7 +83,6 @@ extern GDBusClient *btsrc_client;
 static int g_btsrc_connect_status = RK_BT_SINK_STATE_IDLE;
 
 extern void print_iter(const char *label, const char *name, DBusMessageIter *iter);
-extern int bt_get_default_dev_addr(char *addr_buf, int addr_len);
 
 static RK_BT_SINK_CALLBACK g_btsink_cb = NULL;
 static RK_BT_AVRCP_TRACK_CHANGE_CB g_avrcp_track_cb = NULL;
@@ -116,6 +117,9 @@ void report_avrcp_event(DeviceInput event, void *data, int len) {
 			break;
 		case DeviceInput::BT_PAUSE_PLAY:
 			bt_sink_state_send(RK_BT_SINK_STATE_PAUSE);
+			break;
+		case DeviceInput::BT_STOP_PLAY:
+			bt_sink_state_send(RK_BT_SINK_STATE_STOP);
 			break;
 		default:
 			break;
@@ -531,9 +535,7 @@ bool reconn_last(void)
 		return 0;
 	}
 
-	memset(buff, 0, 100);
-	RK_shell_exec("hcitool con", buff, 100);
-	if (strstr(buff, "ACL") || strstr(buff, "LE")) {
+	if (bt_is_connected()) {
 		printf("%s: The device is connected and does not need to be reconnected!", __func__);
 		return 0;
 	}
@@ -851,6 +853,26 @@ void item_property_changed(GDBusProxy *proxy, const char *name,
 	g_free(str);
 }
 
+void transport_property_changed(GDBusProxy *proxy, const char *name,
+					DBusMessageIter *iter)
+{
+	char *str;
+	const char *valstr;
+
+	str = proxy_description(proxy, "MediaTransport1", COLORED_CHG);
+
+	dbus_message_iter_get_basic(iter, &valstr);
+	if (!strncmp(name, "State", 5)) {
+		if (strstr(valstr, "active"))
+			bt_sink_state_send(RK_BT_A2DP_SINK_STARTED);
+		else if (strstr(valstr, "idle"))
+			bt_sink_state_send(RK_BT_A2DP_SINK_SUSPENDED);
+	}
+
+	print_iter(str, name, iter);
+	g_free(str);
+}
+
 void device_changed(GDBusProxy *proxy, DBusMessageIter *iter,
 			   void *user_data)
 {
@@ -894,6 +916,8 @@ void a2dp_sink_property_changed(GDBusProxy *proxy, const char *name,
 		folder_property_changed(proxy, name, iter);
 	else if (!strcmp(interface, BLUEZ_MEDIA_ITEM_INTERFACE))
 		item_property_changed(proxy, name, iter);
+	else if (!strcmp(interface, BLUEZ_MEDIA_TRANSPORT_INTERFACE))
+		transport_property_changed(proxy, name, iter);
 }
 
 bool check_default_player(void)

@@ -812,6 +812,8 @@ int rk_bt_init(RkBtContent *p_bt_content)
 int rk_bt_deinit(void)
 {
 #if 1
+	bt_deregister_bond_callback();
+
 	rk_bt_hfp_close();
 	rk_bt_sink_close();
 	rk_bt_source_close();
@@ -834,6 +836,11 @@ int rk_bt_deinit(void)
 #endif
 }
 
+void rk_bt_register_bond_callback(RK_BT_BOND_CALLBACK cb)
+{
+	bt_register_bond_callback(cb);
+}
+
 /*
  * / # hcitool con
  * Connections:
@@ -842,20 +849,7 @@ int rk_bt_deinit(void)
  */
 int rk_bt_is_connected(void)
 {
-	int ret;
-	char buf[1024];
-
-	memset(buf, 0, 1024);
-	RK_shell_exec("hcitool con", buf, 1024);
-	usleep(300000);
-
-	if (strstr(buf, "ACL") || strstr(buf, "LE")) {
-		ret = 1;
-	} else {
-		ret = 0;
-	}
-
-	return ret;
+	return bt_is_connected();
 }
 
 int rk_bt_set_class(int value)
