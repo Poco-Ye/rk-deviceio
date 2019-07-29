@@ -287,15 +287,15 @@ int bt_manager_disconnect(char *addr)
 }
 
 /*send GetPlayStatus cmd*/
-int bt_manager_send_get_play_status(void)
+int bt_manager_send_get_play_status()
 {
-	return 0;
+	return rk_bt_sink_get_play_status();
 }
 
 /*if support avrcp EVENT_PLAYBACK_POS_CHANGED,*/
 bool bt_manager_is_support_pos_changed()
 {
-	return false;
+	return rk_bt_sink_get_poschange();
 }
 
 int bt_manager_switch_throughput(bool sw_to_wlan)

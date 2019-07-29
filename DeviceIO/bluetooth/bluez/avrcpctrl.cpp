@@ -1281,6 +1281,53 @@ int getstatus_avrcp(void)
 	return AVRCP_PLAY_STATUS_ERROR;
 }
 
+void get_play_status_reply(DBusMessage *message, void *user_data)
+{
+	DBusError error;
+
+	dbus_error_init(&error);
+
+	if (dbus_set_error_from_message(&error, message) == TRUE) {
+		printf("Failed to GetPlayStatus\n");
+		dbus_error_free(&error);
+		return;
+	}
+
+	printf("GetPlayStatus successful\n");
+}
+
+int get_play_status_avrcp()
+{
+	if (!check_default_player())
+		return -1;
+
+	if (g_dbus_proxy_method_call(default_player, "GetPlayStatus", NULL,
+					get_play_status_reply, NULL, NULL) == FALSE) {
+		printf("Failed to GetPlayStatus\n");
+		return -1;
+	}
+
+	printf("GetPlayStatus playback\n");
+	return 0;
+}
+
+bool get_poschange_avrcp()
+{
+	DBusMessageIter iter;
+	dbus_bool_t pos_change = FALSE;
+
+	if (check_default_player() == FALSE)
+		return FALSE;
+
+	if (g_dbus_proxy_get_property(default_player, "PosChange", &iter) == FALSE) {
+		printf("Failed to get PosChange\n");
+		return FALSE;
+	}
+
+	dbus_message_iter_get_basic(&iter, &pos_change);
+	return pos_change;
+}
+
 void a2dp_sink_register_cb(RK_BT_SINK_CALLBACK cb)
 {
 	g_btsink_cb = cb;

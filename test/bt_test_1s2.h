@@ -29,6 +29,8 @@ void btmg_sink_avrcp_pause_test(char *data);
 void btmg_sink_avrcp_stop_test(char *data);
 void btmg_sink_avrcp_next_test(char *data);
 void btmg_sink_avrcp_previous_test(char *data);
+void btmg_sink_get_play_status_test(char *data);
+void btmg_sink_get_poschange_test(char *data);
 
 //rk api, for test pair and unpair
 void btmg_start_discovery_test(char *data);

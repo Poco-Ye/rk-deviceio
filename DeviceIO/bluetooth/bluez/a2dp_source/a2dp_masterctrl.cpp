@@ -521,9 +521,9 @@ static struct adapter *find_parent(GDBusProxy *device)
 enum BT_Device_Class dist_dev_class(GDBusProxy *proxy)
 {
 	DBusMessageIter addrType_iter, class_iter, addr_iter, Alias_iter;
-	char *addressType = NULL;
-	char *address = NULL;
-	char *Alias = NULL;
+	const char *addressType = NULL;
+	const char *address = NULL;
+	const char *Alias = NULL;
 	dbus_uint32_t valu32;
 
 	if (g_dbus_proxy_get_property(proxy, "AddressType", &addrType_iter) == TRUE) {
@@ -567,7 +567,7 @@ enum BT_Device_Class dist_dev_class(GDBusProxy *proxy)
 					const char *text;
 					char str[26];
 					unsigned int n;
-					char *uuid;
+					const char *uuid;
 					enum BT_Device_Class ret = BT_Device_Class::BT_IDLE;
 
 					if (g_dbus_proxy_get_property(proxy, "UUIDs", &iter) == FALSE)
@@ -584,12 +584,12 @@ enum BT_Device_Class dist_dev_class(GDBusProxy *proxy)
 
 							n = snprintf(str, sizeof(str), "%s", text);
 							if (n > sizeof(str) - 1) {
-							      str[sizeof(str) - 2] = '.';
-							      str[sizeof(str) - 3] = '.';
-							      if (str[sizeof(str) - 4] == ' ')
-							              str[sizeof(str) - 4] = '.';
+								  str[sizeof(str) - 2] = '.';
+								  str[sizeof(str) - 3] = '.';
+								  if (str[sizeof(str) - 4] == ' ')
+										  str[sizeof(str) - 4] = '.';
 
-							      n = sizeof(str) - 1;
+								  n = sizeof(str) - 1;
 							}
 
 							if (strstr(str, "Audio Sink")) {
@@ -617,7 +617,7 @@ static void set_source_device(GDBusProxy *proxy)
 {
 	DBusMessageIter iter;
 	DBusMessageIter addr_iter;
-	char *address = NULL;
+	const char *address = NULL;
 
 	default_src_dev = proxy;
 
@@ -2777,7 +2777,7 @@ static void connect_reply(DBusMessage *message, void *user_data)
 	DBusError error;
 	static int conn_count = 2;
 	DBusMessageIter iter;
-	char *address;
+	const char *address;
 
 	dbus_error_init(&error);
 
@@ -3173,8 +3173,8 @@ int a2dp_master_disconnect(char *address)
 int a2dp_master_status(char *addr_buf, int addr_len, char *name_buf, int name_len)
 {
 	DBusMessageIter iter;
-	char *address;
-	char *name;
+	const char *address;
+	const char *name;
 
 	if (!default_src_dev)
 		return 0;

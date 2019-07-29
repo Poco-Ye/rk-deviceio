@@ -290,6 +290,17 @@ void btmg_sink_avrcp_previous_test(char *data)
 	}
 }
 
+void btmg_sink_get_play_status_test(char *data)
+{
+	bt_manager_send_get_play_status();
+}
+
+void btmg_sink_get_poschange_test(char *data)
+{
+	bool pos_change = bt_manager_is_support_pos_changed();
+	printf("support position change: %s\n", pos_change ? "yes" : "no");
+}
+
 //rk api, for test pair and unpair
 void btmg_enable_reconnect_test(char *data)
 {

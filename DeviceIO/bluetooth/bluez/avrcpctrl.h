@@ -97,5 +97,7 @@ void a2dp_sink_register_track_cb(RK_BT_AVRCP_TRACK_CHANGE_CB cb);
 void a2dp_sink_register_position_cb(RK_BT_AVRCP_PLAY_POSITION_CB cb);
 void a2dp_sink_clear_cb();
 int a2dp_sink_status(RK_BT_SINK_STATE *pState);
+int get_play_status_avrcp(void);
+bool get_poschange_avrcp(void);
 
 #endif

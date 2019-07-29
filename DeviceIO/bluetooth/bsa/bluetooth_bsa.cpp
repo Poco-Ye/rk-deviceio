@@ -460,6 +460,16 @@ int rk_bt_sink_set_auto_reconnect(int enable)
     return rk_bt_enable_reconnect(enable);
 }
 
+int rk_bt_sink_get_play_status()
+{
+    return 0;
+}
+
+bool rk_bt_sink_get_poschange()
+{
+    return false;
+}
+
 int rk_bt_sink_disconnect()
 {
     if(!a2dp_sink_is_open()) {

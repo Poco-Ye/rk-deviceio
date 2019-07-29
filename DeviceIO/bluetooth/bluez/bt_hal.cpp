@@ -605,6 +605,16 @@ int rk_bt_sink_stop(void)
 	return 0;
 }
 
+int rk_bt_sink_get_play_status()
+{
+	return get_play_status_avrcp();
+}
+
+bool rk_bt_sink_get_poschange()
+{
+	return get_poschange_avrcp();
+}
+
 int rk_bt_sink_disconnect()
 {
 	return disconnect_current_devices();

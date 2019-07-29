@@ -62,6 +62,8 @@ int rk_bt_sink_disconnect();
 int rk_bt_sink_connect_by_addr(char *addr);
 int rk_bt_sink_disconnect_by_addr(char *addr);
 int rk_bt_sink_get_default_dev_addr(char *addr, int len);
+int rk_bt_sink_get_play_status();
+bool rk_bt_sink_get_poschange();
 
 #ifdef __cplusplus
 }

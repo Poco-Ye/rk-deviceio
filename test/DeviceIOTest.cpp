@@ -155,6 +155,8 @@ static command_1s2_t btmg_1s2_command_table[] = {
 	{"btmg_sink_avrcp_stop_test", btmg_sink_avrcp_stop_test},
 	{"btmg_sink_avrcp_next_test", btmg_sink_avrcp_next_test},
 	{"btmg_sink_avrcp_previous_test", btmg_sink_avrcp_previous_test},
+	{"btmg_sink_get_play_status_test", btmg_sink_get_play_status_test},
+	{"btmg_sink_get_poschange_test", btmg_sink_get_poschange_test},
 	{"btmg_deinit_test", btmg_deinit_test},
 };
 #endif
