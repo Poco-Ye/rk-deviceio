@@ -31,10 +31,10 @@ void bt_manager_debug_close_syslog(void)
 {
 }
 
-static void btmg_gap_status_cb(btmg_state_t status)
+static void btmg_gap_status_cb(RK_BT_STATE status)
 {
 	if(g_btmg_cb)
-		g_btmg_cb->btmg_gap_cb.gap_status_cb(status);
+		g_btmg_cb->btmg_gap_cb.gap_status_cb((btmg_state_t)status);
 }
 
 static void btmg_gap_bond_state_cb(const char *bd_addr, const char *name, RK_BT_BOND_STATE state)
@@ -52,6 +52,16 @@ static int btmg_sink_callback(RK_BT_SINK_STATE state)
 	switch(state) {
 		case RK_BT_SINK_STATE_IDLE:
 			break;
+#if 0
+		case RK_BT_SINK_STATE_CONNECTING:
+			if(g_btmg_cb)
+				g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_connection_state_cb(bd_addr, BTMG_A2DP_SINK_CONNECTING);
+			break;
+		case RK_BT_SINK_STATE_DISCONNECTING:
+			if(g_btmg_cb)
+				g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_connection_state_cb(bd_addr, BTMG_A2DP_SINK_DISCONNECTING);
+			break;
+#endif
 		case RK_BT_SINK_STATE_CONNECT:
 			if(g_btmg_cb)
 				g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_connection_state_cb(bd_addr, BTMG_A2DP_SINK_CONNECTED);
@@ -140,6 +150,7 @@ int bt_manager_enable(bool enable)
 {
 	int ret;
 	if(enable) {
+		rk_bt_register_state_callback(btmg_gap_status_cb);
 		rk_bt_register_bond_callback(btmg_gap_bond_state_cb);
 		if(rk_bt_init(NULL) < 0) {
 			printf("%s: rk_bt_init error\n", __func__);

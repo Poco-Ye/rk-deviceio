@@ -52,6 +52,9 @@ bool bt_is_discovering();
 bool bt_is_connected();
 void bt_register_bond_callback(RK_BT_BOND_CALLBACK cb);
 void bt_deregister_bond_callback();
+void bt_state_send(RK_BT_STATE state);
+void bt_register_state_callback(RK_BT_STATE_CALLBACK cb);
+void bt_deregister_state_callback();
 
 int ble_disconnect(void);
 

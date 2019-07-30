@@ -42,7 +42,6 @@ using DeviceIOFramework::wifi_config;
 /*****************************************************************
  *            Rockchip bluetooth LE api                      *
  *****************************************************************/
-
 RK_BLE_STATE_CALLBACK ble_status_callback = NULL;
 RK_BLE_STATE g_ble_status;
 
@@ -622,18 +621,22 @@ int rk_bt_sink_disconnect()
 
 int rk_bt_sink_connect_by_addr(char *addr)
 {
-	if(bt_sink_is_open())
+	if(bt_sink_is_open()) {
+		//bt_sink_state_send(RK_BT_SINK_STATE_CONNECTING);
 		return connect_by_address(addr);
-    else
-		return -1;
+	}
+
+	return -1;
 }
 
 int rk_bt_sink_disconnect_by_addr(char *addr)
 {
-	if(bt_sink_is_open())
+	if(bt_sink_is_open()) {
+		//bt_sink_state_send(RK_BT_SINK_STATE_DISCONNECTING);
 		return disconnect_by_address(addr);
-	else
-		return -1;
+	}
+
+	return -1;
 }
 
 static int _get_bluealsa_plugin_volume_ctrl_info(char *name, int *value)
@@ -812,9 +815,12 @@ int rk_bt_init(RkBtContent *p_bt_content)
 {
 	int wait_cnt = 3;
 
+	bt_state_send(RK_BT_STATE_TURNING_ON);
 	setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/var/run/dbus/system_bus_socket", 1);
-	if (rk_bt_control(BtControl::BT_OPEN, p_bt_content, sizeof(RkBtContent)))
+	if (rk_bt_control(BtControl::BT_OPEN, p_bt_content, sizeof(RkBtContent))) {
+		bt_state_send(RK_BT_STATE_OFF);
 		return -1;
+	}
 
 	return 0;
 }
@@ -822,8 +828,7 @@ int rk_bt_init(RkBtContent *p_bt_content)
 int rk_bt_deinit(void)
 {
 #if 1
-	bt_deregister_bond_callback();
-
+	bt_state_send(RK_BT_STATE_TURNING_OFF);
 	rk_bt_hfp_close();
 	rk_bt_sink_close();
 	rk_bt_source_close();
@@ -839,11 +844,19 @@ int rk_bt_deinit(void)
 	sleep(1);
 	rk_ble_clean();
 
+	bt_state_send(RK_BT_STATE_OFF);
+	bt_deregister_bond_callback();
+	bt_deregister_state_callback();
 	return 0;
 #else
 	printf("bluez don't support bt deinit\n");
 	return -1;
 #endif
+}
+
+void rk_bt_register_state_callback(RK_BT_STATE_CALLBACK cb)
+{
+	bt_register_state_callback(cb);
 }
 
 void rk_bt_register_bond_callback(RK_BT_BOND_CALLBACK cb)

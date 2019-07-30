@@ -589,11 +589,11 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
 - void bt_test_sink_visibility01(void *data)
 
-  设置 A2DP Sink 可见、不可连接。
+  设置 A2DP Sink  不可见、可连接。
 
 - void bt_test_sink_visibility10(void *data)
 
-  设置 A2DP Sink 不可见、可连接。
+  设置 A2DP Sink 可见、不可连接。
 
 - void bt_test_sink_visibility11(void *data)
 

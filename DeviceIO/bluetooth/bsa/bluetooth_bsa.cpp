@@ -177,9 +177,12 @@ int rk_bt_is_connected()
         return 0;
 }
 
+void rk_bt_register_state_callback(RK_BT_STATE_CALLBACK cb)
+{
+}
+
 void rk_bt_register_bond_callback(RK_BT_BOND_CALLBACK cb)
 {
-
 }
 
 int rk_bt_init(RkBtContent *p_bt_content)
@@ -484,10 +487,12 @@ int rk_bt_sink_disconnect()
 
 int rk_bt_sink_connect_by_addr(char *addr)
 {
+    return 0;
 }
 
 int rk_bt_sink_disconnect_by_addr(char *addr)
 {
+    return 0;
 }
 
 /******************************************/

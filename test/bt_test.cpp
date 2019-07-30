@@ -74,6 +74,24 @@ static RK_BT_SCO_CODEC_TYPE sco_codec = BT_SCO_CODEC_CVSD;
 /******************************************/
 /*        BT base server init             */
 /******************************************/
+static void bt_test_state_cb(RK_BT_STATE state)
+{
+	switch(state) {
+		case RK_BT_STATE_TURNING_ON:
+			printf("++++++++++ RK_BT_STATE_TURNING_ON ++++++++++\n");
+			break;
+		case RK_BT_STATE_ON:
+			printf("++++++++++ RK_BT_STATE_ON ++++++++++\n");
+			break;
+		case RK_BT_STATE_TURNING_OFF:
+			printf("++++++++++ RK_BT_STATE_TURNING_OFF ++++++++++\n");
+			break;
+		case RK_BT_STATE_OFF:
+			printf("++++++++++ RK_BT_STATE_OFF ++++++++++\n");
+			break;
+	}
+}
+
 static void bt_test_bond_state_cb(const char *bd_addr, const char *name, RK_BT_BOND_STATE state)
 {
 	switch(state) {
@@ -111,6 +129,7 @@ void bt_test_bluetooth_init(void *data)
 	bt_content.ble_content.cb_ble_recv_fun = bt_test_ble_recv_data_callback;
 	bt_content.ble_content.cb_ble_request_data = bt_test_ble_request_data_callback;
 
+	rk_bt_register_state_callback(bt_test_state_cb);
 	rk_bt_register_bond_callback(bt_test_bond_state_cb);
 	rk_bt_init(&bt_content);
 }
@@ -161,6 +180,14 @@ int bt_sink_callback(RK_BT_SINK_STATE state)
 		case RK_BT_SINK_STATE_IDLE:
 			printf("++++++++++++ BT SINK EVENT: idle ++++++++++\n");
 			break;
+#if 0
+		case RK_BT_SINK_STATE_CONNECTING:
+			printf("++++++++++++ BT SINK EVENT: connecting ++++++++++\n");
+			break;
+		case RK_BT_SINK_STATE_DISCONNECTING:
+			printf("++++++++++++ BT SINK EVENT: disconnecting ++++++++++\n");
+			break;
+#endif
 		case RK_BT_SINK_STATE_CONNECT:
 			printf("++++++++++++ BT SINK EVENT: connect sucess ++++++++++\n");
 			break;

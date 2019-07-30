@@ -77,7 +77,8 @@ volatile bool A2DP_SRC_FLAG;
 volatile bool BLE_FLAG;
 volatile bool BT_OPENED = 0;
 
-RK_BT_BOND_CALLBACK g_bt_bond_cb = NULL;
+static RK_BT_STATE_CALLBACK g_bt_state_cb = NULL;
+static RK_BT_BOND_CALLBACK g_bt_bond_cb = NULL;
 
 RK_BT_SOURCE_CALLBACK g_btmaster_cb = NULL;
 void *g_btmaster_userdata = NULL;
@@ -745,6 +746,7 @@ static void adapter_added(GDBusProxy *proxy)
 	adapter->proxy = proxy;
 
 	print_adapter(proxy, COLORED_NEW);
+	bt_state_send(RK_BT_STATE_ON);
 	bt_shell_set_env(g_dbus_proxy_get_path(proxy), proxy);
 }
 
@@ -4137,4 +4139,20 @@ void bt_register_bond_callback(RK_BT_BOND_CALLBACK cb)
 void bt_deregister_bond_callback()
 {
 	g_bt_bond_cb = NULL;
+}
+
+void bt_register_state_callback(RK_BT_STATE_CALLBACK cb)
+{
+	g_bt_state_cb = cb;
+}
+
+void bt_deregister_state_callback()
+{
+	g_bt_state_cb = NULL;
+}
+
+void bt_state_send(RK_BT_STATE state)
+{
+	if(g_bt_state_cb)
+		g_bt_state_cb(state);
 }

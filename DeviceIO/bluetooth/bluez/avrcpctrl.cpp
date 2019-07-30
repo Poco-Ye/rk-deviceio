@@ -91,7 +91,7 @@ static RK_BT_AVRCP_PLAY_POSITION_CB g_avrcp_position_cb = NULL;
 static char track_key[256];
 static int current_song_len = 0;
 
-static void bt_sink_state_send(RK_BT_SINK_STATE state)
+void bt_sink_state_send(RK_BT_SINK_STATE state)
 {
 	if (g_btsink_cb)
 		(g_btsink_cb)(state);
