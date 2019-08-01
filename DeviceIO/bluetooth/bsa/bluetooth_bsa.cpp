@@ -313,12 +313,12 @@ int rk_bt_get_device_addr(char *addr, int len)
     return 0;
 }
 
-int rk_bt_get_paired_devices(bt_paried_device **dev_list,int *count)
+int rk_bt_get_paired_devices(RkBtPraiedDevice **dev_list,int *count)
 {
     return 0;
 }
 
-int rk_bt_free_paired_devices(bt_paried_device **dev_list)
+int rk_bt_free_paired_devices(RkBtPraiedDevice *dev_list)
 {
     return 0;
 }

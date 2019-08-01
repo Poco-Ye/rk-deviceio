@@ -4,6 +4,7 @@
 #include <errno.h>
 
 #include <DeviceIo/DeviceIo.h>
+#include <DeviceIo/RkBtBase.h>
 #include <DeviceIo/RkBtSink.h>
 #include <DeviceIo/RkBtHfp.h>
 
@@ -11,6 +12,7 @@
 
 static btmg_callback_t *g_btmg_cb = NULL;
 static bool g_btmg_enable = false;
+static btmg_state_t g_bt_state = BTMG_STATE_OFF;
 
 int bt_manager_set_loglevel(btmg_log_level_t log_level)
 {
@@ -31,10 +33,11 @@ void bt_manager_debug_close_syslog(void)
 {
 }
 
-static void btmg_gap_status_cb(RK_BT_STATE status)
+static void btmg_gap_status_cb(RK_BT_STATE state)
 {
+	g_bt_state = (btmg_state_t)state;
 	if(g_btmg_cb)
-		g_btmg_cb->btmg_gap_cb.gap_status_cb((btmg_state_t)status);
+		g_btmg_cb->btmg_gap_cb.gap_status_cb((btmg_state_t)state);
 }
 
 static void btmg_gap_bond_state_cb(const char *bd_addr, const char *name, RK_BT_BOND_STATE state)
@@ -212,7 +215,7 @@ int bt_manager_unpair(char *addr)
 /*get bt state*/
 btmg_state_t bt_manager_get_state()
 {
-	return BTMG_STATE_OFF;
+	return g_bt_state;
 }
 
 /*get BT name*/
@@ -287,7 +290,7 @@ int bt_manager_get_paired_devices(bt_paried_device **dev_list,int *count)
 }
 
 /* free paird device data resource*/
-int bt_manager_free_paired_devices(bt_paried_device **dev_list)
+int bt_manager_free_paired_devices(bt_paried_device *dev_list)
 {
 	return rk_bt_free_paired_devices(dev_list);
 }

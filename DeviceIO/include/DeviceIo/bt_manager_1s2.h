@@ -4,8 +4,6 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <DeviceIo/RkBtBase.h>
-#include <DeviceIo/RkBtSink.h>
 
 #if __cplusplus
 extern "C" {
@@ -77,7 +75,23 @@ typedef enum {
 	BTMG_AVRCP_PLAYSTATE_ERROR,
 } btmg_avrcp_play_state_t;
 
-typedef BtTrackInfo btmg_track_info_t;
+typedef struct btmg_track_info_t {
+	char title[256];
+	char artist[256];
+	char album[256];
+	char track_num[64];
+	char num_tracks[64];
+	char genre[256];
+	char playing_time[256];
+} btmg_track_info_t;
+
+struct paired_dev {
+	 char *remote_address;
+	 char *remote_name;
+	 bool is_connected;
+	 struct paired_dev *next;
+};
+typedef struct paired_dev bt_paried_device;
 
 #define MAX_BT_NAME_LEN 248
 #define MAX_BT_ADDR_LEN 17
@@ -172,7 +186,7 @@ int bt_manager_avrcp_command(char *addr, btmg_avrcp_command_t command);
 int bt_manager_get_paired_devices(bt_paried_device **dev_list,int *count);
 
 /* free paird device data resource*/
-int bt_manager_free_paired_devices(bt_paried_device **dev_list);
+int bt_manager_free_paired_devices(bt_paried_device *dev_list);
 
 /*send GetPlayStatus cmd*/
 int bt_manager_send_get_play_status(void);

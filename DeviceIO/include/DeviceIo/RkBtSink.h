@@ -2,23 +2,13 @@
 #define __BLUETOOTH_SINK_H__
 
 #include <DeviceIo/RkBtBase.h>
+#include <DeviceIo/bt_manager_1s2.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define MAX_TRACK_INFO_LEN 256
-#define MAX_TRACK_NUM_LEN 64
-
-typedef struct {
-	char title[MAX_TRACK_INFO_LEN];
-	char artist[MAX_TRACK_INFO_LEN];
-	char album[MAX_TRACK_INFO_LEN];
-	char track_num[MAX_TRACK_NUM_LEN];
-	char num_tracks[MAX_TRACK_NUM_LEN];
-	char genre[MAX_TRACK_INFO_LEN];
-	char playing_time[MAX_TRACK_INFO_LEN];
-} BtTrackInfo;
+typedef struct btmg_track_info_t BtTrackInfo;
 
 typedef enum {
 	RK_BT_SINK_STATE_IDLE = 0,

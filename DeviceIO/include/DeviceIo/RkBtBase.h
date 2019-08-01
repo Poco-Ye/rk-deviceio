@@ -1,11 +1,13 @@
 #ifndef __BT_BASE_H__
 #define __BT_BASE_H__
 
+#include <DeviceIo/bt_manager_1s2.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef unsigned char	  uint8_t;
+typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
 
 typedef struct {
@@ -59,13 +61,7 @@ typedef struct {
 	const char *bt_name;
 } RkBtContent;
 
-struct paired_dev {
-	char *remote_address;
-	char *remote_name;
-	bool is_connected;
-	struct paired_dev *next;
-};
-typedef struct paired_dev bt_paried_device;
+typedef struct paired_dev RkBtPraiedDevice;
 
 typedef void (*RK_BT_STATE_CALLBACK)(RK_BT_STATE state);
 typedef void (*RK_BT_BOND_CALLBACK)(const char *bd_addr, const char *name, RK_BT_BOND_STATE state);
@@ -87,8 +83,8 @@ int rk_bt_unpair_by_addr(char *addr);
 int rk_bt_set_device_name(char *name);
 int rk_bt_get_device_name(char *name, int len);
 int rk_bt_get_device_addr(char *addr, int len);
-int rk_bt_get_paired_devices(bt_paried_device **dev_list,int *count);
-int rk_bt_free_paired_devices(bt_paried_device **dev_list);
+int rk_bt_get_paired_devices(RkBtPraiedDevice **dev_list,int *count);
+int rk_bt_free_paired_devices(RkBtPraiedDevice *dev_list);
 
 #ifdef __cplusplus
 }

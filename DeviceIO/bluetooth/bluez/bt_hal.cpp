@@ -956,12 +956,12 @@ int rk_bt_get_device_addr(char *addr, int len)
 	return bt_get_device_addr(addr, len);
 }
 
-int rk_bt_get_paired_devices(bt_paried_device **dev_list, int *count)
+int rk_bt_get_paired_devices(RkBtPraiedDevice **dev_list, int *count)
 {
 	return bt_get_paired_devices(dev_list, count);
 }
 
-int rk_bt_free_paired_devices(bt_paried_device **dev_list)
+int rk_bt_free_paired_devices(RkBtPraiedDevice *dev_list)
 {
 	return bt_free_paired_devices(dev_list);
 }
@@ -1089,7 +1089,9 @@ int rk_bt_hfp_close(void)
 		return 0;
 	}
 
-	disconnect_current_devices();
+	if(!disconnect_current_devices())
+		sleep(3);
+
 	system("hciconfig hci0 noscan");
 	system("killall bluealsa-aplay");
 	system("killall bluealsa");

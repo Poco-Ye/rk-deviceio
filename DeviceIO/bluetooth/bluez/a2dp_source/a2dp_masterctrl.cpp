@@ -1319,10 +1319,10 @@ static void generic_callback(const DBusError *error, void *user_data)
 	char *str = (char *)user_data;
 
 	if (dbus_error_is_set(error)) {
-		printf("Failed to set %s: %s\n", str, error->name);
+		printf("Set failed: %s\n", error->name);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	} else {
-		printf("Changing %s succeeded\n", str);
+		printf("Changing succeeded\n");
 		return bt_shell_noninteractive_quit(EXIT_SUCCESS);
 	}
 }
@@ -2827,7 +2827,7 @@ static void disconn_reply(DBusMessage *message, void *user_data)
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
-	printf("Successful disconnected\n");
+	printf("%s: Successful disconnected\n", __func__);
 
 	//check disconnect
 	if(bt_is_connected())
@@ -3769,14 +3769,14 @@ void bt_display_paired_devices()
 	cmd_paired_devices();
 }
 
-static bt_paried_device *bt_create_one_paired_dev(GDBusProxy *proxy)
+RkBtPraiedDevice *bt_create_one_paired_dev(GDBusProxy *proxy)
 {
 	DBusMessageIter iter;
 	const char *address, *name;
 	dbus_int16_t rssi = -100;
 	dbus_bool_t is_connected = FALSE;
 
-	bt_paried_device *new_device = (bt_paried_device*)malloc(sizeof(bt_paried_device));
+	RkBtPraiedDevice *new_device = (RkBtPraiedDevice*)malloc(sizeof(RkBtPraiedDevice));
 
 	if (g_dbus_proxy_get_property(proxy, "Address", &iter) == TRUE)
 		dbus_message_iter_get_basic(&iter, &address);
@@ -3807,7 +3807,7 @@ static bt_paried_device *bt_create_one_paired_dev(GDBusProxy *proxy)
 	return new_device;
 }
 
-static int list_paired_dev_push_back(bt_paried_device **dev_list, GDBusProxy *proxy)
+static int list_paired_dev_push_back(RkBtPraiedDevice **dev_list, GDBusProxy *proxy)
 {
 	if(dev_list == NULL) {
 		printf("%s: invalid dev_list\n", __func__);
@@ -3817,18 +3817,18 @@ static int list_paired_dev_push_back(bt_paried_device **dev_list, GDBusProxy *pr
 	if(*dev_list == NULL) {
 		*dev_list = bt_create_one_paired_dev(proxy);
 	} else {
-		bt_paried_device *cur_dev = *dev_list;
+		RkBtPraiedDevice *cur_dev = *dev_list;
 		while(cur_dev->next != NULL)
 			cur_dev = cur_dev->next;
 
-		bt_paried_device *new_dev = bt_create_one_paired_dev(proxy);
+		RkBtPraiedDevice *new_dev = bt_create_one_paired_dev(proxy);
 		cur_dev->next = new_dev;
 	}
 
 	return 0;
 }
 
-int bt_get_paired_devices(bt_paried_device **dev_list, int *count)
+int bt_get_paired_devices(RkBtPraiedDevice **dev_list, int *count)
 {
 	GList *ll;
 
@@ -3836,9 +3836,6 @@ int bt_get_paired_devices(bt_paried_device **dev_list, int *count)
 
 	if (check_default_ctrl() == FALSE)
 		return -1;
-
-	if((*dev_list) != NULL)
-		bt_free_paired_devices(dev_list);
 
 	for (ll = g_list_first(default_ctrl->devices);
 			ll; ll = g_list_next(ll)) {
@@ -3860,30 +3857,30 @@ int bt_get_paired_devices(bt_paried_device **dev_list, int *count)
 	return 0;
 }
 
-int bt_free_paired_devices(bt_paried_device **dev_list)
+int bt_free_paired_devices(RkBtPraiedDevice *dev_list)
 {
-	bt_paried_device *dev_tmp = NULL;
+	RkBtPraiedDevice *dev_tmp = NULL;
 
-	if((*dev_list) == NULL) {
+	if(dev_list == NULL) {
 		printf("%s: dev_list is empty, don't need to clear\n", __func__);
 		return -1;
 	}
 
-	while((*dev_list)->next != NULL) {
-		printf("%s: free dev: %s\n", __func__, (*dev_list)->remote_address);
-		dev_tmp = (*dev_list)->next;
-		free((*dev_list)->remote_address);
-		free((*dev_list)->remote_name);
-		free(*dev_list);
-		(*dev_list) = dev_tmp;
+	while(dev_list->next != NULL) {
+		printf("%s: free dev: %s\n", __func__, dev_list->remote_address);
+		dev_tmp = dev_list->next;
+		free(dev_list->remote_address);
+		free(dev_list->remote_name);
+		free(dev_list);
+		dev_list = dev_tmp;
 	}
 
-	if((*dev_list) != NULL) {
-		printf("%s: last free dev: %s\n", __func__, (*dev_list)->remote_address);
-		free((*dev_list)->remote_address);
-		free((*dev_list)->remote_name);
-		free((*dev_list));
-		(*dev_list) = NULL;
+	if(dev_list != NULL) {
+		printf("%s: last free dev: %s\n", __func__, dev_list->remote_address);
+		free(dev_list->remote_address);
+		free(dev_list->remote_name);
+		free(dev_list);
+		dev_list = NULL;
 	}
 
 	return 0;

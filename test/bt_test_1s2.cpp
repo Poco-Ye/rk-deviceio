@@ -3,6 +3,8 @@
 #include <unistd.h>
 #include <errno.h>
 
+#include <DeviceIo/RkBtBase.h>
+#include <DeviceIo/RkBtSink.h>
 #include <DeviceIo/bt_manager_1s2.h>
 #include "bt_test_1s2.h"
 
@@ -194,6 +196,9 @@ void btmg_get_paired_devices_test(char *data)
 	int i, count;
 	bt_paried_device *dev_tmp = NULL;
 
+	if(g_dev_list_test)
+		btmg_free_paired_devices_test(NULL);
+
 	bt_manager_get_paired_devices(&g_dev_list_test, &count);
 
 	printf("%s: current paired devices count: %d\n", __func__, count);
@@ -209,7 +214,8 @@ void btmg_get_paired_devices_test(char *data)
 
 void btmg_free_paired_devices_test(char *data)
 {
-	bt_manager_free_paired_devices(&g_dev_list_test);
+	bt_manager_free_paired_devices(g_dev_list_test);
+	g_dev_list_test = NULL;
 }
 
 //sink test
