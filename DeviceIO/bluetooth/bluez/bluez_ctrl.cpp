@@ -207,6 +207,15 @@ static int _bt_open_server(const char *bt_name)
 	msleep(10);
 	bt_exec_command_system("hciconfig hci0 up");
 	bt_exec_command_system("hciconfig hci0 up");
+	msleep(500);
+
+	Shell::exec("hciconfig hci0 pageparms 18:1024", ret_buff, 1024);
+	msleep(200);
+	Shell::exec("hciconfig hci0 inqparms 18:2048", ret_buff, 1024);
+	msleep(200);
+	Shell::exec("hcitool cmd 0x03 0x47 0x01", ret_buff, 1024);
+	msleep(200);
+	Shell::exec("hcitool cmd 0x03 0x43 0x01", ret_buff, 1024);
 	msleep(200);
 
 	return 0;
