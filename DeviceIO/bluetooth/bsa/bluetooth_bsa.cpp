@@ -255,12 +255,14 @@ int rk_bt_enable_reconnect(int enable)
     return app_manager_set_auto_reconnect(enable);
 }
 
-void rk_bt_start_discovery(unsigned int mseconds)
+int rk_bt_start_discovery(unsigned int mseconds)
 {
+    return 0;
 }
 
-void rk_bt_cancel_discovery()
+int rk_bt_cancel_discovery()
 {
+    return 0;
 }
 
 bool rk_bt_is_discovering()

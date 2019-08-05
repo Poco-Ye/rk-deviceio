@@ -14,9 +14,9 @@
 #include <linux/input.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <pthread.h>
 
 #include "DeviceIo/DeviceIo.h"
-#include "DeviceIo/RkBle.h"
 #include "DeviceIo/Rk_shell.h"
 
 #include "a2dp_masterctrl.h"
@@ -41,6 +41,8 @@ using DeviceIOFramework::BT_Device_Class;
 #define PROMPT_ON   COLOR_BLUE "[bluetooth]" COLOR_OFF "# "
 #define PROMPT_OFF  "Waiting to connect to bluetoothd..."
 
+#define DISTANCE_VAL_INVALID    0x7FFF
+
 DBusConnection *dbus_conn;
 static GDBusProxy *agent_manager;
 static char *auto_register_agent = NULL;
@@ -50,6 +52,15 @@ struct adapter {
 	GDBusProxy *ad_proxy;
 	GList *devices;
 };
+
+typedef struct {
+	RK_BT_STATE_CALLBACK bt_state_cb;
+	RK_BT_BOND_CALLBACK bt_bond_state_cb;
+	RK_BT_DISCOVERY_CALLBACK bt_decovery_cb;
+	RK_BT_DEV_FOUND_CALLBACK bt_dev_found_cb;
+	RK_BT_SOURCE_CALLBACK bt_source_event_cb;
+	RK_BLE_STATE_CALLBACK ble_state_cb;
+} bt_callback_t;
 
 struct adapter *default_ctrl;
 static GDBusProxy *default_dev;
@@ -74,19 +85,18 @@ static GMainLoop *btsrc_main_loop;
 
 volatile bool A2DP_SINK_FLAG;
 volatile bool A2DP_SRC_FLAG;
-volatile bool BLE_FLAG;
+volatile bool BLE_FLAG = 0;
 volatile bool BT_OPENED = 0;
 
-static RK_BT_STATE_CALLBACK g_bt_state_cb = NULL;
-static RK_BT_BOND_CALLBACK g_bt_bond_cb = NULL;
-
-RK_BT_SOURCE_CALLBACK g_btmaster_cb = NULL;
 void *g_btmaster_userdata = NULL;
-
-extern RK_BLE_STATE_CALLBACK ble_status_callback;
-extern RK_BLE_STATE g_ble_status;
-
+RK_BLE_STATE g_ble_state;
 static bool g_device_discovering = false;
+static pthread_t g_scan_thread = 0;
+static unsigned int g_scan_time = 0;
+
+static bt_callback_t g_bt_callback = {
+	NULL, NULL, NULL, NULL, NULL, NULL,
+};
 
 #ifdef __cplusplus
 extern "C" {
@@ -143,10 +153,117 @@ static int bt_get_device_name_by_proxy(GDBusProxy *proxy,
 static int bt_get_device_addr_by_proxy(GDBusProxy *proxy,
 			char *addr_buf, int addr_len);
 
-static void bt_send_bond_state(const char *bd_addr, const char *name, RK_BT_BOND_STATE state)
+static void bt_bond_state_send(const char *bd_addr, const char *name, RK_BT_BOND_STATE state)
 {
-	if(g_bt_bond_cb)
-		g_bt_bond_cb(bd_addr, name, state);
+	if(g_bt_callback.bt_bond_state_cb)
+		g_bt_callback.bt_bond_state_cb(bd_addr, name, state);
+}
+
+void bt_register_bond_callback(RK_BT_BOND_CALLBACK cb)
+{
+	g_bt_callback.bt_bond_state_cb = cb;
+}
+
+void bt_deregister_bond_callback()
+{
+	g_bt_callback.bt_bond_state_cb = NULL;
+}
+
+void bt_state_send(RK_BT_STATE state)
+{
+	if(g_bt_callback.bt_state_cb)
+		g_bt_callback.bt_state_cb(state);
+}
+
+void bt_register_state_callback(RK_BT_STATE_CALLBACK cb)
+{
+	g_bt_callback.bt_state_cb = cb;
+}
+
+void bt_deregister_state_callback()
+{
+	g_bt_callback.bt_state_cb = NULL;
+}
+
+void ble_state_send(RK_BLE_STATE status)
+{
+	if(g_bt_callback.ble_state_cb)
+		g_bt_callback.ble_state_cb(status);
+
+	g_ble_state = status;
+}
+
+void ble_get_state(RK_BLE_STATE *p_state)
+{
+	if (!p_state)
+		return;
+
+	*p_state = g_ble_state;
+}
+
+void ble_register_state_callback(RK_BLE_STATE_CALLBACK cb)
+{
+	g_bt_callback.ble_state_cb = cb;
+}
+
+void ble_deregister_state_callback()
+{
+	g_bt_callback.ble_state_cb = NULL;
+}
+
+static void bt_decovery_state_send(RK_BT_DISCOVERY_STATE state)
+{
+	if(g_bt_callback.bt_decovery_cb)
+		g_bt_callback.bt_decovery_cb(state);
+}
+
+void bt_register_decovery_callback(RK_BT_DISCOVERY_CALLBACK cb)
+{
+	g_bt_callback.bt_decovery_cb = cb;
+}
+
+void bt_deregister_decovery_callback()
+{
+	g_bt_callback.bt_decovery_cb = NULL;
+}
+
+static void bt_dev_found_send(GDBusProxy *proxy)
+{
+	DBusMessageIter iter;
+	dbus_uint32_t bt_class = 0;
+	const char *address, *name;
+	short rssi = DISTANCE_VAL_INVALID;
+
+	if(!g_device_discovering || !g_bt_callback.bt_dev_found_cb)
+		return;
+
+	if (g_dbus_proxy_get_property(proxy, "Address", &iter) == FALSE)
+		return;
+
+	dbus_message_iter_get_basic(&iter, &address);
+
+	if (g_dbus_proxy_get_property(proxy, "Alias", &iter))
+		dbus_message_iter_get_basic(&iter, &name);
+	else
+		name = "unknown";
+
+	if(g_dbus_proxy_get_property(proxy, "Class", &iter))
+		dbus_message_iter_get_basic(&iter, &bt_class);
+
+	if (g_dbus_proxy_get_property(proxy, "RSSI", &iter))
+		dbus_message_iter_get_basic(&iter, &rssi);
+
+	g_bt_callback.bt_dev_found_cb(address, name, bt_class, rssi);
+}
+
+void bt_register_dev_found_callback(RK_BT_DISCOVERY_CALLBACK cb)
+{
+	g_bt_callback.bt_dev_found_cb = cb;
+}
+
+void bt_deregister_dev_found_callback()
+{
+	g_bt_callback.bt_dev_found_cb = NULL;
 }
 
 static void proxy_leak(gpointer data)
@@ -626,8 +743,7 @@ static void set_source_device(GDBusProxy *proxy)
 		default_src_dev = NULL;
 		a2dp_master_save_status(NULL);
 		a2dp_master_avrcp_close();
-		if (g_btmaster_cb)
-			(*g_btmaster_cb)(g_btmaster_userdata, BT_SOURCE_EVENT_DISCONNECTED);
+		a2dp_master_event_send(BT_SOURCE_EVENT_DISCONNECTED);
 		return;
 	}
 
@@ -642,8 +758,8 @@ static void set_source_device(GDBusProxy *proxy)
 		printf("%s address: %s\n", __func__, address);
 	}
 
-	if (g_btmaster_cb) {
-		(*g_btmaster_cb)(g_btmaster_userdata, BT_SOURCE_EVENT_CONNECTED);
+	if (g_bt_callback.bt_source_event_cb) {
+		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECTED);
 		a2dp_master_avrcp_open();
 	}
 	a2dp_master_save_status(address);
@@ -698,6 +814,7 @@ static void device_added(GDBusProxy *proxy)
 	print_device(proxy, COLORED_NEW);
 	bt_shell_set_env(g_dbus_proxy_get_path(proxy), proxy);
 
+	bt_dev_found_send(proxy);
 
 	if (g_dbus_proxy_get_property(proxy, "Connected", &iter))
 		dbus_message_iter_get_basic(&iter, &connected);
@@ -707,7 +824,7 @@ static void device_added(GDBusProxy *proxy)
 		if (!paired && connected) {
 			bt_get_device_addr_by_proxy(proxy, dev_addr, 18);
 			bt_get_device_name_by_proxy(proxy, dev_name, 256);
-			bt_send_bond_state(dev_addr, dev_name, RK_BT_BOND_STATE_BONDING);
+			bt_bond_state_send(dev_addr, dev_name, RK_BT_BOND_STATE_BONDING);
 		}
 	}
 
@@ -785,9 +902,7 @@ static void proxy_added(GDBusProxy *proxy, void *user_data)
 			gatt_add_service(proxy);
 
 		if (ble_service_cnt == 0) {
-			if (ble_status_callback)
-				ble_status_callback(RK_BLE_STATE_CONNECT);
-			g_ble_status = RK_BLE_STATE_CONNECT;
+			ble_state_send(RK_BLE_STATE_CONNECT);
 			ble_wifi_clean();
 			printf("[D: %s]: BLE DEVICE BT_BLE_ENV_CONNECT\n", __func__);
 		}
@@ -853,7 +968,7 @@ static void device_removed(GDBusProxy *proxy)
 		if (paired) {
 			bt_get_device_addr_by_proxy(proxy, dev_addr, 18);
 			bt_get_device_name_by_proxy(proxy, dev_name, 256);
-			bt_send_bond_state(dev_addr, dev_name, RK_BT_BOND_STATE_NONE);
+			bt_bond_state_send(dev_addr, dev_name, RK_BT_BOND_STATE_NONE);
 		}
 	}
 
@@ -918,9 +1033,7 @@ static void proxy_removed(GDBusProxy *proxy, void *user_data)
 
 		if (ble_service_cnt == 0) {
 			ble_dev = NULL;
-			if (ble_status_callback)
-				ble_status_callback(RK_BLE_STATE_DISCONNECT);
-			g_ble_status = RK_BLE_STATE_DISCONNECT;
+			ble_state_send(RK_BLE_STATE_DISCONNECT);
 			printf("[BLE: %s]: BLE DEVICE DISCONNECTED [BF: %d]\n", __func__, BLE_FLAG);
 			sleep(1);
 			if (BLE_FLAG)
@@ -973,9 +1086,9 @@ static void device_paired_process(GDBusProxy *proxy,
 
 	dbus_message_iter_get_basic(iter, &valbool);
 	if(valbool)
-		bt_send_bond_state(dev_addr, dev_name, RK_BT_BOND_STATE_BONDED);
+		bt_bond_state_send(dev_addr, dev_name, RK_BT_BOND_STATE_BONDED);
 	else
-		bt_send_bond_state(dev_addr, dev_name, RK_BT_BOND_STATE_NONE);
+		bt_bond_state_send(dev_addr, dev_name, RK_BT_BOND_STATE_NONE);
 }
 
 static void device_connected_process(GDBusProxy *proxy,
@@ -1465,7 +1578,7 @@ static void cmd_default_agent(int argc, char *argv[])
 	agent_default(dbus_conn, agent_manager);
 }
 
-static void start_discovery_reply(DBusMessage *message, void *user_data)
+static void discovery_reply(DBusMessage *message, void *user_data)
 {
 	dbus_bool_t enable = GPOINTER_TO_UINT(user_data);
 	DBusError error;
@@ -1475,15 +1588,19 @@ static void start_discovery_reply(DBusMessage *message, void *user_data)
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
 		printf("Failed to %s discovery: %s\n",
 				enable == TRUE ? "start" : "stop", error.name);
+		if(enable)
+			bt_decovery_state_send(RK_BT_DISC_START_FAILED);
+
 		dbus_error_free(&error);
-		return bt_shell_noninteractive_quit(EXIT_FAILURE);
+		return;
 	}
+
+	if(enable)
+		bt_decovery_state_send(RK_BT_DISC_STARTED);
 
 	printf("Discovery %s\n", enable ? "started" : "stopped");
 	/* Leave the discovery running even on noninteractive mode */
 }
-
-#define DISTANCE_VAL_INVALID    0x7FFF
 
 static struct set_discovery_filter_args {
 	char *transport;
@@ -1572,22 +1689,22 @@ static void set_discovery_filter(void)
 	filter.set = true;
 }
 
-static void cmd_scan(const char *cmd)
+static int cmd_scan(const char *cmd)
 {
 	dbus_bool_t enable;
 	const char *method;
 
-	if (strcmp(cmd, "on") == 0)
+	if (strcmp(cmd, "on") == 0) {
 		enable = TRUE;
-	else if (strcmp(cmd, "off") == 0)
+	} else if (strcmp(cmd, "off") == 0){
 		enable = FALSE;
-	else {
+	} else {
 		printf("ERROR: %s cmd(%s) is invalid!\n", __func__, cmd);
-		return;
+		return -1;
 	}
 
 	if (check_default_ctrl() == FALSE)
-		return bt_shell_noninteractive_quit(EXIT_FAILURE);
+		return -1;
 
 	if (enable == TRUE) {
 		set_discovery_filter();
@@ -1598,12 +1715,14 @@ static void cmd_scan(const char *cmd)
 	printf("%s method = %s\n", __func__, method);
 
 	if (g_dbus_proxy_method_call(default_ctrl->proxy, method,
-				NULL, start_discovery_reply,
+				NULL, discovery_reply,
 				GUINT_TO_POINTER(enable), NULL) == FALSE) {
 		printf("Failed to %s discovery\n",
 					enable == TRUE ? "start" : "stop");
-		return bt_shell_noninteractive_quit(EXIT_FAILURE);
+		return -1;
 	}
+
+	return 0;
 }
 
 static void cmd_scan_filter_uuids(int argc, char *argv[])
@@ -2801,8 +2920,8 @@ static void connect_reply(DBusMessage *message, void *user_data)
 			return;
 		}
 
-		if (g_btmaster_cb && (dist_dev_class(proxy) == BT_Device_Class::BT_SINK_DEVICE))
-			(*g_btmaster_cb)(g_btmaster_userdata, BT_SOURCE_EVENT_CONNECT_FAILED);
+		if (dist_dev_class(proxy) == BT_Device_Class::BT_SINK_DEVICE)
+			a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
 
 		conn_count = 2;
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
@@ -3025,7 +3144,22 @@ int a2dp_master_scan(void *arg, int len)
 		return -1;
 	}
 
-	bt_start_discovery(param->mseconds);
+	if(g_device_discovering) {
+		printf("%s: devices discovering\n", __func__);
+		return -1;
+	}
+	g_device_discovering = true;
+
+	printf("=== scan on ===\n");
+	cmd_scan("on");
+	if (param->mseconds > 100) {
+		printf("Waiting for Scan(%d ms)...\n", param->mseconds);
+		usleep(param->mseconds * 1000);
+	} else {
+		printf("warning:%dms is too short, scan time is changed to 2s.\n",
+			param->mseconds);
+		usleep(2000 * 1000);
+	}
 
 	cmd_devices(param);
 	printf("=== parse scan device (cnt:%d) ===\n", param->item_cnt);
@@ -3052,6 +3186,10 @@ int a2dp_master_scan(void *arg, int len)
 			memcpy(start->playrole, "Unknow", strlen("Unknow"));
 	}
 
+	printf("=== scan off ===\n");
+	cmd_scan("off");
+	g_device_discovering = false;
+
 	return 0;
 }
 
@@ -3062,31 +3200,27 @@ int a2dp_master_connect(char *t_address)
 
 	if (!t_address || (strlen(t_address) < 17)) {
 		printf("ERROR: %s(len:%d) address error!\n", address, strlen(t_address));
-		if (g_btmaster_cb)
-			(*g_btmaster_cb)(g_btmaster_userdata, BT_SOURCE_EVENT_CONNECT_FAILED);
+		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
 		return -1;
 	}
 	memcpy(address, t_address, 17);
 
 	if (check_default_ctrl() == FALSE) {
-		if (g_btmaster_cb)
-			(*g_btmaster_cb)(g_btmaster_userdata, BT_SOURCE_EVENT_CONNECT_FAILED);
+		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
 		return -1;
 	}
 
 	proxy = find_proxy_by_address(default_ctrl->devices, address);
 	if (!proxy) {
 		printf("Device %s not available\n", address);
-		if (g_btmaster_cb)
-			(*g_btmaster_cb)(g_btmaster_userdata, BT_SOURCE_EVENT_CONNECT_FAILED);
+		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
 		return -1;
 	}
 
 	if (g_dbus_proxy_method_call(proxy, "Connect", NULL, connect_reply,
 							proxy, NULL) == FALSE) {
 		printf("Failed to connect\n");
-		if (g_btmaster_cb)
-			(*g_btmaster_cb)(g_btmaster_userdata, BT_SOURCE_EVENT_CONNECT_FAILED);
+		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
 		return -1;
 	}
 
@@ -3268,16 +3402,22 @@ static int a2dp_master_save_status(char *address)
 	return 0;
 }
 
+void a2dp_master_event_send(RK_BT_SOURCE_EVENT event)
+{
+	if(g_bt_callback.bt_source_event_cb)
+		g_bt_callback.bt_source_event_cb(g_btmaster_userdata, event);
+}
+
 void a2dp_master_register_cb(void *userdata, RK_BT_SOURCE_CALLBACK cb)
 {
-	g_btmaster_cb = cb;
+	g_bt_callback.bt_source_event_cb = cb;
 	g_btmaster_userdata = userdata;
 	return;
 }
 
-void a2dp_master_clear_cb()
+void a2dp_master_deregister_cb()
 {
-	g_btmaster_cb = NULL;
+	g_bt_callback.bt_source_event_cb = NULL;
 	g_btmaster_userdata = NULL;
 	return;
 }
@@ -3410,25 +3550,25 @@ static void *bt_source_listen_avrcp_event(void *arg)
 
 		switch(ev_key.code) {
 			case KEY_PLAYCD:
-	            g_btmaster_cb(g_btmaster_userdata, BT_SOURCE_EVENT_RC_PLAY);
+				a2dp_master_event_send(BT_SOURCE_EVENT_RC_PLAY);
 				break;
-	        case KEY_PAUSECD:
-	            g_btmaster_cb(g_btmaster_userdata, BT_SOURCE_EVENT_RC_PAUSE);
+			case KEY_PAUSECD:
+				a2dp_master_event_send(BT_SOURCE_EVENT_RC_PAUSE);
 				break;
-	        case KEY_VOLUMEUP:
-	            g_btmaster_cb(g_btmaster_userdata, BT_SOURCE_EVENT_RC_VOL_UP);
+			case KEY_VOLUMEUP:
+				a2dp_master_event_send(BT_SOURCE_EVENT_RC_VOL_UP);
 				break;
-	        case KEY_VOLUMEDOWN:
-	            g_btmaster_cb(g_btmaster_userdata, BT_SOURCE_EVENT_RC_VOL_DOWN);
+			case KEY_VOLUMEDOWN:
+				a2dp_master_event_send(BT_SOURCE_EVENT_RC_VOL_DOWN);
 				break;
-	        case KEY_NEXTSONG:
-	            g_btmaster_cb(g_btmaster_userdata, BT_SOURCE_EVENT_RC_BACKWARD);
+			case KEY_NEXTSONG:
+				a2dp_master_event_send(BT_SOURCE_EVENT_RC_BACKWARD);
 				break;
-	        case KEY_PREVIOUSSONG:
-	            g_btmaster_cb(g_btmaster_userdata, BT_SOURCE_EVENT_RC_FORWARD);
+			case KEY_PREVIOUSSONG:
+				a2dp_master_event_send(BT_SOURCE_EVENT_RC_FORWARD);
 				break;
-	        default:
-	            break;
+			default:
+				break;
 		}
 	}
 
@@ -3903,7 +4043,7 @@ int pair_by_addr(char *addr)
 	}
 
 	bt_get_device_name_by_proxy(proxy, dev_name, 256);
-	bt_send_bond_state(addr, dev_name, RK_BT_BOND_STATE_BONDING);
+	bt_bond_state_send(addr, dev_name, RK_BT_BOND_STATE_BONDING);
 
 	return cmd_pair(proxy);
 }
@@ -4047,41 +4187,79 @@ int bt_get_default_dev_addr(char *addr_buf, int addr_len)
 	return bt_get_device_addr_by_proxy(default_dev, addr_buf, addr_len);
 }
 
-void bt_start_discovery(unsigned int mseconds)
+static void *bt_scan_devices(void *arg)
 {
+	unsigned int scan_time = 0;
+
+	printf("=== scan on ===\n");
+	if(cmd_scan("on") < 0) {
+		bt_decovery_state_send(RK_BT_DISC_START_FAILED);
+		goto done;
+	}
+
+	while(g_device_discovering) {
+		usleep(1000 * 1000);
+		scan_time += 1000;
+		if(scan_time >= g_scan_time) {
+			printf("%s: the scan is complete\n", __func__);
+			break;
+		}
+	}
+
+	bt_cancel_discovery(RK_BT_DISC_STOPPED_AUTO);
+
+done:
+	printf("%s: Exit bt scan thread\n", __func__);
+}
+
+int bt_start_discovery(unsigned int mseconds)
+{
+	int ret;
+
 	if(g_device_discovering) {
 		printf("%s: devices discovering\n", __func__);
-		return;
+		return -1;
 	}
 
 	g_device_discovering = true;
 
-	//printf("=== scan prepare ===\n");
-	//cmd_scan("off");
-	//sleep(1);
-
-	printf("=== scan on ===\n");
-	cmd_scan("on");
-
-	if (mseconds > 100) {
-		printf("Waiting for Scan(%d ms)...\n", mseconds);
-		usleep(mseconds * 1000);
+	if (mseconds < 1000) {
+		printf("%s: %d ms is too short, scan time is changed to 2s.\n", __func__, mseconds);
+		g_scan_time = 2000;
 	} else {
-		printf("warning: %d ms is too short, scan time is changed to 2 ms.\n", mseconds);
-		usleep(2000 * 1000);
+		printf("%s: scan time: %d\n", __func__, mseconds);
+		g_scan_time = mseconds;
 	}
 
-	bt_cancel_discovery();
+	ret = pthread_create(&g_scan_thread, NULL, bt_scan_devices, NULL);
+	if (ret) {
+		printf("%s: scan thread create failed!\n", __func__);
+		bt_decovery_state_send(RK_BT_DISC_START_FAILED);
+		return -1;
+	}
+
+	return 0;
 }
 
-void bt_cancel_discovery()
+int bt_cancel_discovery(RK_BT_DISCOVERY_STATE state)
 {
-	if(!g_device_discovering)
-		return;
+	if(!g_device_discovering) {
+		printf("%s: discovery canceling or canceled\n", __func__);
+		return -1;
+	}
+
+	g_device_discovering = false;
+	if (g_scan_thread) {
+		pthread_join(g_scan_thread, NULL);
+		g_scan_thread = 0;
+	}
+
+	g_scan_time = 0;
 
 	printf("=== scan off ===\n");
 	cmd_scan("off");
-	g_device_discovering = false;
+	bt_decovery_state_send(state);
+	return 0;
 }
 
 bool bt_is_discovering()
@@ -4126,30 +4304,4 @@ bool bt_is_connected()
 		ret = true;
 
 	return ret;
-}
-
-void bt_register_bond_callback(RK_BT_BOND_CALLBACK cb)
-{
-	g_bt_bond_cb = cb;
-}
-
-void bt_deregister_bond_callback()
-{
-	g_bt_bond_cb = NULL;
-}
-
-void bt_register_state_callback(RK_BT_STATE_CALLBACK cb)
-{
-	g_bt_state_cb = cb;
-}
-
-void bt_deregister_state_callback()
-{
-	g_bt_state_cb = NULL;
-}
-
-void bt_state_send(RK_BT_STATE state)
-{
-	if(g_bt_state_cb)
-		g_bt_state_cb(state);
 }

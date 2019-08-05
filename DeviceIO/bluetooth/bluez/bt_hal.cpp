@@ -42,16 +42,10 @@ using DeviceIOFramework::wifi_config;
 /*****************************************************************
  *            Rockchip bluetooth LE api                      *
  *****************************************************************/
-RK_BLE_STATE_CALLBACK ble_status_callback = NULL;
-RK_BLE_STATE g_ble_status;
-
 int rk_ble_start(RkBleContent *ble_content)
 {
 	rk_bt_control(BtControl::BT_BLE_OPEN, NULL, 0);
-	if (ble_status_callback)
-		ble_status_callback(RK_BLE_STATE_IDLE);
-	g_ble_status = RK_BLE_STATE_IDLE;
-
+	ble_state_send(RK_BLE_STATE_IDLE);
 	return 0;
 }
 
@@ -76,9 +70,7 @@ int rk_ble_clean(void)
 
 int rk_ble_get_state(RK_BLE_STATE *p_state)
 {
-	if (p_state)
-		*p_state = g_ble_status;
-
+	ble_get_state(p_state);
 	return 0;
 }
 
@@ -131,9 +123,7 @@ int rk_ble_write(const char *uuid, char *data, int len)
 
 int rk_ble_register_status_callback(RK_BLE_STATE_CALLBACK cb)
 {
-	if (cb)
-		ble_status_callback = cb;
-
+	ble_register_state_callback(cb);
 	return 0;
 }
 
@@ -150,15 +140,7 @@ int rk_ble_register_recv_callback(RK_BLE_RECV_CALLBACK cb)
 /*****************************************************************
  *            Rockchip bluetooth master api                      *
  *****************************************************************/
-extern RK_BT_SOURCE_CALLBACK g_btmaster_cb;
-extern void *g_btmaster_userdata;
 static pthread_t g_btmaster_thread;
-
-static void _btmaster_send_event(RK_BT_SOURCE_EVENT event)
-{
-	if (g_btmaster_cb)
-		(*g_btmaster_cb)(g_btmaster_userdata, event);
-}
 
 static void* _btmaster_autoscan_and_connect(void *data)
 {
@@ -185,7 +167,7 @@ scan_retry:
 		goto scan_retry;
 	} else if (ret) {
 		printf("ERROR: Scan error!\n");
-		_btmaster_send_event(BT_SOURCE_EVENT_CONNECT_FAILED);
+		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
 		g_btmaster_thread = 0;
 		return NULL;
 	}
@@ -212,12 +194,12 @@ scan_retry:
 
 	if (!target_vaild) {
 		printf("=== Cannot find audio Sink devices. ===\n");
-		_btmaster_send_event(BT_SOURCE_EVENT_CONNECT_FAILED);
+		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
 		g_btmaster_thread = 0;
 		return;
 	} else if (max_rssi < -80) {
 		printf("=== BT SOURCE RSSI is is too weak !!! ===\n");
-		_btmaster_send_event(BT_SOURCE_EVENT_CONNECT_FAILED);
+		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
 		g_btmaster_thread = 0;
 		return NULL;
 	}
@@ -326,7 +308,7 @@ int rk_bt_source_close(void)
 		return 0;
 
 	bt_close_source();
-	a2dp_master_clear_cb();
+	a2dp_master_deregister_cb();
 	return 0;
 }
 
@@ -556,6 +538,7 @@ int rk_bt_sink_close(void)
 {
 	bt_close_sink();
 	a2dp_sink_listen_ba_volume_stop();
+	a2dp_sink_clear_cb();
 	return 0;
 }
 
@@ -845,8 +828,10 @@ int rk_bt_deinit(void)
 	rk_ble_clean();
 
 	bt_state_send(RK_BT_STATE_OFF);
-	bt_deregister_bond_callback();
 	bt_deregister_state_callback();
+	bt_deregister_bond_callback();
+	bt_deregister_decovery_callback();
+	bt_deregister_dev_found_callback();
 	return 0;
 #else
 	printf("bluez don't support bt deinit\n");
@@ -862,6 +847,16 @@ void rk_bt_register_state_callback(RK_BT_STATE_CALLBACK cb)
 void rk_bt_register_bond_callback(RK_BT_BOND_CALLBACK cb)
 {
 	bt_register_bond_callback(cb);
+}
+
+void rk_bt_register_discovery_callback(RK_BT_DISCOVERY_CALLBACK cb)
+{
+	bt_register_decovery_callback(cb);
+}
+
+void rk_bt_register_dev_found_callback(RK_BT_DEV_FOUND_CALLBACK cb)
+{
+	bt_register_dev_found_callback(cb);
 }
 
 /*
@@ -907,14 +902,14 @@ int rk_bt_enable_reconnect(int value)
 	return (ret < 0) ? -1 : 0;
 }
 
-void rk_bt_start_discovery(unsigned int mseconds)
+int rk_bt_start_discovery(unsigned int mseconds)
 {
-	bt_start_discovery(mseconds);
+	return bt_start_discovery(mseconds);
 }
 
-void rk_bt_cancel_discovery()
+int rk_bt_cancel_discovery()
 {
-	bt_cancel_discovery();
+	return bt_cancel_discovery(RK_BT_DISC_STOPPED_BY_USER);
 }
 
 bool rk_bt_is_discovering()

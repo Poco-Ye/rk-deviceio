@@ -507,8 +507,6 @@ void bt_test_ble_get_status(void *data)
 }
 
 void bt_test_ble_stop(void *data) {
-	rk_ble_register_status_callback(NULL);
-	rk_ble_register_recv_callback(NULL);
 	rk_ble_stop();
 }
 

@@ -46,6 +46,34 @@ void _bt_gap_bond_state_cb(btmg_bond_state_t state, const char *bd_addr, const c
 	}
 }
 
+static void _bt_gap_discovery_status_cb(btmg_discovery_state_t status)
+{
+	switch(status) {
+		case BTMG_DISC_STARTED:
+			printf("++++++++++ BTMG_DISC_STARTED ++++++++++\n");
+			break;
+		case BTMG_DISC_STOPPED_AUTO:
+			printf("++++++++++ BTMG_DISC_STOPPED_AUTO ++++++++++\n");
+			break;
+		case BTMG_DISC_START_FAILED:
+			printf("++++++++++ BTMG_DISC_START_FAILED ++++++++++\n");
+			break;
+		case BTMG_DISC_STOPPED_BY_USER:
+			printf("++++++++++ BTMG_DISC_STOPPED_BY_USER ++++++++++\n");
+			break;
+	}
+}
+
+static void _bt_dev_found_cb(const char *address,const char *name, unsigned int bt_class, int rssi)
+{
+	printf("++++++++++++ Device is found ++++++++++++\n");
+	printf("    address: %s\n", address);
+	printf("    name: %s\n", name);
+	printf("    class: 0x%x\n", bt_class);
+	printf("    rssi: %d\n", rssi);
+	printf("+++++++++++++++++++++++++++++++++++++++++\n");
+}
+
 void _bt_a2dp_sink_connection_state_cb(const char *bd_addr, btmg_a2dp_sink_connection_state_t state)
 {
 	switch(state) {
@@ -126,6 +154,8 @@ void btmg_init_test(char *data)
 
 	g_btmg_test_cb->btmg_gap_cb.gap_status_cb = _bt_gap_status_cb;
 	g_btmg_test_cb->btmg_gap_cb.gap_bond_state_cb = _bt_gap_bond_state_cb;
+	g_btmg_test_cb->btmg_gap_cb.gap_disc_status_cb = _bt_gap_discovery_status_cb;
+	g_btmg_test_cb->btmg_gap_cb.gap_dev_found_cb = _bt_dev_found_cb;
 	g_btmg_test_cb->btmg_a2dp_sink_cb.a2dp_sink_connection_state_cb = _bt_a2dp_sink_connection_state_cb;
 	g_btmg_test_cb->btmg_a2dp_sink_cb.a2dp_sink_audio_state_cb = _bt_a2dp_sink_audio_state_cb;
 	g_btmg_test_cb->btmg_avrcp_cb.avrcp_play_state_cb = _bt_avrcp_play_state_cb;
@@ -177,6 +207,22 @@ void btmg_get_device_addr_test(char *data)
 	memset(addr, 0, 18);
 	bt_manager_get_address(addr, 18);
 	printf("%s: local device addr: %s\n", __func__, addr);
+}
+
+void btmg_start_discovery_test(char *data)
+{
+	bt_manager_start_discovery(10000); //10s
+}
+
+void btmg_is_discovering_test(char *data)
+{
+	bool ret = bt_manager_is_discovering();
+	printf("the device discovery procedure is active? %s\n", (ret == true) ? "yes" : "no");
+}
+
+void btmg_cancel_discovery_test(char *data)
+{
+	bt_manager_cancel_discovery();
 }
 
 void btmg_pair_by_addr_test(char *data)
@@ -316,22 +362,6 @@ void btmg_enable_reconnect_test(char *data)
 void btmg_disable_reconnect_test(char *data)
 {
 	rk_bt_enable_reconnect(0);
-}
-
-void btmg_start_discovery_test(char *data)
-{
-	rk_bt_start_discovery(10000); //5s
-}
-
-void btmg_cancel_discovery_test(char *data)
-{
-	rk_bt_cancel_discovery();
-}
-
-void btmg_is_discovering_test(char *data)
-{
-	bool ret = rk_bt_is_discovering();
-	printf("the device discovery procedure is active? %s\n", (ret == true) ? "yes" : "no");
 }
 
 void btmg_display_devices_test(char *data)

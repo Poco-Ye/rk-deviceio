@@ -38,6 +38,14 @@ typedef enum {
 	RK_BT_BOND_STATE_BONDED,
 } RK_BT_BOND_STATE;
 
+/*BT discovery state*/
+typedef enum {
+	RK_BT_DISC_STARTED,
+	RK_BT_DISC_STOPPED_AUTO,
+	RK_BT_DISC_START_FAILED,
+	RK_BT_DISC_STOPPED_BY_USER,
+} RK_BT_DISCOVERY_STATE;
+
 typedef struct {
 	Ble_Uuid_Type_t server_uuid;
 	Ble_Uuid_Type_t chr_uuid[12];
@@ -65,16 +73,20 @@ typedef struct paired_dev RkBtPraiedDevice;
 
 typedef void (*RK_BT_STATE_CALLBACK)(RK_BT_STATE state);
 typedef void (*RK_BT_BOND_CALLBACK)(const char *bd_addr, const char *name, RK_BT_BOND_STATE state);
+typedef void (*RK_BT_DISCOVERY_CALLBACK)(RK_BT_DISCOVERY_STATE state);
+typedef void (*RK_BT_DEV_FOUND_CALLBACK)(const char *address, const char *name, unsigned int bt_class, int rssi);
 
 void rk_bt_register_state_callback(RK_BT_STATE_CALLBACK cb);
 void rk_bt_register_bond_callback(RK_BT_BOND_CALLBACK cb);
+void rk_bt_register_discovery_callback(RK_BT_DISCOVERY_CALLBACK cb);
+void rk_bt_register_dev_found_callback(RK_BT_DEV_FOUND_CALLBACK cb);
 int rk_bt_init(RkBtContent *p_bt_content);
 int rk_bt_deinit(void);
 int rk_bt_is_connected(void);
 int rk_bt_set_class(int value);
 int rk_bt_enable_reconnect(int value);
-void rk_bt_start_discovery(unsigned int mseconds);
-void rk_bt_cancel_discovery();
+int rk_bt_start_discovery(unsigned int mseconds);
+int rk_bt_cancel_discovery();
 bool rk_bt_is_discovering();
 void rk_bt_display_devices();
 void rk_bt_display_paired_devices();

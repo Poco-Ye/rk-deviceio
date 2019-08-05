@@ -7,6 +7,7 @@
 #include <DeviceIo/RkBtBase.h>
 #include <DeviceIo/RkBtSink.h>
 #include <DeviceIo/RkBtHfp.h>
+#include "../utility/utility.h"
 
 #include <DeviceIo/bt_manager_1s2.h>
 
@@ -33,17 +34,57 @@ void bt_manager_debug_close_syslog(void)
 {
 }
 
+int bt_manager_debug_open_file(const char *path)
+{
+	return 0;
+}
+
+void bt_manager_debug_close_file(void)
+{
+
+}
+
 static void btmg_gap_status_cb(RK_BT_STATE state)
 {
 	g_bt_state = (btmg_state_t)state;
-	if(g_btmg_cb)
+	if(g_btmg_cb && g_btmg_cb->btmg_gap_cb.gap_status_cb)
 		g_btmg_cb->btmg_gap_cb.gap_status_cb((btmg_state_t)state);
 }
 
 static void btmg_gap_bond_state_cb(const char *bd_addr, const char *name, RK_BT_BOND_STATE state)
 {
-	if(g_btmg_cb)
+	if(g_btmg_cb && g_btmg_cb->btmg_gap_cb.gap_bond_state_cb)
 		g_btmg_cb->btmg_gap_cb.gap_bond_state_cb((btmg_bond_state_t)state, bd_addr, name);
+}
+
+static void btmg_gap_discovery_status_cb(RK_BT_DISCOVERY_STATE state)
+{
+	if(g_btmg_cb && g_btmg_cb->btmg_gap_cb.gap_disc_status_cb)
+		g_btmg_cb->btmg_gap_cb.gap_disc_status_cb((btmg_discovery_state_t)state);
+}
+
+static void btmg_dev_found_cb(const char *address,const char *name, unsigned int bt_class, int rssi)
+{
+	if(g_btmg_cb && g_btmg_cb->btmg_gap_cb.gap_dev_found_cb)
+		g_btmg_cb->btmg_gap_cb.gap_dev_found_cb(address, name, bt_class, rssi);
+}
+
+static void _btmg_sink_conn_state_cb(const char *bd_addr, btmg_a2dp_sink_connection_state_t state)
+{
+	if(g_btmg_cb && g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_connection_state_cb)
+		g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_connection_state_cb(bd_addr, state);
+}
+
+static void _btmg_avrcp_play_state_cb(const char *bd_addr, btmg_avrcp_play_state_t state)
+{
+	if(g_btmg_cb && g_btmg_cb->btmg_avrcp_cb.avrcp_play_state_cb)
+		g_btmg_cb->btmg_avrcp_cb.avrcp_play_state_cb(bd_addr, state);
+}
+
+static void _btmg_sink_audio_state_cb(const char *bd_addr, btmg_a2dp_sink_audio_state_t state)
+{
+	if(g_btmg_cb && g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_audio_state_cb)
+		g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_audio_state_cb(bd_addr, state);
 }
 
 static int btmg_sink_callback(RK_BT_SINK_STATE state)
@@ -57,47 +98,37 @@ static int btmg_sink_callback(RK_BT_SINK_STATE state)
 			break;
 #if 0
 		case RK_BT_SINK_STATE_CONNECTING:
-			if(g_btmg_cb)
-				g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_connection_state_cb(bd_addr, BTMG_A2DP_SINK_CONNECTING);
+			_btmg_sink_conn_state_cb(bd_addr, BTMG_A2DP_SINK_CONNECTING);
 			break;
 		case RK_BT_SINK_STATE_DISCONNECTING:
-			if(g_btmg_cb)
-				g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_connection_state_cb(bd_addr, BTMG_A2DP_SINK_DISCONNECTING);
+			_btmg_sink_conn_state_cb(bd_addr, BTMG_A2DP_SINK_DISCONNECTING);
 			break;
 #endif
 		case RK_BT_SINK_STATE_CONNECT:
-			if(g_btmg_cb)
-				g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_connection_state_cb(bd_addr, BTMG_A2DP_SINK_CONNECTED);
+			_btmg_sink_conn_state_cb(bd_addr, BTMG_A2DP_SINK_CONNECTED);
 			break;
 		case RK_BT_SINK_STATE_DISCONNECT:
-			if(g_btmg_cb)
-				g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_connection_state_cb(bd_addr, BTMG_A2DP_SINK_DISCONNECTED);
+			_btmg_sink_conn_state_cb(bd_addr, BTMG_A2DP_SINK_DISCONNECTED);
 			break;
 		//avrcp
 		case RK_BT_SINK_STATE_PLAY:
-			if(g_btmg_cb)
-				g_btmg_cb->btmg_avrcp_cb.avrcp_play_state_cb(bd_addr, BTMG_AVRCP_PLAYSTATE_PLAYING);
+			_btmg_avrcp_play_state_cb(bd_addr, BTMG_AVRCP_PLAYSTATE_PLAYING);
 			break;
 		case RK_BT_SINK_STATE_PAUSE:
-			if(g_btmg_cb)
-				g_btmg_cb->btmg_avrcp_cb.avrcp_play_state_cb(bd_addr, BTMG_AVRCP_PLAYSTATE_PAUSED);
+			_btmg_avrcp_play_state_cb(bd_addr, BTMG_AVRCP_PLAYSTATE_PAUSED);
 			break;
 		case RK_BT_SINK_STATE_STOP:
-			if(g_btmg_cb)
-				g_btmg_cb->btmg_avrcp_cb.avrcp_play_state_cb(bd_addr, BTMG_AVRCP_PLAYSTATE_STOPPED);
+			_btmg_avrcp_play_state_cb(bd_addr, BTMG_AVRCP_PLAYSTATE_STOPPED);
 			break;
 		//avdtp(a2dp)
 		case RK_BT_A2DP_SINK_STARTED:
-			if(g_btmg_cb)
-				g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_audio_state_cb(bd_addr, BTMG_A2DP_SINK_AUDIO_STARTED);
+			_btmg_sink_audio_state_cb(bd_addr, BTMG_A2DP_SINK_AUDIO_STARTED);
 			break;
 		case RK_BT_A2DP_SINK_SUSPENDED:
-			if(g_btmg_cb)
-				g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_audio_state_cb(bd_addr, BTMG_A2DP_SINK_AUDIO_SUSPENDED);
+			_btmg_sink_audio_state_cb(bd_addr, BTMG_A2DP_SINK_AUDIO_SUSPENDED);
 			break;
 		case RK_BT_A2DP_SINK_STOPPED:
-			if(g_btmg_cb)
-				g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_audio_state_cb(bd_addr, BTMG_A2DP_SINK_AUDIO_STOPPED);
+			_btmg_sink_audio_state_cb(bd_addr, BTMG_A2DP_SINK_AUDIO_STOPPED);
 			break;
 	}
 
@@ -106,13 +137,13 @@ static int btmg_sink_callback(RK_BT_SINK_STATE state)
 
 static void btmg_sink_track_change_callback(const char *bd_addr, BtTrackInfo track_info)
 {
-	if(g_btmg_cb)
+	if(g_btmg_cb && g_btmg_cb->btmg_avrcp_cb.avrcp_track_changed_cb)
 		g_btmg_cb->btmg_avrcp_cb.avrcp_track_changed_cb(bd_addr, track_info);
 }
 
 static void btmg_sink_position_change_callback(const char *bd_addr, int song_len, int song_pos)
 {
-	if(g_btmg_cb)
+	if(g_btmg_cb && g_btmg_cb->btmg_avrcp_cb.avrcp_play_position_cb)
 		g_btmg_cb->btmg_avrcp_cb.avrcp_play_position_cb(bd_addr, song_len, song_pos);
 }
 
@@ -125,6 +156,7 @@ int bt_manager_preinit(btmg_callback_t **btmg_cb)
 		return -1;
 	}
 
+	memset(*btmg_cb, 0, sizeof(btmg_callback_t));
 	return 0;
 }
 
@@ -155,6 +187,8 @@ int bt_manager_enable(bool enable)
 	if(enable) {
 		rk_bt_register_state_callback(btmg_gap_status_cb);
 		rk_bt_register_bond_callback(btmg_gap_bond_state_cb);
+		rk_bt_register_discovery_callback(btmg_gap_discovery_status_cb);
+		rk_bt_register_dev_found_callback(btmg_dev_found_cb);
 		if(rk_bt_init(NULL) < 0) {
 			printf("%s: rk_bt_init error\n", __func__);
 			return -1;
@@ -181,6 +215,24 @@ bool bt_manager_is_enabled(void)
 }
 
 /*GAP APIs*/
+/*start discovery, will return immediately*/
+int bt_manager_start_discovery(unsigned int mseconds)
+{
+	return rk_bt_start_discovery(mseconds);
+}
+
+/*cancel discovery, will return immediately*/
+int bt_manager_cancel_discovery(void)
+{
+	return rk_bt_cancel_discovery();
+}
+
+/*judge the discovery is in process or not*/
+bool bt_manager_is_discovering()
+{
+	return rk_bt_is_discovering();
+}
+
 /*set BT discovery mode*/
 int bt_manager_set_discovery_mode(btmg_discovery_mode_t mode)
 {
@@ -314,5 +366,8 @@ bool bt_manager_is_support_pos_changed()
 
 int bt_manager_switch_throughput(bool sw_to_wlan)
 {
-	return 0;
+	if (sw_to_wlan)
+		return bt_exec_command_system("hcitool cmd 0x3f 0xa7 0x01");
+	else
+		return bt_exec_command_system("hcitool cmd 0x3f 0xa7 0x00");
 }

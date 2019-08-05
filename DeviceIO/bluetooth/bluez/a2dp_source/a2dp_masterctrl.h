@@ -2,6 +2,7 @@
 #define __A2DP_SOURCE_CTRL__
 
 #include "DeviceIo/RkBtBase.h"
+#include "DeviceIo/RkBle.h"
 #include "DeviceIo/RkBtSource.h"
 
 #define DEV_PLATFORM_UNKNOWN    0 /* unknown platform */
@@ -17,6 +18,22 @@ typedef enum _bt_devices_type {
 	BT_DEVICES_SPP,
 } BtDeviceType;
 
+void bt_register_state_callback(RK_BT_STATE_CALLBACK cb);
+void bt_deregister_state_callback();
+void bt_register_bond_callback(RK_BT_BOND_CALLBACK cb);
+void bt_deregister_bond_callback();
+void bt_register_decovery_callback(RK_BT_DISCOVERY_CALLBACK cb);
+void bt_deregister_decovery_callback();
+void bt_register_dev_found_callback(RK_BT_DISCOVERY_CALLBACK cb);
+void bt_deregister_dev_found_callback();
+void ble_register_state_callback(RK_BLE_STATE_CALLBACK cb);
+void ble_deregister_state_callback();
+void a2dp_master_register_cb(void *userdata, RK_BT_SOURCE_CALLBACK cb);
+void a2dp_master_deregister_cb();
+
+void bt_state_send(RK_BT_STATE state);
+void ble_state_send(RK_BLE_STATE status);
+void ble_get_state(RK_BLE_STATE *p_state);
 int bt_open(RkBtContent *bt_content);
 int bt_close();
 int init_a2dp_master_ctrl();
@@ -26,8 +43,7 @@ int a2dp_master_connect(char *address);
 int a2dp_master_disconnect(char *address);
 int a2dp_master_status(char *addr_buf, int addr_len, char *name_buf, int name_len);
 int a2dp_master_remove(char *address);
-void a2dp_master_register_cb(void *userdata, RK_BT_SOURCE_CALLBACK cb);
-void a2dp_master_clear_cb();
+void a2dp_master_event_send(RK_BT_SOURCE_EVENT event);
 int a2dp_master_avrcp_open();
 int a2dp_master_avrcp_close();
 int reconn_last_devices(BtDeviceType type);
@@ -46,16 +62,10 @@ void bt_display_devices();
 void bt_display_paired_devices();
 int bt_get_paired_devices(RkBtPraiedDevice **dev_list, int *count);
 int bt_free_paired_devices(RkBtPraiedDevice *dev_list);
-void bt_start_discovery(unsigned int mseconds);
-void bt_cancel_discovery();
+int bt_start_discovery(unsigned int mseconds);
+int bt_cancel_discovery(RK_BT_DISCOVERY_STATE state);
 bool bt_is_discovering();
 bool bt_is_connected();
-void bt_register_bond_callback(RK_BT_BOND_CALLBACK cb);
-void bt_deregister_bond_callback();
-void bt_state_send(RK_BT_STATE state);
-void bt_register_state_callback(RK_BT_STATE_CALLBACK cb);
-void bt_deregister_state_callback();
-
 int ble_disconnect(void);
 
 #endif /* __A2DP_SOURCE_CTRL__ */

@@ -9,6 +9,14 @@
 extern "C" {
 #endif
 
+#define BTMGVERSION "Version:2.0.3.I161ca661"
+
+#define BT_LAST_CONNECT_FILE "/data/lib/bluetooth/last_connected"
+
+#ifndef  CONFIG_FILE_PATH
+#define CONFIG_FILE_PATH "/etc/bluetooth/aw_bluetooth"
+#endif
+
 /*log devel in control of bt_manager*/
 typedef enum btmg_log_level_t {
 	BTMG_LOG_LEVEL_NONE = 0,
@@ -25,6 +33,14 @@ typedef enum {
 	BTMG_STATE_TURNING_ON,
 	BTMG_STATE_TURNING_OFF,
 } btmg_state_t;
+
+/*BT discovery state*/
+typedef enum {
+	BTMG_DISC_STARTED,
+	BTMG_DISC_STOPPED_AUTO,
+	BTMG_DISC_START_FAILED,
+	BTMG_DISC_STOPPED_BY_USER,
+} btmg_discovery_state_t;
 
 /*BT discovery mode*/
 typedef enum {
@@ -99,10 +115,14 @@ typedef struct paired_dev bt_paried_device;
 /*callback functions for GAP profile*/
 typedef void (*bt_gap_status_cb)(btmg_state_t status);
 typedef void (*bt_gap_bond_state_cb)(btmg_bond_state_t state,const char *bd_addr,const char *name);
+typedef void (*bt_gap_discovery_status_cb)(btmg_discovery_state_t status);
+typedef void (*bt_gap_dev_found_cb)(const char *address,const char *name, unsigned int bt_class, int rssi);
 /*gap callback*/
 typedef struct btmg_gap_callback_t {
 	bt_gap_status_cb gap_status_cb; /*used for return results of bt_manager_enable and status of BT*/
 	bt_gap_bond_state_cb gap_bond_state_cb; /*used for bond state event*/
+	bt_gap_discovery_status_cb gap_disc_status_cb; /*used for return discovery status of BT*/
+	bt_gap_dev_found_cb gap_dev_found_cb; /*used for device found event*/
 } btmg_gap_callback_t;
 
 /*callback functions for a2dp_sink profile*/
@@ -159,6 +179,12 @@ int bt_manager_set_discovery_mode(btmg_discovery_mode_t mode);
 int bt_manager_enable(bool enable);
 /*return BT state, is enabled or not*/
 bool bt_manager_is_enabled(void);
+/*start discovery, will return immediately*/
+int bt_manager_start_discovery(unsigned int mseconds);
+/*cancel discovery, will return immediately*/
+int bt_manager_cancel_discovery(void);
+/*judge the discovery is in process or not*/
+bool bt_manager_is_discovering();
 /*pair*/
 int bt_manager_pair(char *addr);
 /*unpair*/
