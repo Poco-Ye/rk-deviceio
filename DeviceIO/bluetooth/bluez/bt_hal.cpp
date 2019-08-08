@@ -796,13 +796,22 @@ int rk_bt_spp_write(char *data, int len)
 //====================================================//
 int rk_bt_init(RkBtContent *p_bt_content)
 {
-	int wait_cnt = 3;
+	char hostname_buf[HOSTNAME_MAX_LEN];
 
 	bt_state_send(RK_BT_STATE_TURNING_ON);
 	setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/var/run/dbus/system_bus_socket", 1);
 	if (rk_bt_control(BtControl::BT_OPEN, p_bt_content, sizeof(RkBtContent))) {
 		bt_state_send(RK_BT_STATE_OFF);
 		return -1;
+	}
+
+	if (p_bt_content && p_bt_content->bt_name) {
+		printf("%s: bt_name: %s\n", __func__, p_bt_content->bt_name);
+		rk_bt_set_device_name(p_bt_content->bt_name);
+	} else {
+		bt_gethostname(hostname_buf, sizeof(hostname_buf));
+		printf("%s: bt_name: %s\n", __func__, hostname_buf);
+		rk_bt_set_device_name(hostname_buf);
 	}
 
 	return 0;

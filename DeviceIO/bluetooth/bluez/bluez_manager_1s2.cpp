@@ -46,21 +46,75 @@ void bt_manager_debug_close_file(void)
 
 static void btmg_gap_status_cb(RK_BT_STATE state)
 {
-	g_bt_state = (btmg_state_t)state;
+	switch(state) {
+		case RK_BT_STATE_OFF:
+			g_bt_state = BTMG_STATE_OFF;
+			break;
+		case RK_BT_STATE_ON:
+			g_bt_state = BTMG_STATE_ON;
+			break;
+		case RK_BT_STATE_TURNING_ON:
+			g_bt_state = BTMG_STATE_TURNING_ON;
+			break;
+		case RK_BT_STATE_TURNING_OFF:
+			g_bt_state = BTMG_STATE_TURNING_OFF;
+			break;
+		default:
+			printf("unknown bt state: %d\n", state);
+			return;
+	}
+
 	if(g_btmg_cb && g_btmg_cb->btmg_gap_cb.gap_status_cb)
-		g_btmg_cb->btmg_gap_cb.gap_status_cb((btmg_state_t)state);
+		g_btmg_cb->btmg_gap_cb.gap_status_cb(g_bt_state);
 }
 
 static void btmg_gap_bond_state_cb(const char *bd_addr, const char *name, RK_BT_BOND_STATE state)
 {
+	btmg_bond_state_t bond_state;
+
+	switch(state) {
+		case RK_BT_BOND_STATE_NONE:
+			bond_state = BTMG_BOND_STATE_NONE;
+			break;
+		case RK_BT_BOND_STATE_BONDING:
+			bond_state = BTMG_BOND_STATE_BONDING;
+			break;
+		case RK_BT_BOND_STATE_BONDED:
+			bond_state = BTMG_BOND_STATE_BONDED;
+			break;
+		default:
+			printf("unknown bt bond state: %d\n", state);
+			return;
+	}
+
 	if(g_btmg_cb && g_btmg_cb->btmg_gap_cb.gap_bond_state_cb)
-		g_btmg_cb->btmg_gap_cb.gap_bond_state_cb((btmg_bond_state_t)state, bd_addr, name);
+		g_btmg_cb->btmg_gap_cb.gap_bond_state_cb(bond_state, bd_addr, name);
 }
 
 static void btmg_gap_discovery_status_cb(RK_BT_DISCOVERY_STATE state)
 {
+	btmg_discovery_state_t disc_state;
+
+	switch(state) {
+		case RK_BT_DISC_STARTED:
+			disc_state = BTMG_DISC_STARTED;
+			break;
+		case RK_BT_DISC_STOPPED_AUTO:
+			disc_state = BTMG_DISC_STOPPED_AUTO;
+			break;
+		case RK_BT_DISC_START_FAILED:
+			disc_state = BTMG_DISC_START_FAILED;
+			break;
+		case RK_BT_DISC_STOPPED_BY_USER:
+			disc_state = BTMG_DISC_STOPPED_BY_USER;
+			break;
+		default:
+			printf("unknown bt discovery state: %d\n", state);
+			return;
+	}
+
 	if(g_btmg_cb && g_btmg_cb->btmg_gap_cb.gap_disc_status_cb)
-		g_btmg_cb->btmg_gap_cb.gap_disc_status_cb((btmg_discovery_state_t)state);
+		g_btmg_cb->btmg_gap_cb.gap_disc_status_cb(disc_state);
 }
 
 static void btmg_dev_found_cb(const char *address,const char *name, unsigned int bt_class, int rssi)
@@ -279,7 +333,7 @@ int bt_manager_get_name(char *name, int size)
 /*set BT name*/
 int bt_manager_set_name(const char *name)
 {
-	return rk_bt_set_device_name(name);
+	return rk_bt_set_device_name((char *)name);
 }
 
 /*get local device address*/

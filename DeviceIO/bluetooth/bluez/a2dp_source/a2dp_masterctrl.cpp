@@ -4119,6 +4119,8 @@ static int bt_get_device_name_by_proxy(GDBusProxy *proxy,
 
 	dbus_message_iter_get_basic(&iter, &name);
 	memcpy(name_buf, name, (strlen(name) > name_len) ? name_len : strlen(name));
+
+	return 0;
 }
 
 int bt_get_device_name(char *name_buf, int name_len)

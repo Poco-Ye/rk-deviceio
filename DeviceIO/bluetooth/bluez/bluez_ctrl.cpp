@@ -68,7 +68,7 @@ static int bt_close_a2dp_server();
 static int bt_ble_open(void);
 #define HOSTNAME_MAX_LEN	250	/* 255 - 3 (FQDN) - 2 (DNS enc) */
 
-static int bt_gethostname(char *hostname_buf, const size_t size)
+int bt_gethostname(char *hostname_buf, const size_t size)
 {
 	char hostname[HOSTNAME_MAX_LEN + 1];
 	size_t buf_len = sizeof(hostname) - 1;
@@ -107,6 +107,7 @@ static int _bt_close_server(void)
 	if (bt_kill_task("bluetoothd") < 0)
 		return -1;
 
+	bt_exec_command_system("hciconfig hci0 down");
 	if (bt_kill_task("rtk_hciattach") < 0)
 		return -1;
 
@@ -115,8 +116,6 @@ static int _bt_close_server(void)
 
 static int _bt_open_server(const char *bt_name)
 {
-	char hostname_buf[HOSTNAME_MAX_LEN];
-	char cmd_buf[64 + HOSTNAME_MAX_LEN]; /* 64 for "hciconfig hci0 name" */
 	char ret_buff[1024];
 	char bt_buff[1024];
 
@@ -191,18 +190,6 @@ static int _bt_open_server(const char *bt_name)
 	bt_exec_command_system("hciconfig hci0 piscan");
 	msleep(10);
 
-	/* Use a user-specified name or a device default name? */
-	if (bt_name) {
-		RK_LOGD("[BT_OPEN]: bt_name: %s\n", bt_name);
-		sprintf(cmd_buf, "hciconfig hci0 name \'%s\'", bt_name);
-	} else {
-		bt_gethostname(hostname_buf, sizeof(hostname_buf));
-		RK_LOGD("[BT_OPEN]: bt_name: %s\n", hostname_buf);
-		sprintf(cmd_buf, "hciconfig hci0 name \'%s\'", hostname_buf);
-	}
-	bt_exec_command_system(cmd_buf);
-
-	msleep(10);
 	bt_exec_command_system("hciconfig hci0 down");
 	msleep(10);
 	bt_exec_command_system("hciconfig hci0 up");

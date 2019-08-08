@@ -45,6 +45,7 @@ int bt_close_sink(void);
 int bt_close_source(void);
 int rk_bt_control(BtControl cmd, void *data, int len);
 int bt_control_cmd_send(enum BtControl bt_ctrl_cmd);
+int bt_gethostname(char *hostname_buf, const size_t size);
 
 //#define msleep(x) usleep(x * 1000)
 
