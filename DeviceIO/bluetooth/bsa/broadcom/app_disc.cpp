@@ -18,6 +18,8 @@
 #include "app_utils.h"
 #include "app_xml_utils.h"
 
+#include "DeviceIo/RkBtBase.h"
+
 #define HCI_EIR_DEVICE_ID_TYPE  0x10    /* Device Id EIR Tag (not yet official) */
 
 typedef struct
@@ -92,7 +94,8 @@ static tAPP_DISC_BT_COMPANY_ID_DESC bt_company_id[]=
 };
 #undef X
 
-
+extern void app_mgr_disc_state_send(RK_BT_DISCOVERY_STATE state);
+extern void app_mgr_dev_found_send(BD_ADDR bd_addr, char *name, DEV_CLASS class_of_device, int rssi);
 static UINT8 app_get_dev_platform(UINT16 vendor, UINT16 vendor_id_source);
 
 /*******************************************************************************
@@ -773,6 +776,7 @@ void app_generic_disc_cback(tBSA_DISC_EVT event, tBSA_DISC_MSG *p_data)
                 break;
             }
         }
+
         /* If this is a new device */
         if (index >= APP_DISC_NB_DEVICES)
         {
@@ -798,7 +802,6 @@ void app_generic_disc_cback(tBSA_DISC_EVT event, tBSA_DISC_MSG *p_data)
             memcpy((char *)app_discovery_cb.devs[index].device.playrole,
                 "Unknow", strlen("Unknow"));
         }
-
 
         APP_INFO1("\tBdaddr:%02x:%02x:%02x:%02x:%02x:%02x",
                 p_data->disc_new.bd_addr[0],
@@ -843,12 +846,18 @@ void app_generic_disc_cback(tBSA_DISC_EVT event, tBSA_DISC_MSG *p_data)
 
             APP_INFO1("playrole: %s", app_discovery_cb.devs[index].device.playrole);
         }
+
+        app_mgr_dev_found_send(p_data->disc_new.bd_addr,
+                            p_data->disc_new.name,
+                            p_data->disc_new.class_of_device,
+                            p_data->disc_new.rssi);
         break;
 
     case BSA_DISC_CMPL_EVT: /* Discovery complete. */
         APP_INFO0("Discovery complete");
         app_discovery_complete = APP_DISCOVERY_COMPLETE;
         app_disc_cb.p_disc_cback = NULL;
+        app_mgr_disc_state_send(RK_BT_DISC_STOPPED_AUTO);
         break;
 
     case BSA_DISC_DEV_INFO_EVT: /* Discovery Device Info */
@@ -945,12 +954,13 @@ int app_disc_start_regular(tBSA_DISC_CBACK *p_custom_disc_cback, int duration)
     memset(app_discovery_cb.devs, 0, sizeof(app_discovery_cb.devs));
 
     status = BSA_DiscStart(&disc_start_param);
-    if (status != BSA_SUCCESS)
-    {
+    if (status != BSA_SUCCESS) {
         APP_ERROR1("BSA_DiscStart failed status:%d", status);
+        app_mgr_disc_state_send(RK_BT_DISC_START_FAILED);
         return -1;
     }
 
+    app_mgr_disc_state_send(RK_BT_DISC_STARTED);
     return 0;
 }
 
@@ -1129,11 +1139,13 @@ int app_disc_abort(void)
 
     BSA_DiscAbortInit(&disc_abort_param);
     status = BSA_DiscAbort(&disc_abort_param);
-    if (status != BSA_SUCCESS)
-    {
+    if (status != BSA_SUCCESS) {
         APP_ERROR1("BSA_DiscAbort failed status:%d", status);
         return -1;
     }
+
+    app_discovery_complete = APP_DISCOVERY_IDEL;
+    app_mgr_disc_state_send(RK_BT_DISC_STOPPED_BY_USER);
     return 0;
 }
 

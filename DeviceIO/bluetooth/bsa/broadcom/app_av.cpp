@@ -5370,10 +5370,8 @@ int app_av_connect(char *address)
         return -1;
     }
 
-	if (sscanf(address, "%02X:%02X:%02X:%02X:%02X:%02X",
-			&bd_addr[0], &bd_addr[1], &bd_addr[2],
-			&bd_addr[3], &bd_addr[4], &bd_addr[5]) != 6)
-	return -EINVAL;
+    if(app_mgr_str2bd(address, bd_addr) < 0)
+        return -1;
 
     APP_ERROR1("connect bd_addr: %02X:%02X:%02X:%02X:%02X:%02X",
         bd_addr[0], bd_addr[1], bd_addr[2],
@@ -5399,10 +5397,8 @@ int app_av_disconnect(char *address)
         return -1;
     }
 
-	if (sscanf(address, "%02X:%02X:%02X:%02X:%02X:%02X",
-			&bd_addr[0], &bd_addr[1], &bd_addr[2],
-			&bd_addr[3], &bd_addr[4], &bd_addr[5]) != 6)
-	return -EINVAL;
+    if(app_mgr_str2bd(address, bd_addr) < 0)
+        return -1;
 
     index = app_av_find_index_by_bd_addr(bd_addr);
     if (index < 0 || index >= APP_AV_MAX_CONNECTIONS) {
@@ -5425,10 +5421,8 @@ int app_av_remove(char *address)
         return -1;
     }
 
-	if (sscanf(address, "%02X:%02X:%02X:%02X:%02X:%02X",
-			&bd_addr[0], &bd_addr[1], &bd_addr[2],
-			&bd_addr[3], &bd_addr[4], &bd_addr[5]) != 6)
-	return -EINVAL;
+    if(app_mgr_str2bd(address, bd_addr) < 0)
+        return -1;
 
     app_av_disconnect(address);
     return app_mgr_sec_unpair(address);

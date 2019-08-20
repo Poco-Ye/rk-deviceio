@@ -403,7 +403,7 @@ int app_manager_init(const char *bt_name, app_mgr_callback cb);
 
 int app_manager_deinit(void);
 
-int app_manager_set_cod(int cod);
+int app_mgt_set_cod(int cod);
 
 int app_mgr_is_reconnect(void);
 

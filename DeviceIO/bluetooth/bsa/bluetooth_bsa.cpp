@@ -16,6 +16,7 @@
 #include "app_dm.h"
 #include "app_mgt.h"
 #include "app_utils.h"
+#include "app_disc.h"
 #include "app_manager.h"
 #include "app_avk.h"
 #include "app_av.h"
@@ -53,6 +54,9 @@ volatile bt_control_t g_bt_control = {
     false,
 };
 
+static RK_BT_STATE_CALLBACK g_bt_state_cb = NULL;
+static RK_BT_BOND_CALLBACK g_bt_bond_cb = NULL;
+
 static bool bt_is_open();
 static bool ble_is_open();
 static bool a2dp_sink_is_open();
@@ -60,8 +64,25 @@ static bool a2dp_source_is_open();
 static bool spp_is_open();
 static bool hfp_is_open();
 
-static void bt_mgr_notify_callback(tBSA_MGR_EVT evt)
+static bsa_bt_state_send(RK_BT_STATE state)
 {
+    if(g_bt_state_cb)
+        g_bt_state_cb(state);
+}
+
+static bsa_bt_bond_state_send(const char *address, const char *name, RK_BT_BOND_STATE state)
+{
+    if(g_bt_bond_cb)
+        g_bt_bond_cb(address, name, state);
+}
+
+static void bt_mgr_notify_callback(BD_ADDR bd_addr, const char *name, tBSA_MGR_EVT evt)
+{
+    char address[18];
+
+    if(app_mgr_bd2str(bd_addr, address) < 0)
+        memcpy(address, "unknown", strlen("unknown"));
+
     switch(evt) {
         case BT_LINK_UP_EVT:
             APP_DEBUG0("BT_LINK_UP_EVT\n");
@@ -73,12 +94,19 @@ static void bt_mgr_notify_callback(tBSA_MGR_EVT evt)
             break;
         case BT_WAIT_PAIR_EVT:
             APP_DEBUG0("BT_WAIT_PAIR_EVT\n");
+            bsa_bt_bond_state_send(address, name, RK_BT_BOND_STATE_BONDING);
             break;
         case BT_PAIR_SUCCESS_EVT:
             APP_DEBUG0("BT_PAIR_SUCCESS_EVT\n");
+            bsa_bt_bond_state_send(address, name, RK_BT_BOND_STATE_BONDED);
             break;
         case BT_PAIR_FAILED_EVT:
             APP_DEBUG0("BT_PAIR_FAILED_EVT\n");
+            bsa_bt_bond_state_send(address, name, RK_BT_BOND_STATE_NONE);
+            break;
+        case BT_UNPAIR_SUCCESS_EVT:
+            APP_DEBUG0("BT_UNPAIR_SUCCESS_EVT\n");
+            bsa_bt_bond_state_send(address, name, RK_BT_BOND_STATE_NONE);
             break;
     }
 }
@@ -91,9 +119,7 @@ static void bsa_get_bt_mac(char *bt_mac)
         return;
 
     app_mgr_get_bt_config(NULL, 0, (char *)bd_addr, BD_ADDR_LEN);
-    sprintf(bt_mac, "%02x:%02x:%02x:%02x:%02x:%02x",
-             bd_addr[0], bd_addr[1], bd_addr[2],
-             bd_addr[3], bd_addr[4], bd_addr[5]);
+    app_mgr_bd2str(bd_addr, bt_mac);
 }
 
 static int get_ps_pid(const char Name[])
@@ -179,10 +205,12 @@ int rk_bt_is_connected()
 
 void rk_bt_register_state_callback(RK_BT_STATE_CALLBACK cb)
 {
+    g_bt_state_cb = cb;
 }
 
 void rk_bt_register_bond_callback(RK_BT_BOND_CALLBACK cb)
 {
+    g_bt_bond_cb = cb;
 }
 
 int rk_bt_init(RkBtContent *p_bt_content)
@@ -196,6 +224,8 @@ int rk_bt_init(RkBtContent *p_bt_content)
         APP_DEBUG0("bluetooth has been opened.");
         return 0;
     }
+
+    bsa_bt_state_send(RK_BT_STATE_TURNING_ON);
 
     /* start bsa_server */
     if(bt_bsa_server_open() < 0) {
@@ -214,6 +244,7 @@ int rk_bt_init(RkBtContent *p_bt_content)
     }
 
     g_bt_control.is_bt_open = true;
+    bsa_bt_state_send(RK_BT_STATE_ON);
     return 0;
 }
 
@@ -223,6 +254,8 @@ int rk_bt_deinit()
         APP_DEBUG0("bluetooth has been closed.");
         return -1;
     }
+
+    bsa_bt_state_send(RK_BT_STATE_TURNING_OFF);
 
     rk_bt_sink_close();
     rk_ble_stop();
@@ -236,6 +269,11 @@ int rk_bt_deinit()
     /* stop bsa_server */
     bt_bsa_server_close();
 
+    bsa_bt_state_send(RK_BT_STATE_OFF);
+    g_bt_state_cb = NULL;
+    g_bt_bond_cb = NULL;
+    app_mgr_deregister_disc_cb();
+    app_mgr_deregister_dev_found_cb();
     g_bt_control.is_bt_open = false;
     return 0;
 }
@@ -247,31 +285,52 @@ int rk_bt_set_class(int value)
         return -1;
     }
 
-    return app_manager_set_cod(value);
+    return app_mgt_set_cod(value);
 }
 
 int rk_bt_enable_reconnect(int enable)
 {
-    return app_manager_set_auto_reconnect(enable);
+    return app_mgr_set_auto_reconnect(enable);
+}
+
+void rk_bt_register_discovery_callback(RK_BT_DISCOVERY_CALLBACK cb)
+{
+    app_mgr_register_disc_cb(cb);
+}
+
+void rk_bt_register_dev_found_callback(RK_BT_DEV_FOUND_CALLBACK cb)
+{
+    app_mgr_register_dev_found_cb(cb);
 }
 
 int rk_bt_start_discovery(unsigned int mseconds)
 {
-    return 0;
+    if(app_disc_complete() != APP_DISCOVERYING)
+        return app_disc_start_regular(NULL, mseconds);
+    else
+        return -1;
 }
 
 int rk_bt_cancel_discovery()
 {
-    return 0;
+    if(app_disc_complete() == APP_DISCOVERYING)
+        return app_disc_abort();
+    else
+        return -1;
 }
 
 bool rk_bt_is_discovering()
 {
-    return false;
+    int disc = app_disc_complete();
+    if(disc == APP_DISCOVERYING)
+        return true;
+    else
+        return false;
 }
 
 void rk_bt_display_devices()
 {
+    app_disc_display_devices();
 }
 
 void rk_bt_display_paired_devices()
@@ -280,17 +339,24 @@ void rk_bt_display_paired_devices()
 
 int rk_bt_pair_by_addr(char *addr)
 {
-    return 0;
+    return app_mgr_sec_bond(addr);
 }
 
 int rk_bt_unpair_by_addr(char *addr)
 {
-    return 0;
+    BD_ADDR bd_addr;
+
+    if(app_mgr_str2bd(addr, bd_addr) < 0) {
+        APP_ERROR1("unpair device(%s)failed", addr);
+        return -1;
+    }
+
+    return app_mgr_sec_unpair(bd_addr);
 }
 
 int rk_bt_set_device_name(char *name)
 {
-    return 0;
+    return app_mgt_set_device_name(name);
 }
 
 int rk_bt_get_device_name(char *name, int len)
@@ -317,12 +383,12 @@ int rk_bt_get_device_addr(char *addr, int len)
 
 int rk_bt_get_paired_devices(RkBtPraiedDevice **dev_list,int *count)
 {
-    return 0;
+    return app_mgr_get_paired_devices(dev_list, count);
 }
 
 int rk_bt_free_paired_devices(RkBtPraiedDevice *dev_list)
 {
-    return 0;
+    return app_mgr_free_paired_devices(dev_list);
 }
 
 /******************************************/

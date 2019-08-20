@@ -1669,14 +1669,16 @@ int app_mgr_config(const char *bt_name, app_mgr_callback cb)
  ** Returns          Status of the operation
  **
  *******************************************************************************/
-int app_mgt_set_cod()
+int app_mgt_set_cod(int cod)
 {
-    DEV_CLASS cod = APP_DEFAULT_CLASS_OF_DEVICE;
-    if (-1 == app_get_cod(cod))
-    {
-        APP_ERROR0("app_get_cod() failed");
+    if (cod <= 0) {
+        APP_ERROR1("invalid cod value: %d", cod);
         return -1;
     }
+
+    app_mgr_cod[2] = cod & 0x000000FF;
+    app_mgr_cod[1] = (cod & 0x0000FF00) >> 8;
+    app_mgr_cod[0] = (cod & 0x00FF0000) >> 16;
 
     tBSA_DM_SET_CONFIG bsa_dm_set_config;
     if (BSA_DmSetConfigInit(&bsa_dm_set_config) != BSA_SUCCESS)
@@ -1685,7 +1687,7 @@ int app_mgt_set_cod()
         return -1;
     }
 
-    memcpy(bsa_dm_set_config.class_of_device, cod, sizeof(DEV_CLASS));
+    memcpy(bsa_dm_set_config.class_of_device, app_mgr_cod, sizeof(DEV_CLASS));
     bsa_dm_set_config.config_mask = BSA_DM_CONFIG_DEV_CLASS_MASK;
     if (BSA_DmSetConfig(&bsa_dm_set_config) != BSA_SUCCESS)
     {
@@ -1991,21 +1993,6 @@ int app_manager_deinit()
     app_mgr_notify_cb = NULL;
 
     return app_mgt_close();
-}
-
-int app_manager_set_cod(int cod)
-{
-    if (cod <= 0) {
-        APP_ERROR1("invalid cod value: %d", cod);
-        return -1;
-    }
-
-    app_mgr_cod[2] = cod & 0x000000FF;
-    app_mgr_cod[1] = (cod & 0x0000FF00) >> 8;
-    app_mgr_cod[0] = (cod & 0x00FF0000) >> 16;
-
-    memcpy(app_xml_config.class_of_device, app_mgr_cod, sizeof(DEV_CLASS));
-    return app_mgr_set_bt_config(app_xml_config.enable);
 }
 
 int app_manager_set_auto_reconnect(int enable)
