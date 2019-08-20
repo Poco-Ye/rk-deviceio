@@ -38,7 +38,7 @@ static RK_BT_SPP_STATUS_CALLBACK g_status_callback;
 static RK_BT_SPP_RECV_CALLBACK g_recv_callback;
 static int g_spp_server_channel = 1;
 static int g_spp_server_status = RK_BT_SPP_STATE_IDLE;
-static pthread_t g_bt_spp_server_thread;
+static pthread_t g_bt_spp_server_thread = NULL;
 
 static void *init_bt_spp_server(void *arg)
 {

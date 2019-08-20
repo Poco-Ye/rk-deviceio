@@ -37,8 +37,6 @@ using DeviceIOFramework::wifi_config;
 #define BT_CONFIG_FAILED 2
 #define BT_CONFIG_OK 1
 
-#define HOSTNAME_MAX_LEN	250	/* 255 - 3 (FQDN) - 2 (DNS enc) */
-
 /*****************************************************************
  *            Rockchip bluetooth LE api                      *
  *****************************************************************/
@@ -796,22 +794,11 @@ int rk_bt_spp_write(char *data, int len)
 //====================================================//
 int rk_bt_init(RkBtContent *p_bt_content)
 {
-	char hostname_buf[HOSTNAME_MAX_LEN];
-
 	bt_state_send(RK_BT_STATE_TURNING_ON);
 	setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/var/run/dbus/system_bus_socket", 1);
 	if (rk_bt_control(BtControl::BT_OPEN, p_bt_content, sizeof(RkBtContent))) {
 		bt_state_send(RK_BT_STATE_OFF);
 		return -1;
-	}
-
-	if (p_bt_content && p_bt_content->bt_name) {
-		printf("%s: bt_name: %s\n", __func__, p_bt_content->bt_name);
-		rk_bt_set_device_name(p_bt_content->bt_name);
-	} else {
-		bt_gethostname(hostname_buf, sizeof(hostname_buf));
-		printf("%s: bt_name: %s\n", __func__, hostname_buf);
-		rk_bt_set_device_name(hostname_buf);
 	}
 
 	return 0;
@@ -839,7 +826,7 @@ int rk_bt_deinit(void)
 	bt_state_send(RK_BT_STATE_OFF);
 	bt_deregister_state_callback();
 	bt_deregister_bond_callback();
-	bt_deregister_decovery_callback();
+	bt_deregister_discovery_callback();
 	bt_deregister_dev_found_callback();
 	return 0;
 #else
@@ -860,7 +847,7 @@ void rk_bt_register_bond_callback(RK_BT_BOND_CALLBACK cb)
 
 void rk_bt_register_discovery_callback(RK_BT_DISCOVERY_CALLBACK cb)
 {
-	bt_register_decovery_callback(cb);
+	bt_register_discovery_callback(cb);
 }
 
 void rk_bt_register_dev_found_callback(RK_BT_DEV_FOUND_CALLBACK cb)

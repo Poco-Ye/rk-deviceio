@@ -12,6 +12,7 @@
 using DeviceIOFramework::BtControl;
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
+#define HOSTNAME_MAX_LEN	250	/* 255 - 3 (FQDN) - 2 (DNS enc) */
 
 enum class BtControlType {
 	BT_NONE = 0,

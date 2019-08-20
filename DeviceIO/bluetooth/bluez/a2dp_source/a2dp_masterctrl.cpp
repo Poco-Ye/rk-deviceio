@@ -26,8 +26,10 @@
 #include "agent.h"
 #include "gatt.h"
 #include "advertising.h"
+#include "../bluez_ctrl.h"
 #include "../gatt_config.h"
 #include "../include/uinput.h"
+#include "../utility/utility.h"
 
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
@@ -46,6 +48,7 @@ using DeviceIOFramework::BT_Device_Class;
 DBusConnection *dbus_conn;
 static GDBusProxy *agent_manager;
 static char *auto_register_agent = NULL;
+static RkBtContent *g_bt_content = NULL;
 
 struct adapter {
 	GDBusProxy *proxy;
@@ -211,18 +214,18 @@ void ble_deregister_state_callback()
 	g_bt_callback.ble_state_cb = NULL;
 }
 
-static void bt_decovery_state_send(RK_BT_DISCOVERY_STATE state)
+static void bt_discovery_state_send(RK_BT_DISCOVERY_STATE state)
 {
 	if(g_bt_callback.bt_decovery_cb)
 		g_bt_callback.bt_decovery_cb(state);
 }
 
-void bt_register_decovery_callback(RK_BT_DISCOVERY_CALLBACK cb)
+void bt_register_discovery_callback(RK_BT_DISCOVERY_CALLBACK cb)
 {
 	g_bt_callback.bt_decovery_cb = cb;
 }
 
-void bt_deregister_decovery_callback()
+void bt_deregister_discovery_callback()
 {
 	g_bt_callback.bt_decovery_cb = NULL;
 }
@@ -855,14 +858,27 @@ static struct adapter *adapter_new(GDBusProxy *proxy)
 static void adapter_added(GDBusProxy *proxy)
 {
 	struct adapter *adapter;
+	char hostname_buf[HOSTNAME_MAX_LEN];
 	printf("=== %s ===\n", __func__);
 	adapter = find_ctrl(ctrl_list, g_dbus_proxy_get_path(proxy));
 	if (!adapter)
 		adapter = adapter_new(proxy);
 
 	adapter->proxy = proxy;
-
 	print_adapter(proxy, COLORED_NEW);
+
+	if (g_bt_content && g_bt_content->bt_name) {
+		printf("%s: bt_name: %s\n", __func__, g_bt_content->bt_name);
+		rk_bt_set_device_name(g_bt_content->bt_name);
+	} else {
+		bt_gethostname(hostname_buf, sizeof(hostname_buf));
+		printf("%s: bt_name: %s\n", __func__, hostname_buf);
+		rk_bt_set_device_name(hostname_buf);
+	}
+
+	msleep(50);
+	bt_exec_command_system("hciconfig hci0 piscan");
+
 	bt_state_send(RK_BT_STATE_ON);
 	bt_shell_set_env(g_dbus_proxy_get_path(proxy), proxy);
 }
@@ -1589,14 +1605,14 @@ static void discovery_reply(DBusMessage *message, void *user_data)
 		printf("Failed to %s discovery: %s\n",
 				enable == TRUE ? "start" : "stop", error.name);
 		if(enable)
-			bt_decovery_state_send(RK_BT_DISC_START_FAILED);
+			bt_discovery_state_send(RK_BT_DISC_START_FAILED);
 
 		dbus_error_free(&error);
 		return;
 	}
 
 	if(enable)
-		bt_decovery_state_send(RK_BT_DISC_STARTED);
+		bt_discovery_state_send(RK_BT_DISC_STARTED);
 
 	printf("Discovery %s\n", enable ? "started" : "stopped");
 	/* Leave the discovery running even on noninteractive mode */
@@ -3011,7 +3027,10 @@ void bluetooth_open(RkBtContent *bt_content)
 	init_avrcp_ctrl();
 
 	if(bt_content) {
+		g_bt_content = bt_content;
 		gatt_init(bt_content);
+	} else {
+		g_bt_content = NULL;
 	}
 
 	g_dbus_client_set_connect_watch(btsrc_client, connect_handler, NULL);
@@ -4195,7 +4214,7 @@ static void *bt_scan_devices(void *arg)
 
 	printf("=== scan on ===\n");
 	if(cmd_scan("on") < 0) {
-		bt_decovery_state_send(RK_BT_DISC_START_FAILED);
+		bt_discovery_state_send(RK_BT_DISC_START_FAILED);
 		goto done;
 	}
 
@@ -4236,7 +4255,7 @@ int bt_start_discovery(unsigned int mseconds)
 	ret = pthread_create(&g_scan_thread, NULL, bt_scan_devices, NULL);
 	if (ret) {
 		printf("%s: scan thread create failed!\n", __func__);
-		bt_decovery_state_send(RK_BT_DISC_START_FAILED);
+		bt_discovery_state_send(RK_BT_DISC_START_FAILED);
 		return -1;
 	}
 
@@ -4260,7 +4279,7 @@ int bt_cancel_discovery(RK_BT_DISCOVERY_STATE state)
 
 	printf("=== scan off ===\n");
 	cmd_scan("off");
-	bt_decovery_state_send(state);
+	bt_discovery_state_send(state);
 	return 0;
 }
 

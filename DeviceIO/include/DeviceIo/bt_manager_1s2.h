@@ -102,10 +102,10 @@ typedef struct btmg_track_info_t {
 } btmg_track_info_t;
 
 struct paired_dev {
-	 char *remote_address;
-	 char *remote_name;
-	 bool is_connected;
-	 struct paired_dev *next;
+	char *remote_address;
+	char *remote_name;
+	bool is_connected;
+	struct paired_dev *next;
 };
 typedef struct paired_dev bt_paried_device;
 

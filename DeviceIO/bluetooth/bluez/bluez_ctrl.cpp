@@ -66,7 +66,6 @@ static char sock_path[] = "/data/bsa/config/socket_dueros";
 
 static int bt_close_a2dp_server();
 static int bt_ble_open(void);
-#define HOSTNAME_MAX_LEN	250	/* 255 - 3 (FQDN) - 2 (DNS enc) */
 
 int bt_gethostname(char *hostname_buf, const size_t size)
 {
@@ -126,8 +125,8 @@ static int _bt_open_server(const char *bt_name)
 
 	RK_LOGD("[BT_OPEN] _bt_open_server \n");
 
-	bt_exec_command_system("echo 0 > /sys/class/rfkill/rfkill0/state && sleep 1");
-	bt_exec_command_system("echo 1 > /sys/class/rfkill/rfkill0/state && usleep 200000");
+	bt_exec_command_system("echo 0 > /sys/class/rfkill/rfkill0/state && usleep 10000");
+	bt_exec_command_system("echo 1 > /sys/class/rfkill/rfkill0/state && usleep 10000");
 
 	/* check bt vendor (exteran/rkwifibt) */
 	if (access("/usr/bin/bt_init.sh", F_OK)) {
@@ -141,7 +140,7 @@ static int _bt_open_server(const char *bt_name)
 	/* realtek init */
 	bt_exec_command("cat /usr/bin/bt_init.sh | grep rtk_hciattach", bt_buff, 1024);
 	if (bt_buff[0]) {
-		bt_exec_command_system("insmod /usr/lib/modules/hci_uart.ko && usleep 300000");
+		bt_exec_command_system("insmod /usr/lib/modules/hci_uart.ko && usleep 50000");
 		bt_exec_command("lsmod", ret_buff, 1024);
 		if (!strstr(ret_buff, "hci_uart")) {
 			RK_LOGE("open bt server: insmod hci_uart.ko failed!\n");
@@ -152,7 +151,6 @@ static int _bt_open_server(const char *bt_name)
 		bt_exec_command_system(bt_buff);
 
 		sleep(1);
-
 		if (!bt_get_ps_pid("rtk_hciattach")) {
 			RK_LOGE("open bt server error: rtk_hciattach failed!\n");
 			return -1;
@@ -164,7 +162,7 @@ static int _bt_open_server(const char *bt_name)
 	if (bt_buff[0]) {
 		RK_LOGE("bt_buff: %s \n", bt_buff);
 		bt_exec_command_system(bt_buff);
-		sleep(2);
+		sleep(1);
 		bt_exec_command("pidof brcm_patchram_plus1", ret_buff, 1024);
 		if (!ret_buff[0]) {
 			RK_LOGE("open bt server failed! error: brcm_patchram_plus1 failed!\n");
@@ -173,38 +171,32 @@ static int _bt_open_server(const char *bt_name)
 	}
 
 	bt_exec_command_system("hciconfig hci0 up");
+	msleep(10);
 
 	/* run bluetoothd */
 	if (bt_run_task("bluetoothd", "/usr/libexec/bluetooth/bluetoothd -C -n -d -E &")) {
 		RK_LOGE("open bt server failed! error: bluetoothd failed!\n");
 		return -1;
 	}
+	msleep(100);
 
 	bt_exec_command_system("hciconfig hci0 up");
 	msleep(10);
 
 	//set Bluetooth NoInputNoOutput mode
 	bt_exec_command_system("bluetoothctl -a NoInputNoOutput &");
-	sleep(1);
-
-	bt_exec_command_system("hciconfig hci0 piscan");
 	msleep(10);
-
-	bt_exec_command_system("hciconfig hci0 down");
-	msleep(10);
-	bt_exec_command_system("hciconfig hci0 up");
-	bt_exec_command_system("hciconfig hci0 up");
-	msleep(500);
 
 	bt_exec_command("hciconfig hci0 pageparms 18:1024", ret_buff, 1024);
-	msleep(200);
+	msleep(50);
 	bt_exec_command("hciconfig hci0 inqparms 18:2048", ret_buff, 1024);
-	msleep(200);
+	msleep(50);
 	bt_exec_command("hcitool cmd 0x03 0x47 0x01", ret_buff, 1024);
-	msleep(200);
+	msleep(50);
 	bt_exec_command("hcitool cmd 0x03 0x43 0x01", ret_buff, 1024);
-	msleep(200);
+	msleep(50);
 
+	RK_LOGE("_bt_open_server end\n");
 	return 0;
 }
 
