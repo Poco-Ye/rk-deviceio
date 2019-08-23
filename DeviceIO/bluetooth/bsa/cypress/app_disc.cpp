@@ -17,6 +17,7 @@
 #include "app_services.h"
 #include "app_utils.h"
 #include "app_xml_utils.h"
+#include "DeviceIo/RkBtBase.h"
 
 #define HCI_EIR_DEVICE_ID_TYPE  0x10    /* Device Id EIR Tag (not yet official) */
 
@@ -90,7 +91,8 @@ static tAPP_DISC_BT_COMPANY_ID_DESC bt_company_id[]=
 };
 #undef X
 
-
+extern void app_mgr_disc_state_send(RK_BT_DISCOVERY_STATE state);
+extern void app_mgr_dev_found_send(BD_ADDR bd_addr, char *name, DEV_CLASS class_of_device, int rssi);
 static UINT8 app_get_dev_platform(UINT16 vendor, UINT16 vendor_id_source);
 
 /*******************************************************************************
@@ -106,10 +108,8 @@ void app_disc_display_devices(void)
 {
     int index;
 
-    for (index = 0; index < APP_DISC_NB_DEVICES; index++)
-    {
-        if (app_discovery_cb.devs[index].in_use != FALSE)
-        {
+    for (index = 0; index < APP_DISC_NB_DEVICES; index++) {
+        if (app_discovery_cb.devs[index].in_use != FALSE) {
             APP_INFO1("Dev:%d", index);
             APP_INFO1("\tBdaddr:%02x:%02x:%02x:%02x:%02x:%02x",
                     app_discovery_cb.devs[index].device.bd_addr[0],
@@ -126,8 +126,7 @@ void app_disc_display_devices(void)
                     app_get_cod_string(
                             app_discovery_cb.devs[index].device.class_of_device));
             APP_INFO1("\tRssi:%d", app_discovery_cb.devs[index].device.rssi);
-            if (app_discovery_cb.devs[index].device.eir_vid_pid[0].valid)
-            {
+            if (app_discovery_cb.devs[index].device.eir_vid_pid[0].valid) {
                 APP_INFO1("\tVidSrc:%d Vid:0x%04X Pid:0x%04X Version:0x%04X",
                         app_discovery_cb.devs[index].device.eir_vid_pid[0].vendor_id_source,
                         app_discovery_cb.devs[index].device.eir_vid_pid[0].vendor,
@@ -838,12 +837,20 @@ void app_generic_disc_cback(tBSA_DISC_EVT event, tBSA_DISC_MSG *p_data)
                     app_discovery_cb.devs[index].device.class_of_device);
             APP_INFO1("playrole: %s", app_discovery_cb.devs[index].device.playrole);
         }
+
+        app_mgr_dev_found_send(p_data->disc_new.bd_addr,
+                            p_data->disc_new.name,
+                            p_data->disc_new.class_of_device,
+                            p_data->disc_new.rssi);
         break;
 
     case BSA_DISC_CMPL_EVT: /* Discovery complete. */
-        APP_INFO0("Discovery complete");
-        app_discovery_complete = APP_DISCOVERY_COMPLETE;
         app_disc_cb.p_disc_cback = NULL;
+        if(app_discovery_complete == APP_DISCOVERYING) {
+            app_discovery_complete = APP_DISCOVERY_COMPLETE;
+            app_mgr_disc_state_send(RK_BT_DISC_STOPPED_AUTO);
+        }
+        APP_INFO0("Discovery complete");
         break;
 
     case BSA_DISC_DEV_INFO_EVT: /* Discovery Device Info */
@@ -940,12 +947,13 @@ int app_disc_start_regular(tBSA_DISC_CBACK *p_custom_disc_cback, int duration)
     memset(app_discovery_cb.devs, 0, sizeof(app_discovery_cb.devs));
 
     status = BSA_DiscStart(&disc_start_param);
-    if (status != BSA_SUCCESS)
-    {
+    if (status != BSA_SUCCESS) {
         APP_ERROR1("BSA_DiscStart failed status:%d", status);
+        app_mgr_disc_state_send(RK_BT_DISC_START_FAILED);
         return -1;
     }
 
+    app_mgr_disc_state_send(RK_BT_DISC_STARTED);
     return 0;
 }
 
@@ -965,8 +973,6 @@ int app_disc_start_ble_regular(tBSA_DISC_CBACK *p_custom_disc_cback)
     tBSA_DISC_START disc_start_param;
 
     APP_INFO0("Start Regular BLE Discovery");
-    
-    app_discovery_complete = APP_DISCOVERYING;
 
     BSA_DiscStartInit(&disc_start_param);
 
@@ -1006,8 +1012,6 @@ int app_disc_start_ble_skip_name(tBSA_DISC_CBACK *p_custom_disc_cback)
     tBSA_DISC_START disc_start_param;
 
     APP_INFO0("Start BLE Discovery, Skip Name request");
-    
-    app_discovery_complete = APP_DISCOVERYING;
 
     BSA_DiscStartInit(&disc_start_param);
 
@@ -1047,8 +1051,6 @@ int app_disc_start_services(tBSA_SERVICE_MASK services)
     int status;
     tBSA_DISC_START disc_start_param;
 
-    app_discovery_complete = APP_DISCOVERYING;
-    
     BSA_DiscStartInit(&disc_start_param);
 
     disc_start_param.cback = app_generic_disc_cback;
@@ -1093,8 +1095,6 @@ int app_disc_start_cod(unsigned short services, unsigned char major, unsigned ch
     APP_INFO0("Start COD filtered Discovery");
     APP_INFO1("Look for COD service:%x major:%x minor:%x", services, major, minor);
 
-    app_discovery_complete = APP_DISCOVERYING;
-    
     BSA_DiscStartInit(&disc_start_param);
 
     disc_start_param.cback = app_generic_disc_cback;
@@ -1171,6 +1171,10 @@ int app_disc_abort(void)
         APP_ERROR1("BSA_DiscAbort failed status:%d", status);
         return -1;
     }
+
+    app_discovery_complete = APP_DISCOVERY_COMPLETE;
+    app_mgr_disc_state_send(RK_BT_DISC_STOPPED_BY_USER);
+
     return 0;
 }
 
@@ -1195,8 +1199,6 @@ int app_disc_start_dev_info(BD_ADDR bd_addr, tBSA_DISC_CBACK *p_custom_disc_cbac
 
     app_disc_cb.p_disc_cback = p_custom_disc_cback;
 
-    app_discovery_complete = APP_DISCOVERYING;
-    
     BSA_DiscStartInit(&disc_start_param);
 
     disc_start_param.cback = app_generic_disc_cback;
@@ -1245,8 +1247,6 @@ int app_disc_start_brcm_filter_cod(tBSA_DISC_BRCM_FILTER brcm_filter,
     /* Save the provided callback */
     app_disc_cb.p_disc_cback = p_disc_cback;
 
-    app_discovery_complete = APP_DISCOVERYING;
-    
     BSA_DiscStartInit(&disc_start_param);
 
     disc_start_param.cback = app_generic_disc_cback;
@@ -1322,8 +1322,6 @@ int app_disc_start_bdaddr(BD_ADDR bd_addr, BOOLEAN name_req,
     /* Save the provided callback */
     app_disc_cb.p_disc_cback = p_disc_cback;
 
-    app_discovery_complete = APP_DISCOVERYING;
-
     /* now, let's prepare the Discovery parameters */
     BSA_DiscStartInit(&disc_start_param);
 
@@ -1374,8 +1372,6 @@ int app_disc_start_bdaddr_services(BD_ADDR bd_addr,
     /* Save the provided callback */
     app_disc_cb.p_disc_cback = p_disc_cback;
 
-    app_discovery_complete = APP_DISCOVERYING;
-
     /* now, let's prepare the Discovery parameters */
     BSA_DiscStartInit(&disc_start_param);
 
@@ -1420,8 +1416,6 @@ int app_disc_start_update(tBSA_DISC_UPDATE update)
 
     APP_INFO0("Start Update mode specific Discovery");
 
-    app_discovery_complete = APP_DISCOVERYING;
-
     BSA_DiscStartInit(&disc_start_param);
 
     disc_start_param.cback = app_generic_disc_cback;
@@ -1456,8 +1450,6 @@ int app_disc_start_limited(void)
     tBSA_DISC_START disc_start_param;
 
     APP_INFO0("Start Limited Discovery");
-    
-    app_discovery_complete = APP_DISCOVERYING;
 
     BSA_DiscStartInit(&disc_start_param);
 
@@ -1493,8 +1485,6 @@ int app_disc_start_power(INT8 inq_tx_power)
     tBSA_DISC_START disc_start_param;
 
     APP_INFO0("Start Inquiry power specific Discovery");
-
-    app_discovery_complete = APP_DISCOVERYING;
 
     BSA_DiscStartInit(&disc_start_param);
 
@@ -1598,8 +1588,6 @@ static UINT8 app_get_dev_platform(UINT16 vendor, UINT16 vendor_id_source)
 {
     tBSA_STATUS status;
     tBSA_DISC_READ_REMOTE_NAME disc_read_remote_name_param;
-
-    app_discovery_complete = APP_DISCOVERYING;
 
     BSA_ReadRemoteNameInit(&disc_read_remote_name_param);
     disc_read_remote_name_param.cback = app_generic_disc_cback;

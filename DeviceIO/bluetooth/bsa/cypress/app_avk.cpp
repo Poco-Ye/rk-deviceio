@@ -107,9 +107,18 @@ enum APP_AVK_PLAYSTATE {
     STOPPED
 };
 
+typedef struct {
+    RK_BT_SINK_VOLUME_CALLBACK sink_volume_cb;
+    RK_BT_SINK_CALLBACK sink_state_cb;
+    RK_BT_AVRCP_TRACK_CHANGE_CB sink_track_cb;
+    RK_BT_AVRCP_PLAY_POSITION_CB sink_position_cb;
+} tAPP_AVK_CALLBACK;
+
 static enum APP_AVK_PLAYSTATE play_state[APP_AVK_MAX_CONNECTIONS];
 static pthread_mutex_t ps_mutex = PTHREAD_MUTEX_INITIALIZER;
 static tAVRC_PLAYSTATE play_status[APP_AVK_MAX_CONNECTIONS];
+static int app_avk_duration = 0;
+static BOOLEAN app_avk_get_track = FALSE;
 
 /*
  * Local functions
@@ -118,65 +127,82 @@ static void app_avk_close_wave_file(tAPP_AVK_CONNECTION *connection);
 static void app_avk_create_wave_file(void);
 static void app_avk_uipc_cback(BT_HDR *p_msg);
 
-static RK_BT_SINK_VOLUME_CALLBACK app_avk_volume_cb = NULL;
-static RK_BT_SINK_CALLBACK app_avk_notify_cb = NULL;
+static tAPP_AVK_CALLBACK app_avk_cb_control = {
+	NULL, NULL, NULL, NULL,
+};
 
-static void app_avk_volume_notify(int volume) {
-    if(app_avk_volume_cb)
-        app_avk_volume_cb(volume);
+static void app_avk_send_state(RK_BT_SINK_STATE state) {
+    if(app_avk_cb_control.sink_state_cb)
+        app_avk_cb_control.sink_state_cb(state);
 }
 
-static void app_avk_notify_status(RK_BT_SINK_STATE state) {
-    if(app_avk_notify_cb)
-        app_avk_notify_cb(state);
+static void app_avk_send_volume(int volume) {
+    if(app_avk_cb_control.sink_volume_cb)
+        app_avk_cb_control.sink_volume_cb(volume);
 }
 
-/*******************************************************************************
-**
-** Function         app_avk_register_volume_cb
-**
-** Description      Register AVK volume notify
-**
-** Parameters       Notify callback
-**
-** Returns          void
-**
-*******************************************************************************/
-void app_avk_register_volume_cb(RK_BT_SINK_VOLUME_CALLBACK cb)
+static void app_avk_send_position(BD_ADDR bd_addr, int song_len, int song_pos)
 {
-	app_avk_volume_cb = cb;
+    char address[18];
+
+    if(app_avk_cb_control.sink_position_cb) {
+        if(app_mgr_bd2str(bd_addr, address, 18) < 0)
+            memcpy(address, "unknown", strlen("unknown"));
+
+        app_avk_cb_control.sink_position_cb(address, song_len, song_pos);
+    }
 }
 
-/*******************************************************************************
-**
-** Function         app_avk_register_cb
-**
-** Description      Register AVK status notify
-**
-** Parameters       Notify callback
-**
-** Returns          void
-**
-*******************************************************************************/
+static void app_avk_track_info_send(BD_ADDR bd_addr, tBSA_AVK_GET_ELEMENT_ATTR_MSG elem_attr)
+{
+    BtTrackInfo track;
+    char address[18];
+
+    if(app_mgr_bd2str(bd_addr, address, 18) < 0)
+        memcpy(address, "unknown", strlen("unknown"));
+
+    memset(&track, 0, sizeof(BtTrackInfo));
+    memcpy(track.title, elem_attr.attr_entry[0].name.data, strlen(elem_attr.attr_entry[0].name.data));
+    memcpy(track.artist, elem_attr.attr_entry[1].name.data, strlen(elem_attr.attr_entry[1].name.data));
+    memcpy(track.album, elem_attr.attr_entry[2].name.data, strlen(elem_attr.attr_entry[2].name.data));
+    memcpy(track.track_num, elem_attr.attr_entry[3].name.data, strlen(elem_attr.attr_entry[3].name.data));
+    memcpy(track.num_tracks, elem_attr.attr_entry[4].name.data, strlen(elem_attr.attr_entry[4].name.data));
+    memcpy(track.genre, elem_attr.attr_entry[5].name.data, strlen(elem_attr.attr_entry[5].name.data));
+    memcpy(track.playing_time, elem_attr.attr_entry[6].name.data, strlen(elem_attr.attr_entry[6].name.data));
+
+    if(app_avk_cb_control.sink_track_cb)
+        app_avk_cb_control.sink_track_cb(address, track);
+
+    app_avk_duration = atoi(track.playing_time);
+    app_avk_get_track = FALSE;
+}
+
 void app_avk_register_cb(RK_BT_SINK_CALLBACK cb)
 {
-	app_avk_notify_cb = cb;
+	app_avk_cb_control.sink_state_cb = cb;
 }
 
-/*******************************************************************************
-**
-** Function         app_avk_register_cb
-**
-** Description      DeRegister AVK status notify
-**
-** Parameters       Notify callback
-**
-** Returns          void
-**
-*******************************************************************************/
+void app_avk_register_volume_cb(RK_BT_SINK_VOLUME_CALLBACK cb)
+{
+	app_avk_cb_control.sink_volume_cb = cb;
+}
+
+void app_avk_register_track_cb(RK_BT_AVRCP_TRACK_CHANGE_CB cb)
+{
+	app_avk_cb_control.sink_track_cb = cb;
+}
+
+void app_avk_register_position_cb(RK_BT_AVRCP_PLAY_POSITION_CB cb)
+{
+	app_avk_cb_control.sink_position_cb = cb;
+}
+
 void app_avk_deregister_cb()
 {
-    app_avk_notify_cb = NULL;
+    app_avk_cb_control.sink_state_cb = NULL;
+    app_avk_cb_control.sink_volume_cb = NULL;
+    app_avk_cb_control.sink_track_cb = NULL;
+    app_avk_cb_control.sink_position_cb = NULL;
 }
 
 /*******************************************************************************
@@ -479,13 +505,11 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
     switch (event)
     {
     case BSA_AVK_REGISTER_EVT:
-        if(p_data->reg_evt.status == BSA_SUCCESS && app_avk_cb.uipc_audio_channel == UIPC_CH_ID_BAD)
-        {
+        if(p_data->reg_evt.status == BSA_SUCCESS && app_avk_cb.uipc_audio_channel == UIPC_CH_ID_BAD) {
             /* Save UIPC channel */
             app_avk_cb.uipc_audio_channel = p_data->reg_evt.uipc_channel;
             /* open the UIPC channel to receive the pcm */
-            if (UIPC_Open(p_data->reg_evt.uipc_channel, app_avk_uipc_cback) == FALSE)
-            {
+            if (UIPC_Open(p_data->reg_evt.uipc_channel, app_avk_uipc_cback) == FALSE) {
                 APP_ERROR0("Unable to open UIPC channel");
                 break;
             }
@@ -495,15 +519,20 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
     case BSA_AVK_OPEN_EVT:
         APP_DEBUG1("BSA_AVK_OPEN_EVT status 0x%x", p_data->sig_chnl_open.status);
 
-        if (p_data->sig_chnl_open.status == BSA_SUCCESS)
-        {
+        if (p_data->sig_chnl_open.status == BSA_SUCCESS) {
             connection = app_avk_add_connection(p_data->sig_chnl_open.bd_addr);
 
-            if(connection == NULL)
-            {
+            if(connection == NULL) {
                 APP_DEBUG0("BSA_AVK_OPEN_EVT cannot allocate connection cb");
                 break;
             }
+
+            /* Read the Remote device xml file to have a fresh view */
+            app_mgr_read_remote_devices();
+            app_xml_update_connected_state_db(app_xml_remote_devices_db,
+                                   APP_NUM_ELEMENTS(app_xml_remote_devices_db),
+                                   p_data->sig_chnl_open.bd_addr, TRUE);
+            app_mgr_write_remote_devices();
 
             connection->ccb_handle = p_data->sig_chnl_open.ccb_handle;
             connection->is_open = TRUE;
@@ -511,7 +540,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
 
             /* Set disvisisble and disconnectable */
             //app_dm_set_visibility(FALSE, FALSE);
-            app_avk_notify_status(RK_BT_SINK_STATE_CONNECT);
+            app_avk_send_state(RK_BT_SINK_STATE_CONNECT);
         }
 
         app_avk_cb.open_pending = FALSE;
@@ -528,11 +557,10 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
 
         /* Set visisble and connectable */
         //app_dm_set_visibility(TRUE, TRUE);
-        app_avk_notify_status(RK_BT_SINK_STATE_DISCONNECT);
+        app_avk_send_state(RK_BT_SINK_STATE_DISCONNECT);
 
         connection = app_avk_find_connection_by_bd_addr(p_data->sig_chnl_close.bd_addr);
-        if(connection == NULL)
-        {
+        if(connection == NULL) {
             APP_DEBUG1("BSA_AVK_CLOSE_EVT unknown handle %d", p_data->sig_chnl_close.ccb_handle);
             break;
         }
@@ -542,17 +570,15 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
         connection->is_open = FALSE;
         app_avk_cb.open_pending = FALSE;
         memset(app_avk_cb.open_pending_bda, 0, sizeof(BD_ADDR));
-        if (connection->is_started_streaming == TRUE)
-        {
+        if (connection->is_started_streaming == TRUE) {
             connection->is_started_streaming = FALSE;
 
-            if (connection->format == BSA_AVK_CODEC_M24)
-            {
+            if (connection->format == BSA_AVK_CODEC_M24) {
                 close(app_avk_cb.fd);
                 app_avk_cb.fd  = -1;
-            }
-            else
+            } else {
                 app_avk_close_wave_file(connection);
+            }
         }
 
         if(app_avk_cb.alsa_handle != NULL) {
@@ -574,9 +600,8 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
 
         connection = app_avk_find_connection_by_av_handle(p_data->stream_chnl_open.ccb_handle);
         if(connection == NULL)
-        {
             break;
-        }
+
         connection->is_streaming_chl_open = TRUE;
         connection->cur_psc_mask = p_data->stream_chnl_open.cur_psc_mask;
         connection->avdt_version = p_data->stream_chnl_open.avdt_version;
@@ -589,9 +614,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
         APP_DEBUG1("BSA_AVK_STR_CLOSE_EVT streaming chn closed handle: %d ", p_data->stream_chnl_close.ccb_handle);
         connection = app_avk_find_connection_by_bd_addr(p_data->stream_chnl_close.bd_addr);
         if(connection == NULL)
-        {
             break;
-        }
 
         connection->is_streaming_chl_open = FALSE;
         break;
@@ -608,28 +631,20 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
 
         /* We got START_EVT for a new device that is streaming but server discards the data
             because another stream is already active */
-        if(p_data->start_streaming.discarded)
-        {
+        if(p_data->start_streaming.discarded) {
             connection = app_avk_find_connection_by_bd_addr(p_data->start_streaming.bd_addr);
-            if(connection)
-            {
+            if(connection) {
                 connection->is_started_streaming = TRUE;
                 connection->is_streaming_chl_open = TRUE;
             }
 
             break;
-        }
-        /* got Start event and device is streaming */
-        else
-        {
+        } else {    /* got Start event and device is streaming */
             app_avk_cb.pStreamingConn = NULL;
 
             connection = app_avk_find_connection_by_bd_addr(p_data->start_streaming.bd_addr);
-
             if(connection == NULL)
-            {
                 break;
-            }
 
             connection->is_started_streaming = TRUE;
             connection->is_streaming_chl_open = TRUE;
@@ -643,46 +658,33 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
         APP_DEBUG1("BSA_AVK_STOP_EVT handle: %d  Suspended: %d", p_data->stop_streaming.ccb_handle, p_data->stop_streaming.suspended);
 
         /* Stream was suspended */
-        if(p_data->stop_streaming.suspended)
-        {
+        if(p_data->stop_streaming.suspended) {
             connection = app_avk_find_connection_by_bd_addr(p_data->stop_streaming.bd_addr);
             if(connection == NULL)
-            {
                 break;
-            }
 
             connection->is_started_streaming = FALSE;
-        }
-        /* stream was closed */
-        else
-        {
+        } else {    /* stream was closed */
             connection = app_avk_find_connection_by_av_handle(p_data->stop_streaming.ccb_handle);
             if(connection == NULL)
-            {
                 break;
-            }
 
             connection->is_started_streaming = FALSE;
 
-            if (connection->format == BSA_AVK_CODEC_M24)
-            {
+            if (connection->format == BSA_AVK_CODEC_M24) {
                 close(app_avk_cb.fd);
                 app_avk_cb.fd  = -1;
-            }
-            else
+            } else {
                 app_avk_close_wave_file(connection);
-
+            }
         }
 
         break;
 
     case BSA_AVK_RC_OPEN_EVT:
-
-        if(p_data->rc_open.status == BSA_SUCCESS)
-        {
+        if(p_data->rc_open.status == BSA_SUCCESS) {
             connection = app_avk_add_connection(p_data->rc_open.bd_addr);
-            if(connection == NULL)
-            {
+            if(connection == NULL) {
                 APP_DEBUG0("BSA_AVK_RC_OPEN_EVT could not allocate connection");
                 break;
             }
@@ -698,8 +700,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
 
     case BSA_AVK_RC_PEER_OPEN_EVT:
         connection = app_avk_find_connection_by_rc_handle(p_data->rc_open.rc_handle);
-        if(connection == NULL)
-        {
+        if(connection == NULL) {
             APP_DEBUG1("BSA_AVK_RC_PEER_OPEN_EVT could not find connection handle %d", p_data->rc_open.rc_handle);
             break;
         }
@@ -716,9 +717,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
         APP_DEBUG0("BSA_AVK_RC_CLOSE_EVT");
         connection = app_avk_find_connection_by_rc_handle(p_data->rc_close.rc_handle);
         if(connection == NULL)
-        {
             break;
-        }
 
         connection->is_rc_open = FALSE;
         break;
@@ -782,10 +781,8 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
 
     case BSA_AVK_CP_INFO_EVT:
         APP_DEBUG0("BSA_AVK_CP_INFO_EVT");
-        if(p_data->cp_info.id == BSA_AVK_CP_SCMS_T_ID)
-        {
-            switch(p_data->cp_info.info.scmst_flag)
-            {
+        if(p_data->cp_info.id == BSA_AVK_CP_SCMS_T_ID) {
+            switch(p_data->cp_info.info.scmst_flag) {
                 case BSA_AVK_CP_SCMS_COPY_NEVER:
                     APP_INFO1(" content protection:0x%x - COPY NEVER", p_data->cp_info.info.scmst_flag);
                     break;
@@ -800,81 +797,95 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
                     APP_ERROR1(" content protection:0x%x - UNKNOWN VALUE", p_data->cp_info.info.scmst_flag);
                     break;
             }
-        }
-        else
-        {
+        } else {
             APP_INFO0("No content protection");
         }
         break;
 
     case BSA_AVK_REGISTER_NOTIFICATION_EVT:
-/*
+#if 0
         APP_DEBUG1("BSA_AVK_REGISTER_NOTIFICATION_EVT handle:%d", p_data->reg_notif_rsp.handle);
         APP_DEBUG1("event_id:0x%x, opcode:0x%x, pdu:0x%x\n",
                 p_data->reg_notif_rsp.rsp.event_id,
                 p_data->reg_notif_rsp.rsp.opcode,
                 p_data->reg_notif_rsp.rsp.pdu);
-*/
-        if (p_data->reg_notif_rsp.rsp.event_id == AVRC_EVT_VOLUME_CHANGE)
-        {
-            APP_INFO1("Volume changed :0x%x", p_data->reg_notif_rsp.rsp.param.volume);
+#endif
+        int index;
+        connection = app_avk_find_connection_by_rc_handle(p_data->reg_notif_rsp.handle);
+        for (index = 0; index < APP_AVK_MAX_CONNECTIONS; index++) {
+            if (app_avk_cb.connections[index].rc_handle == p_data->reg_notif_rsp.handle)
+                break;
         }
 
-        if (p_data->reg_notif_rsp.rsp.event_id == AVRC_EVT_PLAY_STATUS_CHANGE)
-        {
-            BOOLEAN do_it = FALSE;
-            int index;
-            for (index = 0; index < APP_AVK_MAX_CONNECTIONS; index++) {
-                if (app_avk_cb.connections[index].rc_handle == p_data->reg_notif_rsp.handle)
-                    break;
-            }
+        if (index == APP_AVK_MAX_CONNECTIONS) {
+            APP_INFO0("BSA_AVK_REGISTER_NOTIFICATION_EVT handle can not find connection.");
+            break;
+        }
 
-            if (index == APP_AVK_MAX_CONNECTIONS) {
-                APP_INFO0("BSA_AVK_REGISTER_NOTIFICATION_EVT handle can not find connection.");
-                break;
+        switch(p_data->reg_notif_rsp.rsp.event_id) {
+        case AVRC_EVT_TRACK_CHANGE:
+            APP_DEBUG0("AVRC_EVT_TRACK_CHANGE");
+            app_avk_get_track = TRUE;
+            app_avk_rc_get_element_attr_command(connection->rc_handle);
+            break;
+
+        case AVRC_EVT_PLAY_POS_CHANGED:
+            if(!app_avk_get_track) {
+                APP_DEBUG1("position: %u", p_data->reg_notif_rsp.rsp.param.play_pos);
+                app_avk_send_position(connection->bda_connected, app_avk_duration,
+                                        p_data->reg_notif_rsp.rsp.param.play_pos);
             }
+            break;
+
+        case AVRC_EVT_VOLUME_CHANGE:
+            APP_INFO1("Volume changed :0x%x", p_data->reg_notif_rsp.rsp.param.volume);
+            break;
+
+        case AVRC_EVT_PLAY_STATUS_CHANGE:
+            BOOLEAN do_it = FALSE;
 
             play_status[index] = p_data->reg_notif_rsp.rsp.param.play_status;
-            
             switch(p_data->reg_notif_rsp.rsp.param.play_status) {
-                case AVRC_PLAYSTATE_PLAYING:
-                    APP_INFO1("Play Status Playing, index: %d", index);
-                    pthread_mutex_lock(&ps_mutex);
-                    if (play_state[index] != PLAYED) {
-                        do_it = TRUE;
-                        play_state[index] = PLAYED;
-                    }
-                    pthread_mutex_unlock(&ps_mutex);
-                    if (do_it)
-                        app_avk_notify_status(RK_BT_SINK_STATE_PLAY);
-                    break;
+            case AVRC_PLAYSTATE_PLAYING:
+                APP_INFO1("Play Status Playing, index: %d", index);
+                pthread_mutex_lock(&ps_mutex);
+                if (play_state[index] != PLAYED) {
+                    do_it = TRUE;
+                    play_state[index] = PLAYED;
+                }
+                pthread_mutex_unlock(&ps_mutex);
+                if (do_it)
+                    app_avk_send_state(RK_BT_SINK_STATE_PLAY);
+                break;
 
-                case AVRC_PLAYSTATE_PAUSED:
-                case AVRC_PLAYSTATE_STOPPED:
-                    enum APP_AVK_PLAYSTATE previous_state;
-                    APP_INFO1("Play Status %s, index: %d",
-                              p_data->reg_notif_rsp.rsp.param.play_status ==
-                                AVRC_PLAYSTATE_PAUSED ? "Paused" : "Stopped",
-                              index);
-                    pthread_mutex_lock(&ps_mutex);
-                    if (play_state[index] != STOPPED) {
-                        do_it = TRUE;
-                        previous_state = play_state[index];
-                        play_state[index] = STOPPED;
-                    }
-                    pthread_mutex_unlock(&ps_mutex);
-                    if (do_it) {
-                        if(previous_state == SEND_STOP)
-                            app_avk_notify_status(RK_BT_SINK_STATE_STOP);
-                        else
-                            app_avk_notify_status(RK_BT_SINK_STATE_PAUSE);
-                    }
-                    break;
-                default:
-                     APP_INFO1("Play Status Playing : %02x",
-                         p_data->reg_notif_rsp.rsp.param.play_status);
-                     break;
+            case AVRC_PLAYSTATE_PAUSED:
+            case AVRC_PLAYSTATE_STOPPED:
+                enum APP_AVK_PLAYSTATE previous_state;
+                APP_INFO1("Play Status %s, index: %d",
+                          p_data->reg_notif_rsp.rsp.param.play_status ==
+                            AVRC_PLAYSTATE_PAUSED ? "Paused" : "Stopped",
+                          index);
+                pthread_mutex_lock(&ps_mutex);
+                if (play_state[index] != STOPPED) {
+                    do_it = TRUE;
+                    previous_state = play_state[index];
+                    play_state[index] = STOPPED;
+                }
+                pthread_mutex_unlock(&ps_mutex);
+                if (do_it) {
+                    if(previous_state == SEND_STOP)
+                        app_avk_send_state(RK_BT_SINK_STATE_STOP);
+                    else
+                        app_avk_send_state(RK_BT_SINK_STATE_PAUSE);
+                }
+                break;
+
+            default:
+                 APP_INFO1("Play Status Playing : %02x",
+                     p_data->reg_notif_rsp.rsp.param.play_status);
+                 break;
             }
+            break;
         }
         break;
 
@@ -884,8 +895,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
         APP_INFO1("pdu:0x%x, status:0x%x, opcode:0x%x, num_attr:%d",
                 p_data->list_app_attr.rsp.pdu, p_data->list_app_attr.rsp.status,
                 p_data->list_app_attr.rsp.opcode, p_data->list_app_attr.rsp.num_attr);
-        for(i = 0 ; i < p_data->list_app_attr.rsp.num_attr ; i++)
-        {
+        for(i = 0 ; i < p_data->list_app_attr.rsp.num_attr ; i++) {
             APP_INFO1("attr:0x%x", p_data->list_app_attr.rsp.attrs[i]);
         }
         break;
@@ -896,8 +906,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
         APP_INFO1("pdu:0x%x, status:0x%x, opcode:0x%x, num_attr:%d",
                 p_data->list_app_values.rsp.pdu, p_data->list_app_values.rsp.status,
                 p_data->list_app_values.rsp.opcode, p_data->list_app_values.rsp.num_val);
-        for(i = 0 ; i < p_data->list_app_values.rsp.num_val ; i++)
-        {
+        for(i = 0 ; i < p_data->list_app_values.rsp.num_val ; i++) {
             APP_INFO1("attr:0x%x", p_data->list_app_values.rsp.vals[i]);
         }
         break;
@@ -916,14 +925,19 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
                 p_data->elem_attr.status,
                 p_data->elem_attr.num_attr,
                 p_data->elem_attr.handle);
-        if(p_data->elem_attr.num_attr <= BSA_AVK_ELEMENT_ATTR_MAX)
-        {
-            for(i = 0 ; i < p_data->elem_attr.num_attr ; i++)
-            {
-                APP_INFO1("attr_id:0x%x", p_data->elem_attr.attr_entry[i].attr_id);
+        if(p_data->elem_attr.num_attr <= BSA_AVK_ELEMENT_ATTR_MAX) {
+            //0:title, 1:artist, 2:album, 3:track_num, 4:num_tracks, 5:genre, 6:playing_time
+            for(i = 0; i < p_data->elem_attr.num_attr ; i++) {
+                //APP_INFO1("attr_id:0x%x", p_data->elem_attr.attr_entry[i].attr_id);
                 APP_INFO1("name:%s", p_data->elem_attr.attr_entry[i].name.data);
             }
         }
+
+        connection = app_avk_find_connection_by_rc_handle(p_data->elem_attr.handle);
+        if (connection == NULL)
+            break;
+
+        app_avk_track_info_send(connection->bda_connected, p_data->elem_attr);
         break;
 
     case BSA_AVK_SET_ADDRESSED_PLAYER_EVT:
@@ -938,8 +952,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
                 p_data->br_player.folder_depth,
                 p_data->br_player.final,
                 p_data->br_player.handle);
-        if(p_data->br_player.folder.str_len)
-        {
+        if(p_data->br_player.folder.str_len) {
             APP_INFO1("folder:%s", p_data->br_player.folder.data);
         }
         break;
@@ -954,8 +967,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
                 p_data->get_items.handle);
         APP_INFO1("item type:0x%x", p_data->get_items.item.item_type);
 
-        switch(p_data->get_items.item.item_type)
-        {
+        switch(p_data->get_items.item.item_type) {
         case AVRC_ITEM_NONE:
             APP_INFO0("AVRC_ITEM_NONE");
             break;
@@ -966,8 +978,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
             APP_INFO1("major_type 0x%x", p_data->get_items.item.u.player.major_type);
             APP_INFO1("sub_type 0x%x", p_data->get_items.item.u.player.sub_type);
             APP_INFO1("play_status 0x%x", p_data->get_items.item.u.player.play_status);
-            for(j= 0 ; j < AVRC_FEATURE_MASK_SIZE ; j++)
-            {
+            for(j= 0 ; j < AVRC_FEATURE_MASK_SIZE ; j++) {
                 APP_INFO1("feature mask %d : 0x%x", j, p_data->get_items.item.u.player.features[j]);
             }
             APP_INFO1("name : %s", p_data->get_items.item.u.player.name.data);
@@ -1005,8 +1016,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
             APP_INFO1("attr_count:0x%x", p_data->get_items.item.u.media.attr_count);
             APP_INFO1("name:%s", p_data->get_items.item.u.media.name.data);
             APP_INFO1("type:0x%x", p_data->get_items.item.u.media.type);
-            for(j = 0 ; j < p_data->get_items.item.u.media.attr_count ; j ++)
-            {
+            for(j = 0 ; j < p_data->get_items.item.u.media.attr_count ; j ++) {
                 APP_INFO1("attr_id : 0x%x", p_data->get_items.item.u.media.attr_entry[j].attr_id);
                 APP_INFO1("name : %s", p_data->get_items.item.u.media.attr_entry[j].name.data);
             }
@@ -1035,8 +1045,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
                 p_data->item_attr.rsp.handle,
                 p_data->item_attr.rsp.num_attr,
                 p_data->item_attr.handle);
-        for(i = 0; i < p_data->item_attr.rsp.num_attr; i++)
-        {
+        for(i = 0; i < p_data->item_attr.rsp.num_attr; i++) {
             APP_INFO1("attr_id:0x%x", p_data->item_attr.rsp.attr_entry[i].attr_id);
             APP_INFO1("name:%s", p_data->item_attr.rsp.attr_entry[i].name.data);
         }
@@ -1058,48 +1067,42 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
     case BSA_AVK_GET_PLAY_STATUS_EVT:
         APP_DEBUG0("BSA_AVK_GET_PLAY_STATUS_EVT");
         connection = app_avk_find_connection_by_rc_handle(p_data->get_play_status.handle);
-        if (connection == NULL) {
+        if (connection == NULL)
             break;
-        }
 
         APP_DEBUG1("duration:%u, position:%u, play_status:%u",p_data->get_play_status.rsp.song_len,
                 p_data->get_play_status.rsp.song_pos, p_data->get_play_status.rsp.play_status);
 
-        /* Add the code notify duration and position below, if need */
+        app_avk_send_position(connection->bda_connected,
+                                p_data->get_play_status.rsp.song_len,
+                                p_data->get_play_status.rsp.song_pos);
         break;
 
     case BSA_AVK_SET_ABS_VOL_CMD_EVT:
         APP_DEBUG0("BSA_AVK_SET_ABS_VOL_CMD_EVT");
         connection = app_avk_find_connection_by_rc_handle(p_data->abs_volume.handle);
-        if(connection != NULL)
-        {
+        if(connection != NULL) {
             APP_INFO1("ADSOLUTE Volume : %d", p_data->abs_volume.abs_volume_cmd.volume);
             /* Peer requested change in volume. Make the change and send response with new system volume. BSA is TG role in AVK */
-            if (p_data->abs_volume.abs_volume_cmd.volume <= BSA_MAX_ABS_VOLUME)
-            {
+            if (p_data->abs_volume.abs_volume_cmd.volume <= BSA_MAX_ABS_VOLUME) {
                 app_avk_cb.volume = p_data->abs_volume.abs_volume_cmd.volume;
 
                 /* Change the code below based on which interface audio is going out to. */
                 //app_avk_set_master_volume(app_avk_cb.volume);
 
-                app_avk_volume_notify(app_avk_cb.volume);
+                app_avk_send_volume(app_avk_cb.volume);
                 app_avk_set_abs_vol_rsp(app_avk_cb.volume, p_data->abs_volume.handle, p_data->abs_volume.label);
             }
-        }
-        else
-        {
+        } else {
             APP_ERROR1("not changing volume m_bAbsVolumeSupported %d", connection->m_bAbsVolumeSupported);
         }
         break;
 
-
     case BSA_AVK_REG_NOTIFICATION_CMD_EVT:
         APP_DEBUG1("BSA_AVK_REG_NOTIFICATION_CMD_EVT, event_id: %d", p_data->reg_notif_cmd.reg_notif_cmd.event_id);
-        if (p_data->reg_notif_cmd.reg_notif_cmd.event_id == AVRC_EVT_VOLUME_CHANGE)
-        {
+        if (p_data->reg_notif_cmd.reg_notif_cmd.event_id == AVRC_EVT_VOLUME_CHANGE) {
             connection = app_avk_find_connection_by_rc_handle(p_data->reg_notif_cmd.handle);
-            if(connection != NULL)
-            {
+            if(connection != NULL) {
                 connection->m_bAbsVolumeSupported = TRUE;
                 connection->volChangeLabel = p_data->reg_notif_cmd.label;
 
@@ -1137,20 +1140,17 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
 
     case BSA_AVK_CAC_PROPERTIES_EVT:
         APP_DEBUG1("BSA_AVK_CAC_PROPERTIES_EVT status 0x%x", p_data->cac_prop_evt.status);
-        if(p_data->cac_prop_evt.status == BSA_SUCCESS)
-        {
+        if(p_data->cac_prop_evt.status == BSA_SUCCESS) {
             APP_DEBUG1("Native: size = %d", p_data->cac_prop_evt.native.size);
             APP_DEBUG1("Native: pixel w = %d, h = %d, w2 = %d, h2 = %d", p_data->cac_prop_evt.native.pixel.w,
                 p_data->cac_prop_evt.native.pixel.h, p_data->cac_prop_evt.native.pixel.w2,
                 p_data->cac_prop_evt.native.pixel.h2);
             APP_DEBUG1("Native: encoding = %s", p_data->cac_prop_evt.native.encoding);
             APP_DEBUG1("Actual number of items in variant = %d", p_data->cac_prop_evt.num_variant);
-            if(p_data->cac_prop_evt.num_variant)
-            {
+            if(p_data->cac_prop_evt.num_variant) {
                 int idx;
                 const char *transform_display[] = {"NONE", "STRETCH", "FILL", "CROP"};
-                for(idx = 0; idx < p_data->cac_prop_evt.num_variant; idx++)
-                {
+                for(idx = 0; idx < p_data->cac_prop_evt.num_variant; idx++) {
                     APP_DEBUG1("Variant[%d]: size = %d", idx, p_data->cac_prop_evt.variant[idx].size);
                     APP_DEBUG1("Variant[%d]: pixel w = %d, h = %d, w2 = %d, h2 = %d", idx,
                         p_data->cac_prop_evt.variant[idx].pixel.w, p_data->cac_prop_evt.variant[idx].pixel.h,
@@ -1220,6 +1220,9 @@ int app_avk_open(BD_ADDR bd_addr, BD_NAME name)
 
     /* Open AVK stream */
     APP_DEBUG1("Connecting to AV device:%s", name);
+    APP_DEBUG1("bd_addr: %02x:%02x:%02x:%02x:%02x:%02x",
+                bd_addr[0], bd_addr[1], bd_addr[2],
+                bd_addr[3], bd_addr[4], bd_addr[5]);
 
     app_avk_cb.open_pending = TRUE;
     memcpy(app_avk_cb.open_pending_bda, bd_addr, sizeof(BD_ADDR));
@@ -1246,7 +1249,7 @@ int app_avk_open(BD_ADDR bd_addr, BD_NAME name)
 #else
         GKI_delay(3000);
         if(app_avk_cb.open_pending == TRUE) {
-            APP_ERROR0("after 2 seconds, app_avk_cback not return BSA_AVK_OPEN_EVT");
+            APP_ERROR0("after 3 seconds, app_avk_cback not return BSA_AVK_OPEN_EVT");
             app_avk_cb.open_pending = FALSE;
             memset(app_avk_cb.open_pending_bda, 0, sizeof(BD_ADDR));
             return -1;
@@ -1289,31 +1292,35 @@ int app_avk_open(BD_ADDR bd_addr, BD_NAME name)
  ** Returns          void
  **
  *******************************************************************************/
-void app_avk_close(BD_ADDR bda)
+int app_avk_close(BD_ADDR bda)
 {
     tBSA_STATUS status;
     tBSA_AVK_CLOSE bsa_avk_close_param;
     tAPP_AVK_CONNECTION *connection = NULL;
+
+    APP_DEBUG1("bd_addr: %02x:%02x:%02x:%02x:%02x:%02x",
+                bda[0], bda[1], bda[2],
+                bda[3], bda[4], bda[5]);
 
     /* Close AVK connection */
     BSA_AvkCloseInit(&bsa_avk_close_param);
 
     connection = app_avk_find_connection_by_bd_addr(bda);
 
-    if(connection == NULL)
-    {
+    if(connection == NULL) {
         APP_ERROR0("Unable to Close AVK connection , invalid BDA");
-        return;
+        return -1;
     }
 
     bsa_avk_close_param.ccb_handle = connection->ccb_handle;
     bsa_avk_close_param.rc_handle = connection->rc_handle;
 
     status = BSA_AvkClose(&bsa_avk_close_param);
-    if (status != BSA_SUCCESS)
-    {
+    if (status != BSA_SUCCESS) {
         APP_ERROR1("Unable to Close AVK connection with status %d", status);
     }
+
+    return 0;
 }
 
 /*******************************************************************************
@@ -1328,10 +1335,8 @@ void app_avk_close(BD_ADDR bda)
 void app_avk_close_all()
 {
     int index;
-    for (index = 0; index < APP_AVK_MAX_CONNECTIONS; index++)
-    {
-        if (app_avk_cb.connections[index].in_use == TRUE)
-        {
+    for (index = 0; index < APP_AVK_MAX_CONNECTIONS; index++) {
+        if (app_avk_cb.connections[index].in_use == TRUE) {
             app_avk_close(app_avk_cb.connections[index].bda_connected);
         }
     }
@@ -2668,7 +2673,7 @@ void app_avk_rc_set_player_value_command(UINT8 num_attr, UINT8 *attr_ids, UINT8 
  ** Returns          void
  **
  *******************************************************************************/
-void app_avk_rc_get_play_status_command(UINT8 rc_handle)
+int app_avk_rc_get_play_status_command(UINT8 rc_handle)
 {
     int status;
     tBSA_AVK_GET_PLAY_STATUS bsa_avk_play_status_cmd;
@@ -2679,10 +2684,12 @@ void app_avk_rc_get_play_status_command(UINT8 rc_handle)
     bsa_avk_play_status_cmd.label = app_avk_get_label(); /* Just used to distinguish commands */
 
     status = BSA_AvkGetPlayStatusCmd(&bsa_avk_play_status_cmd);
-    if (status != BSA_SUCCESS)
-    {
+    if (status != BSA_SUCCESS) {
         APP_ERROR1("Unable to Send app_avk_rc_get_play_status_command %d", status);
+        return -1;
     }
+
+    return 0;
 }
 
 
@@ -3570,7 +3577,7 @@ int app_avk_start()
 {
     int connect_cnt = 2;
 
-    app_avk_notify_status(RK_BT_SINK_STATE_IDLE);
+    app_avk_send_state(RK_BT_SINK_STATE_IDLE);
 
     if (app_avk_init(NULL) < 0) {
         APP_DEBUG0("app_avk_init failed");
@@ -3597,14 +3604,26 @@ int app_avk_start()
 
 void app_avk_stop()
 {
-    app_avk_volume_cb = NULL;
-
     app_avk_close_all();
     GKI_delay(1000);
 
     app_avk_deregister();
     app_avk_deinit();
 
-    app_avk_notify_status(RK_BT_SINK_STATE_IDLE);
+    app_avk_send_state(RK_BT_SINK_STATE_IDLE);
     app_avk_deregister_cb();
+}
+
+int app_avk_get_play_status()
+{
+    int ret = -1;
+    int index;
+
+    for (index = 0; index < APP_AVK_MAX_CONNECTIONS; index++) {
+        if (app_avk_cb.connections[index].in_use == TRUE) {
+            ret = app_avk_rc_get_play_status_command(app_avk_cb.connections[index].rc_handle);
+        }
+    }
+
+    return ret;
 }

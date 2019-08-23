@@ -96,43 +96,14 @@ typedef struct
     tAPP_AVK_CONNECTION *pStreamingConn;
 } tAPP_AVK_CB;
 
-/*******************************************************************************
-**
-** Function         app_avk_register_volume_cb
-**
-** Description      Register AVK volume notify
-**
-** Parameters       Notify callback
-**
-** Returns          void
-**
-*******************************************************************************/
-void app_avk_register_volume_cb(RK_BT_SINK_VOLUME_CALLBACK cb);
-
-/*******************************************************************************
-**
-** Function         app_avk_register_cb
-**
-** Description      Register AVK status notify
-**
-** Parameters       Notify callback
-**
-** Returns          void
-**
-*******************************************************************************/
 void app_avk_register_cb(RK_BT_SINK_CALLBACK cb);
 
-/*******************************************************************************
-**
-** Function         app_avk_deregister_cb
-**
-** Description      DeRegister AVK status notify
-**
-** Parameters       Notify callback
-**
-** Returns          void
-**
-*******************************************************************************/
+void app_avk_register_volume_cb(RK_BT_SINK_VOLUME_CALLBACK cb);
+
+void app_avk_register_track_cb(RK_BT_AVRCP_TRACK_CHANGE_CB cb);
+
+void app_avk_register_position_cb(RK_BT_AVRCP_PLAY_POSITION_CB cb);
+
 void app_avk_deregister_cb(void);
 
 /*******************************************************************************
@@ -212,7 +183,7 @@ int app_avk_open(BD_ADDR bd_addr, BD_NAME name);
 ** Returns          void
 **
 *******************************************************************************/
-void app_avk_close(BD_ADDR bd_addr);
+int app_avk_close(BD_ADDR bd_addr);
 
 /*******************************************************************************
  **
@@ -466,7 +437,7 @@ void app_avk_rc_set_player_value_command(UINT8 num_attr, UINT8 *attr_ids, UINT8 
  ** Returns          void
  **
  *******************************************************************************/
-void app_avk_rc_get_play_status_command(UINT8 rc_handle);
+int app_avk_rc_get_play_status_command(UINT8 rc_handle);
 
 /*******************************************************************************
  **
@@ -875,13 +846,10 @@ void app_avk_send_delay_report(BD_ADDR bd_addr, UINT16 delay);
  **
  *******************************************************************************/
 void app_avk_send_abort_req(BD_ADDR bd_addr);
-
 int app_avk_get_status(RK_BT_SINK_STATE *pState);
-
 int app_avk_start(void);
-
 void app_avk_stop(void);
-
 int app_avk_set_volume(int volume);
+int app_avk_get_play_status();
 
 #endif /* APP_AVK_H_ */

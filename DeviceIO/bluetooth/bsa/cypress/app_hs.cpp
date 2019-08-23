@@ -1510,6 +1510,14 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         p_conn->dev_platform = app_mgr_get_dev_platform(p_data->conn.bd_addr);
         printf("device platform is %s\n",
             p_conn->dev_platform == BSA_DEV_PLATFORM_UNKNOWN ? "Unknown Platform" : "Apple IOS");
+
+        /* Read the Remote device xml file to have a fresh view */
+        app_mgr_read_remote_devices();
+        app_xml_update_connected_state_db(app_xml_remote_devices_db,
+                               APP_NUM_ELEMENTS(app_xml_remote_devices_db),
+                               p_data->conn.bd_addr, TRUE);
+        app_mgr_write_remote_devices();
+
         app_hs_send_event(RK_BT_HFP_CONNECT_EVT, NULL);
         break;
 

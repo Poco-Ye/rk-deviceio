@@ -336,18 +336,25 @@ void app_dg_rx_open_evt(tBSA_DG_MSG *p_data)
             APP_ERROR1("UIPC_Open failed channel:%d", p_data->open.uipc_channel);
         }
 
-        app_dg_connection_index = connection;
-        app_dg_connection_status = RK_BT_SPP_STATE_CONNECT;
-        app_dg_send_event(RK_BT_SPP_STATE_CONNECT);
-
         /* Read the Remote device xml file to have a fresh view */
         app_read_xml_remote_devices();
+
         /* Add SPP, DUN services for this devices in XML database */
         app_xml_add_trusted_services_db(app_xml_remote_devices_db,
                 APP_NUM_ELEMENTS(app_xml_remote_devices_db), p_data->open.bd_addr,
                 BSA_SPP_SERVICE_MASK | BSA_DUN_SERVICE_MASK );
+
+        app_xml_update_connected_state_db(app_xml_remote_devices_db,
+                               APP_NUM_ELEMENTS(app_xml_remote_devices_db),
+                               p_data->open.bd_addr, TRUE);
+
         /* Update database => write on disk */
         app_write_xml_remote_devices();
+
+        app_dg_connection_index = connection;
+        app_dg_connection_status = RK_BT_SPP_STATE_CONNECT;
+        app_dg_send_event(RK_BT_SPP_STATE_CONNECT);
+
         /* init Mutex */
         status = app_init_mutex(&app_dg_cb.app_dg_tx_mutex[connection]);
         if (status < 0)

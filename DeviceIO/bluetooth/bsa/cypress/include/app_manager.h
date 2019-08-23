@@ -11,6 +11,8 @@
 #ifndef __APP_MANAGER_H__
 #define __APP_MANAGER_H__
 
+#include "DeviceIo/RkBtBase.h"
+
 typedef struct
 {
     tBSA_DM_DUAL_STACK_MODE dual_stack_mode; /* Dual Stack Mode */
@@ -22,9 +24,10 @@ typedef enum {
     BT_WAIT_PAIR_EVT,   /* Simple Pairing confirm request */
     BT_PAIR_SUCCESS_EVT,/* pairing/authentication success*/
     BT_PAIR_FAILED_EVT, /* pairing/authentication failed*/
+    BT_UNPAIR_SUCCESS_EVT,
 } tBSA_MGR_EVT;
 
-typedef void (* app_mgr_callback)(tBSA_MGR_EVT evt);
+typedef void (* app_mgr_callback)(BD_ADDR bd_addr, char *name, tBSA_MGR_EVT evt);
 
 extern tAPP_XML_CONFIG         app_xml_config;
 extern BD_ADDR                 app_sec_db_addr;    /* BdAddr of peer device requesting SP */
@@ -126,8 +129,7 @@ int app_mgr_sp_cfm_reply(BOOLEAN accept, BD_ADDR bd_addr);
  ** Returns          void
  **
  *******************************************************************************/
-int app_mgr_sec_bond(void);
-
+int app_mgr_sec_bond(BD_ADDR bd_addr);
 
 /*******************************************************************************
  **
@@ -168,7 +170,6 @@ int app_mgr_sec_unpair(BD_ADDR bd_addr);
  *******************************************************************************/
 void app_mgr_set_discoverable(void);
 
-
 /*******************************************************************************
  **
  ** Function         app_mgr_set_non_discoverable
@@ -195,7 +196,6 @@ void app_mgr_set_non_discoverable(void);
  *******************************************************************************/
 void app_mgr_set_connectable(void);
 
-
 /*******************************************************************************
  **
  ** Function         app_mgr_set_non_connectable
@@ -208,7 +208,6 @@ void app_mgr_set_connectable(void);
  **
  *******************************************************************************/
 void app_mgr_set_non_connectable(void);
-
 
 /*******************************************************************************
  **
@@ -395,22 +394,23 @@ void app_mgr_set_remote_oob();
  ** Returns          void
  **
  *******************************************************************************/
+void app_mgr_register_disc_cb(RK_BT_DISCOVERY_CALLBACK cb);
+void app_mgr_deregister_disc_cb();
+void app_mgr_register_dev_found_cb(RK_BT_DEV_FOUND_CALLBACK cb);
+void app_mgr_deregister_dev_found_cb();
 void app_mgr_set_link_policy(BD_ADDR bd_addr, tBSA_DM_LP_MASK policy_mask, BOOLEAN set);
-
 int app_mgr_get_latest_device(void);
-
 int app_manager_init(const char *bt_name, app_mgr_callback cb);
-
 int app_manager_deinit(void);
-
 int app_mgt_set_cod(int cod);
-
 int app_mgr_is_reconnect(void);
-
-int app_manager_set_auto_reconnect(int enable);
-
+int app_mgr_set_auto_reconnect(int enable);
 UINT8 app_mgr_get_dev_platform(BD_ADDR bd_addr);
-
-void app_manager_bd2str(BD_ADDR bd_addr, char *str);
+int app_mgr_bd2str(BD_ADDR bd_addr, char *address, int addr_len);
+int app_mgr_str2bd(char *address, BD_ADDR bd_addr);
+int app_mgt_set_device_name(char *name);
+int app_mgr_get_paired_devices(RkBtPraiedDevice **dev_list,int *count);
+int app_mgr_free_paired_devices(RkBtPraiedDevice *dev_list);
+int app_mgr_xml_display_devices(void);
 
 #endif /* __APP_MANAGER_H__ */

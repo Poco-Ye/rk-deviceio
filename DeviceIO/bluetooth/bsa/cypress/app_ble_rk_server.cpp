@@ -19,6 +19,7 @@
 #include "app_thread.h"
 #include "app_mutex.h"
 #include "app_xml_param.h"
+#include "app_xml_utils.h"
 #include "app_utils.h"
 #include "app_dm.h"
 #include "app_manager.h"
@@ -1027,12 +1028,12 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
         APP_INFO1("BSA_BLE_SE_WRITE_EVT trans_id:%d, conn_id:%d, handle:%d",
             p_data->ser_write.trans_id, p_data->ser_write.conn_id, p_data->ser_write.handle);
 
-	    attr_index = app_ble_rk_server_find_attr_index_by_attr_id(p_data->ser_read.handle);
+        attr_index = app_ble_rk_server_find_attr_index_by_attr_id(p_data->ser_read.handle);
         APP_INFO1("BSA_BLE_SE_WRITE_EVT attr_index:%d", attr_index);
         if (attr_index < 0)
         {
             APP_ERROR0("Cannot find matched attr_id");
-	        break;
+            break;
         }
 
         if (p_data->ser_write.need_rsp)
@@ -1095,6 +1096,14 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
 
             /* Stop advertising */
             app_dm_set_ble_visibility(FALSE, FALSE);
+
+            /* Read the Remote device xml file to have a fresh view */
+            app_mgr_read_remote_devices();
+            app_xml_update_connected_state_db(app_xml_remote_devices_db,
+                                   APP_NUM_ELEMENTS(app_xml_remote_devices_db),
+                                   p_data->ser_open.remote_bda, TRUE);
+            app_mgr_write_remote_devices();
+
             app_ble_state = RK_BLE_STATE_CONNECT;
             app_ble_rk_server_send_state(RK_BLE_STATE_CONNECT);
             APP_INFO0("Stopping Advertisements");
