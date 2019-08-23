@@ -19,6 +19,7 @@
 #include "app_thread.h"
 #include "app_mutex.h"
 #include "app_xml_param.h"
+#include "app_xml_utils.h"
 #include "app_utils.h"
 #include "app_dm.h"
 #include "app_manager.h"
@@ -67,7 +68,7 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
                     tBSA_BLE_MSG *p_data);
 static int app_ble_rk_server_find_free_attr(void);
 static int app_ble_rk_server_find_attr_index_by_attr_id(UINT16 attr_id);
-static int app_ble_rk_server_send_notification(const char *uuid, UINT8 * data, UINT16 len);
+static int app_ble_rk_server_send_notification(const char *uuid, char *data, UINT16 len);
 static void app_ble_rk_server_recv_data(int attr_index, unsigned char *data, int len);
 
 /*******************************************************************************
@@ -873,12 +874,12 @@ static void app_ble_rk_server_send_data_test(const char *uuid) {
         if(offset + i < len) {
             strncpy(buf, ble_test + offset, i);
             //APP_DEBUG1("buf: %s\n", buf);
-            app_ble_rk_server_send_message(uuid, (UINT8 *)buf, i);
+            app_ble_rk_server_send_message(uuid, buf, i);
             offset += i;
         } else {
             strncpy(buf, ble_test + offset, len - offset);
             //APP_DEBUG1("buf: %s\n", buf);
-            app_ble_rk_server_send_message(uuid, (UINT8 *)buf, len - offset);
+            app_ble_rk_server_send_message(uuid, buf, len - offset);
             offset = 0;
             break;
         }
@@ -1094,6 +1095,14 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
 
             /* Stop advertising */
             app_dm_set_ble_visibility(FALSE, FALSE);
+
+            /* Read the Remote device xml file to have a fresh view */
+            app_mgr_read_remote_devices();
+            app_xml_update_connected_state_db(app_xml_remote_devices_db,
+                                   APP_NUM_ELEMENTS(app_xml_remote_devices_db),
+                                   p_data->ser_open.remote_bda, TRUE);
+            app_mgr_write_remote_devices();
+
             app_ble_state = RK_BLE_STATE_CONNECT;
             app_ble_rk_server_send_state(RK_BLE_STATE_CONNECT);
             APP_INFO0("Stopping Advertisements");
@@ -1274,7 +1283,7 @@ static int app_ble_rk_server_find_attr_index_by_attr_id(UINT16 attr_id)
  ** Returns          None
  **
  *******************************************************************************/
-void app_ble_rk_server_send_message(const char *uuid, UINT8 * data, UINT16 len)
+void app_ble_rk_server_send_message(const char *uuid, char *data, UINT16 len)
 {
     APP_DEBUG1("conn id : 0x%x",  app_ble_rk_server_cb.conn_id);
     /* If no client connectted or client has not registered for indication or notification, no action */
@@ -1299,7 +1308,7 @@ void app_ble_rk_server_send_message(const char *uuid, UINT8 * data, UINT16 len)
  ** Returns         status: 0 if success / -1 otherwise
  **
  *******************************************************************************/
-static int app_ble_rk_server_send_notification(const char *uuid, UINT8 * data, UINT16 len)
+static int app_ble_rk_server_send_notification(const char *uuid, char *data, UINT16 len)
 {
     int i;
     UINT8 attr_index_notify = APP_BLE_RK_SERVER_ATTRIBUTE_MAX;
@@ -1308,8 +1317,7 @@ static int app_ble_rk_server_send_notification(const char *uuid, UINT8 * data, U
 
     APP_INFO0("app_ble_rk_server_send_notification");
     status = BSA_BleSeSendIndInit(&ble_sendind_param);
-    if (status != BSA_SUCCESS)
-    {
+    if (status != BSA_SUCCESS) {
         APP_ERROR1("BSA_BleSeSendIndInit failed status = %d", status);
         return -1;
     }

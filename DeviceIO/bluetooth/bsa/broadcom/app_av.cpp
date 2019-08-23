@@ -624,6 +624,10 @@ void app_av_cback(tBSA_AV_EVT event, tBSA_AV_MSG *p_data)
                         APP_NUM_ELEMENTS(app_xml_remote_devices_db), connection->bd_addr,
                         BSA_A2DP_SERVICE_MASK | BSA_AVRCP_SERVICE_MASK);
 
+                app_xml_update_connected_state_db(app_xml_remote_devices_db,
+                                       APP_NUM_ELEMENTS(app_xml_remote_devices_db),
+                                       connection->bd_addr, TRUE);
+
                 /* Check if the name in the inquiry responses database */
                 for (index = 0; index < APP_NUM_ELEMENTS(app_discovery_cb.devs); index++)
                 {
@@ -5309,7 +5313,7 @@ int app_av_scan(BtScanParam *data)
     memset((char *)data, 0, sizeof(BtScanParam));
 
     /* Example to perform Device discovery (in blocking mode) */
-    if(app_disc_start_regular(NULL, data->mseconds)) {
+    if(app_disc_start_regular(NULL, data->mseconds/1000 + data->mseconds%1000)) {
         APP_ERROR0("app_disc_start_regular failed");
         app_av_send_event(BT_SOURCE_EVENT_CONNECT_FAILED);
         return -1;
@@ -5331,13 +5335,9 @@ int app_av_scan(BtScanParam *data)
                 APP_ERROR1("address buffer overflow, addr_len: %d", addr_len);
                 return -1;
             }
-            sprintf(data->devices[index].address, "%02X:%02X:%02X:%02X:%02X:%02X",
-                app_discovery_cb.devs[index].device.bd_addr[0],
-                app_discovery_cb.devs[index].device.bd_addr[1],
-                app_discovery_cb.devs[index].device.bd_addr[2],
-                app_discovery_cb.devs[index].device.bd_addr[3],
-                app_discovery_cb.devs[index].device.bd_addr[4],
-                app_discovery_cb.devs[index].device.bd_addr[5]);
+
+            app_mgr_bd2str(app_discovery_cb.devs[index].device.bd_addr,
+                data->devices[index].address, addr_len);
 
             name_len = sizeof(data->devices[index].name);
             memcpy(data->devices[index].name, app_discovery_cb.devs[index].device.name,
@@ -5425,7 +5425,7 @@ int app_av_remove(char *address)
         return -1;
 
     app_av_disconnect(address);
-    return app_mgr_sec_unpair(address);
+    return app_mgr_sec_unpair(bd_addr);
 }
 
 void app_av_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, int name_len,

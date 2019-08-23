@@ -86,56 +86,58 @@ tBSA_SEC_PASSKEY_REPLY g_passkey_reply;
 
 static DEV_CLASS app_mgr_cod = {0, 0, 0};
 
-static tAPP_MGR_CALLBACK g_bt_cb = {
+static tAPP_MGR_CALLBACK app_mgr_cb_control = {
 	NULL, NULL, NULL,
 };
 
-static void app_mgr_notify_status(BD_ADDR bd_addr, const char *name, tBSA_MGR_EVT evt) {
-    if(g_bt_cb.bt_notify_cb)
-        g_bt_cb.bt_notify_cb(bd_addr, name, evt);
+static void app_mgr_notify_status(BD_ADDR bd_addr, char *name, tBSA_MGR_EVT evt) {
+    if(app_mgr_cb_control.bt_notify_cb)
+        app_mgr_cb_control.bt_notify_cb(bd_addr, name, evt);
 }
 
 void app_mgr_disc_state_send(RK_BT_DISCOVERY_STATE state)
 {
-	if(g_bt_cb.bt_decovery_cb)
-		g_bt_cb.bt_decovery_cb(state);
+	if(app_mgr_cb_control.bt_decovery_cb)
+		app_mgr_cb_control.bt_decovery_cb(state);
 }
 
 void app_mgr_register_disc_cb(RK_BT_DISCOVERY_CALLBACK cb)
 {
-	g_bt_cb.bt_decovery_cb = cb;
+	app_mgr_cb_control.bt_decovery_cb = cb;
 }
 
 void app_mgr_deregister_disc_cb()
 {
-	g_bt_cb.bt_decovery_cb = NULL;
+	app_mgr_cb_control.bt_decovery_cb = NULL;
 }
 
 void app_mgr_dev_found_send(BD_ADDR bd_addr, char *name, DEV_CLASS class_of_device, int rssi)
 {
-    if(g_bt_cb.bt_dev_found_cb) {
+    if(app_mgr_cb_control.bt_dev_found_cb) {
         unsigned int bt_class;
         char address[18];
 
         bt_class = (class_of_device[0] << 16)
-            & (class_of_device[1] << 8)
-            & class_of_device[2];
+            + (class_of_device[1] << 8)
+            + class_of_device[2];
 
-        if(app_mgr_bd2str(bd_addr, address) < 0)
+        APP_DEBUG1("bt_class: %d", bt_class);
+
+        if(app_mgr_bd2str(bd_addr, address, 18) < 0)
             memcpy(address, "unknown", strlen("unknown"));
 
-        g_bt_cb.bt_dev_found_cb(address, name, bt_class, rssi);
+        app_mgr_cb_control.bt_dev_found_cb(address, name, bt_class, rssi);
     }
 }
 
-void app_mgr_register_dev_found_cb(RK_BT_DISCOVERY_CALLBACK cb)
+void app_mgr_register_dev_found_cb(RK_BT_DEV_FOUND_CALLBACK cb)
 {
-	g_bt_cb.bt_dev_found_cb = cb;
+	app_mgr_cb_control.bt_dev_found_cb = cb;
 }
 
 void app_mgr_deregister_dev_found_cb()
 {
-	g_bt_cb.bt_dev_found_cb = NULL;
+	app_mgr_cb_control.bt_dev_found_cb = NULL;
 }
 /*******************************************************************************
  **
@@ -175,8 +177,6 @@ int app_mgr_read_config(void)
     }
     return 0;
 }
-
-
 
 /*******************************************************************************
  **
@@ -231,18 +231,16 @@ int app_mgr_read_remote_devices(void)
     int index;
 
     for (index = 0 ; index < APP_NUM_ELEMENTS(app_xml_remote_devices_db) ; index++)
-    {
         app_xml_remote_devices_db[index].in_use = FALSE;
-    }
 
     status = app_xml_read_db(APP_XML_REM_DEVICES_FILE_PATH, app_xml_remote_devices_db,
             APP_NUM_ELEMENTS(app_xml_remote_devices_db));
 
-    if (status < 0)
-    {
+    if (status < 0) {
         APP_ERROR1("app_xml_read_db failed:%d", status);
         return -1;
     }
+
     return 0;
 }
 
@@ -262,18 +260,15 @@ int app_mgr_write_remote_devices(void)
     status = app_xml_write_db(APP_XML_REM_DEVICES_FILE_PATH, app_xml_remote_devices_db,
             APP_NUM_ELEMENTS(app_xml_remote_devices_db));
 
-    if (status < 0)
-    {
+    if (status < 0) {
         APP_ERROR1("app_xml_write_db failed:%d", status);
         return -1;
-    }
-    else
-    {
+    } else {
         APP_DEBUG0("app_xml_write_db ok");
     }
+
     return 0;
 }
-
 
 /*******************************************************************************
  **
@@ -334,7 +329,6 @@ int app_mgr_set_bt_config(BOOLEAN enable)
     }
     return 0;
 }
-
 
 /*******************************************************************************
  **
@@ -454,7 +448,6 @@ void app_mgr_local_oob_evt_data(tBSA_SEC_LOCAL_OOB_MSG* p_data)
 
     APP_DEBUG1("app_mgr_local_oob_evt_data: OOB Valid: %d", p_data->valid);
 }
-
 
 /*******************************************************************************
  **
@@ -577,6 +570,14 @@ void app_mgr_security_callback(tBSA_SEC_EVT event, tBSA_SEC_MSG *p_data)
 #if (defined(BLE_INCLUDED) && BLE_INCLUDED == TRUE)
         APP_DEBUG1("LinkType: %d", p_data->link_down.link_type);
 #endif
+
+        /* Read the Remote device xml file to have a fresh view */
+        app_mgr_read_remote_devices();
+        app_xml_update_connected_state_db(app_xml_remote_devices_db,
+                               APP_NUM_ELEMENTS(app_xml_remote_devices_db),
+                               p_data->link_down.bd_addr, FALSE);
+        app_mgr_write_remote_devices();
+
         app_mgr_notify_status(p_data->link_down.bd_addr, "unknown", BT_LINK_DOWN_EVT);
         break;
 
@@ -1059,19 +1060,14 @@ int app_mgr_sp_cfm_reply(BOOLEAN accept, BD_ADDR bd_addr)
  ** Returns          void
  **
  *******************************************************************************/
-int app_mgr_sec_bond(char *address)
+int app_mgr_sec_bond(BD_ADDR bd_addr)
 {
     int status;
-    int device_index;
     tBSA_SEC_BOND sec_bond;
-    BD_ADDR bd_addr;
 
-    APP_INFO1("Bluetooth Bond, address: %s", address);
-
-    if(app_mgr_str2bd(address, bd_addr) < 0) {
-        APP_ERROR0("string to BD_ADDR failed");
-        return -1;
-    }
+    APP_DEBUG1("bd_addr: %x:%x:%x:%x:%x:%x",
+                bd_addr[0], bd_addr[1], bd_addr[2],
+                bd_addr[3], bd_addr[4], bd_addr[5]);
 
     BSA_SecBondInit(&sec_bond);
     bdcpy(sec_bond.bd_addr, bd_addr);
@@ -1081,7 +1077,6 @@ int app_mgr_sec_bond(char *address)
         return -1;
     }
 
-    //app_mgr_notify_status(bd_addr, "", BT_WAIT_PAIR_EVT); //tiantian
     return 0;
 }
 
@@ -1144,18 +1139,21 @@ int app_mgr_sec_unpair(BD_ADDR bd_addr)
     int status, index;
     tBSA_SEC_REMOVE_DEV sec_remove;
 
-    APP_INFO0("app_mgr_sec_unpair");
+    APP_DEBUG1("bd_addr: %02x:%02x:%02x:%02x:%02x:%02x",
+                bd_addr[0], bd_addr[1], bd_addr[2],
+                bd_addr[3], bd_addr[4], bd_addr[5]);
 
-    /* Remove the device from Security database (BSA Server) */
-    BSA_SecRemoveDeviceInit(&sec_remove);
 
     /* Read the XML file which contains all the bonded devices */
     if(app_read_xml_remote_devices() < 0)
         return -1;
 
+    /* Remove the device from Security database (BSA Server) */
+    BSA_SecRemoveDeviceInit(&sec_remove);
+
     /* Display them */
-    app_xml_display_devices(app_xml_remote_devices_db,
-            APP_MAX_NB_REMOTE_STORED_DEVICES);
+    //app_xml_display_devices(app_xml_remote_devices_db,
+    //        APP_MAX_NB_REMOTE_STORED_DEVICES);
 
     for(index = 0; index < APP_MAX_NB_REMOTE_STORED_DEVICES; index++) {
         if((app_xml_remote_devices_db[index].in_use != FALSE)
@@ -1680,7 +1678,7 @@ int app_mgr_config(const char *bt_name, app_mgr_callback cb)
     /* Example of function to set the Local Bluetooth configuration */
     app_mgr_set_bt_config(app_xml_config.enable);
 
-    g_bt_cb.bt_notify_cb = cb;
+    app_mgr_cb_control.bt_notify_cb = cb;
 
     return 0;
 }
@@ -1944,7 +1942,7 @@ BOOLEAN app_mgt_callback(tBSA_MGT_EVT event, tBSA_MGT_MSG *p_data)
             if (p_data->status.enable) {
                 APP_DEBUG0("Bluetooth restarted => re-initialize the application");
                 /* bt_name has been written to the xml configuration file */
-                app_mgr_config(NULL, g_bt_cb.bt_notify_cb);
+                app_mgr_config(NULL, app_mgr_cb_control.bt_notify_cb);
             }
             break;
 
@@ -2016,7 +2014,7 @@ int app_manager_init(const char *bt_name, app_mgr_callback cb)
 int app_manager_deinit()
 {
     memset(app_mgr_cod, 0, sizeof(DEV_CLASS));
-    g_bt_cb.bt_notify_cb = NULL;
+    app_mgr_cb_control.bt_notify_cb = NULL;
 
     return app_mgt_close();
 }
@@ -2086,13 +2084,15 @@ UINT8 app_mgr_get_dev_platform(BD_ADDR bd_addr)
     return dev_platform;
 }
 
-int app_mgr_bd2str(BD_ADDR bd_addr, char *address)
+int app_mgr_bd2str(BD_ADDR bd_addr, char *address, int addr_len)
 {
-    if(strlen(address) < 17) {}
-        APP_ERROR1("address buffer length is too small: %d", strlen(address));
+    if(addr_len < 17) {
+        APP_ERROR1("address buffer length is too small: %d", addr_len);
+        return -1;
+    }
 
-    memset(address, 0, strlen(address));
-    if(sprintf(address, "%02x:%02x:%02x:%02x:%02x:%02x",
+    memset(address, 0, addr_len);
+    if(sprintf(address, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
                 bd_addr[0], bd_addr[1], bd_addr[2],
                 bd_addr[3], bd_addr[4], bd_addr[5]) < 0) {
         APP_ERROR0("BD_ADDR to string failed");
@@ -2104,7 +2104,7 @@ int app_mgr_bd2str(BD_ADDR bd_addr, char *address)
 
 int app_mgr_str2bd(char *address, BD_ADDR bd_addr)
 {
-    if (sscanf(address, "%02X:%02X:%02X:%02X:%02X:%02X",
+    if (sscanf(address, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
             &bd_addr[0], &bd_addr[1], &bd_addr[2],
             &bd_addr[3], &bd_addr[4], &bd_addr[5]) != 6) {
         APP_ERROR1("string to BD_ADDR failed, address: %s", address);
@@ -2145,23 +2145,21 @@ int app_mgt_set_device_name(char *name)
 static RkBtPraiedDevice *app_mgr_create_paired_dev(tAPP_XML_REM_DEVICE device)
 {
     char address[18];
-    BOOLEAN is_connected = FALSE;
 
     RkBtPraiedDevice *new_device = (RkBtPraiedDevice*)malloc(sizeof(RkBtPraiedDevice));
 
-    if(app_mgr_bd2str(device.bd_addr, address) < 0)
+    if(app_mgr_bd2str(device.bd_addr, address, 18) < 0)
         strncpy(address, "<unknown>", strlen("<unknown>"));
 
     new_device->remote_address = (char *)malloc(strlen(address) + 1);
     strncpy(new_device->remote_address, address, strlen(address));
     new_device->remote_address[strlen(address)] = '\0';
 
-    APP_DEBUG1("deivce name len: %d", strlen(device.name));
     new_device->remote_name = (char *)malloc(strlen(device.name) + 1);
     strncpy(new_device->remote_name, device.name, strlen(device.name));
     new_device->remote_name[strlen(device.name)] = '\0';
 
-    new_device->is_connected = is_connected;
+    new_device->is_connected = device.is_connected;
     new_device->next = NULL;
 
     return new_device;
@@ -2192,13 +2190,17 @@ int app_mgr_get_paired_devices(RkBtPraiedDevice **dev_list,int *count)
 {
     int index;
 
-    app_mgr_read_remote_devices();
+    if(app_mgr_read_remote_devices() < 0)
+        return -1;
+
     for (index = 0; index < APP_NUM_ELEMENTS(app_xml_remote_devices_db); index++) {
         if(app_xml_remote_devices_db[index].in_use) {
             if(!app_mgr_list_push_back(dev_list, app_xml_remote_devices_db[index]))
                 (*count)++;
         }
     }
+
+    return 0;
 }
 
 int app_mgr_free_paired_devices(RkBtPraiedDevice *dev_list)
@@ -2226,6 +2228,19 @@ int app_mgr_free_paired_devices(RkBtPraiedDevice *dev_list)
         free(dev_list);
         dev_list = NULL;
     }
+
+    return 0;
+}
+
+int app_mgr_xml_display_devices()
+{
+    /* Read the XML file which contains all the bonded devices */
+    if(app_read_xml_remote_devices() < 0)
+        return -1;
+
+    /* Display them */
+    app_xml_display_devices(app_xml_remote_devices_db,
+            APP_MAX_NB_REMOTE_STORED_DEVICES);
 
     return 0;
 }

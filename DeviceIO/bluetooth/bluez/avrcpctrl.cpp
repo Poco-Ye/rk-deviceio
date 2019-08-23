@@ -798,7 +798,7 @@ static void avrcp_track_info_send(const char *name, DBusMessageIter *iter)
 
 	if(g_avrcp_track_cb) {
 		g_avrcp_track_cb(addr, track);
-    }
+	}
 }
 
 static void avrcp_position_send(const char *name, DBusMessageIter *iter)

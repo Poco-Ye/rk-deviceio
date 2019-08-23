@@ -42,20 +42,13 @@ typedef struct {
     bool is_a2dp_source_open;
     bool is_spp_open;
     bool is_hfp_open;
+    RK_BT_STATE_CALLBACK bt_state_cb;
+    RK_BT_BOND_CALLBACK bt_bond_cb;
 } bt_control_t;
 
 volatile bt_control_t g_bt_control = {
-    false,
-    false,
-    false,
-    false,
-    false,
-    false,
-    false,
+    false, false, false, false, false, false, false, NULL, NULL,
 };
-
-static RK_BT_STATE_CALLBACK g_bt_state_cb = NULL;
-static RK_BT_BOND_CALLBACK g_bt_bond_cb = NULL;
 
 static bool bt_is_open();
 static bool ble_is_open();
@@ -64,23 +57,23 @@ static bool a2dp_source_is_open();
 static bool spp_is_open();
 static bool hfp_is_open();
 
-static bsa_bt_state_send(RK_BT_STATE state)
+static void bsa_bt_state_send(RK_BT_STATE state)
 {
-    if(g_bt_state_cb)
-        g_bt_state_cb(state);
+    if(g_bt_control.bt_state_cb)
+        g_bt_control.bt_state_cb(state);
 }
 
-static bsa_bt_bond_state_send(const char *address, const char *name, RK_BT_BOND_STATE state)
+static void bsa_bt_bond_state_send(const char *address, const char *name, RK_BT_BOND_STATE state)
 {
-    if(g_bt_bond_cb)
-        g_bt_bond_cb(address, name, state);
+    if(g_bt_control.bt_bond_cb)
+        g_bt_control.bt_bond_cb(address, name, state);
 }
 
-static void bt_mgr_notify_callback(BD_ADDR bd_addr, const char *name, tBSA_MGR_EVT evt)
+static void bt_mgr_notify_callback(BD_ADDR bd_addr, char *name, tBSA_MGR_EVT evt)
 {
     char address[18];
 
-    if(app_mgr_bd2str(bd_addr, address) < 0)
+    if(app_mgr_bd2str(bd_addr, address, 18) < 0)
         memcpy(address, "unknown", strlen("unknown"));
 
     switch(evt) {
@@ -111,7 +104,7 @@ static void bt_mgr_notify_callback(BD_ADDR bd_addr, const char *name, tBSA_MGR_E
     }
 }
 
-static void bsa_get_bt_mac(char *bt_mac)
+static void bsa_get_bt_mac(char *bt_mac, int len)
 {
     BD_ADDR bd_addr;
 
@@ -119,7 +112,7 @@ static void bsa_get_bt_mac(char *bt_mac)
         return;
 
     app_mgr_get_bt_config(NULL, 0, (char *)bd_addr, BD_ADDR_LEN);
-    app_mgr_bd2str(bd_addr, bt_mac);
+    app_mgr_bd2str(bd_addr, bt_mac, len);
 }
 
 static int get_ps_pid(const char Name[])
@@ -159,16 +152,29 @@ static int rk_system(const char *cmd_line)
    return ret;
 }
 
-static void check_bsa_server()
+static void check_bsa_server_exist()
 {
     while(1) {
         if (get_ps_pid("bsa_server")) {
-            APP_DEBUG0("bsa_server has been opened.");
+            APP_DEBUG0("bsa_server has been opened");
             break;
         }
 
-        sleep(1);
-        APP_DEBUG0("wait bsa_server open.");
+        usleep(500 * 1000);
+        APP_DEBUG0("wait bsa_server open");
+    }
+}
+
+static void check_bsa_server_exit()
+{
+    while(1) {
+        if (!get_ps_pid("bsa_server")) {
+            APP_DEBUG0("bsa_server has been closed");
+            break;
+        }
+
+        usleep(500 * 1000);
+        APP_DEBUG0("wait bsa_server close");
     }
 }
 
@@ -205,12 +211,12 @@ int rk_bt_is_connected()
 
 void rk_bt_register_state_callback(RK_BT_STATE_CALLBACK cb)
 {
-    g_bt_state_cb = cb;
+    g_bt_control.bt_state_cb = cb;
 }
 
 void rk_bt_register_bond_callback(RK_BT_BOND_CALLBACK cb)
 {
-    g_bt_bond_cb = cb;
+    g_bt_control.bt_bond_cb = cb;
 }
 
 int rk_bt_init(RkBtContent *p_bt_content)
@@ -233,12 +239,12 @@ int rk_bt_init(RkBtContent *p_bt_content)
         return -1;
     }
 
-    check_bsa_server();
+    check_bsa_server_exist();
 
     APP_DEBUG1("p_bt_content->bt_name: %s", p_bt_content->bt_name);
 
     /* Init App manager */
-    if(app_manager_init(p_bt_content->bt_name/*"KUGOU W2 "*/, bt_mgr_notify_callback) < 0) {
+    if(app_manager_init(p_bt_content->bt_name, bt_mgr_notify_callback) < 0) {
         APP_DEBUG0("app_manager init failed.");
         return -1;
     }
@@ -268,13 +274,15 @@ int rk_bt_deinit()
 
     /* stop bsa_server */
     bt_bsa_server_close();
+    check_bsa_server_exit();
 
-    bsa_bt_state_send(RK_BT_STATE_OFF);
-    g_bt_state_cb = NULL;
-    g_bt_bond_cb = NULL;
     app_mgr_deregister_disc_cb();
     app_mgr_deregister_dev_found_cb();
+    g_bt_control.bt_bond_cb = NULL;
     g_bt_control.is_bt_open = false;
+
+    bsa_bt_state_send(RK_BT_STATE_OFF);
+    g_bt_control.bt_state_cb = NULL;
     return 0;
 }
 
@@ -305,14 +313,24 @@ void rk_bt_register_dev_found_callback(RK_BT_DEV_FOUND_CALLBACK cb)
 
 int rk_bt_start_discovery(unsigned int mseconds)
 {
+    if(!bt_is_open()) {
+        APP_DEBUG0("bluetooth is not inited, please init");
+        return -1;
+    }
+
     if(app_disc_complete() != APP_DISCOVERYING)
-        return app_disc_start_regular(NULL, mseconds);
+        return app_disc_start_regular(NULL, mseconds/1000 + mseconds%1000);
     else
         return -1;
 }
 
 int rk_bt_cancel_discovery()
 {
+    if(!bt_is_open()) {
+        APP_DEBUG0("bluetooth is not inited, please init");
+        return -1;
+    }
+
     if(app_disc_complete() == APP_DISCOVERYING)
         return app_disc_abort();
     else
@@ -330,21 +348,49 @@ bool rk_bt_is_discovering()
 
 void rk_bt_display_devices()
 {
+    if(!bt_is_open()) {
+        APP_DEBUG0("bluetooth is not inited, please init");
+        return;
+    }
+
     app_disc_display_devices();
 }
 
 void rk_bt_display_paired_devices()
 {
+    if(!bt_is_open()) {
+        APP_DEBUG0("bluetooth is not inited, please init");
+        return;
+    }
+
+    app_mgr_xml_display_devices();
 }
 
 int rk_bt_pair_by_addr(char *addr)
 {
-    return app_mgr_sec_bond(addr);
+    BD_ADDR bd_addr;
+
+    if(!bt_is_open()) {
+        APP_DEBUG0("bluetooth is not inited, please init");
+        return -1;
+    }
+
+    if(app_mgr_str2bd(addr, bd_addr) < 0) {
+        APP_ERROR1("pair device(%s)failed", addr);
+        return -1;
+    }
+
+    return app_mgr_sec_bond(bd_addr);
 }
 
 int rk_bt_unpair_by_addr(char *addr)
 {
     BD_ADDR bd_addr;
+
+    if(!bt_is_open()) {
+        APP_DEBUG0("bluetooth is not inited, please init");
+        return -1;
+    }
 
     if(app_mgr_str2bd(addr, bd_addr) < 0) {
         APP_ERROR1("unpair device(%s)failed", addr);
@@ -356,11 +402,21 @@ int rk_bt_unpair_by_addr(char *addr)
 
 int rk_bt_set_device_name(char *name)
 {
+    if(!bt_is_open()) {
+        APP_DEBUG0("bluetooth is not inited, please init");
+        return -1;
+    }
+
     return app_mgt_set_device_name(name);
 }
 
 int rk_bt_get_device_name(char *name, int len)
 {
+    if(!bt_is_open()) {
+        APP_DEBUG0("bluetooth is not inited, please init");
+        return -1;
+    }
+
     if (!name || (len <= 0))
         return -1;
 
@@ -372,22 +428,35 @@ int rk_bt_get_device_name(char *name, int len)
 
 int rk_bt_get_device_addr(char *addr, int len)
 {
+    if(!bt_is_open()) {
+        APP_DEBUG0("bluetooth is not inited, please init");
+        return -1;
+    }
+
     if (!addr || (len < 17))
         return -1;
 
-    memset(addr, 0, len);
-    bsa_get_bt_mac(addr);
-
+    bsa_get_bt_mac(addr, len);
     return 0;
 }
 
 int rk_bt_get_paired_devices(RkBtPraiedDevice **dev_list,int *count)
 {
+    if(!bt_is_open()) {
+        APP_DEBUG0("bluetooth is not inited, please init");
+        return -1;
+    }
+
     return app_mgr_get_paired_devices(dev_list, count);
 }
 
 int rk_bt_free_paired_devices(RkBtPraiedDevice *dev_list)
 {
+    if(!bt_is_open()) {
+        APP_DEBUG0("bluetooth is not inited, please init");
+        return -1;
+    }
+
     return app_mgr_free_paired_devices(dev_list);
 }
 
@@ -413,10 +482,14 @@ int rk_bt_sink_register_volume_callback(RK_BT_SINK_VOLUME_CALLBACK cb)
 
 int rk_bt_sink_register_track_callback(RK_BT_AVRCP_TRACK_CHANGE_CB cb)
 {
+    app_avk_register_track_cb(cb);
+    return 0;
 }
 
 int rk_bt_sink_register_position_callback(RK_BT_AVRCP_PLAY_POSITION_CB cb)
 {
+    app_avk_register_position_cb(cb);
+    return 0;
 }
 
 int rk_bt_sink_get_default_dev_addr(char *addr, int len)
@@ -533,7 +606,7 @@ int rk_bt_sink_set_auto_reconnect(int enable)
 
 int rk_bt_sink_get_play_status()
 {
-    return 0;
+    return app_avk_get_play_status();
 }
 
 bool rk_bt_sink_get_poschange()
@@ -555,12 +628,36 @@ int rk_bt_sink_disconnect()
 
 int rk_bt_sink_connect_by_addr(char *addr)
 {
-    return 0;
+    BD_ADDR bd_addr;
+
+    if(!a2dp_sink_is_open()) {
+        APP_ERROR0("sink don't open, please open");
+        return -1;
+    }
+
+    if(app_mgr_str2bd(addr, bd_addr) < 0) {
+        APP_ERROR1("connect device(%s)failed", addr);
+        return -1;
+    }
+
+    return app_avk_open(bd_addr, NULL);
 }
 
 int rk_bt_sink_disconnect_by_addr(char *addr)
 {
-    return 0;
+    BD_ADDR bd_addr;
+
+    if(!a2dp_sink_is_open()) {
+        APP_ERROR0("sink don't open, please open");
+        return -1;
+    }
+
+    if(app_mgr_str2bd(addr, bd_addr) < 0) {
+        APP_ERROR1("disconnect device(%s)failed", addr);
+        return -1;
+    }
+
+    return app_avk_close(bd_addr);
 }
 
 /******************************************/
@@ -1098,10 +1195,6 @@ int rk_bt_control(DeviceIOFramework::BtControl cmd, void *data, int len)
 
     case DeviceIOFramework::BtControl::BT_SOURCE_IS_OPENED:
         ret = a2dp_source_is_open();
-        break;
-
-    case DeviceIOFramework::BtControl::GET_BT_MAC:
-        bsa_get_bt_mac((char *)data);
         break;
 
     case DeviceIOFramework::BtControl::BT_VOLUME_UP:

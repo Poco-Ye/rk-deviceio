@@ -80,7 +80,7 @@ int app_ble_rk_server_gatt_server_init(RkBleContent *ble_content);
  ** Returns          None
  **
  *******************************************************************************/
-void app_ble_rk_server_send_message(const char *uuid, UINT8 * data, UINT16 len);
+void app_ble_rk_server_send_message(const char *uuid, char *data, UINT16 len);
 
 /*******************************************************************************
  **

@@ -44,6 +44,7 @@
 #define APP_XML_DEV_INST_KEY            "instance"
 #define APP_XML_DEV_BDADDR_KEY          "bd_addr"
 #define APP_XML_DEV_LATEST_CONNECT      "latest_connect"
+#define APP_XML_DEV_IS_CONNECTED        "is_connected"
 #define APP_XML_DEV_NAME_KEY            "device_name"
 #define APP_XML_DEV_CLASS_KEY           "class_of_device"
 #define APP_XML_DEV_LINKKEY_KEY         "link_key"
@@ -107,6 +108,7 @@ enum
     DEV_INST_KEY,
     DEV_BDADDR_KEY,
     DEV_LATEST_CONNECT_KEY,
+    DEV_IS_CONNECTED_KEY,
     DEV_NAME_KEY,
     DEV_CLASS_KEY,
     DEV_LINKKEY_KEY,
@@ -605,6 +607,10 @@ int app_xml_write_db(const char *p_fname, const tAPP_XML_REM_DEVICE *p_xml_rem_d
             dprintf(fd, "%d", p_xml_rem_devices->latest_connect);
             app_xml_close_tag(fd, APP_XML_DEV_LATEST_CONNECT, FALSE);
 
+            app_xml_open_tag(fd, APP_XML_DEV_IS_CONNECTED, FALSE);
+            dprintf(fd, "%d", p_xml_rem_devices->is_connected);
+            app_xml_close_tag(fd, APP_XML_DEV_IS_CONNECTED, FALSE);
+
             app_xml_open_tag(fd, APP_XML_DEV_NAME_KEY, FALSE);
             dummy = write(fd, (char *) p_xml_rem_devices->name,
                     strlen((char *) p_xml_rem_devices->name));
@@ -1017,6 +1023,11 @@ static void app_xml_dev_db_tagBeginCallbackFunc(nxml_t handle,
     {
         app_xml_param_cb.dev_tag = DEV_LATEST_CONNECT_KEY;
     }
+    else if (strncmp(tagName, APP_XML_DEV_IS_CONNECTED,
+            strlen(APP_XML_DEV_IS_CONNECTED)) == 0)
+    {
+        app_xml_param_cb.dev_tag = DEV_IS_CONNECTED_KEY;
+    }
     else if (strncmp(tagName, APP_XML_DEV_NAME_KEY,
             strlen(APP_XML_DEV_NAME_KEY)) == 0)
     {
@@ -1267,6 +1278,10 @@ static void app_xml_dev_db_dataCallbackFunc(nxml_t handle, const char *data,
 
     case DEV_LATEST_CONNECT_KEY:
         devices_db_ptr->latest_connect = app_xml_read_value(data, len);
+        break;
+
+    case DEV_IS_CONNECTED_KEY:
+        devices_db_ptr->is_connected = app_xml_read_value(data, len);
         break;
 
     case DEV_NAME_KEY:
@@ -1821,11 +1836,12 @@ int app_xml_update_name_db(tAPP_XML_REM_DEVICE *p_stored_device_db,
         if (p_stored_device_db[index].in_use != FALSE)
         {
             if ((bdcmp(p_stored_device_db[index].bd_addr, bd_addr) == 0)) {
-                printf("Update name with %s\n", name);
-                strncpy((char *) p_stored_device_db[index].name, (char *) name,
-                        sizeof(p_stored_device_db[index].name) - 1);
-                p_stored_device_db[index].name[sizeof(p_stored_device_db[index].name) - 1] = '\0';
-
+                if(name) {
+                    APP_DEBUG1("Update name with %s", name);
+                    strncpy((char *) p_stored_device_db[index].name, (char *) name,
+                            sizeof(p_stored_device_db[index].name) - 1);
+                    p_stored_device_db[index].name[sizeof(p_stored_device_db[index].name) - 1] = '\0';
+                }
                 p_stored_device_db[index].latest_connect = TRUE;
                 ret = 0;
             } else {
@@ -1860,6 +1876,31 @@ int app_xml_update_latest_connect_db(tAPP_XML_REM_DEVICE *p_stored_device_db,
                 p_stored_device_db[index].latest_connect = TRUE;
             else
                 p_stored_device_db[index].latest_connect = FALSE;
+        }
+    }
+
+    return 0;
+}
+
+/*******************************************************************************
+ **
+ ** Function        app_xml_update_connected_state_db
+ **
+ ** Description     Update link key information for a device
+ **
+ ** Returns         0 if successful, error code otherwise
+ **
+ *******************************************************************************/
+int app_xml_update_connected_state_db(tAPP_XML_REM_DEVICE *p_stored_device_db,
+        int nb_device_max, BD_ADDR bd_addr, BOOLEAN is_connected)
+{
+    int index;
+
+    /* First look in Database if this device already exist */
+    for (index = 0; index < nb_device_max; index++) {
+        if (p_stored_device_db[index].in_use != FALSE) {
+            if ((bdcmp(p_stored_device_db[index].bd_addr, bd_addr) == 0))
+                p_stored_device_db[index].is_connected = is_connected;
         }
     }
 
@@ -1927,6 +1968,7 @@ int app_xml_display_devices(const tAPP_XML_REM_DEVICE *p_stored_device_db,
                     p_stored_device_db[index].bd_addr[4],
                     p_stored_device_db[index].bd_addr[5]);
             printf("\tLatest Connect:%d\n", p_stored_device_db[index].latest_connect);
+            printf("\tConnected:%d\n", p_stored_device_db[index].is_connected);
             printf("\tName:%s\n", p_stored_device_db[index].name);
             printf("\tClassOfDevice:%02x:%02x:%02x => %s\n",
                     p_stored_device_db[index].class_of_device[0],

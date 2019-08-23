@@ -52,15 +52,13 @@ static menu_command_t menu_command_table[] = {
 
 typedef struct {
 	const char *cmd;
-	void (*action)(void *userdata);
+	void (*action)(void *data);
 } command_t;
 
-#ifdef BLUEZ_USE
 typedef struct {
 	const char *cmd;
 	void (*action)(char *data);
-} command_1s2_t;
-#endif
+} command_bt_t;
 
 static command_t wifi_config_command_table[] = {
 	{"", NULL},
@@ -72,14 +70,24 @@ static command_t wifi_config_command_table[] = {
 	{"softap_wifi_config_stop", rk_wifi_softap_stop},
 };
 
-static command_t bt_command_table[] = {
+static command_bt_t bt_command_table[] = {
 	{"", NULL},
 	{"bt_server_open", bt_test_bluetooth_init},
 	{"bt_test_set_class", bt_test_set_class},
 	{"bt_test_get_device_name", bt_test_get_device_name},
 	{"bt_test_get_device_addr", bt_test_get_device_addr},
+	{"bt_test_set_device_name", bt_test_set_device_name},
 	{"bt_test_enable_reconnect", bt_test_enable_reconnect},
 	{"bt_test_disable_reconnect", bt_test_disable_reconnect},
+	{"bt_test_start_discovery", bt_test_start_discovery},
+	{"bt_test_cancel_discovery", bt_test_cancel_discovery},
+	{"bt_test_is_discovering", bt_test_is_discovering},
+	{"bt_test_display_devices", bt_test_display_devices},
+	{"bt_test_display_paired_devices", bt_test_display_paired_devices},
+	{"bt_test_get_paired_devices", bt_test_get_paired_devices},
+	{"bt_test_free_paired_devices", bt_test_free_paired_devices},
+	{"bt_test_pair_by_addr", bt_test_pair_by_addr},
+	{"bt_test_unpair_by_addr", bt_test_unpair_by_addr},
 	{"bt_test_source_auto_start", bt_test_source_auto_start},
 	{"bt_test_source_connect_status", bt_test_source_connect_status},
 	{"bt_test_source_auto_stop", bt_test_source_auto_stop},
@@ -94,8 +102,12 @@ static command_t bt_command_table[] = {
 	{"bt_test_sink_music_next", bt_test_sink_music_next},
 	{"bt_test_sink_music_previous", bt_test_sink_music_previous},
 	{"bt_test_sink_music_stop", bt_test_sink_music_stop},
-	{"bt_test_sink_disconnect", bt_test_sink_disconnect},
 	{"bt_test_sink_set_volume", bt_test_sink_set_volume},
+	{"bt_test_sink_connect_by_addr", bt_test_sink_connect_by_addr},
+	{"bt_test_sink_disconnect_by_addr", bt_test_sink_disconnect_by_addr},
+	{"bt_test_sink_get_play_status", bt_test_sink_get_play_status},
+	{"bt_test_sink_get_poschange", bt_test_sink_get_poschange},
+	{"bt_test_sink_disconnect", bt_test_sink_disconnect},
 	{"bt_test_sink_close", bt_test_sink_close},
 	{"bt_test_ble_start", bt_test_ble_start},
 	{"bt_test_ble_write", bt_test_ble_write},
@@ -128,7 +140,7 @@ static command_t bt_command_table[] = {
 };
 
 #ifdef BLUEZ_USE
-static command_1s2_t btmg_1s2_command_table[] = {
+static command_bt_t btmg_1s2_command_table[] = {
 	{"", NULL},
 	{"btmg_init_test", btmg_init_test},
 	{"btmg_enable_reconnect_test", btmg_enable_reconnect_test},
@@ -222,9 +234,11 @@ static void deviceio_test_wifi_config()
 static void deviceio_test_bluetooth()
 {
 	int i, item_cnt;
+	char *input_start;
+	char cmdBuf[64] = {0};
 	char szBuf[64] = {0};
 
-	item_cnt = sizeof(bt_command_table) / sizeof(command_t);
+	item_cnt = sizeof(bt_command_table) / sizeof(command_bt_t);
 	while(true) {
 		memset(szBuf, 0, sizeof(szBuf));
 		show_bt_cmd();
@@ -233,9 +247,18 @@ static void deviceio_test_bluetooth()
 			continue;
 		}
 
-		i = atoi(szBuf);
-		if ((i >= 1) && (i < item_cnt))
-			bt_command_table[i].action(NULL);
+		input_start = strstr(szBuf, "input");
+		if(input_start == NULL) {
+			i = atoi(szBuf);
+			if ((i >= 1) && (i < item_cnt))
+				bt_command_table[i].action(NULL);
+		} else {
+			memset(cmdBuf, 0, sizeof(cmdBuf));
+			strncpy(cmdBuf, szBuf, strlen(szBuf) - strlen(input_start) - 1);
+			i = atoi(cmdBuf);
+			if ((i >= 1) && (i < item_cnt))
+				bt_command_table[i].action(input_start + strlen("input") + 1);
+		}
 	}
 
 	return;
@@ -249,7 +272,7 @@ static void deviceio_test_bluetooth_1s2()
 	char cmdBuf[64] = {0};
 	char szBuf[64] = {0};
 
-	item_cnt = sizeof(btmg_1s2_command_table) / sizeof(command_1s2_t);
+	item_cnt = sizeof(btmg_1s2_command_table) / sizeof(command_bt_t);
 	while(true) {
 		memset(szBuf, 0, sizeof(szBuf));
 		show_bt_1s2_cmd();
