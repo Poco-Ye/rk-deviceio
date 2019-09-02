@@ -248,7 +248,6 @@ int bt_manager_enable(bool enable)
 			return -1;
 		}
 
-		//rk_bt_sink_register_volume_callback(NULL);
 		rk_bt_sink_register_track_callback(btmg_sink_track_change_callback);
 		rk_bt_sink_register_position_callback(btmg_sink_position_change_callback);
 		rk_bt_sink_register_callback(btmg_sink_callback);

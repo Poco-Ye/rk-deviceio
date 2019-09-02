@@ -28,7 +28,7 @@
 #include "advertising.h"
 #include "../bluez_ctrl.h"
 #include "../gatt_config.h"
-#include "../include/uinput.h"
+//#include "../include/uinput.h"
 #include "../utility/utility.h"
 
 using DeviceIOFramework::DeviceIo;
@@ -259,7 +259,7 @@ static void bt_dev_found_send(GDBusProxy *proxy)
 	g_bt_callback.bt_dev_found_cb(address, name, bt_class, rssi);
 }
 
-void bt_register_dev_found_callback(RK_BT_DISCOVERY_CALLBACK cb)
+void bt_register_dev_found_callback(RK_BT_DEV_FOUND_CALLBACK cb)
 {
 	g_bt_callback.bt_dev_found_cb = cb;
 }
@@ -3069,6 +3069,9 @@ int bt_open(RkBtContent *bt_content)
 	if (pthread_create(&bt_thread, NULL, bluetooth_open, bt_content))
 		return -1;
 
+	pthread_setname_np(bt_thread, "bluetooth_open");
+	printf("%s: thread_name: bluetooth_open, tid: %lu\n", __func__, bt_thread);
+
 	while (confirm_cnt--) {
 		if (BT_OPENED)
 			return 0;
@@ -3858,7 +3861,7 @@ int get_current_dev_platform()
 
 static void connect_by_address_reply(DBusMessage *message, void *user_data)
 {
-	GDBusProxy *proxy = user_data;
+	GDBusProxy *proxy = (GDBusProxy*)user_data;
 	DBusError error;
 
 	dbus_error_init(&error);
@@ -4231,6 +4234,7 @@ static void *bt_scan_devices(void *arg)
 
 done:
 	printf("%s: Exit bt scan thread\n", __func__);
+	return NULL;
 }
 
 int bt_start_discovery(unsigned int mseconds)
@@ -4258,6 +4262,9 @@ int bt_start_discovery(unsigned int mseconds)
 		bt_discovery_state_send(RK_BT_DISC_START_FAILED);
 		return -1;
 	}
+
+	pthread_setname_np(g_scan_thread, "scan_thread");
+	printf("%s scan_thread tid: %lu\n", __func__, g_scan_thread);
 
 	return 0;
 }

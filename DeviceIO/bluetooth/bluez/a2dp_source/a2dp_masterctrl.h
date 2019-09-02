@@ -24,7 +24,7 @@ void bt_register_bond_callback(RK_BT_BOND_CALLBACK cb);
 void bt_deregister_bond_callback();
 void bt_register_discovery_callback(RK_BT_DISCOVERY_CALLBACK cb);
 void bt_deregister_discovery_callback();
-void bt_register_dev_found_callback(RK_BT_DISCOVERY_CALLBACK cb);
+void bt_register_dev_found_callback(RK_BT_DEV_FOUND_CALLBACK cb);
 void bt_deregister_dev_found_callback();
 void ble_register_state_callback(RK_BLE_STATE_CALLBACK cb);
 void ble_deregister_state_callback();

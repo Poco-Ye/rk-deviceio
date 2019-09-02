@@ -189,10 +189,10 @@ static struct adapter *find_parent(GDBusProxy *device)
 	GList *list;
 
 	for (list = g_list_first(ctrl_list); list; list = g_list_next(list)) {
-		struct adapter *adapter = list->data;
+		struct adapter *parent_adapter = (adapter*)(list->data);
 
-		if (device_is_child(device, adapter->proxy) == TRUE)
-			return adapter;
+		if (device_is_child(device, parent_adapter->proxy) == TRUE)
+			return parent_adapter;
 	}
 
 	return NULL;

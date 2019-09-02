@@ -119,7 +119,7 @@ static void process_ciev_msg(char *msg, rfcomm_ciev_status_t rfcomm_ciev_status)
 	}
 }
 
-static process_bcs_msg(char *msg)
+static void process_bcs_msg(char *msg)
 {
 	unsigned short codec_type = 0;
 
@@ -206,6 +206,9 @@ int rfcomm_listen_ba_msg_start()
 
 	/* Create a thread to listen for Bluezalsa hfp-hf status. */
 	pthread_create(&tid, NULL, thread_get_ba_msg, NULL);
+
+	pthread_setname_np(tid, "rfcomm_listen");
+	printf("%s rfcomm_listen tid: %lu\n", __func__, tid);
 
 	return 0;
 }
@@ -370,7 +373,7 @@ static int setup_pcm_handle(char *name, snd_pcm_t *pcm, setup_pcm_param *param)
 			"  PCM period time: %u us (%zu bytes)\n"
 			"  Sampling rate: %u Hz\n"
 			"  Channels: %u\n"
-			"  StartThreshold: %u\n",
+			"  StartThreshold: %lu\n",
 			name,
 			param->buffer_time, snd_pcm_frames_to_bytes(pcm, buffer_size),
 			param->period_time, snd_pcm_frames_to_bytes(pcm, period_size),
@@ -523,7 +526,7 @@ int rfcomm_hfp_open_audio_path()
 	pcm_param.period_time = 20000;
 	pcm_param.format = SND_PCM_FORMAT_S16_LE;
 	pcm_param.start_threshold = 0; //default
-	if (err = setup_pcm_handle("LocalPlayback", local_play_pcm, &pcm_param) != 0) {
+	if ((err = setup_pcm_handle("LocalPlayback", local_play_pcm, &pcm_param)) != 0) {
 		printf("Set up Local Playback audio path failed!\n");
 		goto fail;
 	}
@@ -539,7 +542,7 @@ int rfcomm_hfp_open_audio_path()
 	pcm_param.period_time = 20000;
 	pcm_param.format = SND_PCM_FORMAT_S16_LE;
 	pcm_param.start_threshold = 1;
-	if (err = setup_pcm_handle("LocalCaputure", local_record_pcm, &pcm_param) != 0) {
+	if ((err = setup_pcm_handle("LocalCaputure", local_record_pcm, &pcm_param)) != 0) {
 		printf("Set up Local Caputure audio path failed!\n");
 		goto fail;
 	}
@@ -555,7 +558,7 @@ int rfcomm_hfp_open_audio_path()
 	pcm_param.period_time = 20000;
 	pcm_param.format = SND_PCM_FORMAT_S16_LE;
 	pcm_param.start_threshold = 0;
-	if (err = setup_pcm_handle("BtPlayback", bt_play_pcm, &pcm_param) != 0) {
+	if ((err = setup_pcm_handle("BtPlayback", bt_play_pcm, &pcm_param)) != 0) {
 		printf("Set up Bt Playback audio path failed!\n");
 		goto fail;
 	}
@@ -571,7 +574,7 @@ int rfcomm_hfp_open_audio_path()
 	pcm_param.period_time = 20000;
 	pcm_param.format = SND_PCM_FORMAT_S16_LE;
 	pcm_param.start_threshold = 1;
-	if (err = setup_pcm_handle("BtCaputure", bt_record_pcm, &pcm_param) != 0) {
+	if ((err = setup_pcm_handle("BtCaputure", bt_record_pcm, &pcm_param)) != 0) {
 		printf("Set up Bt Caputure audio path failed!\n");
 		goto fail;
 	}

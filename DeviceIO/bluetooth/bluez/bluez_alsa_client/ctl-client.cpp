@@ -156,7 +156,7 @@ ssize_t bluealsa_get_devices(int fd, struct ba_msg_device **devices) {
 		return -1;
 
 	while (recv(fd, &device, sizeof(device), 0) == sizeof(device)) {
-		_devices = realloc(_devices, (i + 1) * sizeof(*_devices));
+		_devices = (ba_msg_device*)realloc(_devices, (i + 1) * sizeof(*_devices));
 		memcpy(&_devices[i], &device, sizeof(*_devices));
 		i++;
 	}
@@ -186,7 +186,7 @@ ssize_t bluealsa_get_transports(int fd, struct ba_msg_transport **transports) {
 		return -1;
 
 	while (recv(fd, &transport, sizeof(transport), 0) == sizeof(transport)) {
-		_transports = realloc(_transports, (i + 1) * sizeof(*_transports));
+		_transports = (ba_msg_transport*)realloc(_transports, (i + 1) * sizeof(*_transports));
 		memcpy(&_transports[i], &transport, sizeof(*_transports));
 		i++;
 	}

@@ -37,8 +37,8 @@ static int g_server_sk;
 static RK_BT_SPP_STATUS_CALLBACK g_status_callback;
 static RK_BT_SPP_RECV_CALLBACK g_recv_callback;
 static int g_spp_server_channel = 1;
-static int g_spp_server_status = RK_BT_SPP_STATE_IDLE;
-static pthread_t g_bt_spp_server_thread = NULL;
+static RK_BT_SPP_STATE g_spp_server_status = RK_BT_SPP_STATE_IDLE;
+static pthread_t g_bt_spp_server_thread = 0;
 
 static void *init_bt_spp_server(void *arg)
 {
@@ -158,6 +158,7 @@ OUT:
 	g_server_sk = 0;
 	g_client_sk = 0;
 	g_spp_server_status = RK_BT_SPP_STATE_IDLE;
+	return NULL;
 }
 
 int bt_spp_server_open()
@@ -197,7 +198,7 @@ void bt_spp_register_status_callback(RK_BT_SPP_STATUS_CALLBACK cb)
 void bt_spp_server_close()
 {
 	if (!g_bt_spp_server_thread)
-		return 0;
+		return;
 
 	printf("[BT SPP] close start...\n");
 	g_spp_server_running = false;

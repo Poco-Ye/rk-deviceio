@@ -48,21 +48,11 @@ volatile bt_control_t bt_control = {
 	0,
 	0,
 	BT_IS_BLE_SINK_COEXIST,
+	BtControlType::BT_NONE,
 	BtControlType::BT_NONE
 };
 
 RkBtContent GBt_Content;
-
-/* as same as APP_BLE_WIFI_INTRODUCER_GATT_ATTRIBUTE_SIZE */
-#define BLE_SOCKET_RECV_LEN 22
-
-#ifdef BLUEZ5_UTILS
-static char sock_path[] = "/data/bluez5_utils/socket_dueros";
-#else
-static char sock_path[] = "/data/bsa/config/socket_dueros";
-#endif
-
-#define BT_STATUS_PATH "/data/bsa/config/bt_config.xml"
 
 static int bt_close_a2dp_server();
 static int bt_ble_open(void);

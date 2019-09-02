@@ -2263,10 +2263,10 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 		session_property_changed(proxy, name, iter);
 }
 
-int obex_main_thread(void)
+void *obex_main_thread(void)
 {
 	GDBusClient *client;
-	int status;
+	//int status = 0;
 
 	//bt_shell_init(argc, argv, NULL);
 	//bt_shell_set_menu(&main_menu);
@@ -2295,7 +2295,7 @@ int obex_main_thread(void)
 
 	g_main_loop_unref(obex_main_loop);
 
-	return status;
+	return NULL;
 }
 
 void obex_quit(void)

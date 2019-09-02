@@ -766,16 +766,19 @@ int rk_bt_spp_open()
 int rk_bt_spp_register_status_cb(RK_BT_SPP_STATUS_CALLBACK cb)
 {
 	bt_spp_register_status_callback(cb);
+	return 0;
 }
 
 int rk_bt_spp_register_recv_cb(RK_BT_SPP_RECV_CALLBACK cb)
 {
 	bt_spp_register_recv_callback(cb);
+	return 0;
 }
 
 int rk_bt_spp_close(void)
 {
 	bt_spp_server_close();
+	return 0;
 }
 
 int rk_bt_spp_get_state(RK_BT_SPP_STATE *pState)
@@ -806,7 +809,6 @@ int rk_bt_init(RkBtContent *p_bt_content)
 
 int rk_bt_deinit(void)
 {
-#if 1
 	bt_state_send(RK_BT_STATE_TURNING_OFF);
 	rk_bt_hfp_close();
 	rk_bt_sink_close();
@@ -829,10 +831,6 @@ int rk_bt_deinit(void)
 	bt_deregister_discovery_callback();
 	bt_deregister_dev_found_callback();
 	return 0;
-#else
-	printf("bluez don't support bt deinit\n");
-	return -1;
-#endif
 }
 
 void rk_bt_register_state_callback(RK_BT_STATE_CALLBACK cb)
@@ -1122,7 +1120,7 @@ static int rk_bt_hfp_hp_send_cmd(char *cmd)
 	}
 
 	RK_shell_exec("hcitool con", result_buf, sizeof(result_buf));
-	if (start = strstr(result_buf, "ACL ")) {
+	if ((start = strstr(result_buf, "ACL ")) != NULL) {
 		start += 4; /* skip space */
 		memcpy(dev_addr, start, 17);
 	}
