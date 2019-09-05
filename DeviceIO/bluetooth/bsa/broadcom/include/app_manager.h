@@ -380,6 +380,20 @@ void app_mgr_set_remote_oob();
 
 /*******************************************************************************
  **
+ ** Function         app_set_sleepmode_param
+ **
+ ** Description      This function is used to set sleep wake
+ **                  bsa_server must set parameters "-diag=0 -lpm"
+ **
+ ** Parameters
+ **
+ ** Returns          void
+ **
+ *******************************************************************************/
+int app_mgr_set_sleep_mode_param(void);
+
+/*******************************************************************************
+ **
  ** Function         app_mgr_set_link_policy
  **
  ** Description      Set the device link policy

@@ -291,6 +291,7 @@ int rk_bt_init(RkBtContent *p_bt_content)
 
     g_bt_control.is_bt_open = true;
     bsa_bt_state_send(RK_BT_STATE_ON);
+    //app_mgr_set_sleep_mode_param();
     return 0;
 }
 

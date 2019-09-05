@@ -1877,6 +1877,47 @@ int app_mgr_read_version(void)
     return 0;
 }
 
+/*******************************************************************************
+ **
+ ** Function         app_set_sleepmode_param
+ **
+ ** Description      This function is used to set sleep wake
+ **                  bsa_server must set parameters "-diag=0 -lpm"
+ **
+ ** Parameters
+ **
+ ** Returns          void
+ **
+ *******************************************************************************/
+int app_mgr_set_sleep_mode_param()
+{
+    tBSA_STATUS status;
+    tBSA_TM_HCI_CMD hci_cmd;
+    tBSA_TM_VSC vsc_param;
+    UINT8 i;
+    UINT8 hci_write_sleep_mode[] = {0x01, 0x0a, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
+    memset(&vsc_param.data, 0, sizeof(vsc_param.data));
+
+    status = BSA_TmVscInit(&vsc_param);
+    if(status != BSA_SUCCESS) {
+        APP_ERROR1("BSA_TmVscInit failed: %d", status);
+        return -1;
+    }
+
+    vsc_param.opcode = 0xFC27;   //simple_app.bsa_vsc.opcode;          /* VSC */
+    vsc_param.length = 0x0c;     // simple_app.bsa_vsc.length;          /* Data Len */
+    memcpy(vsc_param.data, &hci_write_sleep_mode[0], vsc_param.length);
+
+    status = BSA_TmVsc(&vsc_param);
+    if(status != BSA_SUCCESS){
+        APP_ERROR1("BSA_TmVsc failed: %d", status);
+        return -1;
+    }
+
+    APP_DEBUG1("Vsc server status: %d", vsc_param.status);
+    return 0;
+}
 
 /*******************************************************************************
  **

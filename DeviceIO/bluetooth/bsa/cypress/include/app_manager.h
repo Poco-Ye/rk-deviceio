@@ -394,11 +394,26 @@ void app_mgr_set_remote_oob();
  ** Returns          void
  **
  *******************************************************************************/
+void app_mgr_set_link_policy(BD_ADDR bd_addr, tBSA_DM_LP_MASK policy_mask, BOOLEAN set);
+
+/*******************************************************************************
+ **
+ ** Function         app_set_sleepmode_param
+ **
+ ** Description      This function is used to set sleep wake
+ **                  bsa_server must set parameters "-diag=0 -lpm"
+ **
+ ** Parameters
+ **
+ ** Returns          void
+ **
+ *******************************************************************************/
+int app_mgr_set_sleep_mode_param(void);
+
 void app_mgr_register_disc_cb(RK_BT_DISCOVERY_CALLBACK cb);
 void app_mgr_deregister_disc_cb();
 void app_mgr_register_dev_found_cb(RK_BT_DEV_FOUND_CALLBACK cb);
 void app_mgr_deregister_dev_found_cb();
-void app_mgr_set_link_policy(BD_ADDR bd_addr, tBSA_DM_LP_MASK policy_mask, BOOLEAN set);
 int app_mgr_get_latest_device(void);
 int app_manager_init(const char *bt_name, app_mgr_callback cb);
 int app_manager_deinit(void);
