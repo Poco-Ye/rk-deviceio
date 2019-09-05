@@ -160,6 +160,7 @@ static int app_hs_close_alsa_duplex(void);
 #endif
 #endif /* PCM_ALSA */
 
+static RK_BT_HFP_EVENT app_hs_state = RK_BT_HFP_DISCONNECT_EVT;
 static RK_BT_HFP_CALLBACK app_hs_send_cb = NULL;
 static void app_hs_send_event(RK_BT_HFP_EVENT event, void *data) {
     if(app_hs_send_cb)
@@ -1159,8 +1160,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
     UINT16 handle = 0;
     tBSA_HS_CONN_CB *p_conn;
 
-    if (!p_data)
-    {
+    if (!p_data) {
         printf("app_hs_cback p_data=NULL for event:%d\n", event);
         return;
     }
@@ -1172,14 +1172,12 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
     /* retrieve the connection for this handle */
     p_conn = app_hs_get_conn_by_handle(handle);
 
-    if (!p_conn)
-    {
+    if (!p_conn) {
         printf("app_hs_cback: handle %d not supported\n", handle);
         return;
     }
 
-    switch (event)
-    {
+    switch (event) {
     case BSA_HS_CONN_EVT:       /* Service level connection */
         printf("BSA_HS_CONN_EVT:\n");
         app_hs_cb.open_pending = FALSE;
@@ -1219,12 +1217,17 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
             p_conn->dev_platform == BSA_DEV_PLATFORM_UNKNOWN ? "Unknown Platform" : "Apple IOS");
 
         /* Read the Remote device xml file to have a fresh view */
-        app_mgr_read_remote_devices();
+        app_read_xml_remote_devices();
         app_xml_update_connected_state_db(app_xml_remote_devices_db,
                                APP_NUM_ELEMENTS(app_xml_remote_devices_db),
                                p_data->conn.bd_addr, TRUE);
-        app_mgr_write_remote_devices();
+        app_xml_update_latest_connect_db(app_xml_remote_devices_db,
+                               APP_NUM_ELEMENTS(app_xml_remote_devices_db),
+                               p_data->conn.bd_addr);
+        app_write_xml_remote_devices();
 
+        app_dm_set_visibility(TRUE, FALSE);
+        app_hs_state = RK_BT_HFP_CONNECT_EVT;
         app_hs_send_event(RK_BT_HFP_CONNECT_EVT, NULL);
         break;
 
@@ -1243,6 +1246,16 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         p_conn->indicator_string_received = FALSE;
 
         BSA_HS_SETSTATUS(p_conn, BSA_HS_ST_CONNECTABLE);
+
+        /* Read the Remote device xml file to have a fresh view */
+        app_read_xml_remote_devices();
+        app_xml_update_connected_state_db(app_xml_remote_devices_db,
+                               APP_NUM_ELEMENTS(app_xml_remote_devices_db),
+                               p_conn->connected_bd_addr, FALSE);
+        app_write_xml_remote_devices();
+
+        app_dm_set_visibility(TRUE, TRUE);
+        app_hs_state = RK_BT_HFP_DISCONNECT_EVT;
         app_hs_send_event(RK_BT_HFP_DISCONNECT_EVT, NULL);
         break;
 
@@ -2255,6 +2268,7 @@ int app_hs_initialize()
         }
     }
 
+    //app_dm_set_visibility(TRUE, TRUE);
     return 0;
 }
 
@@ -2337,4 +2351,12 @@ int app_hs_set_vol(int volume)
 void app_hs_set_cvsd(BOOLEAN enable)
 {
     app_hs_cb.enable_cvsd = enable;
+}
+
+void app_hs_get_state(RK_BT_HFP_EVENT *p_state)
+{
+    if (!p_state)
+        return;
+
+    *p_state = app_hs_state;
 }

@@ -3,6 +3,7 @@
 
 #include "avrcpctrl.h"
 #include "gatt_config.h"
+#include "../bluetooth.h"
 #include "a2dp_source/a2dp_masterctrl.h"
 #include "a2dp_source/shell.h"
 #include "DeviceIo/DeviceIo.h"
@@ -44,7 +45,6 @@ bool bt_hfp_is_open(void);
 int bt_interface(BtControl type, void *data);
 int bt_close_sink(void);
 int bt_close_source(void);
-int rk_bt_control(BtControl cmd, void *data, int len);
 int bt_control_cmd_send(enum BtControl bt_ctrl_cmd);
 int bt_gethostname(char *hostname_buf, const size_t size);
 

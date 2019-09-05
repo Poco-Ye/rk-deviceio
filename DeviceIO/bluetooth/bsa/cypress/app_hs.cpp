@@ -157,6 +157,7 @@ static int app_hs_close_alsa_duplex(void)
 #endif
 #endif /* PCM_ALSA */
 
+static RK_BT_HFP_EVENT app_hs_state = RK_BT_HFP_DISCONNECT_EVT;
 static RK_BT_HFP_CALLBACK app_hs_send_cb = NULL;
 static void app_hs_send_event(RK_BT_HFP_EVENT event, void *data) {
     if(app_hs_send_cb)
@@ -1439,8 +1440,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
     UINT16 handle = APP_HS_INVALID_HANDLE;
     tAPP_HS_CONNECTION *p_conn;
 
-    if (!p_data)
-    {
+    if (!p_data) {
         APP_DEBUG1("p_data=NULL for event:%d\n", event);
         return;
     }
@@ -1451,18 +1451,15 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
 
     /* retrieve the connection for this handle */
     p_conn = app_hs_get_conn_by_handle(handle);
-    if (!p_conn && event != BSA_HS_REGISTER_EVT)
-    {
+    if (!p_conn && event != BSA_HS_REGISTER_EVT) {
         APP_DEBUG1("handle %d not supported\n", handle);
         return;
     }
 
-    switch (event)
-    {
+    switch (event) {
     case BSA_HS_REGISTER_EVT:
         APP_DEBUG1("p_data->reg.hndl: %d, p_data->reg.status: %d", p_data->reg.hndl, p_data->reg.status);
-        if(p_data->reg.hndl == 0 || p_data->reg.hndl > BSA_MAX_HS_CONNECTIONS || p_data->reg.status != BSA_SUCCESS)
-        {
+        if(p_data->reg.hndl == 0 || p_data->reg.hndl > BSA_MAX_HS_CONNECTIONS || p_data->reg.status != BSA_SUCCESS) {
             APP_DEBUG1("ERROR : BSA_HS_REGISTER_EVT invalid handle=%d, status=%d\n", p_data->reg.hndl, p_data->reg.status);
             break;
         }
@@ -1482,8 +1479,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
                 p_data->conn.bd_addr[2], p_data->conn.bd_addr[3],
                 p_data->conn.bd_addr[4], p_data->conn.bd_addr[5]);
         printf("    - Service: ");
-        switch (p_data->conn.service)
-        {
+        switch (p_data->conn.service) {
         case BSA_HSP_HS_SERVICE_ID:
             printf("Headset\n");
             break;
@@ -1496,8 +1492,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         }
 
         /* check if this conneciton is already opened */
-        if (p_conn->connection_active)
-        {
+        if (p_conn->connection_active) {
             printf("BSA_HS_CONN_EVT: connection already opened for handle %d\n", handle);
             break;
         }
@@ -1512,12 +1507,17 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
             p_conn->dev_platform == BSA_DEV_PLATFORM_UNKNOWN ? "Unknown Platform" : "Apple IOS");
 
         /* Read the Remote device xml file to have a fresh view */
-        app_mgr_read_remote_devices();
+        app_read_xml_remote_devices();
         app_xml_update_connected_state_db(app_xml_remote_devices_db,
                                APP_NUM_ELEMENTS(app_xml_remote_devices_db),
                                p_data->conn.bd_addr, TRUE);
-        app_mgr_write_remote_devices();
+        app_xml_update_latest_connect_db(app_xml_remote_devices_db,
+                               APP_NUM_ELEMENTS(app_xml_remote_devices_db),
+                               p_data->conn.bd_addr);
+        app_write_xml_remote_devices();
 
+        app_dm_set_visibility(TRUE, FALSE);
+        app_hs_state = RK_BT_HFP_CONNECT_EVT;
         app_hs_send_event(RK_BT_HFP_CONNECT_EVT, NULL);
         break;
 
@@ -1530,8 +1530,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         memset(app_hs_cb.open_pending_bda, 0, sizeof(BD_ADDR));
         memset(app_hs_cb.is_battery_report, 0, BSA_HS_MAX_NUM_CONN * sizeof(int));
 
-        if (!p_conn->connection_active)
-        {
+        if (!p_conn->connection_active) {
             printf("BSA_HS_CLOSE_EVT: connection not opened for handle %d\n", handle);
             break;
         }
@@ -1539,6 +1538,16 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         p_conn->indicator_string_received = FALSE;
 
         BSA_HS_SETSTATUS(p_conn, BSA_HS_ST_CONNECTABLE);
+
+        /* Read the Remote device xml file to have a fresh view */
+        app_read_xml_remote_devices();
+        app_xml_update_connected_state_db(app_xml_remote_devices_db,
+                               APP_NUM_ELEMENTS(app_xml_remote_devices_db),
+                               p_conn->connected_bd_addr, FALSE);
+        app_write_xml_remote_devices();
+
+        app_dm_set_visibility(TRUE, TRUE);
+        app_hs_state = RK_BT_HFP_DISCONNECT_EVT;
         app_hs_send_event(RK_BT_HFP_DISCONNECT_EVT, NULL);
         break;
 
@@ -2593,6 +2602,7 @@ int app_hs_initialize()
         }
     }
 
+    //app_dm_set_visibility(TRUE, TRUE);
     return 0;
 }
 
@@ -2725,4 +2735,12 @@ int app_hs_set_vol(int volume)
 void app_hs_set_cvsd(BOOLEAN enable)
 {
     app_hs_cb.enable_cvsd = enable;
+}
+
+void app_hs_get_state(RK_BT_HFP_EVENT *p_state)
+{
+    if (!p_state)
+        return;
+
+    *p_state = app_hs_state;
 }

@@ -205,41 +205,33 @@ void app_dg_rx_close_evt(tBSA_DG_MSG *p_data)
 
     /* Look for the connection structure associated */
     connection = app_dg_con_get_from_handle(p_data->close.handle, &is_server);
-    if (connection >= APP_DG_NB_CON_MAX)
-    {
+    if (connection >= APP_DG_NB_CON_MAX) {
         APP_ERROR0("No Connection structure match this DG link");
         return;
     }
 
     app_dg_close_tty(connection);
     /* free pending GKI buffer */
-    if (app_dg_cb.connections[connection].p_tx_pending)
-    {
+    if (app_dg_cb.connections[connection].p_tx_pending) {
         GKI_freebuf(app_dg_cb.connections[connection].p_tx_pending);
         app_dg_cb.connections[connection].p_tx_pending = NULL;
         APP_DEBUG1("DG Server Connection p_tx_pending free :%d", connection);
     }
 
-    app_dg_connection_index = APP_DG_NB_CON_MAX;
-    app_dg_connection_status = RK_BT_SPP_STATE_DISCONNECT;
-    app_dg_send_event(RK_BT_SPP_STATE_DISCONNECT);
-
     APP_DEBUG0("app_dg_cback unlock mutex");
     status = app_unlock_mutex(&app_dg_cb.app_dg_tx_mutex[connection]);
-    if(status < 0)
-    {
+    if(status < 0) {
         APP_ERROR1("app_unlock_mutex failed status:%d", status);
     }
+
     status = app_delete_mutex(&app_dg_cb.app_dg_tx_mutex[connection]);
-    if(status < 0)
-    {
+    if(status < 0) {
         APP_ERROR1("app_delete_mutex failed status:%d", status);
     }
-    if (is_server)
-    {
+
+    if (is_server) {
         APP_DEBUG1("DG Server Connection :%d closed", connection);
-        if (app_dg_cb.connections[connection].is_open)
-        {
+        if (app_dg_cb.connections[connection].is_open) {
             /* For Server, mark this link as not connected but keep the
              * structure for future re-connection */
             app_dg_cb.connections[connection].is_open = FALSE;
@@ -247,9 +239,7 @@ void app_dg_rx_close_evt(tBSA_DG_MSG *p_data)
             UIPC_Close(app_dg_cb.connections[connection].uipc_channel);
             app_dg_cb.connections[connection].uipc_channel = UIPC_CH_ID_BAD;
         }
-    }
-    else
-    {
+    } else {
         /* For client, free this connection structure */
         APP_DEBUG1("DG Client Connection:%d closed", connection);
         if (app_dg_cb.connections[connection].is_open)
@@ -258,6 +248,11 @@ void app_dg_rx_close_evt(tBSA_DG_MSG *p_data)
         }
         app_dg_con_free(connection);
     }
+
+    app_dg_connection_index = APP_DG_NB_CON_MAX;
+    app_dg_connection_status = RK_BT_SPP_STATE_DISCONNECT;
+    app_dg_send_event(RK_BT_SPP_STATE_DISCONNECT);
+
     //app_dg_con_display_debug();
 }
 
@@ -291,39 +286,31 @@ void app_dg_rx_open_evt(tBSA_DG_MSG *p_data)
             p_data->open.service);
     /* Look if the Handle match one of our server connection structure */
     connection = app_dg_con_get_from_handle(p_data->open.handle, &is_server);
-    if (connection >= APP_DG_NB_CON_MAX)
-    {
+    if (connection >= APP_DG_NB_CON_MAX) {
         /* no handle match, try to reuse a client one */
-        for(index = 0 ; index < APP_DG_NB_CON_MAX ; index++)
-        {
+        for(index = 0 ; index < APP_DG_NB_CON_MAX ; index++) {
             /* If this connection is in use and BdAddr match */
             if ((app_dg_cb.connections[index].in_use == TRUE) &&
                 (app_dg_cb.connections[index].is_open == FALSE) &&
                 (app_dg_cb.connections[index].is_server == FALSE) &&
-                (bdcmp(app_dg_cb.connections[index].bd_addr, p_data->open.bd_addr) == 0))
-            {
+                (bdcmp(app_dg_cb.connections[index].bd_addr, p_data->open.bd_addr) == 0)) {
                 APP_DEBUG1("Found DG connection:%d matching BdAddr", index);
                 connection = index;
                 break;
             }
         }
-        if (connection >= APP_DG_NB_CON_MAX)
-        {
+        if (connection >= APP_DG_NB_CON_MAX) {
             APP_ERROR0("No Connection structure match this DG Connection");
             return;
         }
         is_server = FALSE;
     }
-    if (is_server)
-    {
+    if (is_server) {
         APP_DEBUG1("Incoming DG Connection for Server connection:%d", connection);
-    }
-    else
-    {
+    } else {
         APP_DEBUG1("Outgoing Connection for Client:%d", connection);
     }
-    if (p_data->open.status == BSA_SUCCESS)
-    {
+    if (p_data->open.status == BSA_SUCCESS) {
         app_dg_cb.connections[connection].is_open = TRUE;
         bdcpy(app_dg_cb.connections[connection].bd_addr, p_data->open.bd_addr);
         app_dg_cb.connections[connection].handle = p_data->open.handle;
@@ -331,8 +318,7 @@ void app_dg_rx_open_evt(tBSA_DG_MSG *p_data)
         app_dg_cb.connections[connection].service = p_data->open.service;
         app_dg_open_tty(connection);
         /*  Open the UIPC Channel with the associated Callback */
-        if (UIPC_Open(p_data->open.uipc_channel, app_dg_uipc_cback) == FALSE)
-        {
+        if (UIPC_Open(p_data->open.uipc_channel, app_dg_uipc_cback) == FALSE) {
             APP_ERROR1("UIPC_Open failed channel:%d", p_data->open.uipc_channel);
         }
 
@@ -344,10 +330,6 @@ void app_dg_rx_open_evt(tBSA_DG_MSG *p_data)
                 APP_NUM_ELEMENTS(app_xml_remote_devices_db), p_data->open.bd_addr,
                 BSA_SPP_SERVICE_MASK | BSA_DUN_SERVICE_MASK );
 
-        app_xml_update_connected_state_db(app_xml_remote_devices_db,
-                               APP_NUM_ELEMENTS(app_xml_remote_devices_db),
-                               p_data->open.bd_addr, TRUE);
-
         /* Update database => write on disk */
         app_write_xml_remote_devices();
 
@@ -357,20 +339,16 @@ void app_dg_rx_open_evt(tBSA_DG_MSG *p_data)
 
         /* init Mutex */
         status = app_init_mutex(&app_dg_cb.app_dg_tx_mutex[connection]);
-        if (status < 0)
-        {
+        if (status < 0) {
             APP_ERROR1("app_init_mutex failed status:%d", status);
             return;
         }
         status = app_lock_mutex(&app_dg_cb.app_dg_tx_mutex[connection]);
-        if (status < 0)
-        {
+        if (status < 0) {
             APP_ERROR1("app_lock_mutex failed status:%d", status);
             return;
         }
-    }
-    else
-    {
+    } else {
         APP_ERROR0("Fail : BSA_DG_OPEN_EVT");
         app_dg_con_free(connection);
     }
@@ -2759,7 +2737,7 @@ int app_dg_spp_open()
     }
 
     /* Set visisble and connectable */
-    app_dm_set_visibility(TRUE, TRUE);
+    //app_dm_set_visibility(TRUE, TRUE);
 
     /* DG Listen */
     if (app_dg_listen() < 0) {

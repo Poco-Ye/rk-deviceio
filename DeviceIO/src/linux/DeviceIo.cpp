@@ -31,10 +31,10 @@
 #include "rtc.h"
 #include "shell.h"
 #include "power.h"
-#include "bluetooth/avrcpctrl.h"
-#include "bluetooth/bluetooth.h"
+#include "../../bluetooth/bluetooth.h"
 #include "DeviceIo/NetLinkWrapper.h"
 #include "DeviceIo/Rk_system.h"
+#include "DeviceIo/RkBtBase.h"
 
 using namespace std;
 

@@ -121,8 +121,6 @@ void app_mgr_dev_found_send(BD_ADDR bd_addr, char *name, DEV_CLASS class_of_devi
             + (class_of_device[1] << 8)
             + class_of_device[2];
 
-        APP_DEBUG1("bt_class: %d", bt_class);
-
         if(app_mgr_bd2str(bd_addr, address, 18) < 0)
             memcpy(address, "unknown", strlen("unknown"));
 
@@ -549,17 +547,19 @@ void app_mgr_security_callback(tBSA_SEC_EVT event, tBSA_SEC_MSG *p_data)
         APP_DEBUG1("LinkType: %d", p_data->link_up.link_type);
 #endif
         app_mgr_notify_status(p_data->link_up.bd_addr, "unknown", BT_LINK_UP_EVT);
+#if 0
+        if(p_data->link_up.link_type != BSA_TRANSPORT_LE) {
+            /* Read the Remote device xml file to have a fresh view */
+            app_mgr_read_remote_devices();
+            app_xml_update_latest_connect_db(app_xml_remote_devices_db,
+                                   APP_NUM_ELEMENTS(app_xml_remote_devices_db),
+                                   p_data->link_up.bd_addr);
 
-        /* Read the Remote device xml file to have a fresh view */
-        app_mgr_read_remote_devices();
-        app_xml_update_latest_connect_db(app_xml_remote_devices_db,
-                               APP_NUM_ELEMENTS(app_xml_remote_devices_db),
-                               p_data->link_up.bd_addr);
-
-        status = app_mgr_write_remote_devices();
-        if (status < 0)
-            APP_ERROR1("app_mgr_write_remote_devices failed:%d", status);
-
+            status = app_mgr_write_remote_devices();
+            if (status < 0)
+                APP_ERROR1("app_mgr_write_remote_devices failed:%d", status);
+        }
+#endif
         break;
     case BSA_SEC_LINK_DOWN_EVT:     /* A device is physically disconnected (for info)*/
         APP_DEBUG1("BSA_SEC_LINK_DOWN_EVT bd_addr: %02x:%02x:%02x:%02x:%02x:%02x",
@@ -570,13 +570,6 @@ void app_mgr_security_callback(tBSA_SEC_EVT event, tBSA_SEC_MSG *p_data)
 #if (defined(BLE_INCLUDED) && BLE_INCLUDED == TRUE)
         APP_DEBUG1("LinkType: %d", p_data->link_down.link_type);
 #endif
-
-        /* Read the Remote device xml file to have a fresh view */
-        app_mgr_read_remote_devices();
-        app_xml_update_connected_state_db(app_xml_remote_devices_db,
-                               APP_NUM_ELEMENTS(app_xml_remote_devices_db),
-                               p_data->link_down.bd_addr, FALSE);
-        app_mgr_write_remote_devices();
 
         app_mgr_notify_status(p_data->link_down.bd_addr, "unknown", BT_LINK_DOWN_EVT);
         break;
@@ -2008,6 +2001,7 @@ int app_manager_init(const char *bt_name, app_mgr_callback cb)
         APP_DEBUG1("Current DualStack mode:%s", app_mgr_get_dual_stack_mode_desc());
     }
 
+    app_dm_set_visibility(TRUE, TRUE);
     return 0;
 }
 
@@ -2092,7 +2086,7 @@ int app_mgr_bd2str(BD_ADDR bd_addr, char *address, int addr_len)
     }
 
     memset(address, 0, addr_len);
-    if(sprintf(address, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+    if(sprintf(address, "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
                 bd_addr[0], bd_addr[1], bd_addr[2],
                 bd_addr[3], bd_addr[4], bd_addr[5]) < 0) {
         APP_ERROR0("BD_ADDR to string failed");
@@ -2104,6 +2098,11 @@ int app_mgr_bd2str(BD_ADDR bd_addr, char *address, int addr_len)
 
 int app_mgr_str2bd(char *address, BD_ADDR bd_addr)
 {
+    if(!address || (strlen(address) < 17)) {
+        APP_ERROR0("invalid address");
+        return -1;
+    }
+
     if (sscanf(address, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
             &bd_addr[0], &bd_addr[1], &bd_addr[2],
             &bd_addr[3], &bd_addr[4], &bd_addr[5]) != 6) {

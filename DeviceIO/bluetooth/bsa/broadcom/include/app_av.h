@@ -24,7 +24,7 @@
 #include "bluetooth_bsa.h"
 
 /* Number of simultaneous A2DP connections supported */
-#define APP_AV_MAX_CONNECTIONS 2
+#define APP_AV_MAX_CONNECTIONS 1//2
 
 /* RC commands */
 enum RC_COMMANDS

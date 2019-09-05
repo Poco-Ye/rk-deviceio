@@ -89,7 +89,6 @@ int rk_bt_start_discovery(unsigned int mseconds);
 int rk_bt_cancel_discovery();
 bool rk_bt_is_discovering();
 void rk_bt_display_devices();
-void rk_bt_display_paired_devices();
 int rk_bt_pair_by_addr(char *addr);
 int rk_bt_unpair_by_addr(char *addr);
 int rk_bt_set_device_name(char *name);
@@ -97,6 +96,7 @@ int rk_bt_get_device_name(char *name, int len);
 int rk_bt_get_device_addr(char *addr, int len);
 int rk_bt_get_paired_devices(RkBtPraiedDevice **dev_list,int *count);
 int rk_bt_free_paired_devices(RkBtPraiedDevice *dev_list);
+void rk_bt_display_paired_devices();
 
 #ifdef __cplusplus
 }

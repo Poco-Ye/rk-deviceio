@@ -592,6 +592,7 @@ int app_hs_redial(void);
 int app_hs_report_battery(int value);
 int app_hs_set_vol(int volume);
 void app_hs_set_cvsd(BOOLEAN enable);
+void app_hs_get_state(RK_BT_HFP_EVENT *p_state);
 
 #ifdef  __cplusplus
 }

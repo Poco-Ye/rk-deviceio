@@ -398,7 +398,7 @@ static void check_transaction_event(const int code, const int value)
 				}
 
 				int len = strlen(m_transaction_event_head->remain) - strlen(strcode) + 1;
-				char *remain = calloc(sizeof(char), len + 1);
+				char *remain = (char *)calloc(sizeof(char), len + 1);
 				strncpy(remain, m_transaction_event_head->remain + strlen(strcode) - 1, len);
 				free(m_transaction_event_head->remain);
 				m_transaction_event_head->remain = remain;
@@ -1076,7 +1076,7 @@ int RK_input_register_long_press_callback(RK_input_long_press_callback cb, const
 					events_prev->next = events->next;
 				}
 				free(events);
-				events == NULL;
+				events = NULL;
 			}
 			break;
 		}
@@ -1148,7 +1148,7 @@ int RK_input_register_long_press_hb_callback(RK_input_long_press_hb_callback hb,
 					events_prev->next = events->next;
 				}
 				free(events);
-				events == NULL;
+				events = NULL;
 			}
 			break;
 		}
@@ -1203,7 +1203,7 @@ int RK_input_register_multiple_press_callback(RK_input_multiple_press_callback c
 	while (event) {
 		if (event->code == key_code && event->times == times) {
 			printf("RK_input_register_multiple_press_callback already exist. code:%d; times:%d\n", key_code, times);
-			return;
+			return -1;
 		}
 		event = event->next;
 	}

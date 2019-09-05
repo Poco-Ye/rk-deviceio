@@ -109,9 +109,10 @@ typedef struct {
 
 static enum APP_AVK_PLAYSTATE play_state[APP_AVK_MAX_CONNECTIONS];
 static pthread_mutex_t ps_mutex = PTHREAD_MUTEX_INITIALIZER;
-static tAVRC_PLAYSTATE play_status[APP_AVK_MAX_CONNECTIONS];
+static RK_BT_SINK_STATE app_avk_state = RK_BT_SINK_STATE_IDLE;
 static int app_avk_duration = 0;
 static BOOLEAN app_avk_get_track = FALSE;
+static BOOLEAN app_avk_pos_change = FALSE;
 
 /*
  * Local functions
@@ -483,18 +484,22 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
             }
 
             /* Read the Remote device xml file to have a fresh view */
-            app_mgr_read_remote_devices();
+            app_read_xml_remote_devices();
             app_xml_update_connected_state_db(app_xml_remote_devices_db,
                                    APP_NUM_ELEMENTS(app_xml_remote_devices_db),
                                    p_data->sig_chnl_open.bd_addr, TRUE);
-            app_mgr_write_remote_devices();
+            app_xml_update_latest_connect_db(app_xml_remote_devices_db,
+                                   APP_NUM_ELEMENTS(app_xml_remote_devices_db),
+                                   p_data->sig_chnl_open.bd_addr);
+            app_write_xml_remote_devices();
 
             connection->ccb_handle = p_data->sig_chnl_open.ccb_handle;
             connection->is_open = TRUE;
             connection->is_streaming_chl_open = FALSE;
 
-            /* Set disvisisble and disconnectable */
-            //app_dm_set_visibility(FALSE, FALSE);
+            /* Set visisble and disconnectable */
+            app_dm_set_visibility(TRUE, FALSE);
+            app_avk_state = RK_BT_SINK_STATE_CONNECT;
             app_avk_send_state(RK_BT_SINK_STATE_CONNECT);
         }
 
@@ -510,10 +515,6 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
         /* Close event, reason BTA_AVK_CLOSE_STR_CLOSED or BTA_AVK_CLOSE_CONN_LOSS*/
         APP_DEBUG1("BSA_AVK_CLOSE_EVT status 0x%x, handle %d", p_data->sig_chnl_close.status, p_data->sig_chnl_close.ccb_handle);
 
-        /* Set visisble and connectable */
-        //app_dm_set_visibility(TRUE, TRUE);
-        app_avk_send_state(RK_BT_SINK_STATE_DISCONNECT);
-
         connection = app_avk_find_connection_by_bd_addr(p_data->sig_chnl_close.bd_addr);
         if(connection == NULL) {
             APP_DEBUG1("BSA_AVK_CLOSE_EVT unknown handle %d", p_data->sig_chnl_close.ccb_handle);
@@ -521,6 +522,9 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
         }
 
         play_state[connection->index] = STOPPED;
+        app_avk_duration = 0;
+        app_avk_get_track = FALSE;
+        app_avk_pos_change = FALSE;
 
         connection->is_open = FALSE;
         app_avk_cb.open_pending = FALSE;
@@ -548,6 +552,18 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
         }
 
         app_avk_reset_connection(connection->bda_connected);
+
+        /* Read the Remote device xml file to have a fresh view */
+        app_read_xml_remote_devices();
+        app_xml_update_connected_state_db(app_xml_remote_devices_db,
+                               APP_NUM_ELEMENTS(app_xml_remote_devices_db),
+                               p_data->sig_chnl_close.bd_addr, FALSE);
+        app_write_xml_remote_devices();
+
+        /* Set visisble and connectable */
+        app_dm_set_visibility(TRUE, TRUE);
+        app_avk_state = RK_BT_SINK_STATE_DISCONNECT;
+        app_avk_send_state(RK_BT_SINK_STATE_DISCONNECT);
         break;
 
     case BSA_AVK_STR_OPEN_EVT:
@@ -572,23 +588,19 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
     case BSA_AVK_START_EVT:
         APP_DEBUG1("BSA_AVK_START_EVT status 0x%x", p_data->start_streaming.status);
 
+        connection = app_avk_find_connection_by_bd_addr(p_data->start_streaming.bd_addr);
+        if(connection == NULL)
+            break;
+
         /* We got START_EVT for a new device that is streaming but server discards the data
             because another stream is already active */
         if(p_data->start_streaming.discarded) {
-            connection = app_avk_find_connection_by_bd_addr(p_data->start_streaming.bd_addr);
-            if(connection) {
-                connection->is_started_streaming = TRUE;
-                connection->is_streaming_chl_open = TRUE;
-            }
+            connection->is_started_streaming = TRUE;
+            connection->is_streaming_chl_open = TRUE;
 
             break;
         } else {    /* got Start event and device is streaming */
             app_avk_cb.pStreamingConn = NULL;
-
-            connection = app_avk_find_connection_by_bd_addr(p_data->start_streaming.bd_addr);
-
-            if(connection == NULL)
-                break;
 
             APP_DEBUG1("connection->is_started_streaming: %d", connection->is_started_streaming);
             APP_DEBUG1("connection->is_streaming_chl_open: %d", connection->is_streaming_chl_open);
@@ -598,6 +610,9 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
                 connection->is_started_streaming = TRUE;
                 app_avk_handle_start(p_data, connection);
                 app_avk_cb.pStreamingConn = connection;
+
+                app_avk_state = RK_BT_A2DP_SINK_STARTED;
+                app_avk_send_state(RK_BT_A2DP_SINK_STARTED);
             }
         }
 
@@ -606,18 +621,16 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
     case BSA_AVK_STOP_EVT:
         APP_DEBUG1("BSA_AVK_STOP_EVT handle: %d  Suspended: %d", p_data->stop_streaming.ccb_handle, p_data->stop_streaming.suspended);
 
+        connection = app_avk_find_connection_by_bd_addr(p_data->stop_streaming.bd_addr);
+        if(connection == NULL)
+            break;
+
         /* Stream was suspended */
         if(p_data->stop_streaming.suspended) {
-            connection = app_avk_find_connection_by_bd_addr(p_data->stop_streaming.bd_addr);
-            if(connection == NULL)
-                break;
-
             connection->is_started_streaming = FALSE;
+            app_avk_state = RK_BT_A2DP_SINK_SUSPENDED;
+            app_avk_send_state(RK_BT_A2DP_SINK_SUSPENDED);
         } else {    /* stream was closed */
-            connection = app_avk_find_connection_by_av_handle(p_data->stop_streaming.ccb_handle);
-            if(connection == NULL)
-                break;
-
             connection->is_started_streaming = FALSE;
 
             if (connection->format == BSA_AVK_CODEC_M24) {
@@ -626,6 +639,8 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
             } else {
                 app_avk_close_wave_file(connection);
             }
+            app_avk_state = RK_BT_A2DP_SINK_STOPPED;
+            app_avk_send_state(RK_BT_A2DP_SINK_STOPPED);
         }
 
         break;
@@ -687,6 +702,10 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
         APP_DEBUG1("   opcode:0x%x", p_data->remote_cmd.hdr.opcode);
         APP_DEBUG1(" len:0x%x", p_data->remote_cmd.len);
         APP_DUMP("data", p_data->remote_cmd.data, p_data->remote_cmd.len);
+
+        connection = app_avk_find_connection_by_rc_handle(p_data->remote_cmd.rc_handle);
+        if(connection == NULL)
+            break;
 
         if(p_data->remote_cmd.key_state == BSA_AVK_STATE_PRESS) {
             if (p_data->remote_cmd.op_id == BSA_AVK_RC_VOL_UP) {
@@ -777,9 +796,14 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
             APP_DEBUG0("AVRC_EVT_TRACK_CHANGE");
             app_avk_get_track = TRUE;
             app_avk_rc_get_element_attr_command(connection->rc_handle);
+
+            // get current play status
+            //app_avk_rc_get_play_status_command(connection->rc_handle);
             break;
 
         case AVRC_EVT_PLAY_POS_CHANGED:
+            APP_DEBUG0("AVRC_EVT_PLAY_POS_CHANGED");
+            app_avk_pos_change = TRUE;
             if(!app_avk_get_track) {
                 APP_DEBUG1("position: %u", p_data->reg_notif_rsp.rsp.param.play_pos);
                 app_avk_send_position(connection->bda_connected, app_avk_duration,
@@ -794,7 +818,6 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
         case AVRC_EVT_PLAY_STATUS_CHANGE:
             BOOLEAN do_it = FALSE;
 
-            play_status[index] = p_data->reg_notif_rsp.rsp.param.play_status;
             switch(p_data->reg_notif_rsp.rsp.param.play_status) {
             case AVRC_PLAYSTATE_PLAYING:
                 APP_INFO1("Play Status Playing, index: %d", index);
@@ -804,13 +827,15 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
                     play_state[index] = PLAYED;
                 }
                 pthread_mutex_unlock(&ps_mutex);
-                if (do_it)
+                if (do_it) {
+                    app_avk_state = RK_BT_SINK_STATE_PLAY;
                     app_avk_send_state(RK_BT_SINK_STATE_PLAY);
+                }
                 break;
 
             case AVRC_PLAYSTATE_PAUSED:
             case AVRC_PLAYSTATE_STOPPED:
-                enum APP_AVK_PLAYSTATE previous_state;
+                //enum APP_AVK_PLAYSTATE previous_state;
                 APP_INFO1("Play Status %s, index: %d",
                           p_data->reg_notif_rsp.rsp.param.play_status ==
                             AVRC_PLAYSTATE_PAUSED ? "Paused" : "Stopped",
@@ -818,16 +843,31 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
                 pthread_mutex_lock(&ps_mutex);
                 if (play_state[index] != STOPPED) {
                     do_it = TRUE;
-                    previous_state = play_state[index];
+                    //previous_state = play_state[index];
                     play_state[index] = STOPPED;
                 }
                 pthread_mutex_unlock(&ps_mutex);
+#if 0
                 if (do_it) {
-                    if(previous_state == SEND_STOP)
+                    if(previous_state == SEND_STOP) {
+                        app_avk_state = RK_BT_SINK_STATE_STOP;
                         app_avk_send_state(RK_BT_SINK_STATE_STOP);
-                    else
+                    } else {
+                        app_avk_state = RK_BT_SINK_STATE_PAUSE;
                         app_avk_send_state(RK_BT_SINK_STATE_PAUSE);
+                    }
                 }
+#else
+                if (do_it) {
+                    if(p_data->reg_notif_rsp.rsp.param.play_status == AVRC_PLAYSTATE_STOPPED) {
+                        app_avk_state = RK_BT_SINK_STATE_STOP;
+                        app_avk_send_state(RK_BT_SINK_STATE_STOP);
+                    } else {
+                        app_avk_state = RK_BT_SINK_STATE_PAUSE;
+                        app_avk_send_state(RK_BT_SINK_STATE_PAUSE);
+                    }
+                }
+#endif
                 break;
 
             default:
@@ -892,7 +932,10 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
         APP_DEBUG0("BSA_AVK_SET_ABS_VOL_CMD_EVT");
 
         connection = app_avk_find_connection_by_rc_handle(p_data->abs_volume.handle);
-        if((connection != NULL) && connection->m_bAbsVolumeSupported) {
+        if((connection == NULL))
+            break;
+
+        if(connection->m_bAbsVolumeSupported) {
             /* Peer requested change in volume. Make the change and send response with new system volume. BSA is TG role in AVK */
             if (p_data->abs_volume.abs_volume_cmd.volume <= BSA_MAX_ABS_VOLUME) {
                 app_avk_cb.volume = p_data->abs_volume.abs_volume_cmd.volume;
@@ -3051,37 +3094,13 @@ void app_avk_send_delay_report(UINT16 delay)
     }
 }
 
-int app_avk_get_status(RK_BT_SINK_STATE *pState)
+int app_avk_get_state(RK_BT_SINK_STATE *pState)
 {
-	if (!pState)
-		return -1;
-
-    tAPP_AVK_CONNECTION *connection = app_avk_find_streaming_connection();
-    if(!connection) {
-        APP_ERROR0("Unable to find connection!!!!!!");
-        *pState = RK_BT_SINK_STATE_IDLE;
+    if (!pState)
         return -1;
-    }
 
-    APP_DEBUG1("----- connection->index: %d -----\n", connection->index);
-	switch (play_status[connection->index]) {
-		case AVRC_PLAYSTATE_STOPPED:
-			*pState = RK_BT_SINK_STATE_STOP;
-			break;
-		case AVRC_PLAYSTATE_FWD_SEEK:
-		case AVRC_PLAYSTATE_REV_SEEK:
-		case AVRC_PLAYSTATE_PLAYING:
-			*pState = RK_BT_SINK_STATE_PLAY;
-			break;
-		case AVRC_PLAYSTATE_PAUSED:
-			*pState = RK_BT_SINK_STATE_PAUSE;
-			break;
-		default:
-			*pState = RK_BT_SINK_STATE_IDLE;
-			break;
-	}
-
-	return 0;
+    *pState =  app_avk_state;
+    return 0;
 }
 
 static int app_avk_latest_connect()
@@ -3122,7 +3141,7 @@ int app_avk_start()
         }
     }
 
-    app_dm_set_visibility(TRUE, TRUE);
+    //app_dm_set_visibility(TRUE, TRUE);
 
     return 0;
 }
@@ -3135,6 +3154,7 @@ void app_avk_stop()
     app_avk_deregister();
     app_avk_deinit();
 
+    app_avk_state = RK_BT_SINK_STATE_IDLE;
     app_avk_send_state(RK_BT_SINK_STATE_IDLE);
     app_avk_deregister_cb();
 }
@@ -3151,4 +3171,9 @@ int app_avk_get_play_status()
     }
 
     return ret;
+}
+
+BOOLEAN app_avk_get_pos_change()
+{
+    return app_avk_pos_change;
 }

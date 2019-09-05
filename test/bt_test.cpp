@@ -211,15 +211,12 @@ void bt_test_set_device_name(char *data)
 
 void bt_test_pair_by_addr(char *data)
 {
-	printf("%s: device addr: %s\n", __func__, data);
 	rk_bt_pair_by_addr(data);
 }
 
 void bt_test_unpair_by_addr(char *data)
 {
-	printf("%s: device addr: %s\n", __func__, data);
 	rk_bt_unpair_by_addr(data);
-	printf("bt_test_unpair_by_addr end\n");
 }
 
 void bt_test_get_paired_devices(char *data)
@@ -390,12 +387,15 @@ void bt_test_sink_status(char *data)
 			printf("++++++++++++ BT SINK STATUS: connect sucess ++++++++++\n");
 			break;
 		case RK_BT_SINK_STATE_PLAY:
+		case RK_BT_A2DP_SINK_STARTED:
 			printf("++++++++++++ BT SINK STATUS: playing ++++++++++\n");
 			break;
 		case RK_BT_SINK_STATE_PAUSE:
+		case RK_BT_A2DP_SINK_SUSPENDED:
 			printf("++++++++++++ BT SINK STATUS: paused ++++++++++\n");
 			break;
 		case RK_BT_SINK_STATE_STOP:
+		case RK_BT_A2DP_SINK_STOPPED:
 			printf("++++++++++++ BT SINK STATUS: stoped ++++++++++\n");
 			break;
 		case RK_BT_SINK_STATE_DISCONNECT:
@@ -468,14 +468,11 @@ void bt_test_sink_set_volume(char *data)
 
 void bt_test_sink_connect_by_addr(char *data)
 {
-	printf("%s: device addr: %s\n", __func__, data);
 	rk_bt_sink_connect_by_addr(data);
-	printf("bt_test_sink_connect_by_addr end\n");
 }
 
 void bt_test_sink_disconnect_by_addr(char *data)
 {
-	printf("%s: device addr: %s\n", __func__, data);
 	rk_bt_sink_disconnect_by_addr(data);
 }
 

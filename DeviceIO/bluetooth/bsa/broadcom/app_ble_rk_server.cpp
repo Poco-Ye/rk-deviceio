@@ -1094,14 +1094,7 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
                           p_data->ser_open.remote_bda[5]);
 
             /* Stop advertising */
-            app_dm_set_ble_visibility(FALSE, FALSE);
-
-            /* Read the Remote device xml file to have a fresh view */
-            app_mgr_read_remote_devices();
-            app_xml_update_connected_state_db(app_xml_remote_devices_db,
-                                   APP_NUM_ELEMENTS(app_xml_remote_devices_db),
-                                   p_data->ser_open.remote_bda, TRUE);
-            app_mgr_write_remote_devices();
+            app_dm_set_ble_visibility(TRUE, FALSE);
 
             app_ble_state = RK_BLE_STATE_CONNECT;
             app_ble_rk_server_send_state(RK_BLE_STATE_CONNECT);
@@ -1128,6 +1121,7 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
         adv_param.adv_int_min = BSA_BLE_GAP_ADV_SLOW_INT;
         adv_param.adv_int_max = BSA_BLE_GAP_ADV_SLOW_INT;
         app_dm_set_ble_adv_param(&adv_param);
+
         /* Set visisble and connectable */
         app_dm_set_ble_visibility(TRUE, TRUE);
         app_ble_state = RK_BLE_STATE_DISCONNECT;

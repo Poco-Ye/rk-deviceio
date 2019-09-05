@@ -1899,8 +1899,10 @@ int app_xml_update_connected_state_db(tAPP_XML_REM_DEVICE *p_stored_device_db,
     /* First look in Database if this device already exist */
     for (index = 0; index < nb_device_max; index++) {
         if (p_stored_device_db[index].in_use != FALSE) {
-            if ((bdcmp(p_stored_device_db[index].bd_addr, bd_addr) == 0))
+            if ((bdcmp(p_stored_device_db[index].bd_addr, bd_addr) == 0)) {
                 p_stored_device_db[index].is_connected = is_connected;
+                break;
+            }
         }
     }
 

@@ -23,6 +23,7 @@
 #include "app_dg.h"
 #include "app_ble_rk_server.h"
 #include "app_hs.h"
+#include "../bluetooth.h"
 #include "bluetooth_bsa.h"
 
 enum class BtControlType {
@@ -35,7 +36,6 @@ enum class BtControlType {
 };
 
 typedef struct {
-    bool is_bt_connected;
     bool is_bt_open;
     bool is_ble_open;
     bool is_a2dp_sink_open;
@@ -47,7 +47,7 @@ typedef struct {
 } bt_control_t;
 
 volatile bt_control_t g_bt_control = {
-    false, false, false, false, false, false, false, NULL, NULL,
+    false, false, false, false, false, false, NULL, NULL,
 };
 
 static bool bt_is_open();
@@ -79,11 +79,9 @@ static void bt_mgr_notify_callback(BD_ADDR bd_addr, char *name, tBSA_MGR_EVT evt
     switch(evt) {
         case BT_LINK_UP_EVT:
             APP_DEBUG0("BT_LINK_UP_EVT\n");
-            g_bt_control.is_bt_connected = true;
             break;
         case BT_LINK_DOWN_EVT:
             APP_DEBUG0("BT_LINK_DOWN_EVT\n");
-            g_bt_control.is_bt_connected = false;
             break;
         case BT_WAIT_PAIR_EVT:
             APP_DEBUG0("BT_WAIT_PAIR_EVT\n");
@@ -203,10 +201,52 @@ static int bt_bsa_server_close()
 
 int rk_bt_is_connected()
 {
-    if(g_bt_control.is_bt_connected)
-        return 1;
-    else
+    if(!bt_is_open())
         return 0;
+
+    if(a2dp_sink_is_open()) {
+        RK_BT_SINK_STATE sink_state;
+        rk_bt_sink_get_state(&sink_state);
+        if(sink_state != RK_BT_SINK_STATE_DISCONNECT && sink_state != RK_BT_SINK_STATE_IDLE)
+            return 1;
+    }
+
+    if(a2dp_source_is_open()) {
+        RK_BT_SOURCE_STATUS source_state;
+        rk_bt_source_get_status(&source_state, NULL, 0, NULL, 0);
+        if (source_state == BT_SOURCE_STATUS_CONNECTED)
+            return 1;
+    }
+
+    if(ble_is_open()) {
+        RK_BLE_STATE ble_state;
+        rk_ble_get_state(&ble_state);
+        if(ble_state == RK_BLE_STATE_CONNECT)
+            return 1;
+    }
+
+    if(hfp_is_open()) {
+        RK_BT_HFP_EVENT hfp_state;
+        app_hs_get_state(&hfp_state);
+        if(hfp_state == RK_BT_HFP_CONNECT_EVT)
+            return 1;
+    }
+
+    if(ble_is_open()) {
+        RK_BLE_STATE ble_state;
+        rk_ble_get_state(&ble_state);
+        if(ble_state == RK_BLE_STATE_CONNECT)
+            return 1;
+    }
+
+    if(spp_is_open()) {
+        RK_BT_SPP_STATE spp_state;
+        rk_bt_spp_get_state(&spp_state);
+        if(spp_state == RK_BT_SPP_STATE_CONNECT)
+            return 1;
+    }
+
+    return 0;
 }
 
 void rk_bt_register_state_callback(RK_BT_STATE_CALLBACK cb)
@@ -370,6 +410,11 @@ int rk_bt_pair_by_addr(char *addr)
 {
     BD_ADDR bd_addr;
 
+    if(!addr || (strlen(addr) < 17)) {
+        APP_ERROR0("invalid address");
+        return -1;
+    }
+
     if(!bt_is_open()) {
         APP_DEBUG0("bluetooth is not inited, please init");
         return -1;
@@ -386,6 +431,11 @@ int rk_bt_pair_by_addr(char *addr)
 int rk_bt_unpair_by_addr(char *addr)
 {
     BD_ADDR bd_addr;
+
+    if(!addr || (strlen(addr) < 17)) {
+        APP_ERROR0("invalid address");
+        return -1;
+    }
 
     if(!bt_is_open()) {
         APP_DEBUG0("bluetooth is not inited, please init");
@@ -596,7 +646,7 @@ int rk_bt_sink_set_visibility(const int visiable, const int connect)
 
 int rk_bt_sink_get_state(RK_BT_SINK_STATE *pState)
 {
-    return app_avk_get_status(pState);
+    return app_avk_get_state(pState);
 }
 
 int rk_bt_sink_set_auto_reconnect(int enable)
@@ -611,7 +661,7 @@ int rk_bt_sink_get_play_status()
 
 bool rk_bt_sink_get_poschange()
 {
-    return false;
+    return app_avk_get_pos_change();
 }
 
 int rk_bt_sink_disconnect()
@@ -630,6 +680,11 @@ int rk_bt_sink_connect_by_addr(char *addr)
 {
     BD_ADDR bd_addr;
 
+    if(!addr || (strlen(addr) < 17)) {
+        APP_ERROR0("invalid address");
+        return -1;
+    }
+
     if(!a2dp_sink_is_open()) {
         APP_ERROR0("sink don't open, please open");
         return -1;
@@ -646,6 +701,11 @@ int rk_bt_sink_connect_by_addr(char *addr)
 int rk_bt_sink_disconnect_by_addr(char *addr)
 {
     BD_ADDR bd_addr;
+
+    if(!addr || (strlen(addr) < 17)) {
+        APP_ERROR0("invalid address");
+        return -1;
+    }
 
     if(!a2dp_sink_is_open()) {
         APP_ERROR0("sink don't open, please open");

@@ -79,8 +79,6 @@
 #define BSA_AV_DUMP_TX_DATA  FALSE
 #endif
 
-/* Number of simultaneous A2DP connections supported */
-#define APP_AV_MAX_CONNECTIONS 2
 /* Size of the audio buffer */
 #define APP_AV_MAX_AUDIO_BUF 256
 /* Name of the XML file containing the saved remote devices */
@@ -621,14 +619,10 @@ void app_av_cback(tBSA_AV_EVT event, tBSA_AV_MSG *p_data)
                 p_data->open.aptx_supported,
                 p_data->open.sec_supported);
         connection = app_av_find_connection_by_handle(p_data->open.handle);
-        if (connection == NULL)
-        {
+        if (connection == NULL) {
             APP_ERROR1("unknown connection handle %d", p_data->open.handle);
-        }
-        else
-        {
-            if (p_data->open.status == BSA_SUCCESS)
-            {
+        } else {
+            if (p_data->open.status == BSA_SUCCESS) {
                 /* Copy the BD address of the connected device */
                 bdcpy(connection->bd_addr, p_data->open.bd_addr);
                 connection->is_open = TRUE;
@@ -645,11 +639,13 @@ void app_av_cback(tBSA_AV_EVT event, tBSA_AV_MSG *p_data)
                                        APP_NUM_ELEMENTS(app_xml_remote_devices_db),
                                        connection->bd_addr, TRUE);
 
+                app_xml_update_latest_connect_db(app_xml_remote_devices_db,
+                                       APP_NUM_ELEMENTS(app_xml_remote_devices_db),
+                                       connection->bd_addr);
+
                 /* Check if the name in the inquiry responses database */
-                for (index = 0; index < APP_NUM_ELEMENTS(app_discovery_cb.devs); index++)
-                {
-                    if (!bdcmp(app_discovery_cb.devs[index].device.bd_addr, connection->bd_addr))
-                    {
+                for (index = 0; index < APP_NUM_ELEMENTS(app_discovery_cb.devs); index++) {
+                    if (!bdcmp(app_discovery_cb.devs[index].device.bd_addr, connection->bd_addr)) {
                         app_xml_update_name_db(app_xml_remote_devices_db,
                                 APP_NUM_ELEMENTS(app_xml_remote_devices_db), connection->bd_addr,
                                 app_discovery_cb.devs[index].device.name);
@@ -668,11 +664,11 @@ void app_av_cback(tBSA_AV_EVT event, tBSA_AV_MSG *p_data)
                     }
                 }
                 status = app_write_xml_remote_devices();
-                if (status < 0)
-                {
+                if (status < 0) {
                     APP_ERROR1("app_av_write_remote_devices failed: %d", status);
                 }
 
+                app_dm_set_visibility(TRUE, FALSE);
                 app_av_status.status = BT_SOURCE_STATUS_CONNECTED;
                 bdcpy(app_av_status.bd_addr, p_data->open.bd_addr);
                 app_av_send_event(BT_SOURCE_EVENT_CONNECTED);
@@ -680,8 +676,7 @@ void app_av_cback(tBSA_AV_EVT event, tBSA_AV_MSG *p_data)
 
                 /* Check if autoplay is needed */
 #if defined (APP_AV_AUTOPLAY)
-                if (app_av_cb.play_state == APP_AV_PLAY_STOPPED)
-                {
+                if (app_av_cb.play_state == APP_AV_PLAY_STOPPED) {
 #if (APP_AV_AUTOPLAY==APP_AV_PLAYTYPE_TONE)
                     /* Play tone */
                     APP_INFO0("Start Playing Tone");
@@ -703,9 +698,7 @@ void app_av_cback(tBSA_AV_EVT event, tBSA_AV_MSG *p_data)
                     APP_INFO1("SCMS-T: cp_supported = %s", p_data->open.cp_supported ? "TRUE" : "FALSE");
                 }
 #endif /* APP_AV_AUTOPLAY */
-            }
-            else
-            {
+            } else {
                 connection->is_open = FALSE;
             }
         }
@@ -714,15 +707,20 @@ void app_av_cback(tBSA_AV_EVT event, tBSA_AV_MSG *p_data)
     case BSA_AV_CLOSE_EVT:
         APP_INFO1("BSA_AV_CLOSE_EVT status:%d handle:%d", p_data->close.status, p_data->close.handle);
         connection = app_av_find_connection_by_handle(p_data->close.handle);
-        if (connection == NULL)
-        {
+        if (connection == NULL) {
             APP_ERROR1("unknown connection handle %d", p_data->close.handle);
-        }
-        else
-        {
+        } else {
             connection->is_open = FALSE;
         }
 
+        /* Read the Remote device xml file to have a fresh view */
+        app_read_xml_remote_devices();
+        app_xml_update_connected_state_db(app_xml_remote_devices_db,
+                               APP_NUM_ELEMENTS(app_xml_remote_devices_db),
+                               connection->bd_addr, FALSE);
+        app_write_xml_remote_devices();
+
+        app_dm_set_visibility(TRUE, TRUE);
         app_av_status.status = BT_SOURCE_STATUS_DISCONNECTED;
         app_av_send_event(BT_SOURCE_EVENT_DISCONNECTED);
         app_av_save_status(BT_SOURCE_EVENT_DISCONNECTED);

@@ -23,7 +23,7 @@
 
 #include "bluetooth_bsa.h"
 
-#define APP_AVK_MAX_CONNECTIONS BSA_MAX_AVK_CONNECTIONS
+#define APP_AVK_MAX_CONNECTIONS 1//BSA_MAX_AVK_CONNECTIONS
 
 #define BSA_MIN_ABS_VOLUME        0x00   /* Min and max absolute vol */
 #define BSA_MAX_ABS_VOLUME        0x7F
@@ -846,10 +846,11 @@ void app_avk_send_delay_report(BD_ADDR bd_addr, UINT16 delay);
  **
  *******************************************************************************/
 void app_avk_send_abort_req(BD_ADDR bd_addr);
-int app_avk_get_status(RK_BT_SINK_STATE *pState);
+int app_avk_get_state(RK_BT_SINK_STATE *pState);
 int app_avk_start(void);
 void app_avk_stop(void);
 int app_avk_set_volume(int volume);
-int app_avk_get_play_status();
+int app_avk_get_play_status(void);
+BOOLEAN app_avk_get_pos_change(void);
 
 #endif /* APP_AVK_H_ */
