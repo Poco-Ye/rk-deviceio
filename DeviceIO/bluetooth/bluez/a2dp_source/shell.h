@@ -32,6 +32,7 @@ extern "C" {
 #include <stdbool.h>
 #include <getopt.h>
 #include <stddef.h>
+#include "slog.h"
 
 #define COLOR_OFF   "\x1B[0m"
 #define COLOR_RED   "\x1B[0;91m"
@@ -42,7 +43,7 @@ extern "C" {
 #define COLOR_BOLDWHITE "\x1B[1;37m"
 #define COLOR_HIGHLIGHT "\x1B[1;39m"
 
-#define bt_shell_printf printf;
+#define bt_shell_printf pr_info;
 
 struct bt_shell_menu;
 

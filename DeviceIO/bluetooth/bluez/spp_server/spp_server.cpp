@@ -27,6 +27,7 @@
 #include <bluetooth/hci_lib.h>
 #include <bluetooth/rfcomm.h>
 
+#include "slog.h"
 #include "spp_server.h"
 
 #define SPP_SERVER_CHANNEL 1
@@ -86,7 +87,7 @@ static void *init_bt_spp_server(void *arg)
 		FD_SET(g_server_sk, &rfds);
 
 		if (select(g_server_sk + 1, &rfds, NULL, NULL, &tv) < 0) {
-			printf("[BT SPP] server socket failed!\n");
+			pr_info("[BT SPP] server socket failed!\n");
 			goto OUT;
 		}
 
@@ -104,7 +105,7 @@ static void *init_bt_spp_server(void *arg)
 		memset(rem_addr_str, 0, sizeof(rem_addr_str));
 		/* Get remote device addr */
 		ba2str(&rem_addr.rc_bdaddr, rem_addr_str);
-		printf("[BT SPP] accepted connection from %s \n", rem_addr_str);
+		pr_info("[BT SPP] accepted connection from %s \n", rem_addr_str);
 		g_spp_server_status = RK_BT_SPP_STATE_CONNECT;
 		if (g_status_callback)
 			(*g_status_callback)(RK_BT_SPP_STATE_CONNECT);
@@ -170,7 +171,7 @@ int bt_spp_server_open()
 	system(cmd);
 
 	if (g_bt_spp_server_thread > 0) {
-		printf("[BT SPP] spp server is running, please close it before open it!\n");
+		pr_info("[BT SPP] spp server is running, please close it before open it!\n");
 		return -1;
 	}
 
@@ -178,7 +179,7 @@ int bt_spp_server_open()
 	if (ret < 0) {
 		g_spp_server_status = RK_BT_SPP_STATE_IDLE;
 		g_bt_spp_server_thread = 0;
-		printf("[BT SPP] create spp init thread failed!\n");
+		pr_info("[BT SPP] create spp init thread failed!\n");
 		return -1;
 	}
 
@@ -200,7 +201,7 @@ void bt_spp_server_close()
 	if (!g_bt_spp_server_thread)
 		return;
 
-	printf("[BT SPP] close start...\n");
+	pr_info("[BT SPP] close start...\n");
 	g_spp_server_running = false;
 	usleep(220000);
 
@@ -211,7 +212,7 @@ void bt_spp_server_close()
 	g_recv_callback = NULL;
 	g_status_callback = NULL;
 	g_spp_server_status = RK_BT_SPP_STATE_IDLE;
-	printf("[BT SPP] close end...\n");
+	pr_info("[BT SPP] close end...\n");
 }
 
 int bt_spp_write(char *data, int len)
@@ -219,13 +220,13 @@ int bt_spp_write(char *data, int len)
 	int ret = 0;
 
 	if (g_client_sk <= 0) {
-		printf("[BT SPP] write failed! ERROR:No connection is ready!\n");
+		pr_info("[BT SPP] write failed! ERROR:No connection is ready!\n");
 		return -1;
 	}
 
 	ret = write(g_client_sk, data, len);
 	if (ret <= 0) {
-		printf("[BT SPP] write failed! ERROR:%s\n", strerror(errno));
+		pr_info("[BT SPP] write failed! ERROR:%s\n", strerror(errno));
 		return ret;
 	}
 
@@ -242,7 +243,7 @@ int bt_spp_set_channel(int channel)
 	if ((channel > 0) && (channel < 256))
 		g_spp_server_channel = channel;
 	else {
-		printf("[BT SPP] WARING channel is not valid, use default channel:1.\n");
+		pr_info("[BT SPP] WARING channel is not valid, use default channel:1.\n");
 		g_spp_server_channel = SPP_SERVER_CHANNEL;
 	}
 

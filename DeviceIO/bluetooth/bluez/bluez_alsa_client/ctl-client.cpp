@@ -19,8 +19,10 @@
 #include <sys/types.h>
 #include <sys/un.h>
 
+#include "slog.h"
+
 #if 1
-	# define debug printf
+	# define debug pr_debug
 #else
 	# define debug(M, ARGS...) do {} while (0)
 #endif
@@ -45,7 +47,7 @@ static int bluealsa_status_to_errno(struct ba_msg_status *status) {
 	}
 }
 
-#if DEBUG
+#ifdef DEBUG
 /**
  * Convert Bluetooth address into a human-readable string.
  *
@@ -218,7 +220,7 @@ struct ba_msg_transport *bluealsa_get_transport(int fd, bdaddr_t addr,
 	req.type = type;
 	req.stream = stream;
 
-#if DEBUG
+#ifdef DEBUG
 	char addr_[18];
 	ba2str_(&req.addr, addr_);
 	debug("Getting transport for %s type %d\n", addr_, type);
@@ -332,7 +334,7 @@ int bluealsa_open_transport(int fd, struct ba_msg_transport *transport) {
 	struct msghdr msg;
 	ssize_t len;
 
-#if DEBUG
+#ifdef DEBUG
 	char addr_[18];
 	ba2str_(&req.addr, addr_);
 	debug("Requesting PCM open for %s\n", addr_);
@@ -384,7 +386,7 @@ int bluealsa_close_transport(int fd, struct ba_msg_transport *transport) {
 
 	struct ba_request req;
 
-#if DEBUG
+#ifdef DEBUG
 	char addr_[18];
 	ba2str_(&req.addr, addr_);
 	debug("Closing PCM for %s\n", addr_);
@@ -410,7 +412,7 @@ int bluealsa_pause_transport(int fd, struct ba_msg_transport *transport, bool pa
 
 	struct ba_request req;
 
-#if DEBUG
+#ifdef DEBUG
 	char addr_[18];
 	ba2str_(&req.addr, addr_);
 	debug("Requesting PCM %s for %s\n", pause ? "pause" : "resume", addr_);
@@ -435,7 +437,7 @@ int bluealsa_drain_transport(int fd, struct ba_msg_transport *transport) {
 
 	struct ba_request req;
 
-#if DEBUG
+#ifdef DEBUG
 	char addr_[18];
 	ba2str_(&req.addr, addr_);
 	debug("Requesting PCM drain for %s\n", addr_);
@@ -463,7 +465,7 @@ int bluealsa_send_rfcomm_command(int fd, bdaddr_t addr, const char *command) {
 	/* snprintf() guarantees terminating NULL character */
 	snprintf(req.rfcomm_command, sizeof(req.rfcomm_command), "%s", command);
 
-#if DEBUG
+#ifdef DEBUG
 	char addr_[18];
 	ba2str_(&req.addr, addr_);
 	debug("Sending RFCOMM command to %s: %s\n", addr_, req.rfcomm_command);

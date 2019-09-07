@@ -10,6 +10,7 @@
 #include <paths.h>
 #include <sys/wait.h>
 
+#include "slog.h"
 #include "utility.h"
 
 #define DEBUG 1
@@ -80,7 +81,7 @@ int bt_exec_command_system(const char *cmd)
 
 void bt_exec_command(const char cmdline[], char recv_buff[], int len)
 {
-	if (DEBUG) printf("[BT_DEBUG] execute: %s\n", cmdline);
+	if (DEBUG) pr_info("[BT_DEBUG] execute: %s\n", cmdline);
 
 	FILE *stream = NULL;
 	char *tmp_buff = recv_buff;
@@ -89,14 +90,14 @@ void bt_exec_command(const char cmdline[], char recv_buff[], int len)
 
 	if ((stream = popen(cmdline, "r")) != NULL) {
 		while (fgets(tmp_buff, len, stream)) {
-			//printf("tmp_buf[%d]: %s\n", strlen(tmp_buff), tmp_buff);
+			//pr_info("tmp_buf[%d]: %s\n", strlen(tmp_buff), tmp_buff);
 			tmp_buff += strlen(tmp_buff);
 			len -= strlen(tmp_buff);
 			if (len <= 1)
 				break;
 		}
 
-		if (DEBUG) printf("[BT_DEBUG] execute_r: %s \n", recv_buff);
+		if (DEBUG) pr_info("[BT_DEBUG] execute_r: %s \n", recv_buff);
 		pclose(stream);
 	}
 }
@@ -107,11 +108,11 @@ int test_pthread(pthread_t tid) /*pthread_kill的返回值：成功（0） 线�
 	pthread_kill_err = pthread_kill(tid, 0);
 
 	if(pthread_kill_err == ESRCH)
-		printf("ID 0x%x NOT EXIST OR EXIT\n", (unsigned int)tid);
+		pr_info("ID 0x%x NOT EXIST OR EXIT\n", (unsigned int)tid);
 	else if(pthread_kill_err == EINVAL)
-		printf("SIGNAL ILL\n");
+		pr_info("SIGNAL ILL\n");
 	else
-		printf("ID 0x%x ALIVE\n", (unsigned int)tid);
+		pr_info("ID 0x%x ALIVE\n", (unsigned int)tid);
 
 	return pthread_kill_err;
 }

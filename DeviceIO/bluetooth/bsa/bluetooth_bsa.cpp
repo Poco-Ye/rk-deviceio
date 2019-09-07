@@ -650,11 +650,6 @@ int rk_bt_sink_get_state(RK_BT_SINK_STATE *pState)
     return app_avk_get_state(pState);
 }
 
-int rk_bt_sink_set_auto_reconnect(int enable)
-{
-    return rk_bt_enable_reconnect(enable);
-}
-
 int rk_bt_sink_get_play_status()
 {
     return app_avk_get_play_status();

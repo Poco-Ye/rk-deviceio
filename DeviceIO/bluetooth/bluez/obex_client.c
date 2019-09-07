@@ -39,9 +39,10 @@
 
 #include "gdbus/gdbus.h"
 #include "a2dp_source/shell.h"
+#include "slog.h"
 
 #undef bt_shell_printf
-#define bt_shell_printf printf
+#define bt_shell_printf pr_info
 
 /* String display constants */
 #define COLORED_NEW	COLOR_GREEN "NEW" COLOR_OFF

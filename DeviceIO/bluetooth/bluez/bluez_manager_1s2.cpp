@@ -7,7 +7,8 @@
 #include <DeviceIo/RkBtBase.h>
 #include <DeviceIo/RkBtSink.h>
 #include <DeviceIo/RkBtHfp.h>
-#include "../utility/utility.h"
+#include "utility.h"
+#include "slog.h"
 
 #include <DeviceIo/bt_manager_1s2.h>
 
@@ -60,7 +61,7 @@ static void btmg_gap_status_cb(RK_BT_STATE state)
 			g_bt_state = BTMG_STATE_TURNING_OFF;
 			break;
 		default:
-			printf("unknown bt state: %d\n", state);
+			pr_info("unknown bt state: %d\n", state);
 			return;
 	}
 
@@ -83,7 +84,7 @@ static void btmg_gap_bond_state_cb(const char *bd_addr, const char *name, RK_BT_
 			bond_state = BTMG_BOND_STATE_BONDED;
 			break;
 		default:
-			printf("unknown bt bond state: %d\n", state);
+			pr_info("unknown bt bond state: %d\n", state);
 			return;
 	}
 
@@ -109,7 +110,7 @@ static void btmg_gap_discovery_status_cb(RK_BT_DISCOVERY_STATE state)
 			disc_state = BTMG_DISC_STOPPED_BY_USER;
 			break;
 		default:
-			printf("unknown bt discovery state: %d\n", state);
+			pr_info("unknown bt discovery state: %d\n", state);
 			return;
 	}
 
@@ -206,7 +207,7 @@ int bt_manager_preinit(btmg_callback_t **btmg_cb)
 {
 	*btmg_cb = (btmg_callback_t *)malloc(sizeof(btmg_callback_t));
 	if(*btmg_cb == NULL) {
-		printf("malloc bt manager callback failed\n");
+		pr_info("malloc bt manager callback failed\n");
 		return -1;
 	}
 
@@ -244,7 +245,7 @@ int bt_manager_enable(bool enable)
 		rk_bt_register_discovery_callback(btmg_gap_discovery_status_cb);
 		rk_bt_register_dev_found_callback(btmg_dev_found_cb);
 		if(rk_bt_init(NULL) < 0) {
-			printf("%s: rk_bt_init error\n", __func__);
+			pr_info("%s: rk_bt_init error\n", __func__);
 			return -1;
 		}
 
@@ -363,7 +364,7 @@ int bt_manager_avrcp_command(char *addr, btmg_avrcp_command_t command)
 	memset(bd_addr, 0, 18);
 	rk_bt_sink_get_default_dev_addr(bd_addr, 18);
 	if(strncmp(bd_addr, addr, 17)) {
-		printf("%s: Invalid address(%s)\n", __func__, addr);
+		pr_info("%s: Invalid address(%s)\n", __func__, addr);
 		return -1;
 	}
 

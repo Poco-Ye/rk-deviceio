@@ -595,8 +595,8 @@ static int app_ble_rk_server_create_gatt_database(RkBleContent *ble_content)
     tBT_UUID service_uuid;
     tAPP_BLE_RK_SERVER_ATTRIBUTE attr;
 
-    //service count * 2 + characteristics count * 2
-    UINT16 num_handle = 2 + (ble_content->chr_cnt + 1) * 2;
+    //service count * 2 + characteristics count * 2 + descriptor count * 1
+    UINT16 num_handle = 2 + ble_content->chr_cnt * 2 + ble_content->chr_cnt;
 
     APP_INFO0("app_ble_rk_server_create_gatt_database");
 

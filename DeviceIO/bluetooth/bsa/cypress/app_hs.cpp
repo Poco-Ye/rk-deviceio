@@ -270,7 +270,7 @@ tAPP_HS_CONNECTION *app_hs_get_default_conn(void)
 {
     UINT16 cb_index;
 
-    APPL_TRACE_EVENT0("app_hs_get_default_conn");
+    APP_DEBUG0("");
 
     for(cb_index = 0; cb_index < BSA_HS_MAX_NUM_CONN; cb_index++)
     {
@@ -291,7 +291,7 @@ tAPP_HS_CONNECTION *app_hs_get_default_conn(void)
 tAPP_HS_CONNECTION *app_hs_get_conn_by_handle(UINT16 handle)
 {
     UINT8 cb_index;
-    APPL_TRACE_EVENT1("app_hs_get_conn_by_handle: %d", handle);
+    APP_DEBUG1("handle: %d", handle);
 
     for(cb_index = 0; cb_index < BSA_HS_MAX_NUM_CONN; cb_index++)
     {
@@ -576,19 +576,19 @@ static void app_hs_set_initial_indicator_status(tAPP_HS_CONNECTION *p_conn, char
 
     /* Dump indicators */
     if(p_conn->curr_service_ind < 2)
-    APPL_TRACE_EVENT2("Service: %s,%d", app_hs_service_ind_name[p_conn->curr_service_ind],p_conn->curr_service_ind);
+    APP_DEBUG1("Service: %s,%d", app_hs_service_ind_name[p_conn->curr_service_ind],p_conn->curr_service_ind);
 
     if(p_conn->curr_call_ind < 2)
-    APPL_TRACE_EVENT2("Call: %s,%d", app_hs_call_ind_name[p_conn->curr_call_ind],p_conn->curr_call_ind);
+    APP_DEBUG1("Call: %s,%d", app_hs_call_ind_name[p_conn->curr_call_ind],p_conn->curr_call_ind);
 
     if(p_conn->curr_call_setup_ind < 4)
-    APPL_TRACE_EVENT2("Callsetup: Ind %s,%d", app_hs_callsetup_ind_name[p_conn->curr_call_setup_ind],p_conn->curr_call_setup_ind);
+    APP_DEBUG1("Callsetup: Ind %s,%d", app_hs_callsetup_ind_name[p_conn->curr_call_setup_ind],p_conn->curr_call_setup_ind);
 
     if(p_conn->curr_callheld_ind < 3)
-    APPL_TRACE_EVENT2("Hold: %s,%d", app_hs_callheld_ind_name[p_conn->curr_callheld_ind],p_conn->curr_callheld_ind);
+    APP_DEBUG1("Hold: %s,%d", app_hs_callheld_ind_name[p_conn->curr_callheld_ind],p_conn->curr_callheld_ind);
 
     if(p_conn->curr_roam_ind < 2)
-    APPL_TRACE_EVENT2("Roam: %s,%d", app_hs_roam_ind_name[p_conn->curr_roam_ind],p_conn->curr_roam_ind);
+    APP_DEBUG1("Roam: %s,%d", app_hs_roam_ind_name[p_conn->curr_roam_ind],p_conn->curr_roam_ind);
 }
 
 /*******************************************************************************
@@ -614,7 +614,7 @@ static void app_hs_set_indicator_status(tAPP_HS_CONNECTION *p_conn, char * ind)
     {
         p_conn->curr_call_ind = *ind - '0';
 
-        APPL_TRACE_EVENT2("Call: %s,%d", app_hs_call_ind_name[p_conn->curr_call_ind],p_conn->curr_call_ind);
+        APP_DEBUG1("Call: %s,%d", app_hs_call_ind_name[p_conn->curr_call_ind],p_conn->curr_call_ind);
     }
     else if(id == p_conn->call_setup_ind_id)
     {
@@ -642,13 +642,13 @@ static void app_hs_set_indicator_status(tAPP_HS_CONNECTION *p_conn, char * ind)
             BSA_HS_SETSTATUS(p_conn, BSA_HS_ST_OUTGOINGCALL);
         }
 
-        APPL_TRACE_EVENT2("Callsetup: Ind %s,%d", app_hs_callsetup_ind_name[p_conn->curr_call_setup_ind],p_conn->curr_call_setup_ind);
+        APP_DEBUG1("Callsetup: Ind %s,%d", app_hs_callsetup_ind_name[p_conn->curr_call_setup_ind],p_conn->curr_call_setup_ind);
     }
     else if(id == p_conn->service_ind_id)
     {
         p_conn->curr_service_ind = *ind - '0';
 
-        APPL_TRACE_EVENT2("Service: %s,%d", app_hs_service_ind_name[p_conn->curr_service_ind],p_conn->curr_service_ind);
+        APP_DEBUG1("Service: %s,%d", app_hs_service_ind_name[p_conn->curr_service_ind],p_conn->curr_service_ind);
     }
     else if(id == p_conn->battery_ind_id)
     {
@@ -666,13 +666,13 @@ static void app_hs_set_indicator_status(tAPP_HS_CONNECTION *p_conn, char * ind)
             BSA_HS_SETSTATUS(p_conn, BSA_HS_ST_3WAY_HELD);
         }
 
-        APPL_TRACE_EVENT2("Hold: %s,%d", app_hs_callheld_ind_name[p_conn->curr_callheld_ind],p_conn->curr_callheld_ind);
+        APP_DEBUG1("Hold: %s,%d", app_hs_callheld_ind_name[p_conn->curr_callheld_ind],p_conn->curr_callheld_ind);
     }
     else if(id == p_conn->roam_ind_id)
     {
         p_conn->curr_roam_ind = *ind - '0';
 
-        APPL_TRACE_EVENT2("Roam: %s,%d", app_hs_roam_ind_name[p_conn->curr_roam_ind],p_conn->curr_roam_ind);
+        APP_DEBUG1("Roam: %s,%d", app_hs_roam_ind_name[p_conn->curr_roam_ind],p_conn->curr_roam_ind);
     }
 }
 
@@ -869,13 +869,13 @@ int app_hs_get_unused_connections(void)
 {
     UINT16 cb_index;
 
-    APPL_TRACE_EVENT0("app_hs_get_unused_connections");
+    APP_DEBUG0("");
 
     for(cb_index = 0; cb_index < BSA_HS_MAX_NUM_CONN; cb_index++)
     {
         if (!app_hs_cb.connections[cb_index].connection_active)
         {
-            APPL_TRACE_DEBUG2("app_hs_get_unused_connections index : %d, handle= %d", cb_index, app_hs_cb.connections[cb_index].handle);
+            APP_DEBUG1("app_hs_get_unused_connections index : %d, handle= %d", cb_index, app_hs_cb.connections[cb_index].handle);
             return app_hs_cb.connections[cb_index].handle;
         }
     }
@@ -905,9 +905,9 @@ int app_hs_open(BD_ADDR *bd_addr_in /*= NULL*/)
 
     if(bd_addr_in == NULL)
     {
-        printf("Bluetooth AG menu:\n");
-        printf("    0 Device from XML database (already paired)\n");
-        printf("    1 Device found in last discovery\n");
+        APP_DEBUG0("Bluetooth AG menu:");
+        APP_DEBUG0("    0 Device from XML database (already paired)");
+        APP_DEBUG0("    1 Device found in last discovery");
         device_index = app_get_choice("Select source");
         /* Devices from XML databased */
         if (device_index == 0)
@@ -925,7 +925,7 @@ int app_hs_open(BD_ADDR *bd_addr_in /*= NULL*/)
             }
             else
             {
-                printf("Bad Device Index:%d\n", device_index);
+                APP_ERROR1("Bad Device Index:%d", device_index);
                 return -1;
             }
         }
@@ -933,7 +933,7 @@ int app_hs_open(BD_ADDR *bd_addr_in /*= NULL*/)
         else
         {
             app_disc_display_devices();
-            printf("Enter device number\n");
+            APP_DEBUG0("Enter device number");
             device_index = app_get_choice("Select device");
             if ((device_index >= 0) &&
                 (device_index < APP_DISC_NB_DEVICES) &&
@@ -943,7 +943,7 @@ int app_hs_open(BD_ADDR *bd_addr_in /*= NULL*/)
             }
             else
             {
-                printf("Bad Device Index:%d\n", device_index);
+                APP_ERROR1("Bad Device Index:%d", device_index);
                 return -1;
             }
         }
@@ -999,7 +999,7 @@ int app_hs_open(BD_ADDR *bd_addr_in /*= NULL*/)
 
 int app_hs_audio_open(UINT16 handle)
 {
-    printf("app_hs_audio_open\n");
+    APP_DEBUG0("");
 
     tBSA_STATUS status;
     tBSA_HS_AUDIO_OPEN audio_open;
@@ -1045,7 +1045,7 @@ int app_hs_audio_open(UINT16 handle)
 
 int app_hs_audio_close(UINT16 handle)
 {
-    printf("app_hs_audio_close\n");
+    APP_DEBUG0("");
     tBSA_STATUS status;
     tBSA_HS_AUDIO_CLOSE audio_close;
     tAPP_HS_CONNECTION * p_conn;
@@ -1120,7 +1120,7 @@ int app_hs_close_all(void)
     tBSA_STATUS status;
     UINT16 cb_index;
 
-    APPL_TRACE_EVENT0("app_hs_close_all");
+    APP_DEBUG0("");
 
     for(cb_index = 0; cb_index < BSA_HS_MAX_NUM_CONN; cb_index++) {
         if(app_hs_cb.connections[cb_index].connection_active) {
@@ -1192,7 +1192,7 @@ int app_hs_answer_call(UINT16 handle)
     tBSA_HS_COMMAND cmd_param;
     tAPP_HS_CONNECTION *p_conn;
 
-    printf("app_hs_answer_call\n");
+    APP_DEBUG0("");
 
     /* If no connection exist, error */
     p_conn = app_hs_get_conn_by_handle(handle);
@@ -1222,7 +1222,7 @@ int app_hs_hangup(UINT16 handle)
     tBSA_HS_COMMAND cmd_param;
     tAPP_HS_CONNECTION *p_conn;
 
-    printf("app_hs_hangup\n");
+    APP_DEBUG0("");
 
     /* If no connection exist, error */
     p_conn = app_hs_get_conn_by_handle(handle);
@@ -1272,7 +1272,7 @@ void app_hs_stop(void)
         {
             if(p_conn->uipc_connected)
             {
-                APPL_TRACE_DEBUG0("Closing UIPC Channel");
+                APP_DEBUG0("Closing UIPC Channel");
                 UIPC_Close(p_conn->uipc_channel);
                 p_conn->uipc_connected = FALSE;
             }
@@ -1350,14 +1350,14 @@ int app_hs_play_file(UINT16 handle, char * filename)
     int nb_bytes = 0;
     int fd = 0;
 
-    printf("app_hs_play_file\n");
+    APP_DEBUG0("");
 
     fd = app_wav_open_file(filename, &wav_format);
 
     if(fd < 0)
     {
-        printf("Error could not open wav input file\n");
-        printf("Use the Record audio file function to create an audio file called %s and then try again\n",APP_HS_SCO_OUT_SOUND_FILE);
+        APP_ERROR0("Error could not open wav input file\n");
+        APP_ERROR1("Use the Record audio file function to create an audio file called %s and then try again",APP_HS_SCO_OUT_SOUND_FILE);
         return -1;
     }
 
@@ -1384,7 +1384,7 @@ int app_hs_play_file(UINT16 handle, char * filename)
                 (UINT8 *) app_hs_cb.audio_buf,
                 nb_bytes))
         {
-            printf("error in UIPC send could not send data \n");
+            APP_ERROR0("error in UIPC send could not send data");
         }
 
     } while (nb_bytes != 0);
@@ -1447,7 +1447,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
 
     /* retrieve the handle of the connection for which this event */
     handle = p_data->hdr.handle;
-    APPL_TRACE_DEBUG2("app_hs_cback event:%d for handle: %d", event, handle);
+    APP_DEBUG1("event:%d for handle: %d", event, handle);
 
     /* retrieve the connection for this handle */
     p_conn = app_hs_get_conn_by_handle(handle);
@@ -1470,30 +1470,30 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         break;
 
     case BSA_HS_CONN_EVT:       /* Service level connection */
-        printf("BSA_HS_CONN_EVT:\n");
+        APP_INFO0("BSA_HS_CONN_EVT:");
         app_hs_cb.open_pending = FALSE;
         memset(app_hs_cb.open_pending_bda, 0, sizeof(BD_ADDR));
 
-        printf("    - Remote bdaddr: %02x:%02x:%02x:%02x:%02x:%02x\n",
+        APP_INFO1("    - Remote bdaddr: %02x:%02x:%02x:%02x:%02x:%02x\n",
                 p_data->conn.bd_addr[0], p_data->conn.bd_addr[1],
                 p_data->conn.bd_addr[2], p_data->conn.bd_addr[3],
                 p_data->conn.bd_addr[4], p_data->conn.bd_addr[5]);
-        printf("    - Service: ");
+        APP_INFO0("    - Service: ");
         switch (p_data->conn.service) {
         case BSA_HSP_HS_SERVICE_ID:
-            printf("Headset\n");
+            APP_INFO0("         Headset");
             break;
         case BSA_HFP_HS_SERVICE_ID:
-            printf("Handsfree\n");
+            APP_INFO0("         Handsfree");
             break;
         default:
-            printf("Not supported 0x%08x\n", p_data->conn.service);
+            APP_ERROR1("Not supported 0x%08x", p_data->conn.service);
             return;
         }
 
         /* check if this conneciton is already opened */
         if (p_conn->connection_active) {
-            printf("BSA_HS_CONN_EVT: connection already opened for handle %d\n", handle);
+            APP_INFO1("BSA_HS_CONN_EVT: connection already opened for handle %d", handle);
             break;
         }
         bdcpy(p_conn->connected_bd_addr, p_data->conn.bd_addr);
@@ -1503,7 +1503,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         p_conn->peer_feature = p_data->conn.peer_features;
         p_conn->status = BSA_HS_ST_CONNECT;
         p_conn->dev_platform = app_mgr_get_dev_platform(p_data->conn.bd_addr);
-        printf("device platform is %s\n",
+        APP_INFO1("device platform is %s",
             p_conn->dev_platform == BSA_DEV_PLATFORM_UNKNOWN ? "Unknown Platform" : "Apple IOS");
 
         /* Read the Remote device xml file to have a fresh view */
@@ -1531,7 +1531,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         memset(app_hs_cb.is_battery_report, 0, BSA_HS_MAX_NUM_CONN * sizeof(int));
 
         if (!p_conn->connection_active) {
-            printf("BSA_HS_CLOSE_EVT: connection not opened for handle %d\n", handle);
+            APP_ERROR1("BSA_HS_CLOSE_EVT: connection not opened for handle %d", handle);
             break;
         }
         p_conn->connection_active = FALSE;
@@ -1552,7 +1552,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         break;
 
     case BSA_HS_AUDIO_OPEN_EVT:     /* Audio Open Event */
-        fprintf(stdout,"BSA_HS_AUDIO_OPEN_EVT\n");
+        APP_INFO0("BSA_HS_AUDIO_OPEN_EVT");
 
         if(app_hs_get_active_audio_conn() != NULL)
         {
@@ -1594,7 +1594,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         break;
 
     case BSA_HS_AUDIO_CLOSE_EVT:         /* Audio Close event */
-        fprintf(stdout,"BSA_HS_AUDIO_CLOSE_EVT\n");
+        APP_INFO0("BSA_HS_AUDIO_CLOSE_EVT");
 
 #ifdef PCM_ALSA
 #ifndef PCM_ALSA_DISABLE_HS
@@ -1610,7 +1610,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         if(p_conn->uipc_channel != UIPC_CH_ID_BAD &&
            p_conn->uipc_connected)
         {
-            APPL_TRACE_DEBUG0("Closing UIPC Channel");
+            APP_DEBUG0("Closing UIPC Channel");
             //Release the select to exit the read thread*/
             UIPC_Ioctl(p_conn->uipc_channel, UIPC_REG_CBACK, NULL);
             usleep(10000);
@@ -1623,17 +1623,17 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         break;
 
     case BSA_HS_CIEV_EVT:                /* CIEV event */
-        printf("BSA_HS_CIEV_EVT\n");
+        APP_INFO0("BSA_HS_CIEV_EVT");
         strncpy(buf, p_data->val.str, 4);
         buf[5] ='\0';
-        printf("handle %d, Call Ind Status %s\n", handle, buf);
+        APP_INFO1("handle %d, Call Ind Status %s", handle, buf);
         app_hs_set_indicator_status(p_conn, buf);
         app_hs_process_ciev_msg(buf, p_conn->dev_platform);
         break;
 
     case BSA_HS_CIND_EVT:                /* CIND event */
-        printf("BSA_HS_CIND_EVT\n");
-        printf("handle %d, Call Indicator %s\n",handle, p_data->val.str);
+        APP_INFO0("BSA_HS_CIND_EVT");
+        APP_INFO1("handle %d, Call Indicator %s",handle, p_data->val.str);
 
         /* check if indicator configuration was received */
         if(p_conn->indicator_string_received)
@@ -1648,32 +1648,32 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         break;
 
     case BSA_HS_RING_EVT:
-        fprintf(stdout, "BSA_HS_RING_EVT : handle %d\n", handle);
+        APP_INFO1("BSA_HS_RING_EVT : handle %d", handle);
         app_hs_send_event(RK_BT_HFP_RING_EVT, NULL);
         break;
 
     case BSA_HS_CLIP_EVT:
-        fprintf(stdout, "BSA_HS_CLIP_EVT : handle %d\n", handle);
+        APP_INFO1("BSA_HS_CLIP_EVT : handle %d", handle);
         break;
 
     case BSA_HS_BSIR_EVT:
-        fprintf(stdout, "BSA_HS_BSIR_EVT : handle %d\n", handle);
+        APP_INFO1("BSA_HS_BSIR_EVT : handle %d", handle);
         break;
 
     case BSA_HS_BVRA_EVT:
-        fprintf(stdout, "BSA_HS_BVRA_EVT : handle %d\n", handle);
+        APP_INFO1("BSA_HS_BVRA_EVT : handle %d", handle);
         break;
 
     case BSA_HS_CCWA_EVT:
-        fprintf(stdout, "Call waiting : BSA_HS_CCWA_EVT:%s, handle %d\n", p_data->val.str, handle);
+        APP_INFO1("Call waiting : BSA_HS_CCWA_EVT:%s, handle %d", p_data->val.str, handle);
         break;
 
     case BSA_HS_CHLD_EVT:
-        fprintf(stdout, "BSA_HS_CHLD_EVT : handle %d\n", handle);
+        APP_INFO1("BSA_HS_CHLD_EVT : handle %d", handle);
         break;
 
     case BSA_HS_VGM_EVT:
-        fprintf(stdout, "BSA_HS_VGM_EVT : handle %d\n", handle);
+        APP_INFO1("BSA_HS_VGM_EVT : handle %d", handle);
         break;
 
     case BSA_HS_VGS_EVT:
@@ -1682,35 +1682,35 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         break;
 
     case BSA_HS_BINP_EVT:
-        fprintf(stdout, "BSA_HS_BINP_EVT : handle %d\n", handle);
+        APP_INFO1("BSA_HS_BINP_EVT : handle %d", handle);
         break;
 
     case BSA_HS_BTRH_EVT:
-        fprintf(stdout, "BSA_HS_BTRH_EVT : handle %d\n", handle);
+        APP_INFO1("BSA_HS_BTRH_EVT : handle %d", handle);
         break;
 
     case BSA_HS_CNUM_EVT:
-        fprintf(stdout, "BSA_HS_CNUM_EVT:%s, handle %d\n",p_data->val.str, handle);
+        APP_INFO1("BSA_HS_CNUM_EVT:%s, handle %d",p_data->val.str, handle);
         break;
 
     case BSA_HS_COPS_EVT:
-        fprintf(stdout, "BSA_HS_COPS_EVT:%s, handle %d\n",p_data->val.str, handle);
+        APP_INFO1("BSA_HS_COPS_EVT:%s, handle %d",p_data->val.str, handle);
         break;
 
     case BSA_HS_CMEE_EVT:
-        fprintf(stdout, "BSA_HS_CMEE_EVT:%s, handle %d\n", p_data->val.str, handle);
+        APP_INFO1("BSA_HS_CMEE_EVT:%s, handle %d", p_data->val.str, handle);
         break;
 
     case BSA_HS_CLCC_EVT:
-        fprintf(stdout, "BSA_HS_CLCC_EVT:%s, handle %d\n", p_data->val.str, handle);
+        APP_INFO1("BSA_HS_CLCC_EVT:%s, handle %d", p_data->val.str, handle);
         break;
 
     case BSA_HS_UNAT_EVT:
-        fprintf(stdout, "BSA_HS_UNAT_EVT : handle %d\n", handle);
+        APP_INFO1("BSA_HS_UNAT_EVT : handle %d", handle);
         break;
 
     case BSA_HS_OK_EVT:
-        fprintf(stdout, "BSA_HS_OK_EVT: command value %d, %s, handle %d\n", p_data->val.num, p_data->val.str, handle);
+        APP_INFO1("BSA_HS_OK_EVT: command value %d, %s, handle %d", p_data->val.num, p_data->val.str, handle);
 #if 0
         switch(p_data->val.num) {
             case BSA_HS_A_CMD:
@@ -1727,12 +1727,12 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         break;
 
     case BSA_HS_ERROR_EVT:
-        fprintf(stdout, "BSA_HS_ERROR_EVT : handle %d\n", handle);
+        APP_INFO1("BSA_HS_ERROR_EVT : handle %d", handle);
         break;
 
     case BSA_HS_BCS_EVT:
         UINT16 codec_type;
-        fprintf(stdout, "BSA_HS_BCS_EVT: codec %d (%s), handle %d\n",p_data->val.num,
+        APP_INFO1("BSA_HS_BCS_EVT: codec %d (%s), handle %d",p_data->val.num,
             (p_data->val.num == BSA_SCO_CODEC_MSBC) ? "mSBC":"CVSD", handle);
         if(p_data->val.num == BSA_SCO_CODEC_MSBC) {
             p_conn->sample_rate = APP_HS_WBS_SAMPLE_RATE;
@@ -1746,13 +1746,13 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         break;
 
     case BSA_HS_OPEN_EVT:
-        fprintf(stdout, "BSA_HS_OPEN_EVT : handle %d\n", handle);
+        APP_INFO1("BSA_HS_OPEN_EVT : handle %d", handle);
         app_hs_cb.open_pending = FALSE;
         memset(app_hs_cb.open_pending_bda, 0, sizeof(BD_ADDR));
         break;
 
     default:
-        printf("app_hs_cback unknown event:%d, handle %d\n", event, handle);
+        APP_INFO1("unknown event:%d, handle %d", event, handle);
         break;
     }
     fflush(stdout);
@@ -1917,7 +1917,7 @@ int app_hs_hold_call(UINT16 handle, tBSA_BTHF_CHLD_TYPE_T type)
     tBSA_HS_COMMAND cmd_param;
     tAPP_HS_CONNECTION *p_conn;
 
-    printf("app_hs_hold_call\n");
+    APP_DEBUG0("");
 
     /* If no connection exist, error */
     p_conn = app_hs_get_conn_by_handle(handle);
@@ -1951,7 +1951,7 @@ int app_hs_last_num_dial(UINT16 handle)
     tBSA_HS_COMMAND cmd_param;
     tAPP_HS_CONNECTION *p_conn;
 
-    printf("app_hs_last_num_dial\n");
+    APP_DEBUG0("");
 
     /* If no connection exist, error */
     p_conn = app_hs_get_conn_by_handle(handle);
@@ -1986,7 +1986,7 @@ int app_hs_dial_num(UINT16 handle, const char *num)
     tBSA_HS_COMMAND cmd_param;
     tAPP_HS_CONNECTION *p_conn;
 
-    printf("app_hs_dial_num\n");
+    APP_DEBUG0("");
 
     if((num == NULL) || (strlen(num) == 0))
     {
@@ -2028,7 +2028,7 @@ int app_hs_send_unat(UINT16 handle, char *cCmd)
     tBSA_HS_COMMAND cmd_param;
     tAPP_HS_CONNECTION *p_conn=NULL;
 
-    printf("app_hs_send_unat:Command : %s\n", cCmd);
+    APP_DEBUG1("Command : %s", cCmd);
 
     if(NULL==cCmd)
     {
@@ -2068,7 +2068,7 @@ int app_hs_send_unat(UINT16 handle, char *cCmd)
 *******************************************************************************/
 int app_hs_send_clcc_cmd(UINT16 handle)
 {
-    printf("app_hs_send_clcc_cmd\n");
+    APP_DEBUG0("");
     tBSA_HS_COMMAND cmd_param;
     tAPP_HS_CONNECTION *p_conn=NULL;
 
@@ -2100,7 +2100,7 @@ int app_hs_send_clcc_cmd(UINT16 handle)
 *******************************************************************************/
 int app_hs_send_cops_cmd(UINT16 handle, char *cCmd)
 {
-    printf("app_hs_send_cops_cmd\n");
+    APP_DEBUG0("");
     tBSA_HS_COMMAND cmd_param;
     tAPP_HS_CONNECTION *p_conn=NULL;
 
@@ -2133,7 +2133,7 @@ int app_hs_send_cops_cmd(UINT16 handle, char *cCmd)
 *******************************************************************************/
 int app_hs_send_ind_cmd(UINT16 handle)
 {
-    printf("app_hs_send_cind_cmd\n");
+    APP_DEBUG0("");
     tBSA_HS_COMMAND cmd_param;
     tAPP_HS_CONNECTION *p_conn=NULL;
 
@@ -2190,7 +2190,7 @@ int app_hs_send_dtmf(UINT16 handle, char dtmf)
     tBSA_HS_COMMAND cmd_param;
     tAPP_HS_CONNECTION *p_conn=NULL;
 
-    printf("app_hs_send_dtmf:Command : %x\n", dtmf);
+    APP_DEBUG1("Command : %x", dtmf);
 
     /* If no connection exist, error */
     if('\0'==dtmf)
@@ -2231,7 +2231,7 @@ int app_hs_send_cnum(UINT16 handle)
     tBSA_HS_COMMAND cmd_param;
     tAPP_HS_CONNECTION *p_conn=NULL;
 
-    printf("app_hs_send_cnum:Command \n");
+    APP_DEBUG0("");
 
     /* If no connection exist, error */
     p_conn = app_hs_get_conn_by_handle(handle);
@@ -2266,7 +2266,7 @@ int app_hs_send_keypress_evt(UINT16 handle, char *cCmd)
     tBSA_HS_COMMAND cmd_param;
     tAPP_HS_CONNECTION *p_conn=NULL;
 
-    printf("app_hs_send_keypress_evt:Command \n");
+    APP_DEBUG0("");
 
     /* If no connection exist, error */
     p_conn = app_hs_get_conn_by_handle(handle);
@@ -2301,7 +2301,7 @@ int app_hs_start_voice_recognition(UINT16 handle)
     tBSA_HS_COMMAND cmd_param;
     tAPP_HS_CONNECTION *p_conn=NULL;
 
-    printf("app_hs_start_voice_recognition:Command \n");
+    APP_DEBUG0("");
 
     p_conn = app_hs_get_conn_by_handle(handle);
     if(p_conn == NULL)
@@ -2342,7 +2342,7 @@ int app_hs_stop_voice_recognition(UINT16 handle)
     tBSA_HS_COMMAND cmd_param;
     tAPP_HS_CONNECTION *p_conn=NULL;
 
-    printf("app_hs_stop_voice_recognition:Command \n");
+    APP_DEBUG0("");
 
     /* If no connection exit, error */
     p_conn = app_hs_get_conn_by_handle(handle);
@@ -2382,7 +2382,7 @@ int app_hs_set_volume(UINT16 handle, tBSA_BTHF_VOLUME_TYPE_T type, int volume)
     tBSA_HS_COMMAND cmd_param;
     tAPP_HS_CONNECTION *p_conn=NULL;
 
-    printf("app_hs_set_volume, Command: %d, %d\n", type, volume);
+    APP_DEBUG1("Command: %d, %d", type, volume);
 
     /* If no connection exist, error */
     p_conn = app_hs_get_conn_by_handle(handle);

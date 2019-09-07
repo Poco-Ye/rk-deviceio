@@ -24,7 +24,8 @@
 #include "bluez_alsa_client/ctl-client.h"
 #include "bluez_alsa_client/rfcomm_msg.h"
 #include "obex_client.h"
-#include "../utility/utility.h"
+#include "utility.h"
+#include "slog.h"
 
 extern RkBtContent GBt_Content;
 extern volatile bt_control_t bt_control;
@@ -110,7 +111,7 @@ int rk_ble_write(const char *uuid, char *data, int len)
 		}
 		ret = rk_bt_control(BtControl::BT_BLE_WRITE, &ble_cfg, sizeof(RkBleConfig));
 		if (ret < 0) {
-			printf("rk_ble_write failed!\n");
+			pr_info("rk_ble_write failed!\n");
 			return ret;
 		}
 	}
@@ -128,7 +129,7 @@ int rk_ble_register_status_callback(RK_BLE_STATE_CALLBACK cb)
 int rk_ble_register_recv_callback(RK_BLE_RECV_CALLBACK cb)
 {
 	if (cb) {
-		printf("BlueZ does not support this interface."
+		pr_info("BlueZ does not support this interface."
 			"Please set the callback function when initializing BT.\n");
 	}
 
@@ -158,13 +159,13 @@ static void* _btmaster_autoscan_and_connect(void *data)
 	prctl(PR_SET_NAME,"_btmaster_autoscan_and_connect");
 
 scan_retry:
-	printf("=== BT_SOURCE_SCAN ===\n");
+	pr_info("=== BT_SOURCE_SCAN ===\n");
 	ret = rk_bt_source_scan(&scan_param);
 	if (ret && (scan_cnt--)) {
 		sleep(1);
 		goto scan_retry;
 	} else if (ret) {
-		printf("ERROR: Scan error!\n");
+		pr_info("ERROR: Scan error!\n");
 		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
 		g_btmaster_thread = 0;
 		return NULL;
@@ -179,10 +180,10 @@ scan_retry:
 		start = &scan_param.devices[i];
 		if (start->rssi_valid && (start->rssi > max_rssi) &&
 			(!strcmp(start->playrole, "Audio Sink"))) {
-			printf("#%02d Name:%s\n", i, start->name);
-			printf("\tAddress:%s\n", start->address);
-			printf("\tRSSI:%d\n", start->rssi);
-			printf("\tPlayrole:%s\n", start->playrole);
+			pr_info("#%02d Name:%s\n", i, start->name);
+			pr_info("\tAddress:%s\n", start->address);
+			pr_info("\tRSSI:%d\n", start->rssi);
+			pr_info("\tPlayrole:%s\n", start->playrole);
 			max_rssi = start->rssi;
 
 			memcpy(target_address, start->address, 17);
@@ -191,12 +192,12 @@ scan_retry:
 	}
 
 	if (!target_vaild) {
-		printf("=== Cannot find audio Sink devices. ===\n");
+		pr_info("=== Cannot find audio Sink devices. ===\n");
 		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
 		g_btmaster_thread = 0;
 		return;
 	} else if (max_rssi < -80) {
-		printf("=== BT SOURCE RSSI is is too weak !!! ===\n");
+		pr_info("=== BT SOURCE RSSI is is too weak !!! ===\n");
 		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
 		g_btmaster_thread = 0;
 		return NULL;
@@ -228,12 +229,12 @@ int rk_bt_source_auto_connect_start(void *userdata, RK_BT_SOURCE_CALLBACK cb)
 
 	/* Init bluetooth */
 	if (!bt_control.is_bt_open) {
-		printf("Please open bt!!!\n");
+		pr_info("Please open bt!!!\n");
 		return -1;
 	}
 
 	if (g_btmaster_thread) {
-		printf("The last operation is still in progress\n");
+		pr_info("The last operation is still in progress\n");
 		return -1;
 	}
 
@@ -248,7 +249,7 @@ int rk_bt_source_auto_connect_start(void *userdata, RK_BT_SOURCE_CALLBACK cb)
 	ret = pthread_create(&g_btmaster_thread, NULL,
 						 _btmaster_autoscan_and_connect, NULL);
 	if (ret) {
-		printf("_btmaster_autoscan_and_connect thread create failed!\n");
+		pr_info("_btmaster_autoscan_and_connect thread create failed!\n");
 		return -1;
 	}
 
@@ -268,17 +269,17 @@ int rk_bt_source_open(void)
 {
 	/* Init bluetooth */
 	if (!bt_control.is_bt_open) {
-		printf("Please open bt!!!\n");
+		pr_info("Please open bt!!!\n");
 		return -1;
 	}
 
 	if (g_btmaster_thread) {
-		printf("The last operation is still in progress\n");
+		pr_info("The last operation is still in progress\n");
 		return -1;
 	}
 
 	/* Set bluetooth to master mode */
-	printf("=== BtControl::BT_SOURCE_OPEN ===\n");
+	pr_info("=== BtControl::BT_SOURCE_OPEN ===\n");
 	bt_control.type = BtControlType::BT_SOURCE;
 	if (!bt_source_is_open()) {
 		if (bt_sink_is_open()) {
@@ -379,7 +380,7 @@ void *thread_get_ba_volume(void *arg)
 
 	g_sink_volume_sockfd = socket(AF_UNIX, SOCK_DGRAM, 0);
 	if (g_sink_volume_sockfd < 0) {
-		printf("Create socket failed!\n");
+		pr_info("Create socket failed!\n");
 		return NULL;
 	}
 
@@ -389,27 +390,27 @@ void *thread_get_ba_volume(void *arg)
 	system("rm -rf /tmp/rk_deviceio_a2dp_volume");
 	ret = bind(g_sink_volume_sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
 	if (ret < 0) {
-		printf("Bind Local addr failed!\n");
+		pr_info("Bind Local addr failed!\n");
 		return NULL;
 	}
 
-	printf("###### FUCN:%s start!\n", __func__);
+	pr_info("###### FUCN:%s start!\n", __func__);
 	while(1) {
 		memset(buff, 0, sizeof(buff));
 		ret = recvfrom(g_sink_volume_sockfd, buff, sizeof(buff), 0, (struct sockaddr *)&clientAddr, &addr_len);
 		if (ret <= 0) {
 			if (ret == 0)
-				printf("###### FUCN:%s. socket closed!\n", __func__);
+				pr_info("###### FUCN:%s. socket closed!\n", __func__);
 			break;
 		}
-		printf("###### FUCN:%s. Received a malformed message(%s)\n", __func__, buff);
+		pr_info("###### FUCN:%s. Received a malformed message(%s)\n", __func__, buff);
 
 		if (!bt_sink_is_open())
 			break;
 
 		start = strstr(buff, "a2dp volume:");
 		if (!start) {
-			printf("WARNING: %s recved unsupport msg:%s\n", __func__, buff);
+			pr_info("WARNING: %s recved unsupport msg:%s\n", __func__, buff);
 			continue;
 		}
 		start += strlen("a2dp volume:");
@@ -426,7 +427,7 @@ void *thread_get_ba_volume(void *arg)
 		g_sink_volume_sockfd = 0;
 	}
 
-	printf("###### FUCN:%s exit!\n", __func__);
+	pr_info("###### FUCN:%s exit!\n", __func__);
 	return NULL;
 }
 
@@ -486,7 +487,7 @@ int rk_bt_sink_open()
 {
 	/* Init bluetooth */
 	if (!bt_control.is_bt_open) {
-		printf("Please open bt!!!\n");
+		pr_info("Please open bt!!!\n");
 		return -1;
 	}
 
@@ -755,7 +756,7 @@ int rk_bt_spp_open()
 
 	/* Init bluetooth */
 	if (!bt_control.is_bt_open) {
-		printf("Please open bt!!!\n");
+		pr_info("Please open bt!!!\n");
 		return -1;
 	}
 
@@ -868,7 +869,7 @@ int rk_bt_set_class(int value)
 {
 	char cmd[100] = {0};
 
-	printf("#%s value:0x%x\n", __func__, value);
+	pr_info("#%s value:0x%x\n", __func__, value);
 	sprintf(cmd, "hciconfig hci0 class 0x%x", value);
 	RK_shell_system(cmd);
 	msleep(100);
@@ -972,7 +973,7 @@ int rk_bt_hfp_open()
 {
 	/* Init bluetooth */
 	if (!bt_control.is_bt_open) {
-		printf("Please open bt!!!\n");
+		pr_info("Please open bt!!!\n");
 		return -1;
 	}
 
@@ -1013,7 +1014,7 @@ int rk_bt_hfp_sink_open(void)
 {
 	/* Init bluetooth */
 	if (!bt_control.is_bt_open) {
-		printf("Please open bt!!!\n");
+		pr_info("Please open bt!!!\n");
 		return -1;
 	}
 
@@ -1142,7 +1143,7 @@ static int rk_bt_hfp_hp_send_cmd(char *cmd)
 int rk_bt_hfp_pickup(void)
 {
 	if(rk_bt_hfp_hp_send_cmd("ATA")) {
-		printf("%s: send ATA cmd error\n", __func__);
+		pr_info("%s: send ATA cmd error\n", __func__);
 		return -1;
 	}
 
@@ -1152,7 +1153,7 @@ int rk_bt_hfp_pickup(void)
 int rk_bt_hfp_hangup(void)
 {
 	if(rk_bt_hfp_hp_send_cmd("AT+CHUP")) {
-		printf("%s: send AT+CHUP cmd error\n", __func__);
+		pr_info("%s: send AT+CHUP cmd error\n", __func__);
 		return -1;
 	}
 
@@ -1171,7 +1172,7 @@ int rk_bt_hfp_report_battery(int value)
 	static int done = 0;
 
 	if ((value < 0) || (value > 9)) {
-		printf("ERROR: Invalid value, should within [0, 9]\n");
+		pr_info("ERROR: Invalid value, should within [0, 9]\n");
 		return -1;
 	}
 
@@ -1225,7 +1226,7 @@ int rk_bt_obex_init()
 	char result_buf[256] = {0};
 	int ret = 0;
 
-	printf("[enter %s]\n", __func__);
+	pr_info("[enter %s]\n", __func__);
 
 	setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/var/run/dbus/system_bus_socket", 1);
 	usleep(6000);
@@ -1235,17 +1236,17 @@ int rk_bt_obex_init()
 	ret = pthread_create(&g_obex_thread, NULL,
 						 obex_main_thread, NULL);
 	if (ret) {
-		printf("obex_main_thread thread create failed!\n");
+		pr_info("obex_main_thread thread create failed!\n");
 		return -1;
 	} else
-		printf("obex_main_thread thread create ok!\n");
+		pr_info("obex_main_thread thread create ok!\n");
 
 	return 0;
 }
 
 int rk_bt_obex_pbap_connect(char *btaddr)
 {
-	printf("[enter %s]\n", __func__);
+	pr_info("[enter %s]\n", __func__);
 	obex_connect_pbap(btaddr);
 
 	return 0;
@@ -1253,7 +1254,7 @@ int rk_bt_obex_pbap_connect(char *btaddr)
 
 int rk_bt_obex_pbap_get_vcf(char *dir_name, char *dir_file)
 {
-	printf("[enter %s]\n", __func__);
+	pr_info("[enter %s]\n", __func__);
 	obex_get_pbap_pb(dir_name, dir_file);
 
 	return 0;
@@ -1261,7 +1262,7 @@ int rk_bt_obex_pbap_get_vcf(char *dir_name, char *dir_file)
 
 int rk_bt_obex_pbap_disconnect(char *btaddr)
 {
-	printf("[enter %s]\n", __func__);
+	pr_info("[enter %s]\n", __func__);
 	obex_disconnect(1, NULL);
 	return 0;
 }
@@ -1270,7 +1271,7 @@ int rk_bt_obex_close()
 {
 	char result_buf[256] = {0};
 
-	printf("[enter %s]\n", __func__);
+	pr_info("[enter %s]\n", __func__);
 	obex_quit();
 	bt_kill_task("obexd");
 

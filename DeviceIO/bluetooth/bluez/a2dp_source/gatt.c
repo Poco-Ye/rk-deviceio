@@ -37,6 +37,7 @@
 #include "io.h"
 #include "shell.h"
 #include "../gdbus/gdbus.h"
+#include "slog.h"
 #include "gatt.h"
 
 #define APP_PATH "/org/bluez/app"
@@ -110,7 +111,7 @@ static void print_service(struct service *service, const char *description)
 
 	text = bt_uuidstr_to_str(service->uuid);
 	if (!text)
-		printf("%s%s%s%s Service\n\t%s\n\t%s\n",
+		pr_info("%s%s%s%s Service\n\t%s\n\t%s\n",
 					description ? "[" : "",
 					description ? : "",
 					description ? "] " : "",
@@ -118,7 +119,7 @@ static void print_service(struct service *service, const char *description)
 					"Secondary",
 					service->path, service->uuid);
 	else
-		printf("%s%s%s%s Service\n\t%s\n\t%s\n\t%s\n",
+		pr_info("%s%s%s%s Service\n\t%s\n\t%s\n\t%s\n",
 					description ? "[" : "",
 					description ? : "",
 					description ? "] " : "",
@@ -133,7 +134,7 @@ static void print_inc_service(struct service *service, const char *description)
 
 	text = bt_uuidstr_to_str(service->uuid);
 	if (!text)
-		printf("%s%s%s%s Included Service\n\t%s\n\t%s\n",
+		pr_info("%s%s%s%s Included Service\n\t%s\n\t%s\n",
 					description ? "[" : "",
 					description ? : "",
 					description ? "] " : "",
@@ -141,7 +142,7 @@ static void print_inc_service(struct service *service, const char *description)
 					"Secondary",
 					service->path, service->uuid);
 	else
-		printf("%s%s%s%s Included Service\n\t%s\n\t%s\n\t%s\n",
+		pr_info("%s%s%s%s Included Service\n\t%s\n\t%s\n\t%s\n",
 					description ? "[" : "",
 					description ? : "",
 					description ? "] " : "",
@@ -171,10 +172,10 @@ static void print_service_proxy(GDBusProxy *proxy, const char *description)
 
 	if (g_dbus_proxy_get_property(proxy, "MTU", &iter)) {
 		dbus_message_iter_get_basic(&iter, &mtu);
-		printf("=== %s: mtu: %d ===\n", (char *)g_dbus_proxy_get_path(proxy), mtu);
+		pr_info("=== %s: mtu: %d ===\n", (char *)g_dbus_proxy_get_path(proxy), mtu);
 		rk_gatt_mtu = mtu;
 	} else
-		printf("=== server no mtu ===\n");
+		pr_info("=== server no mtu ===\n");
 
 	service.path = (char *) g_dbus_proxy_get_path(proxy);
 	service.uuid = (char *) uuid;
@@ -209,13 +210,13 @@ static void print_chrc(struct chrc *chrc, const char *description)
 
 	text = bt_uuidstr_to_str(chrc->uuid);
 	if (!text)
-		printf("%s%s%sCharacteristic\n\t%s\n\t%s\n",
+		pr_info("%s%s%sCharacteristic\n\t%s\n\t%s\n",
 					description ? "[" : "",
 					description ? : "",
 					description ? "] " : "",
 					chrc->path, chrc->uuid);
 	else
-		printf("%s%s%sCharacteristic\n\t%s\n\t%s\n\t%s\n",
+		pr_info("%s%s%sCharacteristic\n\t%s\n\t%s\n\t%s\n",
 					description ? "[" : "",
 					description ? : "",
 					description ? "] " : "",
@@ -299,13 +300,13 @@ static void print_desc(struct desc *desc, const char *description)
 
 	text = bt_uuidstr_to_str(desc->uuid);
 	if (!text)
-		printf("%s%s%sDescriptor\n\t%s\n\t%s\n",
+		pr_info("%s%s%sDescriptor\n\t%s\n\t%s\n",
 					description ? "[" : "",
 					description ? : "",
 					description ? "] " : "",
 					desc->path, desc->uuid);
 	else
-		printf("%s%s%sDescriptor\n\t%s\n\t%s\n\t%s\n",
+		pr_info("%s%s%sDescriptor\n\t%s\n\t%s\n\t%s\n",
 					description ? "[" : "",
 					description ? : "",
 					description ? "] " : "",
@@ -522,7 +523,7 @@ static void read_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to read: %s\n", error.name);
+		pr_info("Failed to read: %s\n", error.name);
 		dbus_error_free(&error);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
@@ -530,7 +531,7 @@ static void read_reply(DBusMessage *message, void *user_data)
 	dbus_message_iter_init(message, &iter);
 
 	if (dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_ARRAY) {
-		printf("Invalid response to read\n");
+		pr_info("Invalid response to read\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -538,7 +539,7 @@ static void read_reply(DBusMessage *message, void *user_data)
 	dbus_message_iter_get_fixed_array(&array, &value, &len);
 
 	if (len < 0) {
-		printf("Unable to parse value\n");
+		pr_info("Unable to parse value\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -568,11 +569,11 @@ static void read_attribute(GDBusProxy *proxy, uint16_t offset)
 {
 	if (g_dbus_proxy_method_call(proxy, "ReadValue", read_setup, read_reply,
 						&offset, NULL) == FALSE) {
-		printf("Failed to read\n");
+		pr_info("Failed to read\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
-	printf("Attempting to read %s\n", g_dbus_proxy_get_path(proxy));
+	pr_info("Attempting to read %s\n", g_dbus_proxy_get_path(proxy));
 }
 
 void gatt_read_attribute(GDBusProxy *proxy, int argc, char *argv[])
@@ -591,7 +592,7 @@ void gatt_read_attribute(GDBusProxy *proxy, int argc, char *argv[])
 		return;
 	}
 
-	printf("Unable to read attribute %s\n",
+	pr_info("Unable to read attribute %s\n",
 						g_dbus_proxy_get_path(proxy));
 	return bt_shell_noninteractive_quit(EXIT_FAILURE);
 }
@@ -603,7 +604,7 @@ static void write_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to write: %s\n", error.name);
+		pr_info("Failed to write: %s\n", error.name);
 		dbus_error_free(&error);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
@@ -656,13 +657,13 @@ static void write_attribute(GDBusProxy *proxy, char *val_str, uint16_t offset)
 			continue;
 
 		if (i >= G_N_ELEMENTS(value)) {
-			printf("Too much data\n");
+			pr_info("Too much data\n");
 			return bt_shell_noninteractive_quit(EXIT_FAILURE);
 		}
 
 		val = strtol(entry, &endptr, 0);
 		if (!endptr || *endptr != '\0' || val > UINT8_MAX) {
-			printf("Invalid value at index %d\n", i);
+			pr_info("Invalid value at index %d\n", i);
 			return bt_shell_noninteractive_quit(EXIT_FAILURE);
 		}
 
@@ -674,10 +675,10 @@ static void write_attribute(GDBusProxy *proxy, char *val_str, uint16_t offset)
 
 	/* Write using the fd if it has been acquired and fit the MTU */
 	if (proxy == write_io.proxy && (write_io.io && write_io.mtu >= i)) {
-		printf("Attempting to write fd %d\n",
+		pr_info("Attempting to write fd %d\n",
 						io_get_fd(write_io.io));
 		if (io_send(write_io.io, &iov, 1) < 0) {
-			printf("Failed to write: %s", strerror(errno));
+			pr_info("Failed to write: %s", strerror(errno));
 			return bt_shell_noninteractive_quit(EXIT_FAILURE);
 		}
 		return;
@@ -688,11 +689,11 @@ static void write_attribute(GDBusProxy *proxy, char *val_str, uint16_t offset)
 
 	if (g_dbus_proxy_method_call(proxy, "WriteValue", write_setup,
 					write_reply, &wd, NULL) == FALSE) {
-		printf("Failed to write\n");
+		pr_info("Failed to write\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
-	printf("Attempting to write %s\n",
+	pr_info("Attempting to write %s\n",
 					g_dbus_proxy_get_path(proxy));
 }
 
@@ -712,7 +713,7 @@ void gatt_write_attribute(GDBusProxy *proxy, int argc, char *argv[])
 		return;
 	}
 
-	printf("Unable to write attribute %s\n",
+	pr_info("Unable to write attribute %s\n",
 						g_dbus_proxy_get_path(proxy));
 
 	return bt_shell_noninteractive_quit(EXIT_FAILURE);
@@ -733,10 +734,10 @@ static bool pipe_read(struct io *io, void *user_data)
 		return false;
 
 	if (chrc)
-		printf("[" COLORED_CHG "] Attribute %s written:\n",
+		pr_info("[" COLORED_CHG "] Attribute %s written:\n",
 							chrc->path);
 	else
-		printf("[" COLORED_CHG "] %s Notification:\n",
+		pr_info("[" COLORED_CHG "] %s Notification:\n",
 				g_dbus_proxy_get_path(notify_io.proxy));
 
 	bt_shell_hexdump(buf, bytes_read);
@@ -749,7 +750,7 @@ static bool pipe_hup(struct io *io, void *user_data)
 	struct chrc *chrc = user_data;
 
 	if (chrc) {
-		printf("Attribute %s %s pipe closed\n", chrc->path,
+		pr_info("Attribute %s %s pipe closed\n", chrc->path,
 				io == chrc->write_io ? "Write" : "Notify");
 
 		if (io == chrc->write_io) {
@@ -763,7 +764,7 @@ static bool pipe_hup(struct io *io, void *user_data)
 		return false;
 	}
 
-	printf("%s closed\n", io == notify_io.io ? "Notify" : "Write");
+	pr_info("%s closed\n", io == notify_io.io ? "Notify" : "Write");
 
 	if (io == notify_io.io)
 		notify_io_destroy();
@@ -796,7 +797,7 @@ static void acquire_write_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to acquire write: %s\n", error.name);
+		pr_info("Failed to acquire write: %s\n", error.name);
 		dbus_error_free(&error);
 		write_io.proxy = NULL;
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
@@ -808,11 +809,11 @@ static void acquire_write_reply(DBusMessage *message, void *user_data)
 	if ((dbus_message_get_args(message, NULL, DBUS_TYPE_UNIX_FD, &fd,
 					DBUS_TYPE_UINT16, &write_io.mtu,
 					DBUS_TYPE_INVALID) == false)) {
-		printf("Invalid AcquireWrite response\n");
+		pr_info("Invalid AcquireWrite response\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
-	printf("XIAOYAO AcquireWrite success: fd %d MTU %u\n", fd,
+	pr_info("XIAOYAO AcquireWrite success: fd %d MTU %u\n", fd,
 								write_io.mtu);
 
 	write_io.io = pipe_io_new(fd, NULL);
@@ -839,7 +840,7 @@ void gatt_acquire_write(GDBusProxy *proxy, const char *arg)
 
 	iface = g_dbus_proxy_get_interface(proxy);
 	if (strcmp(iface, "org.bluez.GattCharacteristic1")) {
-		printf("Unable to acquire write: %s not a"
+		pr_info("Unable to acquire write: %s not a"
 				" characteristic\n",
 				g_dbus_proxy_get_path(proxy));
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
@@ -847,7 +848,7 @@ void gatt_acquire_write(GDBusProxy *proxy, const char *arg)
 
 	if (g_dbus_proxy_method_call(proxy, "AcquireWrite", acquire_setup,
 				acquire_write_reply, NULL, NULL) == FALSE) {
-		printf("Failed to AcquireWrite\n");
+		pr_info("Failed to AcquireWrite\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -857,7 +858,7 @@ void gatt_acquire_write(GDBusProxy *proxy, const char *arg)
 void gatt_release_write(GDBusProxy *proxy, const char *arg)
 {
 	if (proxy != write_io.proxy || !write_io.io) {
-		printf("Write not acquired\n");
+		pr_info("Write not acquired\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -874,7 +875,7 @@ static void acquire_notify_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to acquire notify: %s\n", error.name);
+		pr_info("Failed to acquire notify: %s\n", error.name);
 		dbus_error_free(&error);
 		write_io.proxy = NULL;
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
@@ -890,11 +891,11 @@ static void acquire_notify_reply(DBusMessage *message, void *user_data)
 	if ((dbus_message_get_args(message, NULL, DBUS_TYPE_UNIX_FD, &fd,
 					DBUS_TYPE_UINT16, &notify_io.mtu,
 					DBUS_TYPE_INVALID) == false)) {
-		printf("Invalid AcquireNotify response\n");
+		pr_info("Invalid AcquireNotify response\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
-	printf("AcquireNotify success: fd %d MTU %u\n", fd,
+	pr_info("AcquireNotify success: fd %d MTU %u\n", fd,
 								notify_io.mtu);
 
 	notify_io.io = pipe_io_new(fd, NULL);
@@ -908,7 +909,7 @@ void gatt_acquire_notify(GDBusProxy *proxy, const char *arg)
 
 	iface = g_dbus_proxy_get_interface(proxy);
 	if (strcmp(iface, "org.bluez.GattCharacteristic1")) {
-		printf("Unable to acquire notify: %s not a"
+		pr_info("Unable to acquire notify: %s not a"
 				" characteristic\n",
 				g_dbus_proxy_get_path(proxy));
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
@@ -916,7 +917,7 @@ void gatt_acquire_notify(GDBusProxy *proxy, const char *arg)
 
 	if (g_dbus_proxy_method_call(proxy, "AcquireNotify", acquire_setup,
 				acquire_notify_reply, NULL, NULL) == FALSE) {
-		printf("Failed to AcquireNotify\n");
+		pr_info("Failed to AcquireNotify\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -926,7 +927,7 @@ void gatt_acquire_notify(GDBusProxy *proxy, const char *arg)
 void gatt_release_notify(GDBusProxy *proxy, const char *arg)
 {
 	if (proxy != notify_io.proxy || !notify_io.io) {
-		printf("Notify not acquired\n");
+		pr_info("Notify not acquired\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -943,13 +944,13 @@ static void notify_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to %s notify: %s\n",
+		pr_info("Failed to %s notify: %s\n",
 				enable ? "start" : "stop", error.name);
 		dbus_error_free(&error);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
-	printf("Notify %s\n", enable == TRUE ? "started" : "stopped");
+	pr_info("Notify %s\n", enable == TRUE ? "started" : "stopped");
 
 	return bt_shell_noninteractive_quit(EXIT_SUCCESS);
 }
@@ -965,7 +966,7 @@ static void notify_attribute(GDBusProxy *proxy, bool enable)
 
 	if (g_dbus_proxy_method_call(proxy, method, NULL, notify_reply,
 				GUINT_TO_POINTER(enable), NULL) == FALSE) {
-		printf("Failed to %s notify\n",
+		pr_info("Failed to %s notify\n",
 				enable ? "start" : "stop");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
@@ -983,7 +984,7 @@ void gatt_notify_attribute(GDBusProxy *proxy, bool enable)
 		return;
 	}
 
-	printf("Unable to notify attribute %s\n",
+	pr_info("Unable to notify attribute %s\n",
 						g_dbus_proxy_get_path(proxy));
 
 	return bt_shell_noninteractive_quit(EXIT_FAILURE);
@@ -1013,13 +1014,13 @@ static void register_app_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to register application: %s\n",
+		pr_info("Failed to register application: %s\n",
 				error.name);
 		dbus_error_free(&error);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
-	printf("Application registered\n");
+	pr_info("Application registered\n");
 
 	return bt_shell_noninteractive_quit(EXIT_SUCCESS);
 }
@@ -1087,7 +1088,7 @@ void gatt_register_app(DBusConnection *conn, GDBusProxy *proxy,
 
 	l = g_list_find_custom(managers, proxy, match_proxy);
 	if (!l) {
-		printf("Unable to find GattManager proxy\n");
+		pr_info("Unable to find GattManager proxy\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -1099,7 +1100,7 @@ void gatt_register_app(DBusConnection *conn, GDBusProxy *proxy,
 						PROFILE_INTERFACE, methods,
 						NULL, properties, NULL,
 						NULL) == FALSE) {
-			printf("Failed to register application"
+			pr_info("Failed to register application"
 					" object\n");
 			return bt_shell_noninteractive_quit(EXIT_FAILURE);
 		}
@@ -1109,7 +1110,7 @@ void gatt_register_app(DBusConnection *conn, GDBusProxy *proxy,
 						register_app_setup,
 						register_app_reply, NULL,
 						NULL) == FALSE) {
-		printf("Failed register application\n");
+		pr_info("Failed register application\n");
 		g_dbus_unregister_interface(conn, APP_PATH, PROFILE_INTERFACE);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
@@ -1123,13 +1124,13 @@ static void unregister_app_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to unregister application: %s\n",
+		pr_info("Failed to unregister application: %s\n",
 				error.name);
 		dbus_error_free(&error);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
-	printf("Application unregistered\n");
+	pr_info("Application unregistered\n");
 
 	if (!uuids)
 		return bt_shell_noninteractive_quit(EXIT_SUCCESS);
@@ -1155,7 +1156,7 @@ void gatt_unregister_app(DBusConnection *conn, GDBusProxy *proxy)
 
 	l = g_list_find_custom(managers, proxy, match_proxy);
 	if (!l) {
-		printf("Unable to find GattManager proxy\n");
+		pr_info("Unable to find GattManager proxy\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -1163,7 +1164,7 @@ void gatt_unregister_app(DBusConnection *conn, GDBusProxy *proxy)
 						unregister_app_setup,
 						unregister_app_reply, conn,
 						NULL) == FALSE) {
-		printf("Failed unregister profile\n");
+		pr_info("Failed unregister profile\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 }
@@ -1312,7 +1313,7 @@ static void service_set_primary(const char *input, void *user_data)
 	else if (!strcmp(input, "no")) {
 		service->primary = false;
 	} else {
-		printf("Invalid option: %s\n", input);
+		pr_info("Invalid option: %s\n", input);
 		local_services = g_list_remove(local_services, service);
 		print_service(service, COLORED_DEL);
 		g_dbus_unregister_interface(service->conn, service->path,
@@ -1336,7 +1337,7 @@ void gatt_register_service(DBusConnection *conn, GDBusProxy *proxy,
 					SERVICE_INTERFACE, NULL, NULL,
 					service_properties, service,
 					service_free) == FALSE) {
-		printf("Failed to register service object\n");
+		pr_info("Failed to register service object\n");
 		service_free(service);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
@@ -1377,7 +1378,7 @@ void gatt_unregister_service(DBusConnection *conn, GDBusProxy *proxy,
 
 	service = service_find(argv[1]);
 	if (!service) {
-		printf("Failed to unregister service object\n");
+		pr_info("Failed to unregister service object\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -1412,7 +1413,7 @@ void gatt_register_include(DBusConnection *conn, GDBusProxy *proxy,
 	char *inc_path;
 
 	if (!local_services) {
-		printf("No service registered\n");
+		pr_info("No service registered\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -1421,7 +1422,7 @@ void gatt_register_include(DBusConnection *conn, GDBusProxy *proxy,
 
 	inc_service = service_find(argv[1]);
 	if (!inc_service) {
-		printf("Failed to find  service object\n");
+		pr_info("Failed to find  service object\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -1443,14 +1444,14 @@ void gatt_unregister_include(DBusConnection *conn, GDBusProxy *proxy,
 
 	service = service_find(argv[1]);
 	if (!service) {
-		printf("Failed to unregister include service"
+		pr_info("Failed to unregister include service"
 							" object\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
 	ser_inc = service_find(argv[2]);
 	if (!ser_inc) {
-		printf("Failed to find include service object\n");
+		pr_info("Failed to find include service object\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -1755,7 +1756,7 @@ static DBusMessage *chrc_read_value(DBusConnection *conn, DBusMessage *msg,
 					"org.bluez.Error.InvalidArguments",
 					NULL);
 
-	printf("ReadValue: %s offset %u link %s\n",
+	pr_info("ReadValue: %s offset %u link %s\n",
 					path_to_address(device), offset, link);
 
 	if (!is_device_trusted(device) && chrc->authorization_req) {
@@ -1861,7 +1862,7 @@ static void authorize_write_response(const char *input, void *user_data)
 		goto error;
 	}
 
-	printf("[" COLORED_CHG "] Attribute %s written" , chrc->path);
+	pr_info("[" COLORED_CHG "] Attribute %s written" , chrc->path);
 
 	g_dbus_emit_property_changed(aad->conn, chrc->path, CHRC_INTERFACE,
 								"Value");
@@ -1930,7 +1931,7 @@ static DBusMessage *chrc_write_value(DBusConnection *conn, DBusMessage *msg,
 		return g_dbus_create_error(msg,
 				"org.bluez.Error.InvalidValueLength", NULL);
 
-	printf("[" COLORED_CHG "] Attribute %s written" , chrc->path);
+	pr_info("[" COLORED_CHG "] Attribute %s written" , chrc->path);
 
 	g_dbus_emit_property_changed(conn, chrc->path, CHRC_INTERFACE, "Value");
 
@@ -1969,7 +1970,7 @@ static DBusMessage *chrc_create_pipe(struct chrc *chrc, DBusMessage *msg)
 	else
 		chrc->notify_io = io;
 
-	printf("[" COLORED_CHG "] Attribute %s %s pipe acquired\n",
+	pr_info("[" COLORED_CHG "] Attribute %s %s pipe acquired\n",
 					chrc->path, dir ? "Write" : "Notify");
 
 	return reply;
@@ -1995,7 +1996,7 @@ static DBusMessage *chrc_acquire_write(DBusConnection *conn, DBusMessage *msg,
 					"org.bluez.Error.InvalidArguments",
 					NULL);
 
-	printf("AcquireWrite: %s link %s\n", path_to_address(device),
+	pr_info("AcquireWrite: %s link %s\n", path_to_address(device),
 									link);
 
 	reply = chrc_create_pipe(chrc, msg);
@@ -2027,7 +2028,7 @@ static DBusMessage *chrc_acquire_notify(DBusConnection *conn, DBusMessage *msg,
 					"org.bluez.Error.InvalidArguments",
 					NULL);
 
-	printf("AcquireNotify: %s link %s\n", path_to_address(device),
+	pr_info("AcquireNotify: %s link %s\n", path_to_address(device),
 									link);
 
 	reply = chrc_create_pipe(chrc, msg);
@@ -2048,7 +2049,7 @@ static DBusMessage *chrc_start_notify(DBusConnection *conn, DBusMessage *msg,
 		return g_dbus_create_reply(msg, DBUS_TYPE_INVALID);
 
 	chrc->notifying = true;
-	printf("[" COLORED_CHG "] Attribute %s notifications enabled",
+	pr_info("[" COLORED_CHG "] Attribute %s notifications enabled",
 							chrc->path);
 	g_dbus_emit_property_changed(conn, chrc->path, CHRC_INTERFACE,
 							"Notifying");
@@ -2065,7 +2066,7 @@ static DBusMessage *chrc_stop_notify(DBusConnection *conn, DBusMessage *msg,
 		return g_dbus_create_reply(msg, DBUS_TYPE_INVALID);
 
 	chrc->notifying = false;
-	printf("[" COLORED_CHG "] Attribute %s notifications disabled",
+	pr_info("[" COLORED_CHG "] Attribute %s notifications disabled",
 							chrc->path);
 	g_dbus_emit_property_changed(conn, chrc->path, CHRC_INTERFACE,
 							"Notifying");
@@ -2078,7 +2079,7 @@ static DBusMessage *chrc_confirm(DBusConnection *conn, DBusMessage *msg,
 {
 	struct chrc *chrc = user_data;
 
-	printf("Attribute %s indication confirm received", chrc->path);
+	pr_info("Attribute %s indication confirm received", chrc->path);
 
 	return dbus_message_new_method_return(msg);
 }
@@ -2114,13 +2115,13 @@ static uint8_t *str2bytearray(char *arg, int *val_len)
 			continue;
 
 		if (i >= G_N_ELEMENTS(value)) {
-			printf("Too much data\n");
+			pr_info("Too much data\n");
 			return NULL;
 		}
 
 		val = strtol(entry, &endptr, 0);
 		if (!endptr || *endptr != '\0' || val > UINT8_MAX) {
-			printf("Invalid value at index %d\n", i);
+			pr_info("Invalid value at index %d\n", i);
 			return NULL;
 		}
 
@@ -2167,7 +2168,7 @@ void gatt_register_chrc(DBusConnection *conn, GDBusProxy *proxy,
 	struct chrc *chrc;
 
 	if (!local_services) {
-		printf("No service registered\n");
+		pr_info("No service registered\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -2183,7 +2184,7 @@ void gatt_register_chrc(DBusConnection *conn, GDBusProxy *proxy,
 	if (g_dbus_register_interface(conn, chrc->path, CHRC_INTERFACE,
 					chrc_methods, NULL, chrc_properties,
 					chrc, chrc_free) == FALSE) {
-		printf("Failed to register characteristic object\n");
+		pr_info("Failed to register characteristic object\n");
 		chrc_free(chrc);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
@@ -2229,7 +2230,7 @@ void gatt_unregister_chrc(DBusConnection *conn, GDBusProxy *proxy,
 
 	chrc = chrc_find(argv[1]);
 	if (!chrc) {
-		printf("Failed to unregister characteristic object\n");
+		pr_info("Failed to unregister characteristic object\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -2255,7 +2256,7 @@ static DBusMessage *desc_read_value(DBusConnection *conn, DBusMessage *msg,
 					"org.bluez.Error.InvalidArguments",
 					NULL);
 
-	printf("ReadValue: %s offset %u link %s\n",
+	pr_info("ReadValue: %s offset %u link %s\n",
 			path_to_address(device), offset, link);
 
 	if (offset > desc->value_len)
@@ -2291,10 +2292,10 @@ static DBusMessage *desc_write_value(DBusConnection *conn, DBusMessage *msg,
 		return g_dbus_create_error(msg,
 				"org.bluez.Error.InvalidValueLength", NULL);
 
-	printf("WriteValue: %s offset %u link %s\n",
+	pr_info("WriteValue: %s offset %u link %s\n",
 			path_to_address(device), offset, link);
 
-	printf("[" COLORED_CHG "] Attribute %s written" , desc->path);
+	pr_info("[" COLORED_CHG "] Attribute %s written" , desc->path);
 
 	g_dbus_emit_property_changed(conn, desc->path, CHRC_INTERFACE, "Value");
 
@@ -2399,14 +2400,14 @@ void gatt_register_desc(DBusConnection *conn, GDBusProxy *proxy,
 	struct desc *desc;
 
 	if (!local_services) {
-		printf("No service registered\n");
+		pr_info("No service registered\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
 	service = g_list_last(local_services)->data;
 
 	if (!service->chrcs) {
-		printf("No characteristic registered\n");
+		pr_info("No characteristic registered\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -2419,7 +2420,7 @@ void gatt_register_desc(DBusConnection *conn, GDBusProxy *proxy,
 	if (g_dbus_register_interface(conn, desc->path, DESC_INTERFACE,
 					desc_methods, NULL, desc_properties,
 					desc, desc_free) == FALSE) {
-		printf("Failed to register descriptor object\n");
+		pr_info("Failed to register descriptor object\n");
 		desc_free(desc);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
@@ -2470,7 +2471,7 @@ void gatt_unregister_desc(DBusConnection *conn, GDBusProxy *proxy,
 
 	desc = desc_find(argv[1]);
 	if (!desc) {
-		printf("Failed to unregister descriptor object\n");
+		pr_info("Failed to unregister descriptor object\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 

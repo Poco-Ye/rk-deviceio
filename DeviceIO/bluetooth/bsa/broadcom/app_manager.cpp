@@ -1453,14 +1453,14 @@ int app_get_cod(DEV_CLASS cod)
     };
 
     /* set top box (default), hid host, hid device, phone, headset, etc. */
-    printf("Ener COD for local device:\n");
-    printf("1 - Set top box (default) \n");
-    printf("2 - HID host\n");
-    printf("3 - HID keyboard\n");
-    printf("4 - HID mouse\n");
-    printf("5 - Phone\n");
-    printf("6 - Headset\n");
-    printf("7 - Custom\n");
+    APP_INFO0("Ener COD for local device:");
+    APP_INFO0("1 - Set top box (default)");
+    APP_INFO0("2 - HID host");
+    APP_INFO0("3 - HID keyboard");
+    APP_INFO0("4 - HID mouse");
+    APP_INFO0("5 - Phone");
+    APP_INFO0("6 - Headset");
+    APP_INFO0("7 - Custom");
 
     int i = (app_get_choice("Select=>"));
     if (i == 7)
@@ -1468,7 +1468,7 @@ int app_get_cod(DEV_CLASS cod)
         char cod_str[20];
         unsigned int cod_0, cod_1, cod_2;
         memset(cod_str, 0, sizeof(cod_str));
-        printf("Enter 3 byte COD, 1 byte for each in hex format:\n");
+        APP_INFO0("Enter 3 byte COD, 1 byte for each in hex format:");
         if (2 != app_get_string("Service class",cod_str, 3))
             return -1;
         if (2 != app_get_string("Major device class",&(cod_str[2]), 3))

@@ -17,6 +17,7 @@
 #include "a2dp_source/a2dp_masterctrl.h"
 #include "DeviceIo/DeviceIo.h"
 #include "DeviceIo/Rk_shell.h"
+#include "slog.h"
 //#include "../Timer.h"
 
 //using DeviceIOFramework::Timer;
@@ -40,19 +41,6 @@ using DeviceIOFramework::DeviceInput;
 
 #define PROMPT_ON	COLOR_BLUE "[bluetooth]" COLOR_OFF "# "
 #define PROMPT_OFF	"[bluetooth]# "
-
-#define pr_info(fmt, ...) \
-	printf(fmt"\n", ## __VA_ARGS__)
-#define pr_warn(fmt, ...) \
-	printf(fmt"\n", ## __VA_ARGS__)
-#define pr_err(fmt, ...) \
-	printf(fmt"\n", ## __VA_ARGS__)
-
-#define error(fmt, ...) \
-	printf(fmt"\n", ## __VA_ARGS__)
-
-#undef bt_shell_printf
-#define bt_shell_printf printf
 
 static GList *proxy_list;
 
@@ -101,7 +89,7 @@ void report_avrcp_event(DeviceInput event, void *data, int len) {
 	if (DeviceIo::getInstance()->getNotify())
 		DeviceIo::getInstance()->getNotify()->callback(event, data, len);
 
-	printf("[AVRCP DEBUG]: event: %d \n", event);
+	pr_info("[AVRCP DEBUG]: event: %d \n", event);
 
 	switch(event) {
 		case DeviceInput::BT_SINK_ENV_CONNECT:
@@ -200,12 +188,12 @@ static struct adapter *find_parent(GDBusProxy *device)
 
 void connect_handler(DBusConnection *connection, void *user_data)
 {
-	printf("%s \n", __func__);
+	pr_info("%s \n", __func__);
 }
 
 void disconnect_handler(DBusConnection *connection, void *user_data)
 {
-	printf("%s \n", __func__);
+	pr_info("%s \n", __func__);
 }
 
 void print_folder(GDBusProxy *proxy, const char *description)
@@ -244,21 +232,21 @@ void print_player(GDBusProxy *proxy, const char *description)
 
 	memset(strplay, 0x00, 256);
 	sprintf(strplay,"%s%s\n", str, (default_player == proxy ? "[default]" : ""));
-	printf(strplay);
+	pr_info(strplay);
 
 	g_free(str);
 }
 
 void player_added(GDBusProxy *proxy)
 {
-	printf("player_added \n");
+	pr_info("player_added \n");
 
 	if (g_slist_length(players) == 0) {
-		printf("=== add set last_connected_device_proxy 0x%p \n", proxy);
+		pr_info("=== add set last_connected_device_proxy 0x%p \n", proxy);
 		last_connected_device_proxy = last_temp_connected_device_proxy;
 		device_connected_post(last_connected_device_proxy);
 		report_avrcp_event(DeviceInput::BT_SINK_ENV_CONNECT, NULL, 0);
-		printf("[D: %s]: BT_SNK_DEVICE CONNECTED\n", __func__);
+		pr_info("[D: %s]: BT_SNK_DEVICE CONNECTED\n", __func__);
 		system("hciconfig hci0 noscan");
 		system("hciconfig hci0 noscan");
 	}
@@ -266,7 +254,7 @@ void player_added(GDBusProxy *proxy)
 	players = g_slist_append(players, proxy);
 
 	if (default_player == NULL) {
-		printf("set default player\n");
+		pr_info("set default player\n");
 		default_player = proxy;
 	}
 
@@ -317,7 +305,7 @@ static GDBusProxy *proxy_lookup(GList *list, int *index, const char *path,
 
 		/* Proxy info mybe error. */
 		if (!proxy_iface || !proxy_path) {
-			printf("ERROR: %s proxy info error! proxy_iface:%s, proxy_path:%s\n",
+			pr_info("ERROR: %s proxy info error! proxy_iface:%s, proxy_path:%s\n",
 				__func__, proxy_iface, proxy_path);
 			return NULL;
 		}
@@ -355,7 +343,7 @@ static const char *load_connected_device(const char *str)
 
 	fd = open(path, O_RDONLY);
 	if (fd == -1) {
-		error("Open %s error: %s", path,
+		pr_info("Open %s error: %s", path,
 			  strerror(errno));
 		return NULL;
 	}
@@ -367,7 +355,7 @@ static const char *load_connected_device(const char *str)
 		pr_info("Previous device path: %s", last_obj_path);
 		return last_obj_path;
 	} else {
-		error("Read %s error: %s", path,
+		pr_info("Read %s error: %s", path,
 			  strerror(errno));
 		return NULL;
 	}
@@ -403,7 +391,7 @@ static void store_connected_device(GDBusProxy *proxy)
 
 	fd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0644);
 	if (fd == -1) {
-		error("Open %s error: %s", path,
+		pr_info("Open %s error: %s", path,
 			  strerror(errno));
 		return;
 	}
@@ -414,7 +402,7 @@ static void store_connected_device(GDBusProxy *proxy)
 	if (result > 0)
 		memcpy(last_obj_path, object_path, sizeof(last_obj_path) - 1);
 	else
-		error("Write %s error: %s", path, strerror(errno));
+		pr_info("Write %s error: %s", path, strerror(errno));
 }
 
 static void device_connected_post(GDBusProxy *proxy)
@@ -437,7 +425,7 @@ static void disconn_device_reply(DBusMessage * message, void *user_data)
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
 
 		if (strstr(error.name, "Failed"))
-			printf("disconn_device_reply failed\n");
+			pr_info("disconn_device_reply failed\n");
 		dbus_error_free(&error);
 	}
 }
@@ -474,7 +462,7 @@ bool disconn_device(void)
 	dbus_bool_t connected;
 
 	if (!proxy) {
-		error("Invalid proxy, stop disconnecting\n");
+		pr_info("Invalid proxy, stop disconnecting\n");
 		return FALSE;
 	}
 
@@ -496,7 +484,7 @@ bool disconn_device(void)
 	}
 
 	if (g_list_length(device_list) <= 0) {
-		error("Device already disconnected");
+		pr_info("Device already disconnected");
 		return FALSE;
 	}
 
@@ -507,7 +495,7 @@ bool disconn_device(void)
 					 NULL,
 					 disconn_device_reply,
 					 last_connected_device_proxy, NULL) == FALSE) {
-		error("Failed to call org.bluez.Device1.Disonnect");
+		pr_info("Failed to call org.bluez.Device1.Disonnect");
 	}
 
 	return TRUE;
@@ -531,12 +519,12 @@ bool reconn_last(void)
 	}
 
 	if (reconnect == 0) {
-		printf("%s: automatic reconnection is disabled!", __func__);
+		pr_info("%s: automatic reconnection is disabled!", __func__);
 		return 0;
 	}
 
 	if (bt_is_connected()) {
-		printf("%s: The device is connected and does not need to be reconnected!", __func__);
+		pr_info("%s: The device is connected and does not need to be reconnected!", __func__);
 		return 0;
 	}
 
@@ -545,7 +533,7 @@ bool reconn_last(void)
 		reconnect_timer = 0;
 	}
 
-	printf("%s: lcdp: 0x%p, last_device_path: %s.\n",
+	pr_info("%s: lcdp: 0x%p, last_device_path: %s.\n",
 		__func__, last_connected_device_proxy, last_device_path);
 
 	if ((!last_connected_device_proxy) && last_device_path) {
@@ -558,12 +546,12 @@ bool reconn_last(void)
 	}
 
 	if (!proxy) {
-		error("Invalid proxy, stop reconnecting\n");
+		pr_info("Invalid proxy, stop reconnecting\n");
 		return FALSE;
 	}
 
 	if (g_list_length(device_list) > 0) {
-		error("Device device_list: %d.\n", g_list_length(device_list));
+		pr_info("Device device_list: %d.\n", g_list_length(device_list));
 		//return FALSE;
 
 	}
@@ -594,7 +582,7 @@ bool reconn_last(void)
 					 NULL,
 					 reconn_last_device_reply,
 					 last_connected_device_proxy, NULL) == FALSE) {
-		error("Failed to call org.bluez.Device1.Connect");
+		pr_info("Failed to call org.bluez.Device1.Connect");
 	}
 
 	return FALSE;
@@ -628,7 +616,7 @@ void a2dp_sink_device_added(GDBusProxy *proxy)
 
 		if (connected) {
 			device_list = g_list_append(device_list, proxy);
-			printf("=== BT SINK set last_temp_connected_device_proxy %p \n", proxy);
+			pr_info("=== BT SINK set last_temp_connected_device_proxy %p \n", proxy);
 			last_temp_connected_device_proxy = proxy;
 			return;
 		}
@@ -637,11 +625,11 @@ void a2dp_sink_device_added(GDBusProxy *proxy)
 
 void a2dp_sink_proxy_added(GDBusProxy *proxy, void *user_data)
 {
-	printf("BT SINK proxy_added A2DP_SINK_FLAG: %d\n", A2DP_SINK_FLAG);
+	pr_info("BT SINK proxy_added A2DP_SINK_FLAG: %d\n", A2DP_SINK_FLAG);
 	const char *interface;
 	interface = g_dbus_proxy_get_interface(proxy);
 
-	printf("BT SINK proxy_added interface:%s \n", interface);
+	pr_info("BT SINK proxy_added interface:%s \n", interface);
 
 	if (!strcmp(interface, BLUEZ_MEDIA_PLAYER_INTERFACE))
 		player_added(proxy);
@@ -682,7 +670,7 @@ void a2dp_sink_proxy_added(GDBusProxy *proxy, void *user_data)
 
 	players = g_slist_remove(players, proxy);
 	if (g_slist_length(players) == 0) {
-		printf("[D: %s]: BT_SNK_DEVICE DISCONNECTED\n", __func__);
+		pr_info("[D: %s]: BT_SNK_DEVICE DISCONNECTED\n", __func__);
 		report_avrcp_event(DeviceInput::BT_SINK_ENV_DISCONNECT, NULL, 0);
 		system("hciconfig hci0 piscan");
 		system("hciconfig hci0 piscan");
@@ -700,7 +688,7 @@ void item_removed(GDBusProxy *proxy)
 {
 	const char *interface;
 
-	printf("BT SINK proxy_removed A2DP_SINK_FLAG: %d\n", A2DP_SINK_FLAG);
+	pr_info("BT SINK proxy_removed A2DP_SINK_FLAG: %d\n", A2DP_SINK_FLAG);
 	interface = g_dbus_proxy_get_interface(proxy);
 
 	if (!strcmp(interface, BLUEZ_MEDIA_PLAYER_INTERFACE))
@@ -824,7 +812,7 @@ void player_property_changed(GDBusProxy *proxy, const char *name,
 	char *str;
 
 	str = proxy_description(proxy, "Player", COLORED_CHG);
-	printf("player_property_changed: str: %s, name: %s\n", str, name);
+	pr_info("player_property_changed: str: %s, name: %s\n", str, name);
 
 	avrcp_track_info_send(name, iter);
 	avrcp_position_send(name, iter);
@@ -908,7 +896,7 @@ void a2dp_sink_property_changed(GDBusProxy *proxy, const char *name,
 	const char *interface;
 
 	interface = g_dbus_proxy_get_interface(proxy);
-	printf("BT SINK: property_changed %s\n", interface);
+	pr_info("BT SINK: property_changed %s\n", interface);
 
 	if (!strcmp(interface, BLUEZ_MEDIA_PLAYER_INTERFACE))
 		player_property_changed(proxy, name, iter);
@@ -928,13 +916,13 @@ bool check_default_player(void)
 			l = players;
 			GDBusProxy *proxy = (GDBusProxy *)l->data;
 			default_player = proxy;
-			printf("set default player\n");
+			pr_info("set default player\n");
 			return TRUE;
 		}
-		printf("No default player available\n");
+		pr_info("No default player available\n");
 		return FALSE;
 	}
-	printf(" player ok\n");
+	pr_info(" player ok\n");
 
 	return TRUE;
 }
@@ -961,7 +949,7 @@ int init_avrcp_ctrl(void)
 extern volatile bool A2DP_SRC_FLAG;
 int a2dp_sink_open(void)
 {
-	printf("call avrcp_thread init_avrcp\n");
+	pr_info("call avrcp_thread init_avrcp\n");
 	g_btsrc_connect_status = RK_BT_SINK_STATE_IDLE;
 	A2DP_SINK_FLAG = true;
 	A2DP_SRC_FLAG = 0;
@@ -980,7 +968,7 @@ int a2dp_sink_colse_coexist()
 int release_avrcp_ctrl(void)
 {
 	//g_main_loop_quit(main_loop);
-	printf("=== release_avrcp_ctrl ===\n");
+	pr_info("=== release_avrcp_ctrl ===\n");
 	A2DP_SINK_FLAG = false;
 	g_btsrc_connect_status = RK_BT_SINK_STATE_IDLE;
 	system("hciconfig hci0 noscan");
@@ -990,7 +978,7 @@ int release_avrcp_ctrl(void)
 
 int release_avrcp_ctrl2(void)
 {
-	printf("=== release_avrcp_ctrl2 ===\n");
+	pr_info("=== release_avrcp_ctrl2 ===\n");
 	A2DP_SINK_FLAG = false;
 	g_btsrc_connect_status = RK_BT_SINK_STATE_IDLE;
 	return 0;
@@ -1003,12 +991,12 @@ void play_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-	  printf("Failed to play\n");
+	  pr_info("Failed to play\n");
 	  dbus_error_free(&error);
 	  return;
 	}
 
-	printf("Play successful\n");
+	pr_info("Play successful\n");
 }
 
 int play_avrcp(void)
@@ -1017,10 +1005,10 @@ int play_avrcp(void)
 		return -1;
 	if (g_dbus_proxy_method_call(default_player, "Play", NULL, play_reply,
 				  NULL, NULL) == FALSE) {
-		printf("Failed to play\n");
+		pr_info("Failed to play\n");
 		return -1;
 	}
-	printf("Attempting to play\n");
+	pr_info("Attempting to play\n");
 	return 0;
 }
 
@@ -1031,12 +1019,12 @@ void pause_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to pause: %s\n", __func__);
+		pr_info("Failed to pause: %s\n", __func__);
 		dbus_error_free(&error);
 		return;
 	}
 
-	printf("Pause successful\n");
+	pr_info("Pause successful\n");
 }
 
 int pause_avrcp(void)
@@ -1045,10 +1033,10 @@ int pause_avrcp(void)
 		return -1;
 	if (g_dbus_proxy_method_call(default_player, "Pause", NULL,
 					pause_reply, NULL, NULL) == FALSE) {
-		printf("Failed to pause\n");
+		pr_info("Failed to pause\n");
 		return -1;
 	}
-	printf("Attempting to pause\n");
+	pr_info("Attempting to pause\n");
 	return 0;
 }
 
@@ -1059,12 +1047,12 @@ void volumedown_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to volume down\n");
+		pr_info("Failed to volume down\n");
 		dbus_error_free(&error);
 		return;
 	}
 
-	printf("volumedown successful\n");
+	pr_info("volumedown successful\n");
 }
 
 void volumedown_avrcp(void)
@@ -1073,10 +1061,10 @@ void volumedown_avrcp(void)
 				return;
 	if (g_dbus_proxy_method_call(default_player, "VolumeDown", NULL, volumedown_reply,
 							NULL, NULL) == FALSE) {
-		printf("Failed to volumeup\n");
+		pr_info("Failed to volumeup\n");
 		return;
 	}
-	printf("Attempting to volumeup\n");
+	pr_info("Attempting to volumeup\n");
 }
 
 void volumeup_reply(DBusMessage *message, void *user_data)
@@ -1086,12 +1074,12 @@ void volumeup_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to volumeup\n");
+		pr_info("Failed to volumeup\n");
 		dbus_error_free(&error);
 		return;
 	}
 
-	printf("volumeup successful\n");
+	pr_info("volumeup successful\n");
 }
 
 
@@ -1101,10 +1089,10 @@ void volumeup_avrcp()
 				return;
 	if (g_dbus_proxy_method_call(default_player, "VolumeUp", NULL, volumeup_reply,
 							NULL, NULL) == FALSE) {
-		printf("Failed to volumeup\n");
+		pr_info("Failed to volumeup\n");
 		return;
 	}
-	printf("Attempting to volumeup\n");
+	pr_info("Attempting to volumeup\n");
 }
 
 void stop_reply(DBusMessage *message, void *user_data)
@@ -1119,7 +1107,7 @@ void stop_reply(DBusMessage *message, void *user_data)
 		return;
 	}
 
-	printf("Stop successful\n");
+	pr_info("Stop successful\n");
 }
 
 int stop_avrcp()
@@ -1128,10 +1116,10 @@ int stop_avrcp()
 			return -1;
 	if (g_dbus_proxy_method_call(default_player, "Stop", NULL, stop_reply,
 							NULL, NULL) == FALSE) {
-		printf("Failed to stop\n");
+		pr_info("Failed to stop\n");
 		return -1;
 	}
-	printf("Attempting to stop\n");
+	pr_info("Attempting to stop\n");
 
 	return 0;
 }
@@ -1143,12 +1131,12 @@ void next_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to jump to next\n");
+		pr_info("Failed to jump to next\n");
 		dbus_error_free(&error);
 		return;
 	}
 
-	printf("Next successful\n");
+	pr_info("Next successful\n");
 }
 
 int next_avrcp(void)
@@ -1158,10 +1146,10 @@ int next_avrcp(void)
 			return -1;
 		if (g_dbus_proxy_method_call(default_player, "Next", NULL, next_reply,
 								NULL, NULL) == FALSE) {
-			printf("Failed to jump to next\n");
+			pr_info("Failed to jump to next\n");
 			return -1;
 		}
-		printf("Attempting to jump to next\n");
+		pr_info("Attempting to jump to next\n");
 	}
 
 	return 0;
@@ -1174,12 +1162,12 @@ void previous_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to jump to previous\n");
+		pr_info("Failed to jump to previous\n");
 		dbus_error_free(&error);
 		return;
 	}
 
-	printf("Previous successful\n");
+	pr_info("Previous successful\n");
 }
 
 int previous_avrcp(void)
@@ -1189,10 +1177,10 @@ int previous_avrcp(void)
 		return -1;
 	if (g_dbus_proxy_method_call(default_player, "Previous", NULL,
 					previous_reply, NULL, NULL) == FALSE) {
-		printf("Failed to jump to previous\n");
+		pr_info("Failed to jump to previous\n");
 		return -1;
 	}
-	printf("Attempting to jump to previous\n");
+	pr_info("Attempting to jump to previous\n");
 
 	return 0;
 }
@@ -1204,12 +1192,12 @@ void fast_forward_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to fast forward\n");
+		pr_info("Failed to fast forward\n");
 		dbus_error_free(&error);
 		return;
 	}
 
-	printf("FastForward successful\n");
+	pr_info("FastForward successful\n");
 }
 
 void fast_forward_avrcp() {
@@ -1218,10 +1206,10 @@ void fast_forward_avrcp() {
 				return;
 		if (g_dbus_proxy_method_call(default_player, "FastForward", NULL,
 					fast_forward_reply, NULL, NULL) == FALSE) {
-			printf("Failed to jump to previous\n");
+			pr_info("Failed to jump to previous\n");
 			return;
 		}
-		printf("Fast forward playback\n");
+		pr_info("Fast forward playback\n");
 	}
 }
 
@@ -1232,12 +1220,12 @@ void rewind_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to rewind\n");
+		pr_info("Failed to rewind\n");
 		dbus_error_free(&error);
 		return;
 	}
 
-	printf("Rewind successful\n");
+	pr_info("Rewind successful\n");
 }
 
 void rewind_avrcp(){
@@ -1246,10 +1234,10 @@ void rewind_avrcp(){
 				return;
 		if (g_dbus_proxy_method_call(default_player, "Rewind", NULL,
 						rewind_reply, NULL, NULL) == FALSE) {
-			printf("Failed to rewind\n");
+			pr_info("Failed to rewind\n");
 			return;
 		}
-		printf("Rewind playback\n");
+		pr_info("Rewind playback\n");
 	}
 }
 
@@ -1264,7 +1252,7 @@ int getstatus_avrcp(void)
 	if (g_dbus_proxy_get_property(proxy, "Status", &iter) == FALSE)
 			return AVRCP_PLAY_STATUS_ERROR; //unkonw status
 	dbus_message_iter_get_basic(&iter, &valstr);
-	//printf("----getstatus_avrcp,rtl wifi,return %s--\n",valstr);
+	//pr_info("----getstatus_avrcp,rtl wifi,return %s--\n",valstr);
 	if (!strcasecmp(valstr, "stopped"))
 		return AVRCP_PLAY_STATUS_STOPPED;
 	else if (!strcasecmp(valstr, "playing"))
@@ -1288,12 +1276,12 @@ void get_play_status_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to GetPlayStatus\n");
+		pr_info("Failed to GetPlayStatus\n");
 		dbus_error_free(&error);
 		return;
 	}
 
-	printf("GetPlayStatus successful\n");
+	pr_info("GetPlayStatus successful\n");
 }
 
 int get_play_status_avrcp()
@@ -1303,11 +1291,11 @@ int get_play_status_avrcp()
 
 	if (g_dbus_proxy_method_call(default_player, "GetPlayStatus", NULL,
 					get_play_status_reply, NULL, NULL) == FALSE) {
-		printf("Failed to GetPlayStatus\n");
+		pr_info("Failed to GetPlayStatus\n");
 		return -1;
 	}
 
-	printf("GetPlayStatus playback\n");
+	pr_info("GetPlayStatus playback\n");
 	return 0;
 }
 
@@ -1320,7 +1308,7 @@ bool get_poschange_avrcp()
 		return FALSE;
 
 	if (g_dbus_proxy_get_property(default_player, "PosChange", &iter) == FALSE) {
-		printf("Failed to get PosChange\n");
+		pr_info("Failed to get PosChange\n");
 		return FALSE;
 	}
 

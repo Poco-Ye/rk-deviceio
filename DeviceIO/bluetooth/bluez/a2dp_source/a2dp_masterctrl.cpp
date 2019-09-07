@@ -29,7 +29,8 @@
 #include "../bluez_ctrl.h"
 #include "../gatt_config.h"
 //#include "../include/uinput.h"
-#include "../utility/utility.h"
+#include "utility.h"
+#include "slog.h"
 
 using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
@@ -271,7 +272,7 @@ void bt_deregister_dev_found_callback()
 
 static void proxy_leak(gpointer data)
 {
-	printf("Leaking proxy %p\n", data);
+	pr_info("Leaking proxy %p\n", data);
 }
 
 static void connect_handler(DBusConnection *connection, void *user_data)
@@ -306,7 +307,7 @@ static void print_adapter(GDBusProxy *proxy, const char *description)
 	else
 		name = "<unknown>";
 
-	printf("%s%s%sController %s %s %s\n",
+	pr_info("%s%s%sController %s %s %s\n",
 				description ? "[" : "",
 				description ? : "",
 				description ? "] " : "",
@@ -360,7 +361,7 @@ static void print_device(GDBusProxy *proxy, const char *description)
 	else
 		name = "<unknown>";
 
-	printf("%s%s%sDevice %s %s\n",
+	pr_info("%s%s%sDevice %s %s\n",
 				description ? "[" : "",
 				description ? : "",
 				description ? "] " : "",
@@ -384,7 +385,7 @@ void print_fixed_iter(const char *label, const char *name,
 		if (len <= 0)
 			return;
 
-		printf("%s%s:\n", label, name);
+		pr_info("%s%s:\n", label, name);
 		bt_shell_hexdump((void *)valbool, len * sizeof(*valbool));
 
 		break;
@@ -394,7 +395,7 @@ void print_fixed_iter(const char *label, const char *name,
 		if (len <= 0)
 			return;
 
-		printf("%s%s:\n", label, name);
+		pr_info("%s%s:\n", label, name);
 		bt_shell_hexdump((void *)valu32, len * sizeof(*valu32));
 
 		break;
@@ -404,7 +405,7 @@ void print_fixed_iter(const char *label, const char *name,
 		if (len <= 0)
 			return;
 
-		printf("%s%s:\n", label, name);
+		pr_info("%s%s:\n", label, name);
 		bt_shell_hexdump((void *)valu16, len * sizeof(*valu16));
 
 		break;
@@ -414,7 +415,7 @@ void print_fixed_iter(const char *label, const char *name,
 		if (len <= 0)
 			return;
 
-		printf("%s%s:\n", label, name);
+		pr_info("%s%s:\n", label, name);
 		bt_shell_hexdump((void *)vals16, len * sizeof(*vals16));
 
 		break;
@@ -424,7 +425,7 @@ void print_fixed_iter(const char *label, const char *name,
 		if (len <= 0)
 			return;
 
-		printf("%s%s:\n", label, name);
+		pr_info("%s%s:\n", label, name);
 		bt_shell_hexdump((void *)byte, len * sizeof(*byte));
 
 		break;
@@ -446,18 +447,18 @@ void print_iter(const char *label, const char *name,
 	char *entry;
 
 	if (iter == NULL) {
-		printf("%s%s is nil\n", label, name);
+		pr_info("%s%s is nil\n", label, name);
 		return;
 	}
 
 	switch (dbus_message_iter_get_arg_type(iter)) {
 	case DBUS_TYPE_INVALID:
-		printf("%s%s is invalid\n", label, name);
+		pr_info("%s%s is invalid\n", label, name);
 		break;
 	case DBUS_TYPE_STRING:
 	case DBUS_TYPE_OBJECT_PATH:
 		dbus_message_iter_get_basic(iter, &valstr);
-		printf("%s%s: %s\n", label, name, valstr);
+		pr_info("%s%s: %s\n", label, name, valstr);
 		if (!strncmp(name, "Status", 6)) {
 			if (strstr(valstr, "playing"))
 				report_avrcp_event(DeviceInput::BT_START_PLAY, NULL, 0);
@@ -469,24 +470,24 @@ void print_iter(const char *label, const char *name,
 		break;
 	case DBUS_TYPE_BOOLEAN:
 		dbus_message_iter_get_basic(iter, &valbool);
-		printf("%s%s: %s\n", label, name,
+		pr_info("%s%s: %s\n", label, name,
 					valbool == TRUE ? "yes" : "no");
 		break;
 	case DBUS_TYPE_UINT32:
 		dbus_message_iter_get_basic(iter, &valu32);
-		printf("%s%s: 0x%08x\n", label, name, valu32);
+		pr_info("%s%s: 0x%08x\n", label, name, valu32);
 		break;
 	case DBUS_TYPE_UINT16:
 		dbus_message_iter_get_basic(iter, &valu16);
-		printf("%s%s: 0x%04x\n", label, name, valu16);
+		pr_info("%s%s: 0x%04x\n", label, name, valu16);
 		break;
 	case DBUS_TYPE_INT16:
 		dbus_message_iter_get_basic(iter, &vals16);
-		printf("%s%s: %d\n", label, name, vals16);
+		pr_info("%s%s: %d\n", label, name, vals16);
 		break;
 	case DBUS_TYPE_BYTE:
 		dbus_message_iter_get_basic(iter, &byte);
-		printf("%s%s: 0x%02x\n", label, name, byte);
+		pr_info("%s%s: 0x%02x\n", label, name, byte);
 		break;
 	case DBUS_TYPE_VARIANT:
 		dbus_message_iter_recurse(iter, &subiter);
@@ -519,7 +520,7 @@ void print_iter(const char *label, const char *name,
 		g_free(entry);
 		break;
 	default:
-		printf("%s%s has unsupported type\n", label, name);
+		pr_info("%s%s has unsupported type\n", label, name);
 		break;
 	}
 }
@@ -555,9 +556,9 @@ static void print_uuid(const char *uuid)
 			n = sizeof(str) - 1;
 		}
 
-		printf("\tUUID: %s%*c(%s)\n", str, 26 - n, ' ', uuid);
+		pr_info("\tUUID: %s%*c(%s)\n", str, 26 - n, ' ', uuid);
 	} else
-		printf("\tUUID: %*c(%s)\n", 26, ' ', uuid);
+		pr_info("\tUUID: %*c(%s)\n", 26, ' ', uuid);
 }
 
 static void print_uuids(GDBusProxy *proxy)
@@ -649,16 +650,16 @@ enum BT_Device_Class dist_dev_class(GDBusProxy *proxy)
 
 	if (g_dbus_proxy_get_property(proxy, "AddressType", &addrType_iter) == TRUE) {
 		dbus_message_iter_get_basic(&addrType_iter, &addressType);
-		printf("%s addressType:%s\n", __func__, addressType);
+		pr_info("%s addressType:%s\n", __func__, addressType);
 
 		if (g_dbus_proxy_get_property(proxy, "Alias", &Alias_iter) == TRUE) {
 			dbus_message_iter_get_basic(&Alias_iter, &Alias);
-			printf("%s Alias: %s\n", __func__, Alias);
+			pr_info("%s Alias: %s\n", __func__, Alias);
 		}
 
 		if (g_dbus_proxy_get_property(proxy, "Address", &addr_iter) == TRUE) {
 			dbus_message_iter_get_basic(&addr_iter, &address);
-			printf("%s address: %s\n", __func__, address);
+			pr_info("%s address: %s\n", __func__, address);
 		}
 
 		if (strcmp(addressType, "random") == 0)
@@ -667,18 +668,18 @@ enum BT_Device_Class dist_dev_class(GDBusProxy *proxy)
 		if (strcmp(addressType, "public") == 0) {
 			if (g_dbus_proxy_get_property(proxy, "Class", &class_iter) == TRUE) {
 				dbus_message_iter_get_basic(&class_iter, &valu32);
-				printf("%s class: 0x%x\n", __func__, valu32);
+				pr_info("%s class: 0x%x\n", __func__, valu32);
 
 				if ((valu32 & SERVER_CLASS_TELEPHONY) &&
 					(((valu32 >> DEVICE_CLASS_SHIFT) &
 					DEVICE_CLASS_MASK) == DEVICE_CLASS_PHONE)) {
-					printf("%s The device is source\n", __func__);
+					pr_info("%s The device is source\n", __func__);
 					return BT_Device_Class::BT_SOURCE_DEVICE;
 				}
 				if ((valu32 & SERVER_CLASS_AUDIO) &&
 					(((valu32 >> DEVICE_CLASS_SHIFT) &
 					DEVICE_CLASS_MASK) == DEVICE_CLASS_AUDIO)) {
-					printf("%s The device is sink\n", __func__);
+					pr_info("%s The device is sink\n", __func__);
 					return BT_Device_Class::BT_SINK_DEVICE;
 				}
 
@@ -752,13 +753,13 @@ static void set_source_device(GDBusProxy *proxy)
 
 	if (!g_dbus_proxy_get_property(proxy, "Alias", &iter)) {
 		if (!g_dbus_proxy_get_property(proxy, "Address", &iter)) {
-			printf("%s NO VAILD\n", __func__);
+			pr_info("%s NO VAILD\n", __func__);
 		}
 	}
 
 	if (g_dbus_proxy_get_property(proxy, "Address", &addr_iter) == TRUE) {
 		dbus_message_iter_get_basic(&addr_iter, &address);
-		printf("%s address: %s\n", __func__, address);
+		pr_info("%s address: %s\n", __func__, address);
 	}
 
 	if (g_bt_callback.bt_source_event_cb) {
@@ -843,14 +844,14 @@ static struct adapter *find_ctrl(GList *source, const char *path);
 static struct adapter *adapter_new(GDBusProxy *proxy)
 {
 	struct adapter *adapter = (struct adapter *)g_malloc0(sizeof(struct adapter));
-	printf("=== %s ===\n", __func__);
+	pr_info("=== %s ===\n", __func__);
 
 	ctrl_list = g_list_append(ctrl_list, adapter);
 
 	if (!default_ctrl)
 		default_ctrl = adapter;
 
-	printf("=== %s default_ctrl: %p ===\n", __func__, default_ctrl);
+	pr_info("=== %s default_ctrl: %p ===\n", __func__, default_ctrl);
 
 	return adapter;
 }
@@ -859,7 +860,7 @@ static void adapter_added(GDBusProxy *proxy)
 {
 	struct adapter *adapter;
 	char hostname_buf[HOSTNAME_MAX_LEN];
-	printf("=== %s ===\n", __func__);
+	pr_info("=== %s ===\n", __func__);
 	adapter = find_ctrl(ctrl_list, g_dbus_proxy_get_path(proxy));
 	if (!adapter)
 		adapter = adapter_new(proxy);
@@ -868,11 +869,11 @@ static void adapter_added(GDBusProxy *proxy)
 	print_adapter(proxy, COLORED_NEW);
 
 	if (g_bt_content && g_bt_content->bt_name) {
-		printf("%s: bt_name: %s\n", __func__, g_bt_content->bt_name);
+		pr_info("%s: bt_name: %s\n", __func__, g_bt_content->bt_name);
 		rk_bt_set_device_name(g_bt_content->bt_name);
 	} else {
 		bt_gethostname(hostname_buf, sizeof(hostname_buf));
-		printf("%s: bt_name: %s\n", __func__, hostname_buf);
+		pr_info("%s: bt_name: %s\n", __func__, hostname_buf);
 		rk_bt_set_device_name(hostname_buf);
 	}
 
@@ -898,7 +899,7 @@ static void proxy_added(GDBusProxy *proxy, void *user_data)
 	const char *interface;
 
 	interface = g_dbus_proxy_get_interface(proxy);
-	printf("BT Enter: proxy_added: %s [SNK: %d, SRC: %d]\n", interface, A2DP_SINK_FLAG, A2DP_SRC_FLAG);
+	pr_info("BT Enter: proxy_added: %s [SNK: %d, SRC: %d]\n", interface, A2DP_SINK_FLAG, A2DP_SRC_FLAG);
 
 	if (!strcmp(interface, "org.bluez.Device1")) {
 		device_added(proxy);
@@ -920,7 +921,7 @@ static void proxy_added(GDBusProxy *proxy, void *user_data)
 		if (ble_service_cnt == 0) {
 			ble_state_send(RK_BLE_STATE_CONNECT);
 			ble_wifi_clean();
-			printf("[D: %s]: BLE DEVICE BT_BLE_ENV_CONNECT\n", __func__);
+			pr_info("[D: %s]: BLE DEVICE BT_BLE_ENV_CONNECT\n", __func__);
 		}
 
 		ble_service_cnt++;
@@ -953,7 +954,7 @@ static void proxy_added(GDBusProxy *proxy, void *user_data)
 		}
 	}
 
-	printf("BT Exit: proxy_added: %s\n", interface);
+	pr_info("BT Exit: proxy_added: %s\n", interface);
 }
 
 static void set_default_attribute(GDBusProxy *proxy)
@@ -1027,7 +1028,7 @@ static void proxy_removed(GDBusProxy *proxy, void *user_data)
 	const char *interface;
 
 	interface = g_dbus_proxy_get_interface(proxy);
-	printf("BT Enter: proxy_removed: %s [SNK: %d, SRC: %d]\n", interface, A2DP_SINK_FLAG, A2DP_SRC_FLAG);
+	pr_info("BT Enter: proxy_removed: %s [SNK: %d, SRC: %d]\n", interface, A2DP_SINK_FLAG, A2DP_SRC_FLAG);
 
 	if (!strcmp(interface, "org.bluez.Device1")) {
 		device_removed(proxy);
@@ -1050,7 +1051,7 @@ static void proxy_removed(GDBusProxy *proxy, void *user_data)
 		if (ble_service_cnt == 0) {
 			ble_dev = NULL;
 			ble_state_send(RK_BLE_STATE_DISCONNECT);
-			printf("[BLE: %s]: BLE DEVICE DISCONNECTED [BF: %d]\n", __func__, BLE_FLAG);
+			pr_info("[BLE: %s]: BLE DEVICE DISCONNECTED [BF: %d]\n", __func__, BLE_FLAG);
 			sleep(1);
 			if (BLE_FLAG)
 				gatt_set_on_adv();
@@ -1075,7 +1076,7 @@ static void proxy_removed(GDBusProxy *proxy, void *user_data)
 
 	if (A2DP_SINK_FLAG)
 		a2dp_sink_proxy_removed(proxy, user_data);
-	printf("BT Exit: proxy_removed: %s\n", interface);
+	pr_info("BT Exit: proxy_removed: %s\n", interface);
 }
 
 static struct adapter *find_ctrl(GList *source, const char *path)
@@ -1147,7 +1148,7 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 	struct adapter *ctrl;
 
 	interface = g_dbus_proxy_get_interface(proxy);
-	printf("BT Enter: property_changed: %s [SNK: %d, SRC: %d]\n", interface, A2DP_SINK_FLAG, A2DP_SRC_FLAG);
+	pr_info("BT Enter: property_changed: %s [SNK: %d, SRC: %d]\n", interface, A2DP_SINK_FLAG, A2DP_SRC_FLAG);
 
 	if (!strcmp(interface, "org.bluez.Device1")) {
 		if (default_ctrl && device_is_child(proxy,
@@ -1226,13 +1227,13 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 	if (A2DP_SINK_FLAG)
 		a2dp_sink_property_changed(proxy, name, iter, user_data);
 
-	printf("BT Exit: property_changed: %s\n", interface);
+	pr_info("BT Exit: property_changed: %s\n", interface);
 }
 
 static void message_handler(DBusConnection *connection,
 					DBusMessage *message, void *user_data)
 {
-	printf("[SIGNAL] %s.%s\n", dbus_message_get_interface(message),
+	pr_info("[SIGNAL] %s.%s\n", dbus_message_get_interface(message),
 					dbus_message_get_member(message));
 }
 
@@ -1282,7 +1283,7 @@ static GDBusProxy *find_proxy_by_address(GList *source, const char *address)
 static gboolean check_default_ctrl(void)
 {
 	if (!default_ctrl) {
-		printf("No default controller available\n");
+		pr_info("No default controller available\n");
 		return FALSE;
 	}
 
@@ -1315,7 +1316,7 @@ static gboolean parse_argument(int argc, char *argv[], const char **arg_table,
 		}
 	}
 
-	printf("Invalid argument %s\n", argv[1]);
+	pr_info("Invalid argument %s\n", argv[1]);
 	return FALSE;
 }
 
@@ -1344,7 +1345,7 @@ static void cmd_show(int argc, char *argv[])
 	} else {
 		adapter = find_ctrl_by_address(ctrl_list, argv[1]);
 		if (!adapter) {
-			printf("Controller %s not available\n",
+			pr_info("Controller %s not available\n",
 								argv[1]);
 			return bt_shell_noninteractive_quit(EXIT_FAILURE);
 		}
@@ -1361,9 +1362,9 @@ static void cmd_show(int argc, char *argv[])
 
 		dbus_message_iter_get_basic(&iter, &type);
 
-		printf("Controller %s (%s)\n", address, type);
+		pr_info("Controller %s (%s)\n", address, type);
 	} else {
-		printf("Controller %s\n", address);
+		pr_info("Controller %s\n", address);
 	}
 
 	print_property(proxy, "Name");
@@ -1385,7 +1386,7 @@ static void cmd_select(int argc, char *argv[])
 
 	adapter = find_ctrl_by_address(ctrl_list, argv[1]);
 	if (!adapter) {
-		printf("Controller %s not available\n", argv[1]);
+		pr_info("Controller %s not available\n", argv[1]);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -1448,10 +1449,10 @@ static void generic_callback(const DBusError *error, void *user_data)
 	char *str = (char *)user_data;
 
 	if (dbus_error_is_set(error)) {
-		printf("Set failed: %s\n", error->name);
+		pr_info("Set failed: %s\n", error->name);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	} else {
-		printf("Changing succeeded\n");
+		pr_info("Changing succeeded\n");
 		return bt_shell_noninteractive_quit(EXIT_SUCCESS);
 	}
 }
@@ -1575,7 +1576,7 @@ static void cmd_agent(int argc, char *argv[])
 			agent_register(dbus_conn, agent_manager,
 						auto_register_agent);
 		else
-			printf("Agent registration enabled\n");
+			pr_info("Agent registration enabled\n");
 	} else {
 		g_free(auto_register_agent);
 		auto_register_agent = NULL;
@@ -1583,7 +1584,7 @@ static void cmd_agent(int argc, char *argv[])
 		if (agent_manager)
 			agent_unregister(dbus_conn, agent_manager);
 		else
-			printf("Agent registration disabled\n");
+			pr_info("Agent registration disabled\n");
 	}
 
 	return bt_shell_noninteractive_quit(EXIT_SUCCESS);
@@ -1602,7 +1603,7 @@ static void discovery_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to %s discovery: %s\n",
+		pr_info("Failed to %s discovery: %s\n",
 				enable == TRUE ? "start" : "stop", error.name);
 		if(enable)
 			bt_discovery_state_send(RK_BT_DISC_START_FAILED);
@@ -1614,7 +1615,7 @@ static void discovery_reply(DBusMessage *message, void *user_data)
 	if(enable)
 		bt_discovery_state_send(RK_BT_DISC_STARTED);
 
-	printf("Discovery %s\n", enable ? "started" : "stopped");
+	pr_info("Discovery %s\n", enable ? "started" : "stopped");
 	/* Leave the discovery running even on noninteractive mode */
 }
 
@@ -1678,14 +1679,14 @@ static void set_discovery_filter_reply(DBusMessage *message, void *user_data)
 
 	dbus_error_init(&error);
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("SetDiscoveryFilter failed: %s\n", error.name);
+		pr_info("SetDiscoveryFilter failed: %s\n", error.name);
 		dbus_error_free(&error);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
 	filter.set = true;
 
-	printf("SetDiscoveryFilter success\n");
+	pr_info("SetDiscoveryFilter success\n");
 
 	return bt_shell_noninteractive_quit(EXIT_SUCCESS);
 }
@@ -1698,7 +1699,7 @@ static void set_discovery_filter(void)
 	if (g_dbus_proxy_method_call(default_ctrl->proxy, "SetDiscoveryFilter",
 		set_discovery_filter_setup, set_discovery_filter_reply,
 		&filter, NULL) == FALSE) {
-		printf("Failed to set discovery filter\n");
+		pr_info("Failed to set discovery filter\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -1715,7 +1716,7 @@ static int cmd_scan(const char *cmd)
 	} else if (strcmp(cmd, "off") == 0){
 		enable = FALSE;
 	} else {
-		printf("ERROR: %s cmd(%s) is invalid!\n", __func__, cmd);
+		pr_info("ERROR: %s cmd(%s) is invalid!\n", __func__, cmd);
 		return -1;
 	}
 
@@ -1728,12 +1729,12 @@ static int cmd_scan(const char *cmd)
 	} else
 		method = "StopDiscovery";
 
-	printf("%s method = %s\n", __func__, method);
+	pr_info("%s method = %s\n", __func__, method);
 
 	if (g_dbus_proxy_method_call(default_ctrl->proxy, method,
 				NULL, discovery_reply,
 				GUINT_TO_POINTER(enable), NULL) == FALSE) {
-		printf("Failed to %s discovery\n",
+		pr_info("Failed to %s discovery\n",
 					enable == TRUE ? "start" : "stop");
 		return -1;
 	}
@@ -1761,7 +1762,7 @@ static void cmd_scan_filter_uuids(int argc, char *argv[])
 
 	filter.uuids = g_strdupv(&argv[1]);
 	if (!filter.uuids) {
-		printf("Failed to parse input\n");
+		pr_info("Failed to parse input\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -1775,7 +1776,7 @@ static void cmd_scan_filter_rssi(int argc, char *argv[])
 {
 	if (argc < 2 || !strlen(argv[1])) {
 		if (filter.rssi != DISTANCE_VAL_INVALID)
-			printf("RSSI: %d\n", filter.rssi);
+			pr_info("RSSI: %d\n", filter.rssi);
 		return bt_shell_noninteractive_quit(EXIT_SUCCESS);
 	}
 
@@ -1789,7 +1790,7 @@ static void cmd_scan_filter_pathloss(int argc, char *argv[])
 {
 	if (argc < 2 || !strlen(argv[1])) {
 		if (filter.pathloss != DISTANCE_VAL_INVALID)
-			printf("Pathloss: %d\n",
+			pr_info("Pathloss: %d\n",
 						filter.pathloss);
 		return bt_shell_noninteractive_quit(EXIT_SUCCESS);
 	}
@@ -1804,7 +1805,7 @@ static void cmd_scan_filter_transport(int argc, char *argv[])
 {
 	if (argc < 2 || !strlen(argv[1])) {
 		if (filter.transport)
-			printf("Transport: %s\n",
+			pr_info("Transport: %s\n",
 					filter.transport);
 		return bt_shell_noninteractive_quit(EXIT_SUCCESS);
 	}
@@ -1818,7 +1819,7 @@ static void cmd_scan_filter_transport(int argc, char *argv[])
 static void cmd_scan_filter_duplicate_data(int argc, char *argv[])
 {
 	if (argc < 2 || !strlen(argv[1])) {
-		printf("DuplicateData: %s\n",
+		pr_info("DuplicateData: %s\n",
 				filter.duplicate ? "on" : "off");
 		return bt_shell_noninteractive_quit(EXIT_SUCCESS);
 	}
@@ -1828,7 +1829,7 @@ static void cmd_scan_filter_duplicate_data(int argc, char *argv[])
 	else if (!strcmp(argv[1], "off"))
 		filter.duplicate = false;
 	else {
-		printf("Invalid option: %s\n", argv[1]);
+		pr_info("Invalid option: %s\n", argv[1]);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -1915,7 +1916,7 @@ static gboolean data_clear(const struct clear_entry *entry_table,
 	}
 
 	if (!all) {
-		printf("Invalid argument %s\n", name);
+		pr_info("Invalid argument %s\n", name);
 		return FALSE;
 	}
 
@@ -1948,7 +1949,7 @@ static struct GDBusProxy *find_device(int argc, char *argv[])
 	if (argc < 2 || !strlen(argv[1])) {
 		if (default_dev)
 			return default_dev;
-		printf("Missing device address argument\n");
+		pr_info("Missing device address argument\n");
 		return NULL;
 	}
 
@@ -1957,7 +1958,7 @@ static struct GDBusProxy *find_device(int argc, char *argv[])
 
 	proxy = find_proxy_by_address(default_ctrl->devices, argv[1]);
 	if (!proxy) {
-		printf("Device %s not available\n", argv[1]);
+		pr_info("Device %s not available\n", argv[1]);
 		return NULL;
 	}
 
@@ -1971,7 +1972,7 @@ static struct GDBusProxy *find_device_by_address(char *address)
 	if (!strlen(address)) {
 		if (default_dev)
 			return default_dev;
-		printf("Missing device address argument\n");
+		pr_info("Missing device address argument\n");
 		return NULL;
 	}
 
@@ -1980,7 +1981,7 @@ static struct GDBusProxy *find_device_by_address(char *address)
 
 	proxy = find_proxy_by_address(default_ctrl->devices, address);
 	if (!proxy) {
-		printf("Device %s not available\n", address);
+		pr_info("Device %s not available\n", address);
 		return NULL;
 	}
 
@@ -2007,9 +2008,9 @@ static void cmd_info(int argc, char *argv[])
 
 		dbus_message_iter_get_basic(&iter, &type);
 
-		printf("Device %s (%s)\n", address, type);
+		pr_info("Device %s (%s)\n", address, type);
 	} else {
-		printf("Device %s\n", address);
+		pr_info("Device %s\n", address);
 	}
 
 	print_property(proxy, "Name");
@@ -2041,12 +2042,12 @@ static void pair_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to pair: %s\n", error.name);
+		pr_info("Failed to pair: %s\n", error.name);
 		dbus_error_free(&error);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
-	printf("Pairing successful\n");
+	pr_info("Pairing successful\n");
 
 	return bt_shell_noninteractive_quit(EXIT_SUCCESS);
 }
@@ -2071,11 +2072,11 @@ static int cmd_pair(GDBusProxy *proxy)
 
 	if (g_dbus_proxy_method_call(proxy, "Pair", NULL, pair_reply,
 							NULL, NULL) == FALSE) {
-		printf("%s: Failed to pair\n", __func__);
+		pr_info("%s: Failed to pair\n", __func__);
 		return -1;
 	}
 
-	printf("%s: Attempting to pair with %s\n", __func__, proxy_address(proxy));
+	pr_info("%s: Attempting to pair with %s\n", __func__, proxy_address(proxy));
 	return 0;
 }
 
@@ -2182,12 +2183,12 @@ static void remove_device_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to remove device: %s\n", error.name);
+		pr_info("Failed to remove device: %s\n", error.name);
 		dbus_error_free(&error);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
-	printf("Device has been removed\n");
+	pr_info("Device has been removed\n");
 	return bt_shell_noninteractive_quit(EXIT_SUCCESS);
 }
 
@@ -2211,12 +2212,12 @@ static int remove_device(GDBusProxy *proxy)
 						remove_device_setup,
 						remove_device_reply,
 						path, g_free) == FALSE) {
-		printf("%s: Failed to remove device\n", __func__);
+		pr_info("%s: Failed to remove device\n", __func__);
 		g_free(path);
 		return -1;
 	}
 
-	printf("%s: Attempting to remove device with %s\n", __func__, proxy_address(proxy));
+	pr_info("%s: Attempting to remove device with %s\n", __func__, proxy_address(proxy));
 	return 0;
 }
 
@@ -2241,7 +2242,7 @@ static void cmd_remove(int argc, char *argv[])
 
 	proxy = find_proxy_by_address(default_ctrl->devices, argv[1]);
 	if (!proxy) {
-		printf("Device %s not available\n", argv[1]);
+		pr_info("Device %s not available\n", argv[1]);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -2266,7 +2267,7 @@ static void cmd_set_alias(int argc, char *argv[])
 	char *name;
 
 	if (!default_dev) {
-		printf("No device connected\n");
+		pr_info("No device connected\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -2287,7 +2288,7 @@ static void cmd_select_attribute(int argc, char *argv[])
 	GDBusProxy *proxy;
 
 	if (!default_dev) {
-		printf("No device connected\n");
+		pr_info("No device connected\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -2307,13 +2308,13 @@ static struct GDBusProxy *find_attribute(int argc, char *argv[])
 	if (argc < 2 || !strlen(argv[1])) {
 		if (default_attr)
 			return default_attr;
-		printf("Missing attribute argument\n");
+		pr_info("Missing attribute argument\n");
 		return NULL;
 	}
 
 	proxy = gatt_select_attribute(default_attr, argv[1]);
 	if (!proxy) {
-		printf("Attribute %s not available\n", argv[1]);
+		pr_info("Attribute %s not available\n", argv[1]);
 		return NULL;
 	}
 
@@ -2341,14 +2342,14 @@ static void cmd_attribute_info(int argc, char *argv[])
 
 	iface = g_dbus_proxy_get_interface(proxy);
 	if (!strcmp(iface, "org.bluez.GattService1")) {
-		printf("Service - %s\n", text);
+		pr_info("Service - %s\n", text);
 
 		print_property(proxy, "UUID");
 		print_property(proxy, "Primary");
 		print_property(proxy, "Characteristics");
 		print_property(proxy, "Includes");
 	} else if (!strcmp(iface, "org.bluez.GattCharacteristic1")) {
-		printf("Characteristic - %s\n", text);
+		pr_info("Characteristic - %s\n", text);
 
 		print_property(proxy, "UUID");
 		print_property(proxy, "Service");
@@ -2357,7 +2358,7 @@ static void cmd_attribute_info(int argc, char *argv[])
 		print_property(proxy, "Flags");
 		print_property(proxy, "Descriptors");
 	} else if (!strcmp(iface, "org.bluez.GattDescriptor1")) {
-		printf("Descriptor - %s\n", text);
+		pr_info("Descriptor - %s\n", text);
 
 		print_property(proxy, "UUID");
 		print_property(proxy, "Characteristic");
@@ -2370,7 +2371,7 @@ static void cmd_attribute_info(int argc, char *argv[])
 static void cmd_read(int argc, char *argv[])
 {
 	if (!default_attr) {
-		printf("No attribute selected\n");
+		pr_info("No attribute selected\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -2380,7 +2381,7 @@ static void cmd_read(int argc, char *argv[])
 static void cmd_write(int argc, char *argv[])
 {
 	if (!default_attr) {
-		printf("No attribute selected\n");
+		pr_info("No attribute selected\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -2390,7 +2391,7 @@ static void cmd_write(int argc, char *argv[])
 static void cmd_acquire_write(int argc, char *argv[])
 {
 	if (!default_attr) {
-		printf("No attribute selected\n");
+		pr_info("No attribute selected\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -2400,7 +2401,7 @@ static void cmd_acquire_write(int argc, char *argv[])
 static void cmd_release_write(int argc, char *argv[])
 {
 	if (!default_attr) {
-		printf("No attribute selected\n");
+		pr_info("No attribute selected\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -2410,7 +2411,7 @@ static void cmd_release_write(int argc, char *argv[])
 static void cmd_acquire_notify(int argc, char *argv[])
 {
 	if (!default_attr) {
-		printf("No attribute selected\n");
+		pr_info("No attribute selected\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -2420,7 +2421,7 @@ static void cmd_acquire_notify(int argc, char *argv[])
 static void cmd_release_notify(int argc, char *argv[])
 {
 	if (!default_attr) {
-		printf("No attribute selected\n");
+		pr_info("No attribute selected\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -2435,7 +2436,7 @@ static void cmd_notify(int argc, char *argv[])
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 
 	if (!default_attr) {
-		printf("No attribute selected\n");
+		pr_info("No attribute selected\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -2632,7 +2633,7 @@ static void cmd_advertise(int argc, char *argv[])
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 
 	if (!default_ctrl || !default_ctrl->ad_proxy) {
-		printf("LEAdvertisingManager not found\n");
+		pr_info("LEAdvertisingManager not found\n");
 		bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -2694,7 +2695,7 @@ static void cmd_advertise_discoverable_timeout(int argc, char *argv[])
 
 	value = strtol(argv[1], &endptr, 0);
 	if (!endptr || *endptr != '\0' || value > UINT16_MAX) {
-		printf("Invalid argument\n");
+		pr_info("Invalid argument\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -2758,7 +2759,7 @@ static void cmd_advertise_appearance(int argc, char *argv[])
 
 	value = strtol(argv[1], &endptr, 0);
 	if (!endptr || *endptr != '\0' || value > UINT16_MAX) {
-		printf("Invalid argument\n");
+		pr_info("Invalid argument\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -2777,7 +2778,7 @@ static void cmd_advertise_duration(int argc, char *argv[])
 
 	value = strtol(argv[1], &endptr, 0);
 	if (!endptr || *endptr != '\0' || value > UINT16_MAX) {
-		printf("Invalid argument\n");
+		pr_info("Invalid argument\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -2796,7 +2797,7 @@ static void cmd_advertise_timeout(int argc, char *argv[])
 
 	value = strtol(argv[1], &endptr, 0);
 	if (!endptr || *endptr != '\0' || value > UINT16_MAX) {
-		printf("Invalid argument\n");
+		pr_info("Invalid argument\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
@@ -2919,7 +2920,7 @@ static void connect_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to connect: %s\n", error.name);
+		pr_info("Failed to connect: %s\n", error.name);
 		dbus_error_free(&error);
 
 		g_dbus_proxy_get_property(proxy, "Address", &iter);
@@ -2943,7 +2944,7 @@ static void connect_reply(DBusMessage *message, void *user_data)
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
-	printf("Connection successful\n");
+	pr_info("Connection successful\n");
 	set_default_device(proxy, NULL);
 
 	return bt_shell_noninteractive_quit(EXIT_SUCCESS);
@@ -2957,16 +2958,16 @@ static void disconn_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to disconnect: %s\n", error.name);
+		pr_info("Failed to disconnect: %s\n", error.name);
 		dbus_error_free(&error);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
-	printf("%s: Successful disconnected\n", __func__);
+	pr_info("%s: Successful disconnected\n", __func__);
 
 	//check disconnect
 	if(bt_is_connected())
-		printf("\n\n%s: The ACL link still exists!\n\n\n", __func__);
+		pr_info("\n\n%s: The ACL link still exists!\n\n\n", __func__);
 
 	if (proxy == default_dev)
 		set_default_device(NULL, NULL);
@@ -3018,7 +3019,7 @@ void bluetooth_open(RkBtContent *bt_content)
 
 	btsrc_client = g_dbus_client_new(dbus_conn, "org.bluez", "/org/bluez");
 	if (NULL == btsrc_client) {
-		printf("btsrc_client inti fail");
+		pr_info("btsrc_client inti fail");
 		dbus_connection_unref(dbus_conn);
 		return NULL;
 	}
@@ -3039,7 +3040,7 @@ void bluetooth_open(RkBtContent *bt_content)
 	g_dbus_client_set_proxy_handlers(btsrc_client, proxy_added, proxy_removed,
 						  property_changed, NULL);
 
-	printf("#### %s server start...\n", __func__);
+	pr_info("#### %s server start...\n", __func__);
 	BT_OPENED = 1;
 
 	g_main_loop_run(btsrc_main_loop);
@@ -3054,7 +3055,7 @@ void bluetooth_open(RkBtContent *bt_content)
 	g_free(auto_register_agent);
 	//a2dp_source_clean();
 
-	printf("#### %s server exit!\n", __func__);
+	pr_info("#### %s server exit!\n", __func__);
 	pthread_exit(0);
 }
 
@@ -3070,7 +3071,7 @@ int bt_open(RkBtContent *bt_content)
 		return -1;
 
 	pthread_setname_np(bt_thread, "bluetooth_open");
-	printf("%s: thread_name: bluetooth_open, tid: %lu\n", __func__, bt_thread);
+	pr_info("%s: thread_name: bluetooth_open, tid: %lu\n", __func__, bt_thread);
 
 	while (confirm_cnt--) {
 		if (BT_OPENED)
@@ -3086,14 +3087,14 @@ int bt_close(void)
 	int ret = 0;
 
 	g_main_loop_quit(btsrc_main_loop);
-	printf("%s g_main_loop_quit\n", __func__);
+	pr_info("%s g_main_loop_quit\n", __func__);
 	/*
 	ret = pthread_join(bt_thread, NULL);
 	if (ret) {
-		printf("ERROR: %s waite for bt server thread exit failed!\n", __func__);
+		pr_info("ERROR: %s waite for bt server thread exit failed!\n", __func__);
 		return -1;
 	} else
-		printf("%s exit ok\n", __func__);
+		pr_info("%s exit ok\n", __func__);
 	*/
 	bt_thread = 0;
 
@@ -3102,7 +3103,7 @@ int bt_close(void)
 
 int init_a2dp_master_ctrl()
 {
-	printf("init_a2dp_master_ctrl A2DP_SRC_FLAG: %lu\n", A2DP_SRC_FLAG);
+	pr_info("init_a2dp_master_ctrl A2DP_SRC_FLAG: %lu\n", A2DP_SRC_FLAG);
 
 	A2DP_SRC_FLAG = 1;
 	A2DP_SINK_FLAG = 0;
@@ -3110,7 +3111,7 @@ int init_a2dp_master_ctrl()
 }
 
 int release_a2dp_master_ctrl() {
-	printf("release_a2dp_master_ctrl start ...\n");
+	pr_info("release_a2dp_master_ctrl start ...\n");
 	A2DP_SRC_FLAG = 0;
 	return 1;
 }
@@ -3162,34 +3163,34 @@ int a2dp_master_scan(void *arg, int len)
 
 	param = (BtScanParam *)arg;
 	if (len < sizeof(BtScanParam)) {
-		printf("%s parameter error. BtScanParam setting is incorrect\n", __func__);
+		pr_info("%s parameter error. BtScanParam setting is incorrect\n", __func__);
 		return -1;
 	}
 
 	if(g_device_discovering) {
-		printf("%s: devices discovering\n", __func__);
+		pr_info("%s: devices discovering\n", __func__);
 		return -1;
 	}
 	g_device_discovering = true;
 
-	printf("=== scan on ===\n");
+	pr_info("=== scan on ===\n");
 	cmd_scan("on");
 	if (param->mseconds > 100) {
-		printf("Waiting for Scan(%d ms)...\n", param->mseconds);
+		pr_info("Waiting for Scan(%d ms)...\n", param->mseconds);
 		usleep(param->mseconds * 1000);
 	} else {
-		printf("warning:%dms is too short, scan time is changed to 2s.\n",
+		pr_info("warning:%dms is too short, scan time is changed to 2s.\n",
 			param->mseconds);
 		usleep(2000 * 1000);
 	}
 
 	cmd_devices(param);
-	printf("=== parse scan device (cnt:%d) ===\n", param->item_cnt);
+	pr_info("=== parse scan device (cnt:%d) ===\n", param->item_cnt);
 	for (i = 0; i < param->item_cnt; i++) {
 		start = &param->devices[i];
 		proxy = find_device_by_address(start->address);
 		if (!proxy) {
-			printf("%s find_device_by_address failed!\n", __func__);
+			pr_info("%s find_device_by_address failed!\n", __func__);
 			continue;
 		}
 		/* Get bluetooth rssi */
@@ -3208,7 +3209,7 @@ int a2dp_master_scan(void *arg, int len)
 			memcpy(start->playrole, "Unknow", strlen("Unknow"));
 	}
 
-	printf("=== scan off ===\n");
+	pr_info("=== scan off ===\n");
 	cmd_scan("off");
 	g_device_discovering = false;
 
@@ -3221,7 +3222,7 @@ int a2dp_master_connect(char *t_address)
 	char address[18] = {'\0'};
 
 	if (!t_address || (strlen(t_address) < 17)) {
-		printf("ERROR: %s(len:%d) address error!\n", address, strlen(t_address));
+		pr_info("ERROR: %s(len:%d) address error!\n", address, strlen(t_address));
 		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
 		return -1;
 	}
@@ -3234,19 +3235,19 @@ int a2dp_master_connect(char *t_address)
 
 	proxy = find_proxy_by_address(default_ctrl->devices, address);
 	if (!proxy) {
-		printf("Device %s not available\n", address);
+		pr_info("Device %s not available\n", address);
 		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
 		return -1;
 	}
 
 	if (g_dbus_proxy_method_call(proxy, "Connect", NULL, connect_reply,
 							proxy, NULL) == FALSE) {
-		printf("Failed to connect\n");
+		pr_info("Failed to connect\n");
 		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
 		return -1;
 	}
 
-	printf("Attempting to connect to %s\n", address);
+	pr_info("Attempting to connect to %s\n", address);
 
 	return 0;
 }
@@ -3259,16 +3260,16 @@ void ble_disconn_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to disconnect: %s\n", error.name);
+		pr_info("Failed to disconnect: %s\n", error.name);
 		dbus_error_free(&error);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
 	if (proxy == ble_dev) {
 		ble_dev = NULL;
-		printf("Successful disconnected ble\n");
+		pr_info("Successful disconnected ble\n");
 	} else {
-		printf("Failed disconnected ble\n");
+		pr_info("Failed disconnected ble\n");
 	}
 
 	return bt_shell_noninteractive_quit(EXIT_SUCCESS);
@@ -3277,17 +3278,17 @@ void ble_disconn_reply(DBusMessage *message, void *user_data)
 int ble_disconnect(void)
 {
 	if (!ble_dev) {
-		printf("ble no connect\n");
+		pr_info("ble no connect\n");
 		return 0;
 	}
 
 	if (g_dbus_proxy_method_call(ble_dev, "Disconnect", NULL, ble_disconn_reply,
 							ble_dev, NULL) == FALSE) {
-		printf("Failed to disconnect\n");
+		pr_info("Failed to disconnect\n");
 		return 0;
 	}
 
-	printf("Attempting to disconnect ble from %s\n", proxy_address(ble_dev));
+	pr_info("Attempting to disconnect ble from %s\n", proxy_address(ble_dev));
 
 	return 1;
 }
@@ -3295,24 +3296,24 @@ int ble_disconnect(void)
 static int disconnect_by_proxy(GDBusProxy *proxy)
 {
 	if (!proxy) {
-		printf("%s: Invalid proxy\n", __func__);
+		pr_info("%s: Invalid proxy\n", __func__);
 		return -1;
 	}
 
 	if (g_dbus_proxy_method_call(proxy, "Disconnect", NULL, disconn_reply,
 							proxy, NULL) == FALSE) {
-		printf("Failed to disconnect\n");
+		pr_info("Failed to disconnect\n");
 		return -1;
 	}
 
-	printf("Attempting to disconnect from %s\n", proxy_address(proxy));
+	pr_info("Attempting to disconnect from %s\n", proxy_address(proxy));
 	return 0;
 }
 
 int a2dp_master_disconnect(char *address)
 {
 	if (!default_dev) {
-		printf("%s: bt source no connect\n", __func__);
+		pr_info("%s: bt source no connect\n", __func__);
 		return -1;
 	}
 
@@ -3339,7 +3340,7 @@ int a2dp_master_status(char *addr_buf, int addr_len, char *name_buf, int name_le
 
 	if (addr_buf) {
 		if (g_dbus_proxy_get_property(default_src_dev, "Address", &iter) == FALSE) {
-			printf("WARING: Bluetooth connected, but can't get address!\n");
+			pr_info("WARING: Bluetooth connected, but can't get address!\n");
 			return 0;
 		}
 		dbus_message_iter_get_basic(&iter, &address);
@@ -3349,7 +3350,7 @@ int a2dp_master_status(char *addr_buf, int addr_len, char *name_buf, int name_le
 
 	if (name_buf) {
 		if (g_dbus_proxy_get_property(default_src_dev, "Alias", &iter) == FALSE) {
-			printf("WARING: Bluetooth connected, but can't get device name!\n");
+			pr_info("WARING: Bluetooth connected, but can't get device name!\n");
 			return 0;
 		}
 
@@ -3378,14 +3379,14 @@ int a2dp_master_remove(char *t_address)
 		}
 		return 0;
 	} else if (!t_address || (strlen(t_address) < 17)) {
-		printf("ERROR: %s address error!\n", t_address);
+		pr_info("ERROR: %s address error!\n", t_address);
 		return -1;
 	}
 
 	memcpy(address, t_address, 17);
 	proxy = find_proxy_by_address(default_ctrl->devices, address);
 	if (!proxy) {
-		printf("Device %s not available\n", address);
+		pr_info("Device %s not available\n", address);
 		return -1;
 	}
 
@@ -3402,7 +3403,7 @@ static int a2dp_master_save_status(char *address)
 
 	sockfd = socket(AF_UNIX, SOCK_DGRAM, 0);
 	if (sockfd < 0) {
-		printf("FUNC:%s create sockfd failed!\n", __func__);
+		pr_info("FUNC:%s create sockfd failed!\n", __func__);
 		return 0;
 	}
 
@@ -3491,7 +3492,7 @@ static int get_input_event_id()
 	int id = -1;
 
 	if ((dir = opendir("/dev/input")) == NULL) {
-		printf("ERROR: %s Open dir \"/dev/input\" error\n", __func__);
+		pr_info("ERROR: %s Open dir \"/dev/input\" error\n", __func__);
 		return -1;
 	}
 
@@ -3528,7 +3529,7 @@ static void *bt_source_listen_avrcp_event(void *arg)
 	char path[100] = {0};
 	int try_cnt = 30;
 
-	printf("### %s start...\n", __func__);
+	pr_info("### %s start...\n", __func__);
 	while ((try_cnt--) && g_bt_source_avrcp_thread_runing) {
 		id = get_input_event_id();
 		if (id >= 0) {
@@ -3537,13 +3538,13 @@ static void *bt_source_listen_avrcp_event(void *arg)
 			if (fd > 0)
 				g_bt_source_avrcp_thread_runing = 1;
 			else
-				printf("WARNING: %s open %s failed!\n", __func__, path);
+				pr_info("WARNING: %s open %s failed!\n", __func__, path);
 
 			break;
 		}
 
 		usleep(200000); /* 100ms */
-		printf("INFO: %s waite for bt source avrcp event node. 200ms\n", __func__);
+		pr_info("INFO: %s waite for bt source avrcp event node. 200ms\n", __func__);
 	}
 
 	tv.tv_sec = 0;
@@ -3553,7 +3554,7 @@ static void *bt_source_listen_avrcp_event(void *arg)
 		FD_SET(fd, &rfds);
 
 		if (select(fd + 1, &rfds, NULL, NULL, &tv) < 0) {
-			printf("ERROR:%s wait bt source avrcp event failed!\n", __func__);
+			pr_info("ERROR:%s wait bt source avrcp event failed!\n", __func__);
 			break;
 		}
 
@@ -3562,7 +3563,7 @@ static void *bt_source_listen_avrcp_event(void *arg)
 
 		ret = read(fd, &ev_key, sizeof(ev_key));
 		if (ret == -1) {
-			printf("ERROR:%s read bt source avrcp event failed!\n", __func__);
+			pr_info("ERROR:%s read bt source avrcp event failed!\n", __func__);
 			break;
 		}
 
@@ -3597,7 +3598,7 @@ static void *bt_source_listen_avrcp_event(void *arg)
 	if (fd > 0)
 		close(fd);
 
-	printf("### %s end...\n", __func__);
+	pr_info("### %s end...\n", __func__);
 	return NULL;
 }
 
@@ -3614,13 +3615,13 @@ int a2dp_master_avrcp_open()
 
 int a2dp_master_avrcp_close()
 {
-	printf("### %s start...\n", __func__);
+	pr_info("### %s start...\n", __func__);
 	g_bt_source_avrcp_thread_runing = 0;
 	if (g_bt_source_avrcp_thread)
 		pthread_join(g_bt_source_avrcp_thread, NULL);
 
 	g_bt_source_avrcp_thread = 0;
-	printf("### %s end...\n", __func__);
+	pr_info("### %s end...\n", __func__);
 	return 0;
 }
 
@@ -3633,27 +3634,27 @@ static void save_last_device(GDBusProxy *proxy)
 	char buff[512] = {0};
 
 	if (g_dbus_proxy_get_property(proxy, "Address", &iter) == FALSE) {
-		printf("Get adapter address error");
+		pr_info("Get adapter address error");
 		return;
 	}
 
 	dbus_message_iter_get_basic(&iter, &address);
-	printf("Connected device address: %s", address);
+	pr_info("Connected device address: %s", address);
 
 	if (g_dbus_proxy_get_property(proxy, "Class", &class_iter) == FALSE) {
-		printf("Get adapter Class error");
+		pr_info("Get adapter Class error");
 		return;
 	}
 
 	dbus_message_iter_get_basic(&class_iter, &valu32);
-	printf("Connected device class: 0x%x\n", valu32);
+	pr_info("Connected device class: 0x%x\n", valu32);
 
 	object_path = g_dbus_proxy_get_path(proxy);
-	printf("Connected device object path: %s\n", object_path);
+	pr_info("Connected device object path: %s\n", object_path);
 
 	fd = open(BT_RECONNECT_CFG, O_RDWR | O_CREAT | O_TRUNC, 0644);
 	if (fd == -1) {
-		printf("Open %s error: %s\n", BT_RECONNECT_CFG, strerror(errno));
+		pr_info("Open %s error: %s\n", BT_RECONNECT_CFG, strerror(errno));
 		return;
 	}
 
@@ -3669,30 +3670,30 @@ static int load_last_device(char *address)
 	char buff[512] = {0};
 	char *start = NULL, *end = NULL;
 
-	printf("Load path %s\n", BT_RECONNECT_CFG);
+	pr_info("Load path %s\n", BT_RECONNECT_CFG);
 
 	ret = access(BT_RECONNECT_CFG, F_OK);
 	if (ret == -1) {
-		printf("%s does not exist\n", BT_RECONNECT_CFG);
+		pr_info("%s does not exist\n", BT_RECONNECT_CFG);
 		return -1;
 	}
 
 	fd = open(BT_RECONNECT_CFG, O_RDONLY);
 	if (fd == -1) {
-		printf("Open %s error: %s\n", BT_RECONNECT_CFG, strerror(errno));
+		pr_info("Open %s error: %s\n", BT_RECONNECT_CFG, strerror(errno));
 		return -1;
 	}
 
 	ret = read(fd, buff, sizeof(buff));
 	if (ret < 0) {
-		printf("read %s error: %s\n", BT_RECONNECT_CFG, strerror(errno));
+		pr_info("read %s error: %s\n", BT_RECONNECT_CFG, strerror(errno));
 		return -1;
 	}
 
 	start = strstr(buff, "ADDRESS:");
 	end = strstr(buff, ";");
 	if (!start || !end || (end < start)) {
-		printf("file %s content invalid(address): %s\n", BT_RECONNECT_CFG, buff);
+		pr_info("file %s content invalid(address): %s\n", BT_RECONNECT_CFG, buff);
 		return -1;
 	}
 	start += strlen("ADDRESS:");
@@ -3708,7 +3709,7 @@ static void reconn_last_device_reply(DBusMessage * message, void *user_data)
 
 	dbus_error_init(&err);
 	if (dbus_set_error_from_message(&err, message) == TRUE) {
-		printf("Reconnect failed!\n");
+		pr_info("Reconnect failed!\n");
 		dbus_error_free(&err);
 	}
 }
@@ -3733,12 +3734,12 @@ int reconn_last_devices(BtDeviceType type)
 	}
 
 	if (reconnect == 0) {
-		printf("%s: automatic reconnection is disabled!\n", __func__);
+		pr_info("%s: automatic reconnection is disabled!\n", __func__);
 		return 0;
 	}
 
 	if (bt_is_connected()) {
-		printf("%s: The device is connected and does not need to be reconnected!\n", __func__);
+		pr_info("%s: The device is connected and does not need to be reconnected!\n", __func__);
 		return 0;
 	}
 
@@ -3748,13 +3749,13 @@ int reconn_last_devices(BtDeviceType type)
 
 	proxy = find_device_by_address(address);
 	if (!proxy) {
-		printf("Invalid proxy, stop reconnecting\n");
+		pr_info("Invalid proxy, stop reconnecting\n");
 		return -1;
 	}
 
 	device_class = dist_dev_class(proxy);
 	if (device_class == BT_Device_Class::BT_IDLE) {
-		printf("Invalid device_class, stop reconnecting\n");
+		pr_info("Invalid device_class, stop reconnecting\n");
 		return -1;
 	}
 
@@ -3782,13 +3783,13 @@ int reconn_last_devices(BtDeviceType type)
 	}
 
 	if (reconnect == 0) {
-		printf("Unable to find a suitable reconnect device!\n");
+		pr_info("Unable to find a suitable reconnect device!\n");
 		return -1;
 	}
 
 	if (g_dbus_proxy_method_call(proxy, "Connect", NULL,
 		reconn_last_device_reply, NULL, NULL) == FALSE) {
-		printf("Failed to call org.bluez.Device1.Connect\n");
+		pr_info("Failed to call org.bluez.Device1.Connect\n");
 		return -1;
 	}
 
@@ -3798,7 +3799,7 @@ int reconn_last_devices(BtDeviceType type)
 int disconnect_current_devices()
 {
 	if (!default_dev) {
-		printf("%s: No connected device\n", __func__);
+		pr_info("%s: No connected device\n", __func__);
 		return -1;
 	}
 
@@ -3814,23 +3815,23 @@ int get_dev_platform(char *address)
 	DBusMessageIter iter;
 
 	if(!address) {
-		printf("%s: Invalid address\n", __func__);
+		pr_info("%s: Invalid address\n", __func__);
 		return DEV_PLATFORM_UNKNOWN;
 	}
 
 	proxy = find_device_by_address(address);
 	if (!proxy) {
-		printf("%s: Invalid proxy\n", __func__);
+		pr_info("%s: Invalid proxy\n", __func__);
 		return DEV_PLATFORM_UNKNOWN;
 	}
 
 	if (g_dbus_proxy_get_property(proxy, "Modalias", &iter) == FALSE) {
-		printf("%s: WARING: can't get Modalias!\n", __func__);
+		pr_info("%s: WARING: can't get Modalias!\n", __func__);
 		return DEV_PLATFORM_UNKNOWN;
 	}
 
 	dbus_message_iter_get_basic(&iter, &valstr);
-	printf("%s: Modalias valstr = %s\n", __func__, valstr);
+	pr_info("%s: Modalias valstr = %s\n", __func__, valstr);
 
 	str = strstr(valstr, "v");
 	if(str) {
@@ -3843,7 +3844,7 @@ int get_dev_platform(char *address)
 	if(vendor == IOS_VENDOR_SOURCE_BT || vendor == IOS_VENDOR_SOURCE_USB)
 		platform = DEV_PLATFORM_IOS;
 
-	printf("%s: %s is %s\n", __func__, address,
+	pr_info("%s: %s is %s\n", __func__, address,
 		platform == DEV_PLATFORM_UNKNOWN ? "Unknown Platform" : "Apple IOS");
 
 	return platform;
@@ -3852,7 +3853,7 @@ int get_dev_platform(char *address)
 int get_current_dev_platform()
 {
 	if (!default_dev) {
-		printf("%s: No connected device\n", __func__);
+		pr_info("%s: No connected device\n", __func__);
 		return DEV_PLATFORM_UNKNOWN;
 	}
 
@@ -3867,13 +3868,13 @@ static void connect_by_address_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("%s: Failed to connect: %s\n", __func__, error.name);
+		pr_info("%s: Failed to connect: %s\n", __func__, error.name);
 		dbus_error_free(&error);
 		//set_default_device(NULL, NULL);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
-	printf("%s: Connection successful\n", __func__);
+	pr_info("%s: Connection successful\n", __func__);
 	set_default_device(proxy, NULL);
 
 	return bt_shell_noninteractive_quit(EXIT_SUCCESS);
@@ -3884,19 +3885,19 @@ int connect_by_address(char *addr)
 	GDBusProxy *proxy;
 
 	if (!addr || (strlen(addr) < 17)) {
-		printf("%s: address(%s) error!\n", __func__, addr);
+		pr_info("%s: address(%s) error!\n", __func__, addr);
 		return -1;
 	}
 
 	proxy = find_device_by_address(addr);
 	if (!proxy) {
-		printf("%s: Invalid proxy\n", __func__);
+		pr_info("%s: Invalid proxy\n", __func__);
 		return -1;
 	}
 
 	if (g_dbus_proxy_method_call(proxy, "Connect", NULL,
 		connect_by_address_reply, proxy, NULL) == FALSE) {
-		printf("%s: Failed to call org.bluez.Device1.Connect\n", __func__);
+		pr_info("%s: Failed to call org.bluez.Device1.Connect\n", __func__);
 		return -1;
 	}
 
@@ -3908,13 +3909,13 @@ int disconnect_by_address(char *addr)
 	GDBusProxy *proxy;
 
 	if (!addr || (strlen(addr) < 17)) {
-		printf("%s: address(%s) error!\n", __func__, addr);
+		pr_info("%s: address(%s) error!\n", __func__, addr);
 		return -1;
 	}
 
 	proxy = find_device_by_address(addr);
 	if (!proxy) {
-		printf("%s: Invalid proxy\n", __func__);
+		pr_info("%s: Invalid proxy\n", __func__);
 		return -1;
 	}
 
@@ -3953,7 +3954,7 @@ RkBtPraiedDevice *bt_create_one_paired_dev(GDBusProxy *proxy)
 	if (g_dbus_proxy_get_property(proxy, "Connected", &iter) == TRUE)
 		dbus_message_iter_get_basic(&iter, &is_connected);
 	else
-		printf("can't get Connected status\n");
+		pr_info("can't get Connected status\n");
 
 	new_device->remote_address = (char *)malloc(strlen(address) + 1);
 	strncpy(new_device->remote_address, address, strlen(address));
@@ -3972,7 +3973,7 @@ RkBtPraiedDevice *bt_create_one_paired_dev(GDBusProxy *proxy)
 static int list_paired_dev_push_back(RkBtPraiedDevice **dev_list, GDBusProxy *proxy)
 {
 	if(dev_list == NULL) {
-		printf("%s: invalid dev_list\n", __func__);
+		pr_info("%s: invalid dev_list\n", __func__);
 		return -1;
 	}
 
@@ -4024,12 +4025,12 @@ int bt_free_paired_devices(RkBtPraiedDevice *dev_list)
 	RkBtPraiedDevice *dev_tmp = NULL;
 
 	if(dev_list == NULL) {
-		printf("%s: dev_list is empty, don't need to clear\n", __func__);
+		pr_info("%s: dev_list is empty, don't need to clear\n", __func__);
 		return -1;
 	}
 
 	while(dev_list->next != NULL) {
-		printf("%s: free dev: %s\n", __func__, dev_list->remote_address);
+		pr_info("%s: free dev: %s\n", __func__, dev_list->remote_address);
 		dev_tmp = dev_list->next;
 		free(dev_list->remote_address);
 		free(dev_list->remote_name);
@@ -4038,7 +4039,7 @@ int bt_free_paired_devices(RkBtPraiedDevice *dev_list)
 	}
 
 	if(dev_list != NULL) {
-		printf("%s: last free dev: %s\n", __func__, dev_list->remote_address);
+		pr_info("%s: last free dev: %s\n", __func__, dev_list->remote_address);
 		free(dev_list->remote_address);
 		free(dev_list->remote_name);
 		free(dev_list);
@@ -4054,13 +4055,13 @@ int pair_by_addr(char *addr)
 	char dev_name[256];
 
 	if (!addr || (strlen(addr) < 17)) {
-		printf("%s: address(%s) error!\n", __func__, addr);
+		pr_info("%s: address(%s) error!\n", __func__, addr);
 		return -1;
 	}
 
 	proxy = find_device_by_address(addr);
 	if (!proxy) {
-		printf("%s: Invalid proxy\n", __func__);
+		pr_info("%s: Invalid proxy\n", __func__);
 		return -1;
 	}
 
@@ -4076,13 +4077,13 @@ int unpair_by_addr(char *addr)
 	char *path;
 
 	if (!addr || (strlen(addr) < 17)) {
-		printf("%s: address(%s) error!\n", __func__, addr);
+		pr_info("%s: address(%s) error!\n", __func__, addr);
 		return -1;
 	}
 
 	proxy = find_device_by_address(addr);
 	if (!proxy) {
-		printf("%s: Invalid proxy\n", __func__);
+		pr_info("%s: Invalid proxy\n", __func__);
 		return -1;
 	}
 
@@ -4093,7 +4094,7 @@ int unpair_by_addr(char *addr)
 int bt_set_device_name(char *name)
 {
 	if (!name) {
-		printf("%s: Invalid bt name: %s\n", __func__, name);
+		pr_info("%s: Invalid bt name: %s\n", __func__, name);
 		return -1;
 	}
 
@@ -4101,18 +4102,18 @@ int bt_set_device_name(char *name)
 		return -1;
 
 	if (!default_ctrl->proxy) {
-		printf("%s: Invalid proxy\n", __func__);
+		pr_info("%s: Invalid proxy\n", __func__);
 		return -1;
 	}
 
 	if (g_dbus_proxy_set_property_basic(default_ctrl->proxy, "Alias",
 					DBUS_TYPE_STRING, &name,
 					generic_callback, name, NULL) == FALSE) {
-		printf("%s: set Alias property error\n", __func__);
+		pr_info("%s: set Alias property error\n", __func__);
 		return -1;
 	}
 
-	printf("%s: Attempting to set device name %s\n", __func__, name);
+	pr_info("%s: Attempting to set device name %s\n", __func__, name);
 	return 0;
 }
 
@@ -4125,17 +4126,17 @@ static int bt_get_device_name_by_proxy(GDBusProxy *proxy,
 	memset(name_buf, 0, name_len);
 
 	if (!proxy) {
-		printf("%s: Invalid proxy\n", __func__);
+		pr_info("%s: Invalid proxy\n", __func__);
 		return -1;
 	}
 
 	if (!name_buf || name_len <= 0) {
-		printf("%s: Invalid name buffer, name_len: %d\n", __func__, name_len);
+		pr_info("%s: Invalid name buffer, name_len: %d\n", __func__, name_len);
 		return -1;
 	}
 
 	if (g_dbus_proxy_get_property(proxy, "Alias", &iter) == FALSE) {
-		printf("WARING: Bluetooth connected, but can't get device name!\n");
+		pr_info("WARING: Bluetooth connected, but can't get device name!\n");
 		return -1;
 	}
 
@@ -4151,7 +4152,7 @@ int bt_get_device_name(char *name_buf, int name_len)
 		return -1;
 
 	if (!default_ctrl->proxy) {
-		printf("%s: Invalid proxy\n", __func__);
+		pr_info("%s: Invalid proxy\n", __func__);
 		return -1;
 	}
 
@@ -4167,17 +4168,17 @@ static int bt_get_device_addr_by_proxy(GDBusProxy *proxy,
 	memset(addr_buf, 0, addr_len);
 
 	if (!proxy) {
-		printf("%s: Invalid proxy\n", __func__);
+		pr_info("%s: Invalid proxy\n", __func__);
 		return -1;
 	}
 
 	if (!addr_buf || addr_len < 17) {
-		printf("%s: Invalid address buffer, addr_len: %d\n", __func__, addr_len);
+		pr_info("%s: Invalid address buffer, addr_len: %d\n", __func__, addr_len);
 		return -1;
 	}
 
 	if (g_dbus_proxy_get_property(proxy, "Address", &iter) == FALSE) {
-		printf("WARING: Bluetooth connected, but can't get address!\n");
+		pr_info("WARING: Bluetooth connected, but can't get address!\n");
 		return -1;
 	}
 
@@ -4193,7 +4194,7 @@ int bt_get_device_addr(char *addr_buf, int addr_len)
 		return -1;
 
 	if (!default_ctrl->proxy) {
-		printf("%s: Invalid proxy\n", __func__);
+		pr_info("%s: Invalid proxy\n", __func__);
 		return -1;
 	}
 
@@ -4204,7 +4205,7 @@ int bt_get_device_addr(char *addr_buf, int addr_len)
 int bt_get_default_dev_addr(char *addr_buf, int addr_len)
 {
 	if (!default_dev) {
-		printf("%s: no connected device\n", __func__);
+		pr_info("%s: no connected device\n", __func__);
 		return -1;
 	}
 
@@ -4215,7 +4216,7 @@ static void *bt_scan_devices(void *arg)
 {
 	unsigned int scan_time = 0;
 
-	printf("=== scan on ===\n");
+	pr_info("=== scan on ===\n");
 	if(cmd_scan("on") < 0) {
 		bt_discovery_state_send(RK_BT_DISC_START_FAILED);
 		goto done;
@@ -4225,7 +4226,7 @@ static void *bt_scan_devices(void *arg)
 		usleep(1000 * 1000);
 		scan_time += 1000;
 		if(scan_time >= g_scan_time) {
-			printf("%s: the scan is complete\n", __func__);
+			pr_info("%s: the scan is complete\n", __func__);
 			break;
 		}
 	}
@@ -4233,7 +4234,7 @@ static void *bt_scan_devices(void *arg)
 	bt_cancel_discovery(RK_BT_DISC_STOPPED_AUTO);
 
 done:
-	printf("%s: Exit bt scan thread\n", __func__);
+	pr_info("%s: Exit bt scan thread\n", __func__);
 	return NULL;
 }
 
@@ -4242,29 +4243,29 @@ int bt_start_discovery(unsigned int mseconds)
 	int ret;
 
 	if(g_device_discovering) {
-		printf("%s: devices discovering\n", __func__);
+		pr_info("%s: devices discovering\n", __func__);
 		return -1;
 	}
 
 	g_device_discovering = true;
 
 	if (mseconds < 1000) {
-		printf("%s: %d ms is too short, scan time is changed to 2s.\n", __func__, mseconds);
+		pr_info("%s: %d ms is too short, scan time is changed to 2s.\n", __func__, mseconds);
 		g_scan_time = 2000;
 	} else {
-		printf("%s: scan time: %d\n", __func__, mseconds);
+		pr_info("%s: scan time: %d\n", __func__, mseconds);
 		g_scan_time = mseconds;
 	}
 
 	ret = pthread_create(&g_scan_thread, NULL, bt_scan_devices, NULL);
 	if (ret) {
-		printf("%s: scan thread create failed!\n", __func__);
+		pr_info("%s: scan thread create failed!\n", __func__);
 		bt_discovery_state_send(RK_BT_DISC_START_FAILED);
 		return -1;
 	}
 
 	pthread_setname_np(g_scan_thread, "scan_thread");
-	printf("%s scan_thread tid: %lu\n", __func__, g_scan_thread);
+	pr_info("%s scan_thread tid: %lu\n", __func__, g_scan_thread);
 
 	return 0;
 }
@@ -4272,7 +4273,7 @@ int bt_start_discovery(unsigned int mseconds)
 int bt_cancel_discovery(RK_BT_DISCOVERY_STATE state)
 {
 	if(!g_device_discovering) {
-		printf("%s: discovery canceling or canceled\n", __func__);
+		pr_info("%s: discovery canceling or canceled\n", __func__);
 		return -1;
 	}
 
@@ -4284,7 +4285,7 @@ int bt_cancel_discovery(RK_BT_DISCOVERY_STATE state)
 
 	g_scan_time = 0;
 
-	printf("=== scan off ===\n");
+	pr_info("=== scan off ===\n");
 	cmd_scan("off");
 	bt_discovery_state_send(state);
 	return 0;
@@ -4299,12 +4300,12 @@ bool bt_is_discovering()
 		return false;
 
 	if (!default_ctrl->proxy) {
-		printf("%s: Invalid proxy\n", __func__);
+		pr_info("%s: Invalid proxy\n", __func__);
 		return false;
 	}
 
 	if (g_dbus_proxy_get_property(default_ctrl->proxy, "Discovering", &iter) == FALSE) {
-		printf("WARING: Bluetooth connected, but can't get Discovering!\n");
+		pr_info("WARING: Bluetooth connected, but can't get Discovering!\n");
 		return false;
 	}
 
