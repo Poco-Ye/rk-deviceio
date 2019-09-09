@@ -96,7 +96,6 @@ target_link_libraries (DeviceIo libwpa_client.so)
 
 target_include_directories(DeviceIo PUBLIC
 		"${DeviceIo_SOURCE_DIR}/include"
-		"${DeviceIo_SOURCE_DIR}/src/linux/bluetooth/include"
 		"${RAPIDJSON_INCLUDE_DIR}")
 
 add_definitions("-Wall -g -O0 -fpermissive -Wno-unused-variable -Wno-write-strings -Wno-unused-function -Wno-write-strings")

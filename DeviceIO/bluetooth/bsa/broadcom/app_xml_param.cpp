@@ -1691,7 +1691,7 @@ int app_xml_update_key_db(tAPP_XML_REM_DEVICE *p_stored_device_db,
                 p_stored_device_db[index].bd_addr, bd_addr) == 0))
         {
             ret_code = 0;
-            printf("Update link key\n");
+            APP_INFO0("Update link key");
             memcpy(p_stored_device_db[index].link_key, link_key,
                     sizeof(LINK_KEY));
             p_stored_device_db[index].link_key_present = TRUE;
@@ -1728,12 +1728,12 @@ int app_xml_update_ble_key_db(tAPP_XML_REM_DEVICE *p_stored_device_db,
                 p_stored_device_db[index].bd_addr, bd_addr) == 0))
         {
             ret_code = 0;
-            printf("Update BLE link key\n");
+            APP_INFO0("Update BLE link key");
             p_stored_device_db[index].ble_link_key_present = TRUE;
             switch (ble_key_type)
             {
             case BSA_LE_KEY_PENC:
-                printf("Update BSA_LE_KEY_PENC\n");
+                APP_INFO0("Update BSA_LE_KEY_PENC");
                 memcpy(p_stored_device_db[index].penc_ltk, ble_key.penc_key.ltk,
                         sizeof(p_stored_device_db[index].penc_ltk));
                 memcpy(p_stored_device_db[index].penc_rand, ble_key.penc_key.rand,
@@ -1743,27 +1743,27 @@ int app_xml_update_ble_key_db(tAPP_XML_REM_DEVICE *p_stored_device_db,
                 p_stored_device_db[index].penc_key_size = ble_key.penc_key.key_size;
                 break;
             case BSA_LE_KEY_PID:
-                printf("Update BSA_LE_KEY_PID\n");
+                APP_INFO0("Update BSA_LE_KEY_PID");
                 memcpy(p_stored_device_db[index].pid_irk, ble_key.pid_key.irk,
                         sizeof(p_stored_device_db[index].pid_irk));
                 p_stored_device_db[index].pid_addr_type = ble_key.pid_key.addr_type;
                 bdcpy(p_stored_device_db[index].pid_static_addr, ble_key.pid_key.static_addr);
                 break;
             case BSA_LE_KEY_PCSRK:
-                printf("Update BSA_LE_KEY_PCSRK\n");
+                APP_INFO0("Update BSA_LE_KEY_PCSRK");
                 p_stored_device_db[index].pcsrk_counter = ble_key.pcsrk_key.counter;
                 memcpy(p_stored_device_db[index].pcsrk_csrk, ble_key.pcsrk_key.csrk,
                         sizeof(p_stored_device_db[index].pcsrk_csrk));
                 p_stored_device_db[index].pcsrk_sec_level = ble_key.pcsrk_key.sec_level;
                 break;
             case BSA_LE_KEY_LCSRK:
-                printf("Update BSA_LE_KEY_LCSRK\n");
+                APP_INFO0("Update BSA_LE_KEY_LCSRK");
                 p_stored_device_db[index].lcsrk_counter = ble_key.lcsrk_key.counter;
                 p_stored_device_db[index].lcsrk_div = ble_key.lcsrk_key.div;
                 p_stored_device_db[index].lcsrk_sec_level = ble_key.lcsrk_key.sec_level;
                 break;
             case BSA_LE_KEY_LENC:
-                printf("Update BSA_LE_KEY_LENC\n");
+                APP_INFO0("Update BSA_LE_KEY_LENC");
                 memcpy(p_stored_device_db[index].lenc_ltk, ble_key.lenc_key.ltk,
                         sizeof(p_stored_device_db[index].lenc_ltk));
                 p_stored_device_db[index].lenc_div = ble_key.lenc_key.div;
@@ -1771,10 +1771,10 @@ int app_xml_update_ble_key_db(tAPP_XML_REM_DEVICE *p_stored_device_db,
                 p_stored_device_db[index].lenc_sec_level = ble_key.lenc_key.sec_level;
                 break;
             case BSA_LE_KEY_LID:
-                printf("Update BSA_LE_KEY_LID\n");
+                APP_INFO0("Update BSA_LE_KEY_LID");
                 break;
             default:
-                printf("Unknown key(%d)", ble_key_type);
+                APP_ERROR1("Unknown key(%d)", ble_key_type);
                 break;
             }
             break;
@@ -1806,7 +1806,7 @@ int app_xml_add_trusted_services_db(tAPP_XML_REM_DEVICE *p_stored_device_db,
         if ((p_stored_device_db[index].in_use != FALSE) && (bdcmp(
                 p_stored_device_db[index].bd_addr, bd_addr) == 0))
         {
-            printf("Added trusted services\n");
+            APP_INFO0("Added trusted services");
             p_stored_device_db[index].trusted_services |= trusted_services;
             return 0;
         }
@@ -1931,7 +1931,7 @@ int app_xml_update_cod_db(tAPP_XML_REM_DEVICE *p_stored_device_db,
         if ((p_stored_device_db[index].in_use != FALSE) && (bdcmp(
                 p_stored_device_db[index].bd_addr, bd_addr) == 0))
         {
-            printf("Update class-of-device [0x%02X-0x%02X-0x%02X]\n",
+            APP_INFO1("Update class-of-device [0x%02X-0x%02X-0x%02X]",
                     class_of_device[0], class_of_device[1], class_of_device[2]);
             p_stored_device_db[index].class_of_device[0] = class_of_device[0];
             p_stored_device_db[index].class_of_device[1] = class_of_device[1];
@@ -1961,31 +1961,31 @@ int app_xml_display_devices(const tAPP_XML_REM_DEVICE *p_stored_device_db,
     {
         if (p_stored_device_db[index].in_use != FALSE)
         {
-            printf("Dev:%d\n", index);
-            printf("\tBdaddr:%02x:%02x:%02x:%02x:%02x:%02x\n",
+            APP_INFO1("Dev:%d", index);
+            APP_INFO1("\tBdaddr:%02x:%02x:%02x:%02x:%02x:%02x",
                     p_stored_device_db[index].bd_addr[0],
                     p_stored_device_db[index].bd_addr[1],
                     p_stored_device_db[index].bd_addr[2],
                     p_stored_device_db[index].bd_addr[3],
                     p_stored_device_db[index].bd_addr[4],
                     p_stored_device_db[index].bd_addr[5]);
-            printf("\tLatest Connect:%d\n", p_stored_device_db[index].latest_connect);
-            printf("\tConnected:%d\n", p_stored_device_db[index].is_connected);
-            printf("\tName:%s\n", p_stored_device_db[index].name);
-            printf("\tClassOfDevice:%02x:%02x:%02x => %s\n",
+            APP_INFO1("\tLatest Connect:%d", p_stored_device_db[index].latest_connect);
+            APP_INFO1("\tConnected:%d", p_stored_device_db[index].is_connected);
+            APP_INFO1("\tName:%s", p_stored_device_db[index].name);
+            APP_INFO1("\tClassOfDevice:%02x:%02x:%02x => %s",
                     p_stored_device_db[index].class_of_device[0],
                     p_stored_device_db[index].class_of_device[1],
                     p_stored_device_db[index].class_of_device[2],
                     app_get_cod_string(
                             p_stored_device_db[index].class_of_device));
-            printf("\tTrusted Services:%x\n",
+            APP_INFO1("\tTrusted Services:%x",
                     (int) p_stored_device_db[index].trusted_services);
             if (p_stored_device_db[index].link_key_present != FALSE)
-                printf("\tLink Key present:TRUE\n");
+                APP_INFO0("\tLink Key present:TRUE");
             else
-                printf("\tLink Key present:FALSE\n");
+                APP_INFO0("\tLink Key present:FALSE");
 
-            printf("\tPid:%x Vid:%d\n", p_stored_device_db[index].pid,
+            APP_INFO1("\tPid:%x Vid:%d", p_stored_device_db[index].pid,
                     p_stored_device_db[index].vid);
         }
     }
@@ -2014,7 +2014,7 @@ int app_xml_update_pidvid_db(tAPP_XML_REM_DEVICE *p_stored_device_db,
         if ((p_stored_device_db[index].in_use != FALSE) && (bdcmp(
                 p_stored_device_db[index].bd_addr, bd_addr) == 0))
         {
-            printf("Update Pid:0x%x Vid:0x%x\n", pid, vid);
+            APP_INFO1("Update Pid:0x%x Vid:0x%x", pid, vid);
             p_stored_device_db[index].pid = pid;
             p_stored_device_db[index].vid = vid;
             return 0;
@@ -2045,7 +2045,7 @@ int app_xml_update_version_db(tAPP_XML_REM_DEVICE *p_stored_device_db,
         if ((p_stored_device_db[index].in_use != FALSE) && (bdcmp(
                 p_stored_device_db[index].bd_addr, bd_addr) == 0))
         {
-            printf("Update Version:0x%04X\n", version);
+            APP_INFO1("Update Version:0x%04X", version);
             p_stored_device_db[index].version = version;
             return 0;
         }
@@ -2075,7 +2075,7 @@ int app_xml_update_features_db(tAPP_XML_REM_DEVICE *p_stored_device_db,
         if ((p_stored_device_db[index].in_use != FALSE) && (bdcmp(
                 p_stored_device_db[index].bd_addr, bd_addr) == 0))
         {
-            printf("Update features:%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n",
+            APP_INFO1("Update features:%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X",
                     features[0], features[1], features[2], features[3],
                     features[3], features[4], features[5], features[6]);
             memcpy(p_stored_device_db[index].features, features, sizeof(BD_FEATURES));
@@ -2107,7 +2107,7 @@ int app_xml_update_lmp_version_db(tAPP_XML_REM_DEVICE *p_stored_device_db,
         if ((p_stored_device_db[index].in_use != FALSE) && (bdcmp(
                 p_stored_device_db[index].bd_addr, bd_addr) == 0))
         {
-            printf("Update lmp_version:%d\n", lmp_version);
+            APP_INFO1("Update lmp_version:%d", lmp_version);
             p_stored_device_db[index].lmp_version = lmp_version;
             return 0;
         }
@@ -2138,7 +2138,7 @@ int app_xml_update_ble_addr_type_db(tAPP_XML_REM_DEVICE *p_stored_device_db,
         if ((p_stored_device_db[index].in_use != FALSE) && (bdcmp(
                 p_stored_device_db[index].bd_addr, bd_addr) == 0))
         {
-            printf("Update ble_addr_type:%d\n", ble_addr_type);
+            APP_INFO1("Update ble_addr_type:%d", ble_addr_type);
             p_stored_device_db[index].ble_addr_type = ble_addr_type;
             return 0;
         }
@@ -2168,7 +2168,7 @@ int app_xml_update_device_type_db(tAPP_XML_REM_DEVICE *p_stored_device_db,
         if ((p_stored_device_db[index].in_use != FALSE) && (bdcmp(
                 p_stored_device_db[index].bd_addr, bd_addr) == 0))
         {
-            printf("Update device_type:%d\n", device_type);
+            APP_INFO1("Update device_type:%d", device_type);
             p_stored_device_db[index].device_type = device_type;
             return 0;
         }
@@ -2198,7 +2198,7 @@ int app_xml_update_inq_result_type_db(tAPP_XML_REM_DEVICE *p_stored_device_db,
         if ((p_stored_device_db[index].in_use != FALSE) && (bdcmp(
                 p_stored_device_db[index].bd_addr, bd_addr) == 0))
         {
-            printf("Update inquiry result type :%d\n", inq_res_type);
+            APP_INFO1("Update inquiry result type :%d", inq_res_type);
             p_stored_device_db[index].inq_result_type= inq_res_type;
             return 0;
         }
@@ -2266,7 +2266,7 @@ int app_xml_update_si_dev_platform_db(tAPP_XML_SI_DEVICE *p_stored_device_db,
 
     if (p_si_device != NULL)
     {
-        printf("Update platform:%d\n", platform);
+        APP_INFO1("Update platform:%d", platform);
         p_si_device->platform = platform;
         return 0;
     }

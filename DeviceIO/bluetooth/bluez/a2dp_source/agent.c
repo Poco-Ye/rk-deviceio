@@ -36,6 +36,7 @@
 #include "shell.h"
 #include "../gdbus/gdbus.h"
 #include "agent.h"
+#include "slog.h"
 
 #define AGENT_PATH "/org/bluez/agent"
 #define AGENT_INTERFACE "org.bluez.Agent1"
@@ -47,7 +48,7 @@ static const char *agent_capability = NULL;
 static DBusMessage *pending_message = NULL;
 
 #undef bt_shell_printf
-#define bt_shell_printf printf
+#define bt_shell_printf pr_debug
 
 static void agent_release_prompt(void)
 {

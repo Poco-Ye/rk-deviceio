@@ -322,7 +322,7 @@ static void app_avk_close_wave_file(tAPP_AVK_CONNECTION *connection)
 
     if (app_avk_cb.fd == -1)
     {
-        printf("app_avk_close_wave_file: no file to close\n");
+        APP_ERROR0("no file to close");
         return;
     }
 
@@ -393,7 +393,7 @@ static void app_avk_handle_start(tBSA_AVK_MSG *p_data, tAPP_AVK_CONNECTION *conn
         connection->sample_rate = p_data->start_streaming.media_receiving.cfg.pcm.sampling_freq;
         connection->num_channel = p_data->start_streaming.media_receiving.cfg.pcm.num_channel;
         connection->bit_per_sample = p_data->start_streaming.media_receiving.cfg.pcm.bit_per_sample;
-        printf("Sampling rate:%d, number of channel:%d bit per sample:%d\n",
+        APP_DEBUG1("Sampling rate:%d, number of channel:%d bit per sample:%d",
             p_data->start_streaming.media_receiving.cfg.pcm.sampling_freq,
             p_data->start_streaming.media_receiving.cfg.pcm.num_channel,
             p_data->start_streaming.media_receiving.cfg.pcm.bit_per_sample);
@@ -2206,29 +2206,29 @@ void app_avk_rc_cmd(UINT8 rc_handle)
 
     do
     {
-        printf("Bluetooth AVK AVRC CMD menu:\n");
-        printf("    0 play\n");
-        printf("    1 stop\n");
-        printf("    2 pause\n");
-        printf("    3 forward\n");
-        printf("    4 backward\n");
-        printf("    5 angle\n");
-        printf("    6 rewind key_press\n");
-        printf("    7 rewind key_release\n");
-        printf("    8 fast forward key_press\n");
-        printf("    9 fast forward key_release\n");
-        printf("    10 eject key press\n");
-        printf("    11 eject key release\n");
-        printf("    12 subpicture\n");
-        printf("    13 0 key\n");
-        printf("    14 1 key\n");
-        printf("    15 2 key\n");
-        printf("    16 3 key\n");
-        printf("    17 4 key\n");
-        printf("    18 5 key\n");
-        printf("    19 mute key\n");
-        printf("    20 raw value\n");
-        printf("    99 exit\n");
+        APP_DEBUG0("Bluetooth AVK AVRC CMD menu:");
+        APP_DEBUG0("    0 play");
+        APP_DEBUG0("    1 stop");
+        APP_DEBUG0("    2 pause");
+        APP_DEBUG0("    3 forward");
+        APP_DEBUG0("    4 backward");
+        APP_DEBUG0("    5 angle");
+        APP_DEBUG0("    6 rewind key_press");
+        APP_DEBUG0("    7 rewind key_release");
+        APP_DEBUG0("    8 fast forward key_press");
+        APP_DEBUG0("    9 fast forward key_release");
+        APP_DEBUG0("    10 eject key press");
+        APP_DEBUG0("    11 eject key release");
+        APP_DEBUG0("    12 subpicture");
+        APP_DEBUG0("    13 0 key");
+        APP_DEBUG0("    14 1 key");
+        APP_DEBUG0("    15 2 key");
+        APP_DEBUG0("    16 3 key");
+        APP_DEBUG0("    17 4 key");
+        APP_DEBUG0("    18 5 key");
+        APP_DEBUG0("    19 mute key");
+        APP_DEBUG0("    20 raw value");
+        APP_DEBUG0("    99 exit");
 
         choice = app_get_choice("Select source");
 

@@ -47,6 +47,7 @@
 #include "error.h"
 #include "gdbus/gdbus.h"
 #include "gatt_config.h"
+#include "slog.h"
 
 #define GATT_MGR_IFACE				"org.bluez.GattManager1"
 #define GATT_SERVICE_IFACE			"org.bluez.GattService1"
@@ -207,7 +208,7 @@ static gboolean desc_get_value(const GDBusPropertyTable *property,
 {
 	struct descriptor *desc = user_data;
 
-	printf("Descriptor(%s): Get(\"Value\")\n", desc->uuid);
+	pr_info("Descriptor(%s): Get(\"Value\")\n", desc->uuid);
 
 	return desc_read(desc, iter);
 }
@@ -243,10 +244,10 @@ static void desc_set_value(const GDBusPropertyTable *property,
 	const uint8_t *value;
 	int len;
 
-	printf("Descriptor(%s): Set(\"Value\", ...)\n", desc->uuid);
+	pr_info("Descriptor(%s): Set(\"Value\", ...)\n", desc->uuid);
 
 	if (parse_value(iter, &value, &len)) {
-		printf("Invalid value for Set('Value'...)\n");
+		pr_info("Invalid value for Set('Value'...)\n");
 		g_dbus_pending_property_error(id,
 					ERROR_INTERFACE ".InvalidArguments",
 					"Invalid arguments in method call");
@@ -326,7 +327,7 @@ static gboolean chr_get_value(const GDBusPropertyTable *property,
 {
 	struct characteristic *chr = user_data;
 
-	printf("Characteristic(%s): Get(\"Value\")\n", chr->uuid);
+	pr_info("Characteristic(%s): Get(\"Value\")\n", chr->uuid);
 
 	return chr_read(chr, iter);
 }
@@ -368,10 +369,10 @@ static void chr_set_value(const GDBusPropertyTable *property,
 	const uint8_t *value;
 	int len;
 
-	printf("Characteristic(%s): Set('Value', ...)\n", chr->uuid);
+	pr_info("Characteristic(%s): Set('Value', ...)\n", chr->uuid);
 
 	if (!parse_value(iter, &value, &len)) {
-		printf("Invalid value for Set('Value'...)\n");
+		pr_info("Invalid value for Set('Value'...)\n");
 		g_dbus_pending_property_error(id,
 					ERROR_INTERFACE ".InvalidArguments",
 					"Invalid arguments in method call");
@@ -396,7 +397,7 @@ static gboolean service_get_primary(const GDBusPropertyTable *property,
 {
 	dbus_bool_t primary = TRUE;
 
-	printf("Get Primary: %s\n", primary ? "True" : "False");
+	pr_info("Get Primary: %s\n", primary ? "True" : "False");
 
 	dbus_message_iter_append_basic(iter, DBUS_TYPE_BOOLEAN, &primary);
 
@@ -408,7 +409,7 @@ static gboolean service_get_uuid(const GDBusPropertyTable *property,
 {
 	const char *uuid = user_data;
 
-	printf("Get UUID: %s\n", uuid);
+	pr_info("Get UUID: %s\n", uuid);
 
 	dbus_message_iter_append_basic(iter, DBUS_TYPE_STRING, &uuid);
 
@@ -424,7 +425,7 @@ static const GDBusPropertyTable service_properties[] = {
 static void chr_iface_destroy(gpointer user_data)
 {
 	struct characteristic *chr = user_data;
-	printf("== chr_iface_destroy ==\n");
+	pr_info("== chr_iface_destroy ==\n");
 	g_free(chr->uuid);
 	g_free(chr->service);
 	g_free(chr->value);
@@ -467,7 +468,7 @@ static int parse_options(DBusMessageIter *iter, const char **device)
 			if (var != DBUS_TYPE_OBJECT_PATH)
 				return -EINVAL;
 			dbus_message_iter_get_basic(&value, device);
-			printf("Device: %s\n", *device);
+			pr_info("Device: %s\n", *device);
 		}
 
 		dbus_message_iter_next(&dict);
@@ -479,7 +480,7 @@ static int parse_options(DBusMessageIter *iter, const char **device)
 static char ret_buff[1024];
 static void execute(const char cmdline[], char recv_buff[], int len)
 {
-	printf("[GATT_CONFIG] execute: %s\n", cmdline);
+	pr_info("[GATT_CONFIG] execute: %s\n", cmdline);
 
 	FILE *stream = NULL;
 	char *tmp_buff = recv_buff;
@@ -488,13 +489,13 @@ static void execute(const char cmdline[], char recv_buff[], int len)
 
 	if ((stream = popen(cmdline, "r")) != NULL) {
 		while (fgets(tmp_buff, len, stream)) {
-			//printf("tmp_buf[%d]: %s\n", strlen(tmp_buff), tmp_buff);
+			//pr_info("tmp_buf[%d]: %s\n", strlen(tmp_buff), tmp_buff);
 			tmp_buff += strlen(tmp_buff);
 			len -= strlen(tmp_buff);
 			if (len <= 1)
 				break;
 		}
-		printf("[GATT_CONFIG] execute_r: %s \n", recv_buff);
+		pr_info("[GATT_CONFIG] execute_r: %s \n", recv_buff);
 		pclose(stream);
 	}
 }
@@ -508,7 +509,7 @@ static DBusMessage *chr_read_value(DBusConnection *conn, DBusMessage *msg,
 	DBusMessageIter iter;
 	const char *device;
 	char str[512];
-	printf("=== chr_read_value enter ===\n");
+	pr_info("=== chr_read_value enter ===\n");
 
 	if (!dbus_message_iter_init(msg, &iter))
 		return g_dbus_create_error(msg, DBUS_ERROR_INVALID_ARGS,
@@ -530,20 +531,20 @@ static DBusMessage *chr_read_value(DBusConnection *conn, DBusMessage *msg,
 	chr_read(chr, &iter);
 	memcpy(str, chr->value, chr->vlen);
 	str[chr->vlen] = '\0';
-	printf("chr_read_value[%d]: %s\n", chr->vlen, str);
-	printf("	dump 8 byte: ");
+	pr_info("chr_read_value[%d]: %s\n", chr->vlen, str);
+	pr_info("	dump 8 byte: ");
 	for (int i = 0; i < min(chr->vlen, 8); i++)
-		printf("0x%02x ", (chr->value)[i]);
-	printf("\n");
+		pr_info("0x%02x ", (chr->value)[i]);
+	pr_info("\n");
 
-	printf("=== chr_read_value exit ===\n");
+	pr_info("=== chr_read_value exit ===\n");
 	return reply;
 }
 
 static DBusMessage *chr_write_value(DBusConnection *conn, DBusMessage *msg,
 							void *user_data)
 {
-	printf("=== chr_write_value enter ===\n");
+	pr_info("=== chr_write_value enter ===\n");
 	struct characteristic *chr = user_data;
 	DBusMessageIter iter;
 	const uint8_t *value;
@@ -562,19 +563,19 @@ static DBusMessage *chr_write_value(DBusConnection *conn, DBusMessage *msg,
 
 	chr_write(chr, value, len);
 	if(len == 0 || chr->value == NULL) {
-		printf("chr_write_value is null\n");
+		pr_info("chr_write_value is null\n");
 		return dbus_message_new_method_return(msg);
 	}
 
 	if (ble_content_internal->cb_ble_recv_fun) {
-		printf("cb_ble_recv_fun enter \n");
+		pr_info("cb_ble_recv_fun enter \n");
 		ble_content_internal->cb_ble_recv_fun(chr->uuid, (char *)chr->value, len);
-		printf("cb_ble_recv_fun exit \n");
+		pr_info("cb_ble_recv_fun exit \n");
 	} else {
-		printf("cb_ble_recv_fun is null !!! \n");
+		pr_info("cb_ble_recv_fun is null !!! \n");
 	}
 
-	printf("=== chr_write_value exit ===\n");
+	pr_info("=== chr_write_value exit ===\n");
 	return dbus_message_new_method_return(msg);
 }
 
@@ -673,10 +674,10 @@ static gboolean unregister_ble(void)
 	int i;
 
 	for (i = 0; i < ble_content_internal->char_cnt; i++) {
-		printf("unregister_blechar_uuid[%d]: %s, gchr[i]->path: %s.\n", i, ble_content_internal->char_uuid[i], gchr[i]->path);
+		pr_info("unregister_blechar_uuid[%d]: %s, gchr[i]->path: %s.\n", i, ble_content_internal->char_uuid[i], gchr[i]->path);
 		g_dbus_unregister_interface(dbus_conn, gchr[i]->path, GATT_CHR_IFACE);
 	}
-	printf("unregister_ble gservice_path: %s.\n", gservice_path);
+	pr_info("unregister_ble gservice_path: %s.\n", gservice_path);
 	g_dbus_unregister_interface(dbus_conn, gservice_path, GATT_SERVICE_IFACE);
 
 	return TRUE;
@@ -700,11 +701,11 @@ static gboolean register_characteristic(const char *chr_uuid,
 	chr->props = props;
 	chr->service = g_strdup(service_path);
 	chr->path = g_strdup_printf("%s/characteristic%d", service_path, characteristic_id++);
-	printf("register_characteristic chr->uuid: %s, chr->path: %s\n", chr->uuid, chr->path);
+	pr_info("register_characteristic chr->uuid: %s, chr->path: %s\n", chr->uuid, chr->path);
 	if (!g_dbus_register_interface(dbus_conn, chr->path, GATT_CHR_IFACE,
 					chr_methods, NULL, chr_properties,
 					chr, chr_iface_destroy)) {
-		printf("Couldn't register characteristic interface\n");
+		pr_info("Couldn't register characteristic interface\n");
 		chr_iface_destroy(chr);
 		return FALSE;
 	}
@@ -724,7 +725,7 @@ static gboolean register_characteristic(const char *chr_uuid,
 					GATT_DESCRIPTOR_IFACE,
 					desc_methods, NULL, desc_properties,
 					desc, desc_iface_destroy)) {
-		printf("Couldn't register descriptor interface\n");
+		pr_info("Couldn't register descriptor interface\n");
 		g_dbus_unregister_interface(dbus_conn, chr->path,
 							GATT_CHR_IFACE);
 
@@ -744,7 +745,7 @@ static char *register_service(const char *uuid)
 	if (!g_dbus_register_interface(dbus_conn, path, GATT_SERVICE_IFACE,
 				NULL, NULL, service_properties,
 				g_strdup(uuid), g_free)) {
-		printf("Couldn't register service interface\n");
+		pr_info("Couldn't register service interface\n");
 		g_free(path);
 		return NULL;
 	}
@@ -758,7 +759,7 @@ static void gatt_create_services(void)
 	uint8_t level = ' ';
 	int i;
 
-	printf("server_uuid: %s\n", ble_content_internal->server_uuid);
+	pr_info("server_uuid: %s\n", ble_content_internal->server_uuid);
 	service_path = register_service(ble_content_internal->server_uuid);
 	if (!service_path)
 		return;
@@ -766,7 +767,7 @@ static void gatt_create_services(void)
 	strcpy(gservice_path, service_path);
 
 	for (i = 0; i < ble_content_internal->char_cnt; i++) {
-		printf("char_uuid[%d]: %s\n", i, ble_content_internal->char_uuid[i]);
+		pr_info("char_uuid[%d]: %s\n", i, ble_content_internal->char_uuid[i]);
 		gboolean mcharacteristic = register_characteristic(ble_content_internal->char_uuid[i],
 							&level, sizeof(level),
 							chr_props,
@@ -775,7 +776,7 @@ static void gatt_create_services(void)
 							service_path);
 		/* Add Alert Level Characteristic to Immediate Alert Service */
 		if (!mcharacteristic) {
-			printf("Couldn't register characteristic.\n");
+			pr_info("Couldn't register characteristic.\n");
 			g_dbus_unregister_interface(dbus_conn, service_path,
 								GATT_SERVICE_IFACE);
 			g_free(service_path);
@@ -783,7 +784,7 @@ static void gatt_create_services(void)
 		}
 	}
 
-	printf("Registered service: %s\n", service_path);
+	pr_info("Registered service: %s\n", service_path);
 }
 
 int gatt_write_data(char *uuid, void *data, int len)
@@ -792,21 +793,21 @@ int gatt_write_data(char *uuid, void *data, int len)
 	struct characteristic *chr;
 
 	if (!ble_dev) {
-		printf("gatt_write_data: ble not connect!\n");
+		pr_info("gatt_write_data: ble not connect!\n");
 		return 0;
 	}
 
-	printf("gatt_write uuid: %s, len: [%d], data[%p]: %s\n", uuid, len, data, (char *)data);
-	printf("	dump 8 byte: ");
+	pr_info("gatt_write uuid: %s, len: [%d], data[%p]: %s\n", uuid, len, data, (char *)data);
+	pr_info("	dump 8 byte: ");
 	for (i = 0; i < min(len, 8); i++)
-		printf("0x%02x ", ((char *)data)[i]);
-	printf("\n");
+		pr_info("0x%02x ", ((char *)data)[i]);
+	pr_info("\n");
 
 	if (!gchr[0])
 		while(1);
 
 	for (i = 0; i < gid; i++) {
-		printf("gatt_write[%d] uuid: %s\n", i, gchr[i]->uuid);
+		pr_info("gatt_write[%d] uuid: %s\n", i, gchr[i]->uuid);
 		if (strcmp(gchr[i]->uuid, uuid) == 0) {
 			chr = gchr[i];
 			break;
@@ -814,7 +815,7 @@ int gatt_write_data(char *uuid, void *data, int len)
 	}
 
 	if (chr == NULL) {
-		printf("gatt_write invaild uuid: %s.\n", uuid);
+		pr_info("gatt_write invaild uuid: %s.\n", uuid);
 		return -1;
 	}
 
@@ -832,7 +833,7 @@ void ble_enable_adv(void)
 
 void ble_disable_adv(void)
 {
-	printf("=== ble_disable_adv ===\n");
+	pr_info("=== ble_disable_adv ===\n");
 	//g_dis_adv_close_ble = true;
 	execute(CMD_DISEN, ret_buff, 1024);
 	execute(CMD_DISEN, ret_buff, 1024);
@@ -854,11 +855,11 @@ int gatt_set_on_adv(void)
 
 	//LE Set Random Address Command
 	execute(CMD_RA, ret_buff, 1024);
-	printf("CMD_RA buff: %s", ret_buff);
+	pr_info("CMD_RA buff: %s", ret_buff);
 	sleep(1);
 	//LE SET PARAMETERS
 	execute(CMD_PARA, ret_buff, 1024);
-	printf("CMD_PARA buff: %s", ret_buff);
+	pr_info("CMD_PARA buff: %s", ret_buff);
 
 	// LE Set Advertising Data Command
 	memset(temp, 0, 32);
@@ -867,7 +868,7 @@ int gatt_set_on_adv(void)
 		strcat(CMD_ADV_DATA, " ");
 		strcat(CMD_ADV_DATA, temp);
 	}
-	printf("CMD_ADV_DATA: %s\n", CMD_ADV_DATA);
+	pr_info("CMD_ADV_DATA: %s\n", CMD_ADV_DATA);
 	execute(CMD_ADV_DATA, ret_buff, 1024);
 
 	memset(temp, 0, 32);
@@ -877,7 +878,7 @@ int gatt_set_on_adv(void)
 		strcat(CMD_ADV_RESP_DATA, temp);
 	}
 	usleep(500000);
-	printf("CMD_ADV_RESP_DATA: %s\n", CMD_ADV_RESP_DATA);
+	pr_info("CMD_ADV_RESP_DATA: %s\n", CMD_ADV_RESP_DATA);
 	execute(CMD_ADV_RESP_DATA, ret_buff, 1024);
 
 	// LE Set Advertise Enable Command
@@ -888,16 +889,16 @@ int gatt_set_on_adv(void)
 
 static void register_app_reply(DBusMessage *reply, void *user_data)
 {
-	printf("register_app_reply\n");
+	pr_info("register_app_reply\n");
 	DBusError derr;
 
 	dbus_error_init(&derr);
 	dbus_set_error_from_message(&derr, reply);
 
 	if (dbus_error_is_set(&derr))
-		printf("RegisterApplication: %s\n", derr.message);
+		pr_info("RegisterApplication: %s\n", derr.message);
 	else
-		printf("RegisterApplication: OK\n");
+		pr_info("RegisterApplication: OK\n");
 
 	//send_advertise();
 	//gatt_set_on_adv();
@@ -926,7 +927,7 @@ void register_app(GDBusProxy *proxy)
 	if (!g_dbus_proxy_method_call(proxy, "RegisterApplication",
 					register_app_setup, register_app_reply,
 					NULL, NULL)) {
-		printf("Unable to call RegisterApplication\n");
+		pr_info("Unable to call RegisterApplication\n");
 		return;
 	}
 }
@@ -938,13 +939,13 @@ static void unregister_app_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		printf("Failed to unregister application: %s\n",
+		pr_info("Failed to unregister application: %s\n",
 				error.name);
 		dbus_error_free(&error);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
-	printf("Application unregistered\n");
+	pr_info("Application unregistered\n");
 
 	//return bt_shell_noninteractive_quit(EXIT_SUCCESS);
 }
@@ -962,14 +963,14 @@ static void gatt_unregister_app(GDBusProxy *proxy)
 						unregister_app_setup,
 						unregister_app_reply, NULL,
 						NULL) == FALSE) {
-		printf("Failed unregister profile\n");
+		pr_info("Failed unregister profile\n");
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 }
 
 int gatt_setup(void)
 {
-	printf("gatt_setup\n");
+	pr_info("gatt_setup\n");
 	gatt_create_services();
 	register_app(ble_proxy);
 
@@ -981,13 +982,13 @@ void gatt_cleanup(void)
 	int i;
 
 	if(ble_content_internal) {
-		printf("gatt_cleanup\n");
+		pr_info("gatt_cleanup\n");
 
 		//gatt_unregister_app(ble_proxy);
 		sleep(1);
 
 		for (i = 0; i < ble_content_internal->char_cnt; i++) {
-			printf("char_uuid[%d]: %s\n", i,  gchr[i]->path);
+			pr_info("char_uuid[%d]: %s\n", i,  gchr[i]->path);
 			g_dbus_unregister_interface(dbus_conn,	gchr[i]->path,
 								GATT_CHR_IFACE);
 		}
@@ -1001,7 +1002,7 @@ void gatt_cleanup(void)
 
 int gatt_open(void)
 {
-	printf("=== gatt_open ===\n");
+	pr_info("=== gatt_open ===\n");
 	ble_enable_adv();
 	BLE_FLAG = true;
 
@@ -1010,7 +1011,7 @@ int gatt_open(void)
 
 void gatt_close(void)
 {
-	printf("release_ble_gatt gatt_init ...\n");
+	pr_info("release_ble_gatt gatt_init ...\n");
 	BLE_FLAG = false;
 }
 
@@ -1022,14 +1023,14 @@ static void bt_gethostname(char *hostname_buf)
 
 	buf_len = sizeof(hostname);
 	if (gethostname(hostname, buf_len) != 0)
-		printf("gethostname error !!!!!!!!\n");
+		pr_info("gethostname error !!!!!!!!\n");
 	hostname[buf_len - 1] = '\0';
 
 	/* Deny sending of these local hostnames */
 	if (hostname[0] == '\0' || hostname[0] == '.' || strcmp(hostname, "(none)") == 0)
-		printf("gethostname format error !!!\n");
+		pr_info("gethostname format error !!!\n");
 	else
-		printf("gethostname: %s, len: %d \n", hostname, strlen(hostname));
+		pr_info("gethostname: %s, len: %d \n", hostname, strlen(hostname));
 
 	strcpy(hostname_buf, hostname);
 }
@@ -1063,12 +1064,12 @@ static int bt_string_to_uuid128(uuid128_t *uuid, const char *string, int rever)
 
 	if (rever) {
 		memcpy(tmp, val, 16);
-		printf("UUID: ");
+		pr_info("UUID: ");
 		for (int i = 0; i < 16; i++) {
 			val[15 - i] = tmp[i];
-			printf("0x%x ", tmp[i]);
+			pr_info("0x%x ", tmp[i]);
 		}
-		printf("\n");
+		pr_info("\n");
 	}
 
 	//bt_uuid128_create(uuid, u128);
@@ -1088,7 +1089,7 @@ static int ble_adv_set(RkBtContent *bt_content, ble_content_t *ble_content)
 
 	if (bt_content->ble_content.advDataType == BLE_ADVDATA_TYPE_USER) {
 		if (bt_content->ble_content.advDataLen == 0) {
-			printf("ERROR:Under the premise that advDataType is BLE_ADVDATA_TYPE_USER,"
+			pr_info("ERROR:Under the premise that advDataType is BLE_ADVDATA_TYPE_USER,"
 				"the user must set the correct advData");
 			return -1;
 		}
@@ -1183,7 +1184,7 @@ int gatt_init(RkBtContent *bt_content)
 	memcpy(bt_content->ble_content.le_random_addr, le_random_addr, sizeof(le_random_addr));
 	//adv data set
 	ble_adv_set(bt_content, &ble_content_internal_bak);
-	printf("gatt_init server_uuid: %s\n", ble_content_internal_bak.server_uuid);
+	pr_info("gatt_init server_uuid: %s\n", ble_content_internal_bak.server_uuid);
 	ble_content_internal = &ble_content_internal_bak;
 	gatt_create_services();
 

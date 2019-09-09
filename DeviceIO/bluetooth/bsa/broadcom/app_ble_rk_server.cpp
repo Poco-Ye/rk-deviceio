@@ -595,10 +595,10 @@ static int app_ble_rk_server_create_gatt_database(RkBleContent *ble_content)
     tBT_UUID service_uuid;
     tAPP_BLE_RK_SERVER_ATTRIBUTE attr;
 
-    //service count * 2 + characteristics count * 2
-    UINT16 num_handle = 2 + (ble_content->chr_cnt + 1) * 2;
+    //service count * 2 + characteristics count * 2 + descriptor count * 1
+    UINT16 num_handle = 2 + ble_content->chr_cnt * 2 + ble_content->chr_cnt;
 
-    APP_INFO0("app_ble_rk_server_create_gatt_database");
+    APP_INFO1("app_ble_rk_server_create_gatt_database, num_handle: %d", num_handle);
 
     if(app_ble_rk_server_set_uuid(&service_uuid, ble_content->server_uuid) < 0) {
         APP_ERROR0("set service uuid failed");
@@ -1028,12 +1028,12 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
         APP_INFO1("BSA_BLE_SE_WRITE_EVT trans_id:%d, conn_id:%d, handle:%d",
             p_data->ser_write.trans_id, p_data->ser_write.conn_id, p_data->ser_write.handle);
 
-	    attr_index = app_ble_rk_server_find_attr_index_by_attr_id(p_data->ser_read.handle);
+        attr_index = app_ble_rk_server_find_attr_index_by_attr_id(p_data->ser_read.handle);
         APP_INFO1("BSA_BLE_SE_WRITE_EVT attr_index:%d", attr_index);
         if (attr_index < 0)
         {
             APP_ERROR0("Cannot find matched attr_id");
-	        break;
+            break;
         }
 
         if (p_data->ser_write.need_rsp)

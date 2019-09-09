@@ -10,6 +10,7 @@
 
 #include "../a2dp_source/a2dp_masterctrl.h"
 #include "rfcomm_msg.h"
+#include "slog.h"
 
 RK_BT_HFP_CALLBACK g_rfcomm_hfp_cb = NULL;
 static int g_hfp_sockfd;
@@ -147,7 +148,7 @@ void *thread_get_ba_msg(void *arg)
 
 	g_hfp_sockfd = socket(AF_UNIX, SOCK_DGRAM, 0);
 	if (g_hfp_sockfd < 0) {
-		printf("Create socket failed!\n");
+		pr_info("Create socket failed!\n");
 		return NULL;
 	}
 
@@ -157,7 +158,7 @@ void *thread_get_ba_msg(void *arg)
 	system("rm -rf /tmp/rk_deviceio_rfcomm_status");
 	ret = bind(g_hfp_sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
 	if (ret < 0) {
-		printf("Bind Local addr failed!\n");
+		pr_info("Bind Local addr failed!\n");
 		return NULL;
 	}
 
@@ -166,10 +167,10 @@ void *thread_get_ba_msg(void *arg)
 		ret = recvfrom(g_hfp_sockfd, buff, sizeof(buff), 0, (struct sockaddr *)&clientAddr, &addr_len);
 		if (ret <= 0) {
 			if (ret == 0)
-				printf("###### FUCN:%s. socket closed!\n", __func__);
+				pr_info("###### FUCN:%s. socket closed!\n", __func__);
 			break;
 		}
-		printf("###### FUCN:%s. Received a malformed message(%s)\n", __func__, buff);
+		pr_info("###### FUCN:%s. Received a malformed message(%s)\n", __func__, buff);
 
 		if (strstr(buff, "rfcomm status:hfp_hf_ring;")) {
 			rfcomm_hfp_send_event(RK_BT_HFP_RING_EVT, NULL);
@@ -187,7 +188,7 @@ void *thread_get_ba_msg(void *arg)
 		} else if(strstr(buff, "rfcomm status:") && strstr(buff, "+BCS")) {
 			process_bcs_msg(buff);
 		} else {
-			printf("FUCN:%s. Received a malformed message(%s)\n", __func__, buff);
+			pr_info("FUCN:%s. Received a malformed message(%s)\n", __func__, buff);
 		}
 	}
 
@@ -196,7 +197,7 @@ void *thread_get_ba_msg(void *arg)
 		g_hfp_sockfd = 0;
 	}
 
-	printf("###### FUCN:%s exit!\n", __func__);
+	pr_info("###### FUCN:%s exit!\n", __func__);
 	return NULL;
 }
 
@@ -208,7 +209,7 @@ int rfcomm_listen_ba_msg_start()
 	pthread_create(&tid, NULL, thread_get_ba_msg, NULL);
 
 	pthread_setname_np(tid, "rfcomm_listen");
-	printf("%s rfcomm_listen tid: %lu\n", __func__, tid);
+	pr_info("%s rfcomm_listen tid: %lu\n", __func__, tid);
 
 	return 0;
 }
@@ -359,16 +360,16 @@ static int setup_pcm_handle(char *name, snd_pcm_t *pcm, setup_pcm_param *param)
 	snd_pcm_uframes_t buffer_size, period_size;
 
 	if ((err = set_hw_params(pcm, param, &msg)) != 0) {
-		printf("Couldn't set %s HW parameters: %s", name, msg);
+		pr_info("Couldn't set %s HW parameters: %s", name, msg);
 		goto dofail;
 	}
 
 	if ((err = snd_pcm_get_params(pcm, &buffer_size, &period_size)) != 0) {
-		printf("Couldn't get %s PCM parameters: %s", name, snd_strerror(err));
+		pr_info("Couldn't get %s PCM parameters: %s", name, snd_strerror(err));
 		goto dofail;
 	}
 
-	printf("Used configuration for %s:\n"
+	pr_info("Used configuration for %s:\n"
 			"  PCM buffer time: %u us (%zu bytes)\n"
 			"  PCM period time: %u us (%zu bytes)\n"
 			"  Sampling rate: %u Hz\n"
@@ -380,12 +381,12 @@ static int setup_pcm_handle(char *name, snd_pcm_t *pcm, setup_pcm_param *param)
 			param->samplerate, param->channel, param->start_threshold);
 
 	if ((err = set_sw_params(pcm, buffer_size, period_size, param->start_threshold, &msg)) != 0) {
-		printf("Couldn't set SW parameters: %s", msg);
+		pr_info("Couldn't set SW parameters: %s", msg);
 		goto dofail;
 	}
 
 	if ((err = snd_pcm_prepare(pcm)) != 0) {
-		printf("Couldn't prepare PCM: %s", snd_strerror(err));
+		pr_info("Couldn't prepare PCM: %s", snd_strerror(err));
 		goto dofail;
 	}
 
@@ -408,22 +409,22 @@ static void *thread_record_start(void *arg)
 	period_bytes = snd_pcm_frames_to_bytes(bt_play_pcm, buffer_size);
 	buffer = (char *)malloc(period_bytes);
 	if (!buffer) {
-		printf("ERROR:%s no space left!\n", __func__);
+		pr_info("ERROR:%s no space left!\n", __func__);
 		return NULL;
 	}
 	memset(buffer, 0, period_size);
 
-	printf("#%s start... period_bytes = %d\n", __func__, period_bytes);
+	pr_info("#%s start... period_bytes = %d\n", __func__, period_bytes);
 
 	while (g_audio_path_valid_flag) {
 		memset(buffer, 0, period_bytes);
 		ret = snd_pcm_readi(local_record_pcm, buffer , period_size);
 		if (ret < 0) {
 			if (ret == -EPIPE) {
-				printf( "Xrun occurred: LocalCaputure\n");
+				pr_info( "Xrun occurred: LocalCaputure\n");
 				snd_pcm_prepare(local_record_pcm);
 			} else {
-				printf("ERROR: %s read frame error=%d\n", __func__, ret);
+				pr_info("ERROR: %s read frame error=%d\n", __func__, ret);
 				return NULL;
 			}
 		}
@@ -431,16 +432,16 @@ static void *thread_record_start(void *arg)
 		ret = snd_pcm_writei(bt_play_pcm, buffer, period_size);
 		if (ret < 0) {
 			if (ret == -EPIPE) {
-				printf( "Xrun occurred: BtPlayback\n");
+				pr_info( "Xrun occurred: BtPlayback\n");
 				snd_pcm_prepare(bt_play_pcm);
 			} else {
-				printf("ERROR: %s write frame error=%d\n", __func__, ret);
+				pr_info("ERROR: %s write frame error=%d\n", __func__, ret);
 				return NULL;
 			}
 		}
 	}
 
-	printf("#%s end... \n", __func__);
+	pr_info("#%s end... \n", __func__);
 
 	snd_pcm_close(local_record_pcm);
 	snd_pcm_close(bt_play_pcm);
@@ -462,22 +463,22 @@ static void *thread_playback_start(void *arg)
 	period_bytes = snd_pcm_frames_to_bytes(local_play_pcm, buffer_size);
 	buffer = (char *)malloc(period_bytes);
 	if (!buffer) {
-		printf("ERROR:%s no space left!\n", __func__);
+		pr_info("ERROR:%s no space left!\n", __func__);
 		return NULL;
 	}
 	memset(buffer, 0, period_size);
 
-	printf("#%s start... period_bytes = %d\n", __func__, period_bytes);
+	pr_info("#%s start... period_bytes = %d\n", __func__, period_bytes);
 
 	while (g_audio_path_valid_flag) {
 		memset(buffer, 0, period_bytes);
 		ret = snd_pcm_readi(bt_record_pcm, buffer , period_size);
 		if (ret < 0) {
 			if (ret == -EPIPE) {
-				printf( "Xrun occurred: BtCaputure\n");
+				pr_info( "Xrun occurred: BtCaputure\n");
 				snd_pcm_prepare(bt_record_pcm);
 			} else {
-				printf("ERROR: %s read frame error=%d\n", __func__, ret);
+				pr_info("ERROR: %s read frame error=%d\n", __func__, ret);
 				return NULL;
 			}
 		}
@@ -485,16 +486,16 @@ static void *thread_playback_start(void *arg)
 		ret = snd_pcm_writei(local_play_pcm, buffer, period_size);
 		if (ret < 0) {
 			if (ret == -EPIPE) {
-				printf( "Xrun occurred: LocalPlayback\n");
+				pr_info( "Xrun occurred: LocalPlayback\n");
 				snd_pcm_prepare(local_play_pcm);
 			} else {
-				printf("ERROR: %s write frame error=%d\n", __func__, ret);
+				pr_info("ERROR: %s write frame error=%d\n", __func__, ret);
 				return NULL;
 			}
 		}
 	}
 
-	printf("#%s end...\n", __func__);
+	pr_info("#%s end...\n", __func__);
 
 	snd_pcm_close(local_play_pcm);
 	snd_pcm_close(bt_record_pcm);
@@ -511,13 +512,13 @@ int rfcomm_hfp_open_audio_path()
 	setup_pcm_param pcm_param;
 
 	if (g_audio_path_valid_flag) {
-		printf("WARNING: Hfp audio path has already be opened!\n");
+		pr_info("WARNING: Hfp audio path has already be opened!\n");
 		return 0;
 	}
 
 	/* Open and setup LocalPlayback audio handle */
 	if ((err = snd_pcm_open(&local_play_pcm, "default", SND_PCM_STREAM_PLAYBACK, 0)) != 0) {
-		printf("Couldn't open local playback PCM: %s", snd_strerror(err));
+		pr_info("Couldn't open local playback PCM: %s", snd_strerror(err));
 		goto fail;
 	}
 	pcm_param.channel = 2;
@@ -527,13 +528,13 @@ int rfcomm_hfp_open_audio_path()
 	pcm_param.format = SND_PCM_FORMAT_S16_LE;
 	pcm_param.start_threshold = 0; //default
 	if ((err = setup_pcm_handle("LocalPlayback", local_play_pcm, &pcm_param)) != 0) {
-		printf("Set up Local Playback audio path failed!\n");
+		pr_info("Set up Local Playback audio path failed!\n");
 		goto fail;
 	}
 
 	/* Open and setup LocalCaputure audio handle */
 	if ((err = snd_pcm_open(&local_record_pcm, "2mic_loopback", SND_PCM_STREAM_CAPTURE, 0)) != 0) {
-		printf("Couldn't open local capture PCM: %s", snd_strerror(err));
+		pr_info("Couldn't open local capture PCM: %s", snd_strerror(err));
 		goto fail;
 	}
 	pcm_param.channel = 2;
@@ -543,13 +544,13 @@ int rfcomm_hfp_open_audio_path()
 	pcm_param.format = SND_PCM_FORMAT_S16_LE;
 	pcm_param.start_threshold = 1;
 	if ((err = setup_pcm_handle("LocalCaputure", local_record_pcm, &pcm_param)) != 0) {
-		printf("Set up Local Caputure audio path failed!\n");
+		pr_info("Set up Local Caputure audio path failed!\n");
 		goto fail;
 	}
 
 	/* Open and setup BtPlayback audio handle */
 	if ((err = snd_pcm_open(&bt_play_pcm, "hw:1,0", SND_PCM_STREAM_PLAYBACK, 0)) != 0) {
-		printf("Couldn't open bt playback PCM: %s", snd_strerror(err));
+		pr_info("Couldn't open bt playback PCM: %s", snd_strerror(err));
 		goto fail;
 	}
 	pcm_param.channel = 2;
@@ -559,13 +560,13 @@ int rfcomm_hfp_open_audio_path()
 	pcm_param.format = SND_PCM_FORMAT_S16_LE;
 	pcm_param.start_threshold = 0;
 	if ((err = setup_pcm_handle("BtPlayback", bt_play_pcm, &pcm_param)) != 0) {
-		printf("Set up Bt Playback audio path failed!\n");
+		pr_info("Set up Bt Playback audio path failed!\n");
 		goto fail;
 	}
 
 	/* Open and setup BtCaputure audio handle */
 	if ((err = snd_pcm_open(&bt_record_pcm, "hw:1,0", SND_PCM_STREAM_CAPTURE, 0)) != 0) {
-		printf("Couldn't open bt capture PCM: %s", snd_strerror(err));
+		pr_info("Couldn't open bt capture PCM: %s", snd_strerror(err));
 		goto fail;
 	}
 	pcm_param.channel = 2;
@@ -575,7 +576,7 @@ int rfcomm_hfp_open_audio_path()
 	pcm_param.format = SND_PCM_FORMAT_S16_LE;
 	pcm_param.start_threshold = 1;
 	if ((err = setup_pcm_handle("BtCaputure", bt_record_pcm, &pcm_param)) != 0) {
-		printf("Set up Bt Caputure audio path failed!\n");
+		pr_info("Set up Bt Caputure audio path failed!\n");
 		goto fail;
 	}
 
@@ -611,7 +612,7 @@ int rfcomm_hfp_close_audio_path()
 {
 	void *status;
 
-	printf("#%s is called! flag=%d\n", __func__, g_audio_path_valid_flag);
+	pr_info("#%s is called! flag=%d\n", __func__, g_audio_path_valid_flag);
 
 	if (g_audio_path_valid_flag) {
 		g_audio_path_valid_flag = 0;

@@ -3110,7 +3110,7 @@ int app_av_rc_play_item_meta_response(int index, tBSA_AV_META_MSG_MSG *pMetaMsg)
     tBSA_AV_META_RSP_CMD rsp_cmd;
     int xx=0;
 
-    APPL_TRACE_DEBUG0("app_av_rc_play_item_meta_response");
+    APP_DEBUG0("");
     /* Sanity check */
     if ((index < 0) || (index >= APP_NUM_ELEMENTS(app_av_cb.connections)))
     {
@@ -3133,7 +3133,7 @@ int app_av_rc_play_item_meta_response(int index, tBSA_AV_META_MSG_MSG *pMetaMsg)
         return status;
     }
 
-    APPL_TRACE_DEBUG3("app_av_rc_play_item_meta_response scope:%d, uid[0]:0x%02d, uid[7]:0x%02",
+    APP_DEBUG1("scope:%d, uid[0]:0x%02d, uid[7]:0x%02",
         pMetaMsg->param.play_item.scope,pMetaMsg->param.play_item.uid[0], pMetaMsg->param.play_item.uid[7]);
     switch (pMetaMsg->param.play_item.scope)
     {
@@ -3156,7 +3156,7 @@ int app_av_rc_play_item_meta_response(int index, tBSA_AV_META_MSG_MSG *pMetaMsg)
         rsp_cmd.param.play_item.status = AVRC_STS_BAD_CMD;
         for (xx=0; xx<APP_AV_NUMSONGS; xx++)
         {
-            APPL_TRACE_DEBUG3("AVRC_SCOPE_NOW_PLAYING scope:%d, uid[0]:0x%02d, uid[7]:0x%02",
+            APP_DEBUG1("AVRC_SCOPE_NOW_PLAYING scope:%d, uid[0]:0x%02d, uid[7]:0x%02",
                 pMetaMsg->param.play_item.scope,pMetaMsg->param.play_item.uid[0], pMetaMsg->param.play_item.uid[7]);
             if(memcmp(app_av_songs[xx]->uid, pMetaMsg->param.play_item.uid, sizeof(tBSA_UID)) == 0)
             {
@@ -3205,7 +3205,7 @@ int app_av_rc_add_to_now_playing_meta_response(int index, tBSA_AV_META_MSG_MSG *
     tBSA_AV_META_RSP_CMD rcmd;
     int xx=0;
 
-    APPL_TRACE_DEBUG0("app_av_rc_add_to_now_playing_meta_response");
+    APP_DEBUG0("");
     /* Sanity check */
     if ((index < 0) || (index >= APP_NUM_ELEMENTS(app_av_cb.connections)))
     {
@@ -3228,7 +3228,7 @@ int app_av_rc_add_to_now_playing_meta_response(int index, tBSA_AV_META_MSG_MSG *
         return status;
     }
 
-    APPL_TRACE_DEBUG3("app_av_rc_add_to_now_playing_meta_response scope:%d, uid[0]:0x%02d, uid[7]:0x%02",
+    APP_DEBUG1("scope:%d, uid[0]:0x%02d, uid[7]:0x%02",
         pMetaMsg->param.add_to_play.scope,pMetaMsg->param.add_to_play.uid[0], pMetaMsg->param.add_to_play.uid[7]);
     switch (pMetaMsg->param.add_to_play.scope)
     {
@@ -3250,7 +3250,7 @@ int app_av_rc_add_to_now_playing_meta_response(int index, tBSA_AV_META_MSG_MSG *
         rcmd.param.add_to_play.status = AVRC_STS_INTERNAL_ERR;
         for (xx=0; xx<APP_AV_NUMSONGS; xx++)
         {
-            APPL_TRACE_DEBUG3("AVRC_SCOPE_NOW_PLAYING scope:%d, uid[0]:0x%02d, uid[7]:0x%02",
+            APP_DEBUG1("AVRC_SCOPE_NOW_PLAYING scope:%d, uid[0]:0x%02d, uid[7]:0x%02",
                 pMetaMsg->param.add_to_play.scope,pMetaMsg->param.add_to_play.uid[0],
                 pMetaMsg->param.add_to_play.uid[7]);
             if(memcmp(app_av_songs[xx]->uid, pMetaMsg->param.add_to_play.uid, sizeof(tBSA_UID)) == 0)
@@ -3368,7 +3368,7 @@ void app_av_rc_complete_notification(UINT8 event_id)
 
     if (p_app_av_cb->meta_info.registered_events.evt_mask & evt_mask)
     {
-        APPL_TRACE_DEBUG2("Event(0x%x) was registered(0x%x) evt_mask:0x%x",
+        APP_DEBUG1("Event(0x%x) was registered(0x%x) evt_mask:0x%x",
                            event_id,
                            p_app_av_cb->meta_info.registered_events.evt_mask );
 
@@ -3384,13 +3384,13 @@ void app_av_rc_complete_notification(UINT8 event_id)
         p_app_av_cb->meta_info.registered_events.evt_mask &= ~evt_mask;
         p_app_av_cb->meta_info.registered_events.label[event_id-1] = 0xFF;
 
-        APPL_TRACE_DEBUG3("EVENT NOTIF - Registered evt val after 0x%x clearing:0x%x label %d",
+        APP_DEBUG1("EVENT NOTIF - Registered evt val after 0x%x clearing:0x%x label %d",
                            p_app_av_cb->meta_info.registered_events.evt_mask, evt_mask, rc_label );
 
     }
     else
     {
-        APPL_TRACE_DEBUG1("Not registered event rcvd:0x%x", event_id);
+        APP_DEBUG1("Not registered event rcvd:0x%x", event_id);
     }
 }
 
@@ -3442,7 +3442,7 @@ static int app_av_build_notification_response(UINT8 event_id, tBSA_AV_META_RSP_C
 
     case AVRC_EVT_TRACK_CHANGE:         /* 0x02 */
         p = p_cmd->param.notify_status.param.track;
-        APPL_TRACE_DEBUG2("play_count %d cur_play %d",p_app_av_cb->play_count, p_app_av_cb->cur_play);
+        APP_DEBUG1("play_count %d cur_play %d",p_app_av_cb->play_count, p_app_av_cb->cur_play);
         /* Check whether folder and file is selected or not */
         if (p_app_av_cb->play_count == 0 )
         {
@@ -3514,7 +3514,7 @@ static int app_av_build_notification_response(UINT8 event_id, tBSA_AV_META_RSP_C
         return status;
     }
 
-    APPL_TRACE_DEBUG1("app_av_build_notification_response %d", event_id)
+    APP_DEBUG1("event_id %d", event_id);
     return 0;
 }
 
@@ -3535,7 +3535,7 @@ void app_av_rc_change_play_status(UINT8 new_play_status)
         UINT8   old_play_status = p_app_av_cb->meta_info.play_status.play_status;
 
         p_app_av_cb->meta_info.play_status.play_status = new_play_status;
-        APPL_TRACE_DEBUG2("play_status = %d/%d", old_play_status, p_app_av_cb->meta_info.play_status.play_status );
+        APP_DEBUG1("play_status = %d/%d", old_play_status, p_app_av_cb->meta_info.play_status.play_status );
         if (old_play_status != p_app_av_cb->meta_info.play_status.play_status)
         {
             app_av_rc_complete_notification(AVRC_EVT_PLAY_STATUS_CHANGE);
@@ -3544,7 +3544,7 @@ void app_av_rc_change_play_status(UINT8 new_play_status)
     }
     else
     {
-        APPL_TRACE_ERROR1("Illegal value of play_status = %d", new_play_status);
+        APP_ERROR1("Illegal value of play_status = %d", new_play_status);
     }
 
 }
@@ -3582,7 +3582,7 @@ void app_av_rc_addressed_player_change(UINT16 addr_player)
        (addr_player != APP_AV_PLAYER_ID_MPLAYER) &&
        (addr_player != APP_AV_PLAYER_ID_FM))
     {
-        APPL_TRACE_ERROR1("Illegal value of addressed player = %d", addr_player);
+        APP_ERROR1("Illegal value of addressed player = %d", addr_player);
         return;
     }
 
@@ -3607,14 +3607,14 @@ void app_av_rc_settings_change(UINT8 setting, UINT8 value)
        setting != AVRC_PLAYER_SETTING_REPEAT &&
        setting != AVRC_PLAYER_SETTING_SHUFFLE)
     {
-        APPL_TRACE_ERROR1("Illegal value of setting = %d", setting);
+        APP_ERROR1("Illegal value of setting = %d", setting);
         return;
     }
 
     /* player setting values (for this app) are only 0x1 or 0x2 */
     if(value != 0x1 && value != 0x2)
     {
-        APPL_TRACE_ERROR1("Illegal setting value = %d", value);
+        APP_ERROR1("Illegal setting value = %d", value);
         return;
     }
 
@@ -5455,12 +5455,7 @@ void app_av_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, int name_len,
             return;
         }
 
-        memset(address, 0, addr_len);
-
-        sprintf(address, "%02x:%02x:%02x:%02x:%02x:%02x",
-                 app_av_status.bd_addr[0], app_av_status.bd_addr[1],
-                 app_av_status.bd_addr[2], app_av_status.bd_addr[3],
-                 app_av_status.bd_addr[4], app_av_status.bd_addr[5]);
+        app_mgr_bd2str(app_av_status.bd_addr, address, addr_len);
         APP_DEBUG1("address: %s", address);
     }
 }
