@@ -128,11 +128,13 @@ typedef struct btmg_gap_callback_t {
 /*callback functions for a2dp_sink profile*/
 typedef void (*bt_a2dp_sink_connection_state_cb)(const char *bd_addr, btmg_a2dp_sink_connection_state_t state);
 typedef void (*bt_a2dp_sink_audio_state_cb)(const char *bd_addr, btmg_a2dp_sink_audio_state_t state);
+typedef void (*bt_a2dp_sink_audio_underrun_cb)(void);
 
 /*a2dp_sink callback*/
 typedef struct btmg_a2dp_sink_callback_t {
 	bt_a2dp_sink_connection_state_cb a2dp_sink_connection_state_cb;/*used to report the a2dp_sink connection state*/
 	bt_a2dp_sink_audio_state_cb a2dp_sink_audio_state_cb;/*used to report the a2dp_sink audio state, not recommended as mentioned before*/
+	bt_a2dp_sink_audio_underrun_cb a2dp_sink_audio_underrun_cb;/*underrun callabck*/
 } btmg_a2dp_sink_callback_t;
 
 /*callback functions for avrcp profile*/

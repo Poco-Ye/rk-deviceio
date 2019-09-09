@@ -309,9 +309,7 @@ static int get_ps_pid(const char Name[])
 bool bt_sink_is_open(void)
 {
 	if (bt_control.is_a2dp_sink_open) {
-		RK_LOGD("bt_sink has been opened.\n");
 		if (get_ps_pid("bluetoothd") && get_ps_pid("bluealsa") && get_ps_pid("bluealsa-aplay")) {
-			RK_LOGD("bt_sink has been opened.\n");
 			return 1;
 		} else {
 			RK_LOGE("bt_sink has been opened but bluetoothd server exit.\n");

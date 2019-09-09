@@ -6,6 +6,7 @@
 #include <sys/prctl.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <signal.h>
 
 #include <DeviceIo/DeviceIo.h>
 #include <DeviceIo/Rk_wifi.h>
@@ -37,6 +38,17 @@ using DeviceIOFramework::wifi_config;
 
 #define BT_CONFIG_FAILED 2
 #define BT_CONFIG_OK 1
+
+typedef struct {
+	int sockfd;
+	pthread_t tid;
+	int listen_done;
+	RK_BT_SINK_UNDERRUN_CB cb;
+} underrun_handler_t;
+
+static underrun_handler_t underrun_handler = {
+	-1, 0, 0, NULL,
+};
 
 /*****************************************************************
  *            Rockchip bluetooth LE api                      *
@@ -364,105 +376,144 @@ int rk_bt_source_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, int name_l
 /*****************************************************************
  *            Rockchip bluetooth sink api                        *
  *****************************************************************/
-static int g_sink_volume_sockfd;
-static RK_BT_SINK_VOLUME_CALLBACK g_sink_volume_cb;
-
-/* Get volume event frome bluealsa thread */
-void *thread_get_ba_volume(void *arg)
+void *sink_underrun_listen(void *arg)
 {
 	int ret = 0;
 	char buff[100] = {0};
 	struct sockaddr_un clientAddr;
 	struct sockaddr_un serverAddr;
 	socklen_t addr_len;
-	int value = 0;
-	char *start = NULL;
 
-	g_sink_volume_sockfd = socket(AF_UNIX, SOCK_DGRAM, 0);
-	if (g_sink_volume_sockfd < 0) {
-		pr_info("Create socket failed!\n");
+	underrun_handler.sockfd = socket(AF_UNIX, SOCK_DGRAM, 0);
+	if (underrun_handler.sockfd < 0) {
+		pr_err("%s: Create socket failed!\n", __func__);
 		return NULL;
 	}
 
 	serverAddr.sun_family = AF_UNIX;
-	strcpy(serverAddr.sun_path, "/tmp/rk_deviceio_a2dp_volume");
+	strcpy(serverAddr.sun_path, "/tmp/rk_deviceio_a2dp_underrun");
 
-	system("rm -rf /tmp/rk_deviceio_a2dp_volume");
-	ret = bind(g_sink_volume_sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
+	system("rm -rf /tmp/rk_deviceio_a2dp_underrun");
+	ret = bind(underrun_handler.sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
 	if (ret < 0) {
-		pr_info("Bind Local addr failed!\n");
+		pr_err("%s: Bind Local addr failed!\n", __func__);
 		return NULL;
 	}
 
-	pr_info("###### FUCN:%s start!\n", __func__);
-	while(1) {
+	pr_info("%s: underrun listen...\n", __func__);
+	while(underrun_handler.listen_done) {
 		memset(buff, 0, sizeof(buff));
-		ret = recvfrom(g_sink_volume_sockfd, buff, sizeof(buff), 0, (struct sockaddr *)&clientAddr, &addr_len);
+		ret = recvfrom(underrun_handler.sockfd, buff, sizeof(buff), 0, (struct sockaddr *)&clientAddr, &addr_len);
 		if (ret <= 0) {
 			if (ret == 0)
-				pr_info("###### FUCN:%s. socket closed!\n", __func__);
+				pr_info("%s: socket closed!\n", __func__);
 			break;
 		}
-		pr_info("###### FUCN:%s. Received a malformed message(%s)\n", __func__, buff);
+		pr_info("%s: recv a message(%s)\n", __func__, buff);
 
 		if (!bt_sink_is_open())
 			break;
 
-		start = strstr(buff, "a2dp volume:");
-		if (!start) {
-			pr_info("WARNING: %s recved unsupport msg:%s\n", __func__, buff);
+		if (!strstr(buff, "a2dp underrun;")) {
+			pr_warning("%s: recv a unsupport msg:%s\n", __func__, buff);
 			continue;
 		}
-		start += strlen("a2dp volume:");
-		value = (*start - '0') * 100 + (*(start + 1) - '0') * 10 + (*(start +2) - '0');
 
-		if (g_sink_volume_cb)
-			g_sink_volume_cb(value);
+		if (underrun_handler.cb)
+			underrun_handler.cb();
 		else
 			break;
 	}
 
-	if (g_sink_volume_sockfd > 0) {
-		close(g_sink_volume_sockfd);
-		g_sink_volume_sockfd = 0;
-	}
-
-	pr_info("###### FUCN:%s exit!\n", __func__);
+	pr_info("%s: Exit underrun listen thread!\n", __func__);
 	return NULL;
 }
 
-static int a2dp_sink_listen_ba_volume_start()
+static void underrun_listen_handle(int signal, siginfo_t *siginfo, void *u_contxt)
 {
-	pthread_t tid;
-
-	/* Create a thread to listen for Bluezalsa volume changes. */
-	if (g_sink_volume_sockfd == 0)
-		pthread_create(&tid, NULL, thread_get_ba_volume, NULL);
-
-	return 0;
+	pr_debug("underrun_listen_handle exec for kill\n");
+	pthread_exit(NULL);
+	return;
 }
 
-static int a2dp_sink_listen_ba_volume_stop()
+static int underrun_listen_thread_create(RK_BT_SINK_UNDERRUN_CB cb)
 {
-	if (g_sink_volume_sockfd > 0) {
-		close(g_sink_volume_sockfd);
-		g_sink_volume_sockfd = 0;
+	struct sigaction sigact;
+
+	pr_info("underrun_listen_thread_create\n");
+
+	underrun_handler.cb = cb;
+
+	/* Create a thread to listen for bluez-alsa sink underrun. */
+	if (!underrun_handler.listen_done) {
+		underrun_handler.listen_done = 1;
+
+		sigact.sa_sigaction = underrun_listen_handle;
+		sigact.sa_flags = SA_SIGINFO;
+		sigemptyset(&sigact.sa_mask);
+		sigaction(SIGUSR2, &sigact, NULL);
+
+		if (pthread_create(&underrun_handler.tid, NULL, sink_underrun_listen, NULL)) {
+			pr_err("Create ble pthread failed\n");
+			return -1;
+		}
 	}
-	/* wait for  thread_get_ba_msg exit */
-	usleep(200);
+
 	return 0;
 }
 
+static void underrun_listen_thread_delete()
+{
+	int ret;
+
+	pr_info("underrun_listen_thread_delete start\n");
+
+	if (underrun_handler.listen_done) {
+		underrun_handler.listen_done = 0;
+
+		if (underrun_handler.sockfd >= 0) {
+			close(underrun_handler.sockfd);
+			underrun_handler.sockfd = -1;
+		}
+
+		if(underrun_handler.tid) {
+			ret = pthread_kill(underrun_handler.tid, SIGUSR2);
+			if (ret == 0) {
+				pr_info("pthread_kill success\n");
+			} else if (ret == ESRCH) {
+				pr_warning("The id = %lu thread has exited or does not exist\n", underrun_handler.tid);
+			} else {
+				pr_err("pthread_kill error, ret: %d\n", ret);
+				return;
+			}
+
+			pthread_join(underrun_handler.tid, NULL);
+			underrun_handler.tid = 0;
+		}
+	}
+
+	underrun_handler.cb = NULL;
+	pr_info("underrun_listen_thread_delete end\n");
+}
 int rk_bt_sink_register_callback(RK_BT_SINK_CALLBACK cb)
 {
 	a2dp_sink_register_cb(cb);
 	return 0;
 }
 
+void rk_bt_sink_register_underurn_callback(RK_BT_SINK_UNDERRUN_CB cb)
+{
+	if(cb == NULL) {
+		pr_err("%s: please register underrun callback\n", __func__);
+		return;
+	}
+
+	underrun_listen_thread_create(cb);
+}
+
 int rk_bt_sink_register_volume_callback(RK_BT_SINK_VOLUME_CALLBACK cb)
 {
-	g_sink_volume_cb = cb;
-	a2dp_sink_listen_ba_volume_start();
+	a2dp_sink_register_volume_cb(cb);
 	return 0;
 }
 
@@ -536,7 +587,7 @@ int rk_bt_sink_set_visibility(const int visiable, const int connectable)
 int rk_bt_sink_close(void)
 {
 	bt_close_sink();
-	a2dp_sink_listen_ba_volume_stop();
+	underrun_listen_thread_delete();
 	a2dp_sink_clear_cb();
 	return 0;
 }

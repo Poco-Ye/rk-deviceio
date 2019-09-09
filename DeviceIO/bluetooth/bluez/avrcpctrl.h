@@ -95,6 +95,7 @@ void rkbt_inquiry_scan(bool scan);
 void a2dp_sink_register_cb(RK_BT_SINK_CALLBACK cb);
 void a2dp_sink_register_track_cb(RK_BT_AVRCP_TRACK_CHANGE_CB cb);
 void a2dp_sink_register_position_cb(RK_BT_AVRCP_PLAY_POSITION_CB cb);
+void a2dp_sink_register_volume_cb(RK_BT_SINK_VOLUME_CALLBACK cb);
 void a2dp_sink_clear_cb();
 int a2dp_sink_status(RK_BT_SINK_STATE *pState);
 void bt_sink_state_send(RK_BT_SINK_STATE state);

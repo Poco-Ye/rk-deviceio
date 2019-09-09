@@ -109,6 +109,11 @@ void _bt_a2dp_sink_audio_state_cb(const char *bd_addr, btmg_a2dp_sink_audio_stat
 	printf("%s: bd_addr: %s\n", __func__, bd_addr);
 }
 
+void _bt_a2dp_sink_audio_underrun_cb(void)
+{
+	printf("+++++++++++++ underrun +++++++++++++\n");
+}
+
 void _bt_avrcp_play_state_cb(const char *bd_addr, btmg_avrcp_play_state_t state)
 {
 	switch(state) {
@@ -158,6 +163,7 @@ void btmg_init_test(char *data)
 	g_btmg_test_cb->btmg_gap_cb.gap_dev_found_cb = _bt_dev_found_cb;
 	g_btmg_test_cb->btmg_a2dp_sink_cb.a2dp_sink_connection_state_cb = _bt_a2dp_sink_connection_state_cb;
 	g_btmg_test_cb->btmg_a2dp_sink_cb.a2dp_sink_audio_state_cb = _bt_a2dp_sink_audio_state_cb;
+	g_btmg_test_cb->btmg_a2dp_sink_cb.a2dp_sink_audio_underrun_cb = _bt_a2dp_sink_audio_underrun_cb;
 	g_btmg_test_cb->btmg_avrcp_cb.avrcp_play_state_cb = _bt_avrcp_play_state_cb;
 	g_btmg_test_cb->btmg_avrcp_cb.avrcp_track_changed_cb = _bt_avrcp_track_changed_cb;
 	g_btmg_test_cb->btmg_avrcp_cb.avrcp_play_position_cb = _bt_avrcp_play_position_cb;

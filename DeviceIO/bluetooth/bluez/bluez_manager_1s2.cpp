@@ -142,6 +142,12 @@ static void _btmg_sink_audio_state_cb(const char *bd_addr, btmg_a2dp_sink_audio_
 		g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_audio_state_cb(bd_addr, state);
 }
 
+static void btmg_sink_audio_underrun_cb(void)
+{
+	if(g_btmg_cb && g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_audio_underrun_cb)
+		g_btmg_cb->btmg_a2dp_sink_cb.a2dp_sink_audio_underrun_cb();
+}
+
 static int btmg_sink_callback(RK_BT_SINK_STATE state)
 {
 	char bd_addr[18];
@@ -252,6 +258,7 @@ int bt_manager_enable(bool enable)
 		rk_bt_sink_register_track_callback(btmg_sink_track_change_callback);
 		rk_bt_sink_register_position_callback(btmg_sink_position_change_callback);
 		rk_bt_sink_register_callback(btmg_sink_callback);
+		rk_bt_sink_register_underurn_callback(btmg_sink_audio_underrun_cb);
 		ret = rk_bt_sink_open();
 	} else {
 		rk_bt_deinit();

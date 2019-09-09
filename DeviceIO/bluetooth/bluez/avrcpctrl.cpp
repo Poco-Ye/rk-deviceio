@@ -72,17 +72,24 @@ static int g_btsrc_connect_status = RK_BT_SINK_STATE_IDLE;
 
 extern void print_iter(const char *label, const char *name, DBusMessageIter *iter);
 
-static RK_BT_SINK_CALLBACK g_btsink_cb = NULL;
-static RK_BT_AVRCP_TRACK_CHANGE_CB g_avrcp_track_cb = NULL;
-static RK_BT_AVRCP_PLAY_POSITION_CB g_avrcp_position_cb = NULL;
+typedef struct {
+	RK_BT_SINK_CALLBACK avrcp_sink_cb;
+	RK_BT_AVRCP_TRACK_CHANGE_CB avrcp_track_cb;
+	RK_BT_AVRCP_PLAY_POSITION_CB avrcp_position_cb;
+	RK_BT_SINK_VOLUME_CALLBACK avrcp_volume_cb;
+} avrcp_callback_t;
+
+static avrcp_callback_t g_avrcp_cb = {
+	NULL, NULL, NULL, NULL,
+};
 
 static char track_key[256];
 static int current_song_len = 0;
 
 void bt_sink_state_send(RK_BT_SINK_STATE state)
 {
-	if (g_btsink_cb)
-		(g_btsink_cb)(state);
+	if (g_avrcp_cb.avrcp_sink_cb)
+		(g_avrcp_cb.avrcp_sink_cb)(state);
 }
 
 void report_avrcp_event(DeviceInput event, void *data, int len) {
@@ -784,8 +791,8 @@ static void avrcp_track_info_send(const char *name, DBusMessageIter *iter)
 	memset(&track, 0, sizeof(BtTrackInfo));
 	avrcp_get_track_info(&track, name, iter);
 
-	if(g_avrcp_track_cb) {
-		g_avrcp_track_cb(addr, track);
+	if(g_avrcp_cb.avrcp_track_cb) {
+		g_avrcp_cb.avrcp_track_cb(addr, track);
 	}
 }
 
@@ -802,8 +809,22 @@ static void avrcp_position_send(const char *name, DBusMessageIter *iter)
 
 	dbus_message_iter_get_basic(iter, &valu32);
 
-	if(g_avrcp_position_cb)
-		g_avrcp_position_cb(addr, current_song_len, valu32);
+	if(g_avrcp_cb.avrcp_position_cb)
+		g_avrcp_cb.avrcp_position_cb(addr, current_song_len, valu32);
+}
+
+static void avrcp_volume_send(const char *name, DBusMessageIter *iter)
+{
+	dbus_uint16_t valu16;
+
+	if(strncmp(name, "Volume", 6))
+		return;
+
+	dbus_message_iter_get_basic(iter, &valu16);
+	pr_info("Volume: 0x%2x\n", valu16);
+
+	if(g_avrcp_cb.avrcp_volume_cb)
+		g_avrcp_cb.avrcp_volume_cb(valu16);
 }
 
 void player_property_changed(GDBusProxy *proxy, const char *name,
@@ -849,13 +870,15 @@ void transport_property_changed(GDBusProxy *proxy, const char *name,
 
 	str = proxy_description(proxy, "MediaTransport1", COLORED_CHG);
 
-	dbus_message_iter_get_basic(iter, &valstr);
 	if (!strncmp(name, "State", 5)) {
+		dbus_message_iter_get_basic(iter, &valstr);
 		if (strstr(valstr, "active"))
 			bt_sink_state_send(RK_BT_A2DP_SINK_STARTED);
 		else if (strstr(valstr, "idle"))
 			bt_sink_state_send(RK_BT_A2DP_SINK_SUSPENDED);
 	}
+
+	avrcp_volume_send(name, iter);
 
 	print_iter(str, name, iter);
 	g_free(str);
@@ -1318,24 +1341,30 @@ bool get_poschange_avrcp()
 
 void a2dp_sink_register_cb(RK_BT_SINK_CALLBACK cb)
 {
-	g_btsink_cb = cb;
+	g_avrcp_cb.avrcp_sink_cb = cb;
 }
 
 void a2dp_sink_register_track_cb(RK_BT_AVRCP_TRACK_CHANGE_CB cb)
 {
-	g_avrcp_track_cb = cb;
+	g_avrcp_cb.avrcp_track_cb = cb;
 }
 
 void a2dp_sink_register_position_cb(RK_BT_AVRCP_PLAY_POSITION_CB cb)
 {
-	g_avrcp_position_cb = cb;
+	g_avrcp_cb.avrcp_position_cb = cb;
+}
+
+void a2dp_sink_register_volume_cb(RK_BT_SINK_VOLUME_CALLBACK cb)
+{
+	g_avrcp_cb.avrcp_volume_cb = cb;
 }
 
 void a2dp_sink_clear_cb()
 {
-	g_btsink_cb = NULL;
-	g_avrcp_track_cb = NULL;
-	g_avrcp_position_cb = NULL;
+	g_avrcp_cb.avrcp_sink_cb = NULL;
+	g_avrcp_cb.avrcp_track_cb = NULL;
+	g_avrcp_cb.avrcp_position_cb = NULL;
+	g_avrcp_cb.avrcp_volume_cb = NULL;
 }
 
 int a2dp_sink_status(RK_BT_SINK_STATE *pState)
