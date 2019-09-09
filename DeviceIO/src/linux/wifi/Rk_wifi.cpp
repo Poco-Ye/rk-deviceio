@@ -16,6 +16,8 @@
 #include "DeviceIo/RK_log.h"
 #include "DeviceIo/Rk_wifi.h"
 
+static RK_WIFI_RUNNING_State_e gstate = RK_WIFI_State_OFF;
+
 static char retry_connect_cmd[128];
 
 typedef struct RK_WIFI_encode_gbk {
@@ -317,29 +319,24 @@ int RK_wifi_disable_ap()
 
 static int is_wifi_enable()
 {
-	char str[8];
-	int ret;
+	int ret = 0;
 
-	memset(str, 0, sizeof(str));
-	ret = exec("pidof dhcpcd", str);
-	if (0 != ret || 0 == strlen(str))
-		return 0;
+	if (gstate == RK_WIFI_State_OPEN) {
+		if (get_pid("wpa_supplicant") > 0)
+			ret = 1;
+		else
+			printf("BUG: wifi open but wpa_supplicant noexist!!!\n");
+	}
 
-	memset(str, 0, sizeof(str));
-	ret = exec("pidof wpa_supplicant", str);
-	if (0 != ret || 0 == strlen(str))
-		return 0;
-
-	return 1;
+out:
+	return ret;
 }
-
-static int dhcpcd();
 
 int RK_wifi_enable(const int enable)
 {
 	static pthread_t start_wifi_monitor_threadId = 0;
 
-	printf("[RKWIFI] start_wpa_supplicant wpa_pid: %d, monitor_id: %d\n",
+	printf("[RKWIFI] start_wpa_supplicant wpa_pid: %d, monitor_id: 0x%x\n",
 			get_pid("wpa_supplicant"), start_wifi_monitor_threadId);
 
 	if (enable) {
@@ -356,28 +353,33 @@ int RK_wifi_enable(const int enable)
 			system("dhcpcd wlan0 -t 0 &");
 
 			RK_WIFI_RUNNING_State_e state = RK_WIFI_State_OPEN;
+			gstate = state;
 			if (m_cb != NULL)
 				m_cb(state);
-		}
-		if (start_wifi_monitor_threadId <= 0) {
+
 			pthread_create(&start_wifi_monitor_threadId, nullptr, RK_wifi_start_monitor, nullptr);
 			pthread_detach(start_wifi_monitor_threadId);
-		}
-		printf("RK_wifi_enable enable ok!\n");
-	} else {
-		system("ifconfig wlan0 down");
-		system("killall wpa_supplicant");
-		system("killall dhcpcd");
-		usleep(500000);
-		if (start_wifi_monitor_threadId > 0)
-			pthread_cancel(start_wifi_monitor_threadId);
-		pthread_join(start_wifi_monitor_threadId, NULL);
-		start_wifi_monitor_threadId = 0;
-		printf("RK_wifi_enable disable ok!\n");
 
-		RK_WIFI_RUNNING_State_e state = RK_WIFI_State_OFF;
-		if (m_cb != NULL)
-			m_cb(state);
+			printf("RK_wifi_enable enable ok!\n");
+		}
+	} else {
+		if (is_wifi_enable()) {
+			system("ifconfig wlan0 down");
+			system("killall wpa_supplicant");
+			system("killall dhcpcd");
+			usleep(500000);
+			if (start_wifi_monitor_threadId > 0) {
+				pthread_cancel(start_wifi_monitor_threadId);
+				pthread_join(start_wifi_monitor_threadId, NULL);
+			}
+			start_wifi_monitor_threadId = 0;
+
+			RK_WIFI_RUNNING_State_e state = RK_WIFI_State_OFF;
+			gstate = state;
+			if (m_cb != NULL)
+				m_cb(state);
+			printf("RK_wifi_enable disable ok!\n");
+		}
 	}
 
 	return 0;
@@ -723,19 +725,6 @@ static int set_priority_network(const int id, int priority)
 	return 0;
 }
 
-static int dhcpcd() {
-	char str[8];
-	int ret;
-
-	memset(str, 0, sizeof(str));
-	ret = exec("pidof dhcpcd", str);
-
-	if (0 != ret || 0 == strlen(str))
-		system("/sbin/dhcpcd -f /etc/dhcpcd.conf");
-
-	return 0;
-}
-
 static int save_configuration()
 {
 	system("wpa_cli -iwlan0 enable_network all");
@@ -1016,14 +1005,23 @@ static int dispatch_event(char* event)
 	if (str_starts_with(event, (char *)WPA_EVENT_DISCONNECTED)) {
 		printf("%s: wifi is disconnect\n", __FUNCTION__);
 		system("ip addr flush dev wlan0");
+		RK_WIFI_RUNNING_State_e state = RK_WIFI_State_DISCONNECTED;
+		if (m_cb != NULL)
+			m_cb(state);
 	} else if (str_starts_with(event, (char *)WPA_EVENT_CONNECTED)) {
 		printf("%s: wifi is connected\n", __func__);
+		RK_WIFI_RUNNING_State_e state = RK_WIFI_State_CONNECTED;
+		if (m_cb != NULL)
+			m_cb(state);
 	} else if (str_starts_with(event, (char *)WPA_EVENT_SCAN_RESULTS)) {
 		printf("%s: wifi event results\n", __func__);
 		system("echo 1 > /tmp/scan_r");
 	} else if (strstr(event, "reason=WRONG_KEY")) {
 		wifi_wrong_key = true;
 		printf("%s: wifi reason=WRONG_KEY \n", __func__);
+		RK_WIFI_RUNNING_State_e state = RK_WIFI_State_CONNECTFAILED_WRONG_KEY;
+		if (m_cb != NULL)
+			m_cb(state);
 	} else if (str_starts_with(event, (char *)WPA_EVENT_TERMINATING)) {
 		printf("%s: wifi is WPA_EVENT_TERMINATING!\n", __func__);
 		wifi_close_sockets();

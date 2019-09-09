@@ -9,6 +9,8 @@ void rk_wifi_airkiss_start(void *data);
 void rk_wifi_airkiss_stop(void *data);
 void rk_wifi_softap_start(void *data);
 void rk_wifi_softap_stop(void *data);
+void rk_wifi_open(void *data);
+void rk_wifi_close(void *data);
 
 #ifdef __cplusplus
 }

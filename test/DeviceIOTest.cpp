@@ -68,6 +68,8 @@ static command_t wifi_config_command_table[] = {
 	{"airkiss_wifi_config_stop", rk_wifi_airkiss_stop},
 	{"softap_wifi_config_start", rk_wifi_softap_start},
 	{"softap_wifi_config_stop", rk_wifi_softap_stop},
+	{"wifi_open", rk_wifi_open},
+	{"wifi_close", rk_wifi_close},
 };
 
 static command_bt_t bt_command_table[] = {
