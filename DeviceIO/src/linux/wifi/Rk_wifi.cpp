@@ -342,9 +342,6 @@ int RK_wifi_enable(const int enable)
 	printf("[RKWIFI] start_wpa_supplicant wpa_pid: %d, monitor_id: %d\n",
 			get_pid("wpa_supplicant"), start_wifi_monitor_threadId);
 
-	if (get_pid("wpa_supplicant") && (start_wifi_monitor_threadId != 0))
-		return 1;
-
 	if (enable) {
 		if (!is_wifi_enable()) {
 			system("ifconfig wlan0 down");
@@ -366,11 +363,17 @@ int RK_wifi_enable(const int enable)
 			pthread_create(&start_wifi_monitor_threadId, nullptr, RK_wifi_start_monitor, nullptr);
 			pthread_detach(start_wifi_monitor_threadId);
 		}
+		printf("RK_wifi_enable enable ok!\n");
 	} else {
 		system("ifconfig wlan0 down");
 		system("killall wpa_supplicant");
+		system("killall dhcpcd");
+		usleep(500000);
 		if (start_wifi_monitor_threadId > 0)
 			pthread_cancel(start_wifi_monitor_threadId);
+		pthread_join(start_wifi_monitor_threadId, NULL);
+		start_wifi_monitor_threadId = 0;
+		printf("RK_wifi_enable disable ok!\n");
 
 		RK_WIFI_RUNNING_State_e state = RK_WIFI_State_OFF;
 		if (m_cb != NULL)
