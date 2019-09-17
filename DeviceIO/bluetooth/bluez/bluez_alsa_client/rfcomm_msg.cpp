@@ -12,8 +12,11 @@
 #include "rfcomm_msg.h"
 #include "slog.h"
 
-RK_BT_HFP_CALLBACK g_rfcomm_hfp_cb = NULL;
-static int g_hfp_sockfd;
+typedef struct {
+	int sockfd;
+	pthread_t tid;
+	RK_BT_HFP_CALLBACK cb;
+} rfcomm_handler_t;
 
 typedef struct {
 	const char *no_calls_active; //No calls (held or active)
@@ -29,10 +32,10 @@ typedef struct {
 	bool is_outgoing_call;
 	bool is_send_audio_open;
 	bool is_incoming_call;
-    int dev_platform;
+	int dev_platform;
 } rfcomm_control_t;
 
-rfcomm_control_t g_rfcomm_control = {
+static rfcomm_control_t g_rfcomm_control = {
 	false,
 	false,
 	false,
@@ -40,9 +43,13 @@ rfcomm_control_t g_rfcomm_control = {
 	DEV_PLATFORM_UNKNOWN,
 };
 
+static rfcomm_handler_t g_rfcomm_handler = {
+	-1, 0, NULL,
+};
+
 static void rfcomm_hfp_send_event(RK_BT_HFP_EVENT event, void *data) {
-	if(g_rfcomm_hfp_cb)
-		g_rfcomm_hfp_cb(event, data);
+	if(g_rfcomm_handler.cb)
+		g_rfcomm_handler.cb(event, data);
 }
 
 static void send_audio_open_evt(int time_ms)
@@ -137,7 +144,7 @@ static void process_bcs_msg(char *msg)
 	}
 }
 
-void *thread_get_ba_msg(void *arg)
+static void *thread_get_ba_msg(void *arg)
 {
 	int ret = 0;
 	char buff[100] = {0};
@@ -146,8 +153,8 @@ void *thread_get_ba_msg(void *arg)
 	socklen_t addr_len;
 	rfcomm_ciev_status_t rfcomm_ciev_status;
 
-	g_hfp_sockfd = socket(AF_UNIX, SOCK_DGRAM, 0);
-	if (g_hfp_sockfd < 0) {
+	g_rfcomm_handler.sockfd = socket(AF_UNIX, SOCK_DGRAM, 0);
+	if (g_rfcomm_handler.sockfd < 0) {
 		pr_info("Create socket failed!\n");
 		return NULL;
 	}
@@ -156,15 +163,15 @@ void *thread_get_ba_msg(void *arg)
 	strcpy(serverAddr.sun_path, "/tmp/rk_deviceio_rfcomm_status");
 
 	system("rm -rf /tmp/rk_deviceio_rfcomm_status");
-	ret = bind(g_hfp_sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
+	ret = bind(g_rfcomm_handler.sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
 	if (ret < 0) {
-		pr_info("Bind Local addr failed!\n");
+		pr_err("Bind Local addr failed!\n");
 		return NULL;
 	}
 
 	while(1) {
 		memset(buff, 0, sizeof(buff));
-		ret = recvfrom(g_hfp_sockfd, buff, sizeof(buff), 0, (struct sockaddr *)&clientAddr, &addr_len);
+		ret = recvfrom(g_rfcomm_handler.sockfd, buff, sizeof(buff), 0, (struct sockaddr *)&clientAddr, &addr_len);
 		if (ret <= 0) {
 			if (ret == 0)
 				pr_info("###### FUCN:%s. socket closed!\n", __func__);
@@ -192,11 +199,6 @@ void *thread_get_ba_msg(void *arg)
 		}
 	}
 
-	if (g_hfp_sockfd > 0) {
-		close(g_hfp_sockfd);
-		g_hfp_sockfd = 0;
-	}
-
 	pr_info("###### FUCN:%s exit!\n", __func__);
 	return NULL;
 }
@@ -206,28 +208,38 @@ int rfcomm_listen_ba_msg_start()
 	pthread_t tid;
 
 	/* Create a thread to listen for Bluezalsa hfp-hf status. */
-	pthread_create(&tid, NULL, thread_get_ba_msg, NULL);
+	if(!g_rfcomm_handler.tid) {
+		if(pthread_create(&g_rfcomm_handler.tid, NULL, thread_get_ba_msg, NULL)) {
+			pr_err("Create rfcomm listen pthread failed\n");
+			return -1;
+		}
 
-	pthread_setname_np(tid, "rfcomm_listen");
-	pr_info("%s rfcomm_listen tid: %lu\n", __func__, tid);
+		pthread_setname_np(g_rfcomm_handler.tid, "rfcomm_listen");
+	}
 
 	return 0;
 }
 
 int rfcomm_listen_ba_msg_stop()
 {
-	if (g_hfp_sockfd > 0) {
-		close(g_hfp_sockfd);
-		g_hfp_sockfd = 0;
+	pr_debug("%s enter\n", __func__);
+	if (g_rfcomm_handler.sockfd >= 0) {
+		shutdown(g_rfcomm_handler.sockfd, SHUT_RDWR);
+		g_rfcomm_handler.sockfd = -1;
 	}
-	/* wait for  thread_get_ba_msg exit */
-	usleep(200);
+
+	if(g_rfcomm_handler.tid) {
+		pthread_join(g_rfcomm_handler.tid, NULL);
+		g_rfcomm_handler.tid = 0;
+	}
+
+	pr_debug("%s exit\n", __func__);
 	return 0;
 }
 
 void rfcomm_hfp_hf_regist_cb(RK_BT_HFP_CALLBACK cb)
 {
-	g_rfcomm_hfp_cb = cb;
+	g_rfcomm_handler.cb = cb;
 }
 
 /***********************************************************
@@ -237,7 +249,7 @@ void rfcomm_hfp_hf_regist_cb(RK_BT_HFP_CALLBACK cb)
 static int g_audio_path_valid_flag = 0;
 static snd_pcm_t *local_play_pcm, *local_record_pcm;
 static snd_pcm_t *bt_play_pcm, *bt_record_pcm;
-pthread_t g_playback_tid, g_capture_tid;
+pthread_t g_playback_tid = 0, g_capture_tid = 0;
 
 typedef struct _setup_pcm_param {
 	unsigned char channel;

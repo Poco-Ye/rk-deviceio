@@ -13,8 +13,6 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-#include <sys/ioctl.h>
-#include <sys/socket.h>
 #include <net/if.h>
 #include <signal.h>
 #include <errno.h>
@@ -26,6 +24,7 @@
 #include <string.h>
 #include <assert.h>
 #include <sys/signalfd.h>
+#include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>
@@ -47,7 +46,6 @@ volatile bt_control_t bt_control = {
 	0,
 	0,
 	0,
-	BT_IS_BLE_SINK_COEXIST,
 	BtControlType::BT_NONE,
 	BtControlType::BT_NONE
 };
@@ -310,13 +308,13 @@ bool bt_sink_is_open(void)
 {
 	if (bt_control.is_a2dp_sink_open) {
 		if (get_ps_pid("bluetoothd") && get_ps_pid("bluealsa") && get_ps_pid("bluealsa-aplay")) {
-			return 1;
+			return true;
 		} else {
 			RK_LOGE("bt_sink has been opened but bluetoothd server exit.\n");
 		}
 	}
 
-	return 0;
+	return false;
 }
 
 bool bt_hfp_is_open(void)
@@ -325,15 +323,14 @@ bool bt_hfp_is_open(void)
 		RK_LOGD("bt hfp has been opened.\n");
 		if (get_ps_pid("bluetoothd") && get_ps_pid("bluealsa")) {
 			RK_LOGD("Bluetooth has been opened.\n");
-			return 1;
+			return true;
 		} else {
 			RK_LOGE("bt hfp has been opened but bluetoothd server exit.\n");
 		}
 	}
 
-	return 0;
+	return false;
 }
-
 
 bool bt_source_is_open(void)
 {
@@ -341,19 +338,17 @@ bool bt_source_is_open(void)
 		RK_LOGD("bt_source has been opened.\n");
 		if (get_ps_pid("bluetoothd") && get_ps_pid("bluealsa")) {
 			RK_LOGD("Bluetooth has been opened.\n");
-			return 1;
+			return true;
 		} else {
 			RK_LOGE("bt_source has been opened but bluetoothd server exit.\n");
 		}
 	}
 
-	return 0;
+	return false;
 }
 
 bool ble_is_open()
 {
-	bool ret = 0;
-
 	if (bt_control.is_ble_open) {
 		if (get_ps_pid("bluetoothd")) {
 			RK_LOGD("ble has been opened.\n");
@@ -362,8 +357,9 @@ bool ble_is_open()
 			RK_LOGE("ble has been opened but bluetoothd server exit.\n");
 		}
 	}
+
 	RK_LOGE("ble not open.\n");
-	return ret;
+	return false;
 }
 
 int bt_control_cmd_send(enum BtControl bt_ctrl_cmd)
@@ -373,9 +369,9 @@ int bt_control_cmd_send(enum BtControl bt_ctrl_cmd)
 	sprintf(cmd, "%d", bt_ctrl_cmd);
 
 	//if (bt_control.type != BtControlType::BT_SINK) {
-	if (!bt_control.is_a2dp_sink_open) {
+	if (!bt_sink_is_open()) {
 		RK_LOGD("Not bluetooth play mode, don`t send bluetooth control commands\n");
-		return 0;
+		return -1;
 	}
 
 	RK_LOGD("bt_control_cmd_send, cmd: %s, len: %d\n", cmd, strlen(cmd));
@@ -405,11 +401,6 @@ int bt_control_cmd_send(enum BtControl bt_ctrl_cmd)
 
 static int ble_close_server(void)
 {
-	int ret = 0;
-
-	if (!ble_is_open())
-		return 1;
-
 	RK_LOGD("ble server close\n");
 
 	ble_disable_adv();
@@ -420,17 +411,17 @@ static int ble_close_server(void)
 	else
 		bt_control.type = BtControlType::BT_NONE;
 
-	bt_control.is_ble_open = 0;
+	bt_control.is_ble_open = false;
 
-	return ret;
+	return 0;
 }
 
 int bt_close_sink(void)
 {
 	int ret = 0;
 
-	if (!bt_control.is_a2dp_sink_open)
-		return 1;
+	if (!bt_sink_is_open())
+		return -1;
 
 	RK_LOGD("bt_close_sink\n");
 
@@ -449,7 +440,7 @@ int bt_close_sink(void)
 		bt_control.type = BtControlType::BT_NONE;
 	}
 
-	bt_control.is_a2dp_sink_open = 0;
+	bt_control.is_a2dp_sink_open = false;
 
 	return ret;
 }
@@ -469,7 +460,7 @@ int bt_close_source(void)
 	release_a2dp_master_ctrl();
 
 	bt_control.type = BtControlType::BT_NONE;
-	bt_control.is_a2dp_source_open = 0;
+	bt_control.is_a2dp_source_open = false;
 
 	return ret;
 }
@@ -482,7 +473,7 @@ static int bt_a2dp_sink_open(void)
 
 	ret = bt_start_a2dp_sink(1);
 	if (ret == 0) {
-		RK_LOGD("call init_avrcp_ctrl ...\n");
+		RK_LOGD("call bt_a2dp_sink_open ...\n");
 		ret = a2dp_sink_open();
 	}
 
@@ -527,7 +518,7 @@ static int bt_a2dp_src_server_open(void)
 	msleep(500);
 
 	init_a2dp_master_ctrl();
-	bt_control.is_a2dp_source_open = 1;
+	bt_control.is_a2dp_source_open = true;
 
 	return 0;
 }
@@ -622,7 +613,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 			}
 		}
 
-		bt_control.is_bt_open = 1;
+		bt_control.is_bt_open = true;
 		bt_control.type = BtControlType::BT_NONE;
 		bt_control.last_type = BtControlType::BT_NONE;
 
@@ -641,24 +632,20 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		}
 
 		if (bt_interface(BtControl::BT_SINK_OPEN, NULL) < 0) {
-			bt_control.is_a2dp_sink_open = 0;
+			bt_control.is_a2dp_sink_open = false;
 			bt_control.type = BtControlType::BT_NONE;
 		}
 
-		bt_control.is_a2dp_sink_open = 1;
+		bt_control.is_a2dp_sink_open = true;
 		bt_control.type = BtControlType::BT_SINK;
 		bt_control.last_type = BtControlType::BT_SINK;
 		break;
 
 	case BtControl::BT_BLE_OPEN:
-		if (!bt_control.is_bt_open)
-			return -1;
-
-
 		bt_control.type = BtControlType::BT_BLE_MODE;
 
 		if (bt_interface(BtControl::BT_BLE_OPEN, data) < 0) {
-			bt_control.is_ble_open = 0;
+			bt_control.is_ble_open = false;
 			bt_control.type = BtControlType::BT_NONE;
 			return -1;
 		}
@@ -687,7 +674,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		sleep(1);
 
 		if (bt_interface(BtControl::BT_SOURCE_OPEN, NULL) < 0) {
-			bt_control.is_a2dp_source_open = 0;
+			bt_control.is_a2dp_source_open = false;
 			bt_control.type = BtControlType::BT_NONE;
 			return -1;
 		}
@@ -751,7 +738,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 
 	case BtControl::BT_VOLUME_UP:
 		if (bt_control_cmd_send(BtControl::BT_VOLUME_UP) < 0) {
-			RK_LOGE("Bt socket send volume up cmd failed\n");
+			RK_LOGE("Bt send volume up cmd failed\n");
 			ret = -1;
 		}
 
@@ -759,7 +746,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 
 	case BtControl::BT_VOLUME_DOWN:
 		if (bt_control_cmd_send(BtControl::BT_VOLUME_UP) < 0) {
-			RK_LOGE("Bt socket send volume down cmd failed\n");
+			RK_LOGE("Bt send volume down cmd failed\n");
 			ret = -1;
 		}
 
@@ -768,14 +755,14 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 	case BtControl::BT_PLAY:
 	case BtControl::BT_RESUME_PLAY:
 		if (bt_control_cmd_send(BtControl::BT_RESUME_PLAY) < 0) {
-			RK_LOGE("Bt socket send play cmd failed\n");
+			RK_LOGE("Bt send play cmd failed\n");
 			ret = -1;
 		}
 
 		break;
 	case BtControl::BT_PAUSE_PLAY:
 		if (bt_control_cmd_send(BtControl::BT_PAUSE_PLAY) < 0) {
-			RK_LOGE("Bt socket send pause cmd failed\n");
+			RK_LOGE("Bt send pause cmd failed\n");
 			ret = -1;
 		}
 
@@ -783,7 +770,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 
 	case BtControl::BT_AVRCP_FWD:
 		if (bt_control_cmd_send(BtControl::BT_AVRCP_FWD) < 0) {
-			RK_LOGE("Bt socket send previous track cmd failed\n");
+			RK_LOGE("Bt send previous track cmd failed\n");
 			ret = -1;
 		}
 

@@ -46,7 +46,7 @@ using DeviceIOFramework::BT_Device_Class;
 
 #define DISTANCE_VAL_INVALID    0x7FFF
 
-DBusConnection *dbus_conn;
+DBusConnection *dbus_conn = NULL;
 static GDBusProxy *agent_manager;
 static char *auto_register_agent = NULL;
 static RkBtContent *g_bt_content = NULL;
@@ -76,7 +76,7 @@ GList *ctrl_list;
 volatile GDBusProxy *ble_dev = NULL;
 
 GDBusClient *btsrc_client;
-static GMainLoop *btsrc_main_loop;
+static GMainLoop *btsrc_main_loop = NULL;
 /* For scan cmd */
 #define BTSRC_SCAN_PROFILE_INVALID 0
 #define BTSRC_SCAN_PROFILE_SOURCE  1
@@ -1446,8 +1446,6 @@ static void cmd_paired_devices()
 
 static void generic_callback(const DBusError *error, void *user_data)
 {
-	char *str = (char *)user_data;
-
 	if (dbus_error_is_set(error)) {
 		pr_info("Set failed: %s\n", error->name);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
@@ -1969,7 +1967,7 @@ static struct GDBusProxy *find_device_by_address(char *address)
 {
 	GDBusProxy *proxy;
 
-	if (!strlen(address)) {
+	if (!address || strlen(address) < 17) {
 		if (default_dev)
 			return default_dev;
 		pr_info("Missing device address argument\n");
@@ -3003,7 +3001,7 @@ void *init_a2dp_master(void *)
 	return 0;
 }
 
-void bluetooth_open(RkBtContent *bt_content)
+static void *bluetooth_open(RkBtContent *bt_content)
 {
 	a2dp_source_clean();
 	A2DP_SRC_FLAG = 1;
@@ -3048,15 +3046,19 @@ void bluetooth_open(RkBtContent *bt_content)
 	//clean up
 	g_dbus_client_unref(btsrc_client);
 	dbus_connection_unref(dbus_conn);
-	g_main_loop_unref(btsrc_main_loop);
+	dbus_conn = NULL;
 
+	g_main_loop_unref(btsrc_main_loop);
+	btsrc_main_loop = NULL;
 
 	g_list_free_full(ctrl_list, proxy_leak);
 	g_free(auto_register_agent);
+	auto_register_agent = NULL;
 	//a2dp_source_clean();
 
 	pr_info("#### %s server exit!\n", __func__);
 	pthread_exit(0);
+	return NULL;
 }
 
 static pthread_t bt_thread = 0;
@@ -3067,8 +3069,10 @@ int bt_open(RkBtContent *bt_content)
 	if (bt_thread)
 		return 0;
 
-	if (pthread_create(&bt_thread, NULL, bluetooth_open, bt_content))
+	if (pthread_create(&bt_thread, NULL, bluetooth_open, bt_content)) {
+		pr_err("Create bluetooth open pthread failed\n");
 		return -1;
+	}
 
 	pthread_setname_np(bt_thread, "bluetooth_open");
 	pr_info("%s: thread_name: bluetooth_open, tid: %lu\n", __func__, bt_thread);
@@ -3086,17 +3090,21 @@ int bt_close(void)
 {
 	int ret = 0;
 
-	g_main_loop_quit(btsrc_main_loop);
-	pr_info("%s g_main_loop_quit\n", __func__);
-	/*
-	ret = pthread_join(bt_thread, NULL);
-	if (ret) {
-		pr_info("ERROR: %s waite for bt server thread exit failed!\n", __func__);
-		return -1;
-	} else
-		pr_info("%s exit ok\n", __func__);
-	*/
-	bt_thread = 0;
+	if(btsrc_main_loop) {
+		pr_info("%s g_main_loop_quit\n", __func__);
+		g_main_loop_quit(btsrc_main_loop);
+	}
+
+	if(bt_thread) {
+		ret = pthread_join(bt_thread, NULL);
+		if (ret) {
+			pr_err("%s: bt server thread exit failed!\n", __func__);
+			return -1;
+		} else {
+			pr_info("%s: bt server thread exit ok\n", __func__);
+		}
+		bt_thread = 0;
+	}
 
 	return 0;
 }
@@ -3222,12 +3230,12 @@ int a2dp_master_connect(char *t_address)
 	char address[18] = {'\0'};
 
 	if (!t_address || (strlen(t_address) < 17)) {
-		pr_info("ERROR: %s(len:%d) address error!\n", address, strlen(t_address));
+		pr_err("%s: Invalid address\n", __func__);
 		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
 		return -1;
 	}
-	memcpy(address, t_address, 17);
 
+	memcpy(address, t_address, 17);
 	if (check_default_ctrl() == FALSE) {
 		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
 		return -1;
@@ -3367,6 +3375,11 @@ int a2dp_master_remove(char *t_address)
 	GDBusProxy *proxy;
 	char address[18] = {'\0'};
 
+	if(t_address == NULL) {
+		pr_err("%s: Invalid address\n", __func__);
+		return -1;
+	}
+
 	if (check_default_ctrl() == FALSE)
 		return -1;
 
@@ -3378,8 +3391,8 @@ int a2dp_master_remove(char *t_address)
 			remove_device(proxy);
 		}
 		return 0;
-	} else if (!t_address || (strlen(t_address) < 17)) {
-		pr_info("ERROR: %s address error!\n", t_address);
+	} else if ((strlen(t_address) < 17)) {
+		pr_err("%s: %s address error!\n", __func__, t_address);
 		return -1;
 	}
 
@@ -3449,7 +3462,7 @@ void a2dp_master_deregister_cb()
  *      bt source avrcp
  **********************************************/
 static int g_bt_source_avrcp_thread_runing;
-static pthread_t g_bt_source_avrcp_thread;
+static pthread_t g_bt_source_avrcp_thread = 0;
 
 static int is_bluealsa_event(char *node)
 {
@@ -3604,23 +3617,29 @@ static void *bt_source_listen_avrcp_event(void *arg)
 
 int a2dp_master_avrcp_open()
 {
-	int ret = -1;
+	if(g_bt_source_avrcp_thread)
+		return 0;
 
 	g_bt_source_avrcp_thread_runing = 1;
-	if (!g_bt_source_avrcp_thread)
-		pthread_create(&g_bt_source_avrcp_thread, NULL, bt_source_listen_avrcp_event, NULL);
+	if(pthread_create(&g_bt_source_avrcp_thread, NULL, bt_source_listen_avrcp_event, NULL)){
+		pr_err("Create source avrcp event listen pthread failed\n");
+		return -1;
+	}
 
-	return ret;
+	pthread_setname_np(g_bt_source_avrcp_thread, "source_listen_avrcp_event");
+
+	return 0;
 }
 
 int a2dp_master_avrcp_close()
 {
 	pr_info("### %s start...\n", __func__);
 	g_bt_source_avrcp_thread_runing = 0;
-	if (g_bt_source_avrcp_thread)
+	if (g_bt_source_avrcp_thread) {
 		pthread_join(g_bt_source_avrcp_thread, NULL);
+		g_bt_source_avrcp_thread = 0;
+	}
 
-	g_bt_source_avrcp_thread = 0;
 	pr_info("### %s end...\n", __func__);
 	return 0;
 }
@@ -3687,6 +3706,7 @@ static int load_last_device(char *address)
 	ret = read(fd, buff, sizeof(buff));
 	if (ret < 0) {
 		pr_info("read %s error: %s\n", BT_RECONNECT_CFG, strerror(errno));
+		close(fd);
 		return -1;
 	}
 
@@ -3694,12 +3714,14 @@ static int load_last_device(char *address)
 	end = strstr(buff, ";");
 	if (!start || !end || (end < start)) {
 		pr_info("file %s content invalid(address): %s\n", BT_RECONNECT_CFG, buff);
+		close(fd);
 		return -1;
 	}
 	start += strlen("ADDRESS:");
 	if (address)
 		memcpy(address, start, end - start);
 
+	close(fd);
 	return 0;
 }
 
@@ -3808,7 +3830,7 @@ int disconnect_current_devices()
 
 int get_dev_platform(char *address)
 {
-	int vendor, platform = DEV_PLATFORM_UNKNOWN;
+	int vendor = -1, platform = DEV_PLATFORM_UNKNOWN;
 	char *str;
 	const char *valstr;
 	GDBusProxy *proxy;
@@ -3885,7 +3907,7 @@ int connect_by_address(char *addr)
 	GDBusProxy *proxy;
 
 	if (!addr || (strlen(addr) < 17)) {
-		pr_info("%s: address(%s) error!\n", __func__, addr);
+		pr_err("%s: Invalid address\n", __func__);
 		return -1;
 	}
 
@@ -3909,7 +3931,7 @@ int disconnect_by_address(char *addr)
 	GDBusProxy *proxy;
 
 	if (!addr || (strlen(addr) < 17)) {
-		pr_info("%s: address(%s) error!\n", __func__, addr);
+		pr_err("%s: Invalid address\n", __func__);
 		return -1;
 	}
 
@@ -4055,7 +4077,7 @@ int pair_by_addr(char *addr)
 	char dev_name[256];
 
 	if (!addr || (strlen(addr) < 17)) {
-		pr_info("%s: address(%s) error!\n", __func__, addr);
+		pr_err("%s: Invalid address\n", __func__);
 		return -1;
 	}
 
@@ -4077,7 +4099,7 @@ int unpair_by_addr(char *addr)
 	char *path;
 
 	if (!addr || (strlen(addr) < 17)) {
-		pr_info("%s: address(%s) error!\n", __func__, addr);
+		pr_err("%s: Invalid address\n", __func__);
 		return -1;
 	}
 
@@ -4123,8 +4145,6 @@ static int bt_get_device_name_by_proxy(GDBusProxy *proxy,
 	DBusMessageIter iter;
 	const char *name;
 
-	memset(name_buf, 0, name_len);
-
 	if (!proxy) {
 		pr_info("%s: Invalid proxy\n", __func__);
 		return -1;
@@ -4135,6 +4155,7 @@ static int bt_get_device_name_by_proxy(GDBusProxy *proxy,
 		return -1;
 	}
 
+	memset(name_buf, 0, name_len);
 	if (g_dbus_proxy_get_property(proxy, "Alias", &iter) == FALSE) {
 		pr_info("WARING: Bluetooth connected, but can't get device name!\n");
 		return -1;
@@ -4165,8 +4186,6 @@ static int bt_get_device_addr_by_proxy(GDBusProxy *proxy,
 	DBusMessageIter iter;
 	const char *address;
 
-	memset(addr_buf, 0, addr_len);
-
 	if (!proxy) {
 		pr_info("%s: Invalid proxy\n", __func__);
 		return -1;
@@ -4177,6 +4196,7 @@ static int bt_get_device_addr_by_proxy(GDBusProxy *proxy,
 		return -1;
 	}
 
+	memset(addr_buf, 0, addr_len);
 	if (g_dbus_proxy_get_property(proxy, "Address", &iter) == FALSE) {
 		pr_info("WARING: Bluetooth connected, but can't get address!\n");
 		return -1;

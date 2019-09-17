@@ -708,13 +708,13 @@ void item_removed(GDBusProxy *proxy)
 
 static void save_track_info(BtTrackInfo *track, const char *valstr, unsigned int valu32)
 {
-	if(!strcmp(track_key, "Title"))
+	if(!strcmp(track_key, "Title") && valstr != NULL)
 		memcpy(track->title, valstr, strlen(valstr));
-	else if(!strcmp(track_key, "Album"))
+	else if(!strcmp(track_key, "Album") && valstr != NULL)
 		memcpy(track->album, valstr, strlen(valstr));
-	else if(!strcmp(track_key, "Artist"))
+	else if(!strcmp(track_key, "Artist") && valstr != NULL)
 		memcpy(track->artist, valstr, strlen(valstr));
-	else if(!strcmp(track_key, "Genre"))
+	else if(!strcmp(track_key, "Genre") && valstr != NULL)
 		memcpy(track->genre, valstr, strlen(valstr));
 	else if(!strcmp(track_key, "TrackNumber"))
 		sprintf(track->track_num, "%d", valu32);

@@ -28,12 +28,11 @@ enum class BtControlType {
 
 typedef struct {
 	pthread_t tid;
-	int is_bt_open;
-	int is_ble_open;
-	int is_a2dp_sink_open;
-	int is_a2dp_source_open;
-	int is_hfp_open;
-	bool is_ble_sink_coexist;
+	bool is_bt_open;
+	bool is_ble_open;
+	bool is_a2dp_sink_open;
+	bool is_a2dp_source_open;
+	bool is_hfp_open;
 	BtControlType type;
 	BtControlType last_type;
 } bt_control_t;
