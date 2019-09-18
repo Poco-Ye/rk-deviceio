@@ -304,6 +304,19 @@ static int get_ps_pid(const char Name[])
 	return pid;
 }
 
+bool bt_is_open()
+{
+	if (bt_control.is_bt_open) {
+		if (get_ps_pid("bluetoothd")) {
+			return true;
+		} else {
+			RK_LOGE("bt has been opened but bluetoothd server exit.\n");
+		}
+	}
+
+	return false;
+}
+
 bool bt_sink_is_open(void)
 {
 	if (bt_control.is_a2dp_sink_open) {
@@ -619,7 +632,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 
 		break;
 	case BtControl::BT_SINK_OPEN:
-		if (!bt_control.is_bt_open)
+		if (!bt_is_open())
 			return -1;
 
 		bt_control.type = BtControlType::BT_SINK;
@@ -656,7 +669,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		break;
 
 	case BtControl::BT_SOURCE_OPEN:
-		if (!bt_control.is_bt_open)
+		if (!bt_is_open())
 			return -1;
 
 		RK_LOGD("=== BtControl::BT_SOURCE_OPEN ===\n");

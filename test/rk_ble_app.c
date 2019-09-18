@@ -104,7 +104,7 @@ int RK_blewifi_register_callback(RK_blewifi_state_callback cb)
 
 static int rk_blewifi_state_callback(RK_WIFI_RUNNING_State_e state)
 {
-	uint8_t ret;
+	uint8_t ret = 0x2;
 
 	printf("[RK] %s state: %d\n", __func__, state);
 	if (state == RK_WIFI_State_CONNECTED) {
@@ -120,10 +120,11 @@ static int rk_blewifi_state_callback(RK_WIFI_RUNNING_State_e state)
 	} else if (state == RK_WIFI_State_CONNECTFAILED_WRONG_KEY) {
 		if (blewifi_status_callback)
 			blewifi_status_callback(RK_BLE_WIFI_State_WRONGKEY_FAIL);
+		ret = 0x2;
 	}
 
 	rk_ble_write(BLE_UUID_WIFI_CHAR, &ret, 0x1);
-    return 0;
+	return 0;
 }
 
 static void *rk_config_wifi_thread(void)
@@ -137,6 +138,8 @@ static void *rk_config_wifi_thread(void)
 	prctl(PR_SET_NAME,"rk_config_wifi_thread");
 
 	RK_wifi_ble_register_callback(rk_blewifi_state_callback);
+	RK_wifi_enable(0);
+	RK_wifi_enable(1);
 	RK_wifi_connect(wifi_cfg.ssid, wifi_cfg.psk);
 	return NULL;
 }

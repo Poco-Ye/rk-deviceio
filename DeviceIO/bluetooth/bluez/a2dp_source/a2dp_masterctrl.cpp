@@ -28,7 +28,7 @@
 #include "advertising.h"
 #include "../bluez_ctrl.h"
 #include "../gatt_config.h"
-//#include "../include/uinput.h"
+#include "../bluez_ctrl.h"
 #include "utility.h"
 #include "slog.h"
 
@@ -867,6 +867,12 @@ static void adapter_added(GDBusProxy *proxy)
 
 	adapter->proxy = proxy;
 	print_adapter(proxy, COLORED_NEW);
+
+check_open:
+	if(!bt_is_open()) {
+		usleep(20 * 1000);
+		goto check_open;
+	}
 
 	if (g_bt_content && g_bt_content->bt_name) {
 		pr_info("%s: bt_name: %s\n", __func__, g_bt_content->bt_name);

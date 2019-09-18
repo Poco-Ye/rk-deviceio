@@ -37,6 +37,7 @@ typedef struct {
 	BtControlType last_type;
 } bt_control_t;
 
+bool bt_is_open();
 bool ble_is_open();
 bool bt_source_is_open(void);
 bool bt_sink_is_open(void);

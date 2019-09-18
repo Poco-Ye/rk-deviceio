@@ -54,9 +54,8 @@ static underrun_handler_t g_underrun_handler = {
  *****************************************************************/
 int rk_ble_start(RkBleContent *ble_content)
 {
-	/* Init bluetooth */
-	if (!bt_control.is_bt_open) {
-		pr_info("Please open bt!!!\n");
+	if (!bt_is_open()) {
+		pr_info("%: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -266,9 +265,8 @@ int rk_bt_source_auto_connect_start(void *userdata, RK_BT_SOURCE_CALLBACK cb)
 {
 	int ret;
 
-	/* Init bluetooth */
-	if (!bt_control.is_bt_open) {
-		pr_info("Please open bt!!!\n");
+	if (!bt_is_open()) {
+		pr_info("%: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -307,9 +305,8 @@ int rk_bt_source_auto_connect_stop(void)
 
 int rk_bt_source_open(void)
 {
-	/* Init bluetooth */
-	if (!bt_control.is_bt_open) {
-		pr_info("Please open bt!!!\n");
+	if (!bt_is_open()) {
+		pr_info("%: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -550,9 +547,8 @@ int rk_bt_sink_get_default_dev_addr(char *addr, int len)
 
 int rk_bt_sink_open()
 {
-	/* Init bluetooth */
-	if (!bt_control.is_bt_open) {
-		pr_info("Please open bt!!!\n");
+	if (!bt_is_open()) {
+		pr_info("%: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -855,11 +851,11 @@ int rk_bt_spp_open()
 {
 	int ret = 0;
 
-	/* Init bluetooth */
-	if (!bt_control.is_bt_open) {
-		pr_info("Please open bt!!!\n");
+	if (!bt_is_open()) {
+		pr_info("%: Please open bt!!!\n", __func__);
 		return -1;
 	}
+
 
 	ret = bt_spp_server_open();
 	return ret;
@@ -899,7 +895,7 @@ int rk_bt_spp_write(char *data, int len)
 //====================================================//
 int rk_bt_init(RkBtContent *p_bt_content)
 {
-	if (bt_control.is_bt_open) {
+	if (bt_is_open()) {
 		pr_info("bluetooth has been opened!\n");
 		return -1;
 	}
@@ -916,7 +912,7 @@ int rk_bt_init(RkBtContent *p_bt_content)
 
 int rk_bt_deinit(void)
 {
-	if (!bt_control.is_bt_open) {
+	if (!bt_is_open()) {
 		pr_info("bluetooth has been closed!\n");
 		return -1;
 	}
@@ -1012,8 +1008,8 @@ int rk_bt_enable_reconnect(int value)
 
 int rk_bt_start_discovery(unsigned int mseconds)
 {
-	if (!bt_control.is_bt_open) {
-		pr_info("Please open bt!!!\n");
+	if (!bt_is_open()) {
+		pr_info("%: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -1022,8 +1018,8 @@ int rk_bt_start_discovery(unsigned int mseconds)
 
 int rk_bt_cancel_discovery()
 {
-	if (!bt_control.is_bt_open) {
-		pr_info("Please open bt!!!\n");
+	if (!bt_is_open()) {
+		pr_info("%: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -1032,8 +1028,8 @@ int rk_bt_cancel_discovery()
 
 bool rk_bt_is_discovering()
 {
-	if (!bt_control.is_bt_open) {
-		pr_info("Please open bt!!!\n");
+	if (!bt_is_open()) {
+		pr_info("%: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -1042,9 +1038,9 @@ bool rk_bt_is_discovering()
 
 void rk_bt_display_devices()
 {
-	if (!bt_control.is_bt_open) {
-		pr_info("Please open bt!!!\n");
-		return;
+	if (!bt_is_open()) {
+		pr_info("%: Please open bt!!!\n", __func__);
+		return -1;
 	}
 
 	bt_display_devices();
@@ -1052,9 +1048,9 @@ void rk_bt_display_devices()
 
 void rk_bt_display_paired_devices()
 {
-	if (!bt_control.is_bt_open) {
-		pr_info("Please open bt!!!\n");
-		return;
+	if (!bt_is_open()) {
+		pr_info("%: Please open bt!!!\n", __func__);
+		return -1;
 	}
 
 	bt_display_paired_devices();
@@ -1062,8 +1058,8 @@ void rk_bt_display_paired_devices()
 
 int rk_bt_pair_by_addr(char *addr)
 {
-	if (!bt_control.is_bt_open) {
-		pr_info("Please open bt!!!\n");
+	if (!bt_is_open()) {
+		pr_info("%: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -1072,8 +1068,8 @@ int rk_bt_pair_by_addr(char *addr)
 
 int rk_bt_unpair_by_addr(char *addr)
 {
-	if (!bt_control.is_bt_open) {
-		pr_info("Please open bt!!!\n");
+	if (!bt_is_open()) {
+		pr_info("%: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -1082,8 +1078,8 @@ int rk_bt_unpair_by_addr(char *addr)
 
 int rk_bt_set_device_name(char *name)
 {
-	if (!bt_control.is_bt_open) {
-		pr_info("Please open bt!!!\n");
+	if (!bt_is_open()) {
+		pr_info("%: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -1092,8 +1088,8 @@ int rk_bt_set_device_name(char *name)
 
 int rk_bt_get_device_name(char *name, int len)
 {
-	if (!bt_control.is_bt_open) {
-		pr_info("Please open bt!!!\n");
+	if (!bt_is_open()) {
+		pr_info("%: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -1102,8 +1098,8 @@ int rk_bt_get_device_name(char *name, int len)
 
 int rk_bt_get_device_addr(char *addr, int len)
 {
-	if (!bt_control.is_bt_open) {
-		pr_info("Please open bt!!!\n");
+	if (!bt_is_open()) {
+		pr_info("%: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -1112,8 +1108,8 @@ int rk_bt_get_device_addr(char *addr, int len)
 
 int rk_bt_get_paired_devices(RkBtPraiedDevice **dev_list, int *count)
 {
-	if (!bt_control.is_bt_open) {
-		pr_info("Please open bt!!!\n");
+	if (!bt_is_open()) {
+		pr_info("%: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -1122,8 +1118,8 @@ int rk_bt_get_paired_devices(RkBtPraiedDevice **dev_list, int *count)
 
 int rk_bt_free_paired_devices(RkBtPraiedDevice *dev_list)
 {
-	if (!bt_control.is_bt_open) {
-		pr_info("Please open bt!!!\n");
+	if (!bt_is_open()) {
+		pr_info("%: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -1142,9 +1138,8 @@ void rk_bt_hfp_register_callback(RK_BT_HFP_CALLBACK cb)
 
 int rk_bt_hfp_open()
 {
-	/* Init bluetooth */
-	if (!bt_control.is_bt_open) {
-		pr_info("Please open bt!!!\n");
+	if (!bt_is_open()) {
+		pr_info("%: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -1183,9 +1178,8 @@ int rk_bt_hfp_open()
 
 int rk_bt_hfp_sink_open(void)
 {
-	/* Init bluetooth */
-	if (!bt_control.is_bt_open) {
-		pr_info("Please open bt!!!\n");
+	if (!bt_is_open()) {
+		pr_info("%: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -1397,8 +1391,8 @@ int rk_bt_obex_init()
 	char result_buf[256] = {0};
 	int ret = 0;
 
-	if (!bt_control.is_bt_open) {
-		pr_info("Please open bt!!!\n");
+	if (!bt_is_open()) {
+		pr_info("%: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
