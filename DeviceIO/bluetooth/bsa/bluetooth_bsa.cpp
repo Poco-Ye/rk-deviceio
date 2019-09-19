@@ -284,7 +284,7 @@ int rk_bt_init(RkBtContent *p_bt_content)
     APP_DEBUG1("p_bt_content->bt_name: %s", p_bt_content->bt_name);
 
     /* Init App manager */
-    if(app_manager_init(p_bt_content->bt_name, bt_mgr_notify_callback) < 0) {
+    if(app_manager_init(p_bt_content->bt_name, p_bt_content->bt_addr, bt_mgr_notify_callback) < 0) {
         APP_DEBUG0("app_manager init failed.");
         return -1;
     }

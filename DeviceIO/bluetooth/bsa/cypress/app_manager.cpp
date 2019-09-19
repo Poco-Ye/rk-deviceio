@@ -1511,7 +1511,7 @@ int app_get_cod(DEV_CLASS cod)
  ** Returns          Status of the operation
  **
  *******************************************************************************/
-int app_mgr_config(const char *bt_name, app_mgr_callback cb)
+int app_mgr_config(const char *bt_name, const char *bt_addr, app_mgr_callback cb)
 {
     int                 status;
     int                 index;
@@ -1535,8 +1535,13 @@ int app_mgr_config(const char *bt_name, app_mgr_callback cb)
         app_xml_config.discoverable = TRUE;
         app_xml_config.connectable = TRUE;
         memset((char *)app_xml_config.name, 0, BD_NAME_LEN + 1);
-
         app_mgr_get_bt_config(NULL, 0, (char *)app_xml_config.bd_addr, BD_ADDR_LEN);
+
+        if(bt_addr) {
+            BD_ADDR address;
+            if(!app_mgr_str2bd(bt_addr, address))
+                bdcpy(app_xml_config.bd_addr, address);
+        }
 
         if(bt_name)
             sprintf((char *)app_xml_config.name, "%s", bt_name);
@@ -1998,7 +2003,7 @@ BOOLEAN app_mgt_callback(tBSA_MGT_EVT event, tBSA_MGT_MSG *p_data)
             if (p_data->status.enable) {
                 APP_DEBUG0("Bluetooth restarted => re-initialize the application");
                 /* bt_name has been written to the xml configuration file */
-                app_mgr_config(NULL, app_mgr_cb_control.bt_notify_cb);
+                app_mgr_config(NULL, NULL, app_mgr_cb_control.bt_notify_cb);
             }
             break;
 
@@ -2034,7 +2039,7 @@ int app_mgr_get_latest_device()
     return -1;
 }
 
-int app_manager_init(const char *bt_name, app_mgr_callback cb)
+int app_manager_init(const char *bt_name, const char *bt_addr, app_mgr_callback cb)
 {
     int mode;
 
@@ -2045,7 +2050,7 @@ int app_manager_init(const char *bt_name, app_mgr_callback cb)
         return -1;
     }
 
-    if (app_mgr_config(bt_name, cb)) {
+    if (app_mgr_config(bt_name, bt_addr, cb)) {
         APP_ERROR0("Couldn't configure successfully, exiting");
         return -1;
     }

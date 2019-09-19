@@ -67,6 +67,7 @@ typedef struct {
 typedef struct {
 	RkBleContent ble_content;
 	const char *bt_name;
+	const char *bt_addr;
 } RkBtContent;
 
 typedef struct paired_dev RkBtPraiedDevice;

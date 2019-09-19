@@ -144,7 +144,9 @@ static void bt_test_dev_found_cb(const char *address,const char *name, unsigned 
 void bt_test_bluetooth_init(char *data)
 {
 	printf("--------------- BT BLUETOOTH INIT ----------------\n");
+	memset(&bt_content, 0, sizeof(RkBtContent));
 	bt_content.bt_name = "ROCKCHIP_AUDIO";
+	//bt_content.bt_addr = "11:22:33:44:55:66";
 	bt_content.ble_content.ble_name = "ROCKCHIP_AUDIO BLE";
 	bt_content.ble_content.server_uuid.uuid = BLE_UUID_SERVICE;
 	bt_content.ble_content.server_uuid.len = UUID_128;

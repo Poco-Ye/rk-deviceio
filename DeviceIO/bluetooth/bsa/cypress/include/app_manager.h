@@ -311,7 +311,7 @@ const char *app_mgr_get_dual_stack_mode_desc(void);
  ** Returns          Status of the operation
  **
  *******************************************************************************/
-int app_mgr_config(const char *bt_name, app_mgr_callback cb);
+int app_mgr_config(const char *bt_name, const char *bt_addr, app_mgr_callback cb);
 
 /*******************************************************************************
  **
@@ -415,7 +415,7 @@ void app_mgr_deregister_disc_cb();
 void app_mgr_register_dev_found_cb(RK_BT_DEV_FOUND_CALLBACK cb);
 void app_mgr_deregister_dev_found_cb();
 int app_mgr_get_latest_device(void);
-int app_manager_init(const char *bt_name, app_mgr_callback cb);
+int app_manager_init(const char *bt_name, const char *bt_addr, app_mgr_callback cb);
 int app_manager_deinit(void);
 int app_mgt_set_cod(int cod);
 int app_mgr_is_reconnect(void);
