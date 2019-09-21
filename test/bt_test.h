@@ -36,6 +36,7 @@ void bt_test_ble_get_status(char *data);
 void bt_test_ble_stop(char *data);
 void bt_test_ble_setup(char *data);
 void bt_test_ble_clean(char *data);
+void bt_test_ble_disconnect(char *data);
 
 /******************************************/
 /*             A2DP SINK Test             */

@@ -777,17 +777,34 @@ int rk_ble_stop()
 
 int rk_ble_write(const char *uuid, char *data, int len)
 {
+    if(!ble_is_open()) {
+        APP_ERROR0("ble don't start");
+        return -1;
+    }
+
     app_ble_rk_server_send_message(uuid, data, len);
     return 0;
 }
 
+int rk_ble_disconnect()
+{
+    if(!ble_is_open()) {
+        APP_ERROR0("ble don't start");
+        return -1;
+    }
+
+    return app_ble_rk_server_disconnect();
+}
+
 int rk_ble_setup(RkBleContent *ble_content)
 {
+    APP_DEBUG1("bsa don't support %s", __func__);
     return 0;
 }
 
 int rk_ble_clean(void)
 {
+    APP_DEBUG1("bsa don't support %s", __func__);
     return 0;
 }
 
@@ -1167,26 +1184,31 @@ int rk_bt_hfp_disconnect()
 /* OBEX FOR PBAP */
 int rk_bt_obex_init()
 {
+    APP_DEBUG1("bsa don't support %s", __func__);
     return 0;
 }
 
 int rk_bt_obex_pbap_connect(char *btaddr)
 {
+    APP_DEBUG1("bsa don't support %s", __func__);
     return 0;
 }
 
 int rk_bt_obex_pbap_get_vcf(char *dir_name, char *dir_file)
 {
+    APP_DEBUG1("bsa don't support %s", __func__);
     return 0;
 }
 
 int rk_bt_obex_pbap_disconnect(char *btaddr)
 {
+    APP_DEBUG1("bsa don't support %s", __func__);
     return 0;
 }
 
 int rk_bt_obex_close()
 {
+    APP_DEBUG1("bsa don't support %s", __func__);
     return 0;
 }
 

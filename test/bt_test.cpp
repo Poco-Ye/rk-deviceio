@@ -645,6 +645,10 @@ void bt_test_ble_clean(char *data) {
 	rk_ble_clean();
 }
 
+void bt_test_ble_disconnect(char *data) {
+	rk_ble_disconnect();
+}
+
 /******************************************/
 /*                  SPP                   */
 /******************************************/

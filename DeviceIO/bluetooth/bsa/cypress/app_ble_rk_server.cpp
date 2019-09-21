@@ -68,7 +68,7 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
                     tBSA_BLE_MSG *p_data);
 static int app_ble_rk_server_find_free_attr(void);
 static int app_ble_rk_server_find_attr_index_by_attr_id(UINT16 attr_id);
-static int app_ble_rk_server_send_notification(const char *uuid, UINT8 * data, UINT16 len);
+static int app_ble_rk_server_send_notification(const char *uuid, char *data, UINT16 len);
 static void app_ble_rk_server_recv_data(int attr_index, unsigned char *data, int len);
 
 /*******************************************************************************
@@ -196,6 +196,7 @@ static int app_ble_rk_server_register()
         APP_ERROR1("BSA_BleSeAppRegister failed status = %d", status);
         return -1;
     }
+
     app_ble_rk_server_cb.server_if = ble_register_param.server_if;
     APP_INFO1("server_if:%d", app_ble_rk_server_cb.server_if);
     return 0;
@@ -598,7 +599,7 @@ static int app_ble_rk_server_create_gatt_database(RkBleContent *ble_content)
     //service count * 2 + characteristics count * 2 + descriptor count * 1
     UINT16 num_handle = 2 + ble_content->chr_cnt * 2 + ble_content->chr_cnt;
 
-    APP_INFO0("app_ble_rk_server_create_gatt_database");
+    APP_INFO1("app_ble_rk_server_create_gatt_database, num_handle: %d", num_handle);
 
     if(app_ble_rk_server_set_uuid(&service_uuid, ble_content->server_uuid) < 0) {
         APP_ERROR0("set service uuid failed");
@@ -874,12 +875,12 @@ static void app_ble_rk_server_send_data_test(const char *uuid) {
         if(offset + i < len) {
             strncpy(buf, ble_test + offset, i);
             //APP_DEBUG1("buf: %s\n", buf);
-            app_ble_rk_server_send_message(uuid, (UINT8 *)buf, i);
+            app_ble_rk_server_send_message(uuid, buf, i);
             offset += i;
         } else {
             strncpy(buf, ble_test + offset, len - offset);
             //APP_DEBUG1("buf: %s\n", buf);
-            app_ble_rk_server_send_message(uuid, (UINT8 *)buf, len - offset);
+            app_ble_rk_server_send_message(uuid, buf, len - offset);
             offset = 0;
             break;
         }
@@ -1122,6 +1123,7 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
         adv_param.adv_int_min = BSA_BLE_GAP_ADV_SLOW_INT;
         adv_param.adv_int_max = BSA_BLE_GAP_ADV_SLOW_INT;
         app_dm_set_ble_adv_param(&adv_param);
+
         /* Set visisble and connectable */
         app_dm_set_ble_visibility(TRUE, TRUE);
         app_ble_state = RK_BLE_STATE_DISCONNECT;
@@ -1273,7 +1275,7 @@ static int app_ble_rk_server_find_attr_index_by_attr_id(UINT16 attr_id)
  ** Returns          None
  **
  *******************************************************************************/
-void app_ble_rk_server_send_message(const char *uuid, UINT8 * data, UINT16 len)
+void app_ble_rk_server_send_message(const char *uuid, char *data, UINT16 len)
 {
     APP_DEBUG1("conn id : 0x%x",  app_ble_rk_server_cb.conn_id);
     /* If no client connectted or client has not registered for indication or notification, no action */
@@ -1298,7 +1300,7 @@ void app_ble_rk_server_send_message(const char *uuid, UINT8 * data, UINT16 len)
  ** Returns         status: 0 if success / -1 otherwise
  **
  *******************************************************************************/
-static int app_ble_rk_server_send_notification(const char *uuid, UINT8 * data, UINT16 len)
+static int app_ble_rk_server_send_notification(const char *uuid, char *data, UINT16 len)
 {
     int i;
     UINT8 attr_index_notify = APP_BLE_RK_SERVER_ATTRIBUTE_MAX;
@@ -1307,8 +1309,7 @@ static int app_ble_rk_server_send_notification(const char *uuid, UINT8 * data, U
 
     APP_INFO0("app_ble_rk_server_send_notification");
     status = BSA_BleSeSendIndInit(&ble_sendind_param);
-    if (status != BSA_SUCCESS)
-    {
+    if (status != BSA_SUCCESS) {
         APP_ERROR1("BSA_BleSeSendIndInit failed status = %d", status);
         return -1;
     }
@@ -1452,8 +1453,45 @@ void app_ble_rk_server_recv_data_callback(RK_BLE_RECV_CALLBACK cb)
 
 void app_ble_rk_server_get_state(RK_BLE_STATE *p_state)
 {
-	if (!p_state)
-		return;
+    if (!p_state)
+        return;
 
     *p_state = app_ble_state;
+}
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_rk_server_disconnect
+ **
+ ** Description     This is the ble close connection
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+int app_ble_rk_server_disconnect(void)
+{
+    tBSA_STATUS status;
+    tBSA_BLE_SE_CLOSE ble_close_param;
+
+    if(app_ble_rk_server_cb.conn_id == BSA_BLE_INVALID_CONN) {
+        APP_DEBUG0("There is no valid ble connection");
+        return- 1;
+    }
+
+    status = BSA_BleSeCloseInit(&ble_close_param);
+    if (status != BSA_SUCCESS) {
+        APP_ERROR1("BSA_BleSeCloseInit failed status = %d", status);
+        return -1;
+    }
+
+    ble_close_param.conn_id = app_ble_rk_server_cb.conn_id;
+    status = BSA_BleSeClose(&ble_close_param);
+    if (status != BSA_SUCCESS) {
+        APP_ERROR1("BSA_BleSeClose failed status = %d", status);
+        return -1;
+    }
+
+    return 0;
 }

@@ -80,7 +80,7 @@ int app_ble_rk_server_gatt_server_init(RkBleContent *ble_content);
  ** Returns          None
  **
  *******************************************************************************/
-void app_ble_rk_server_send_message(const char *uuid, UINT8 * data, UINT16 len);
+void app_ble_rk_server_send_message(const char *uuid, char * data, UINT16 len);
 
 /*******************************************************************************
  **
@@ -148,5 +148,18 @@ void app_ble_rk_server_register_cb(RK_BLE_STATE_CALLBACK cb);
 void app_ble_rk_server_deregister_cb();
 
 void app_ble_rk_server_get_state(RK_BLE_STATE *p_state);
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_rk_server_disconnect
+ **
+ ** Description     This is the ble close connection
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+int app_ble_rk_server_disconnect(void);
 
 #endif

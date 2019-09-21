@@ -149,4 +149,17 @@ void app_ble_rk_server_deregister_cb();
 
 void app_ble_rk_server_get_state(RK_BLE_STATE *p_state);
 
+/*******************************************************************************
+ **
+ ** Function        app_ble_rk_server_disconnect
+ **
+ ** Description     This is the ble close connection
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+int app_ble_rk_server_disconnect(void);
+
 #endif

@@ -196,6 +196,7 @@ static int app_ble_rk_server_register()
         APP_ERROR1("BSA_BleSeAppRegister failed status = %d", status);
         return -1;
     }
+
     app_ble_rk_server_cb.server_if = ble_register_param.server_if;
     APP_INFO1("server_if:%d", app_ble_rk_server_cb.server_if);
     return 0;
@@ -329,7 +330,7 @@ static int app_ble_rk_server_set_advertisement_data(const char *ble_name)
 
         /* Set Bluetooth configuration */
         BSA_DmSetConfigInit(&bt_scan_rsp);
-        
+
         /* Obviously */
         bt_scan_rsp.enable = TRUE;
 
@@ -349,7 +350,7 @@ static int app_ble_rk_server_set_advertisement_data(const char *ble_name)
         len += (bt_scan_rsp.adv_config.proprietary.elem[0].len + 1);
 
         bt_scan_rsp.adv_config.len = len;
-        
+
         bsa_status = BSA_DmSetConfig(&bt_scan_rsp);
         if (bsa_status != BSA_SUCCESS)
         {
@@ -1455,8 +1456,45 @@ void app_ble_rk_server_recv_data_callback(RK_BLE_RECV_CALLBACK cb)
 
 void app_ble_rk_server_get_state(RK_BLE_STATE *p_state)
 {
-	if (!p_state)
-		return;
+    if (!p_state)
+        return;
 
     *p_state = app_ble_state;
+}
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_rk_server_disconnect
+ **
+ ** Description     This is the ble close connection
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+int app_ble_rk_server_disconnect(void)
+{
+    tBSA_STATUS status;
+    tBSA_BLE_SE_CLOSE ble_close_param;
+
+    if(app_ble_rk_server_cb.conn_id == BSA_BLE_INVALID_CONN) {
+        APP_DEBUG0("There is no valid ble connection");
+        return- 1;
+    }
+
+    status = BSA_BleSeCloseInit(&ble_close_param);
+    if (status != BSA_SUCCESS) {
+        APP_ERROR1("BSA_BleSeCloseInit failed status = %d", status);
+        return -1;
+    }
+
+    ble_close_param.conn_id = app_ble_rk_server_cb.conn_id;
+    status = BSA_BleSeClose(&ble_close_param);
+    if (status != BSA_SUCCESS) {
+        APP_ERROR1("BSA_BleSeClose failed status = %d", status);
+        return -1;
+    }
+
+    return 0;
 }

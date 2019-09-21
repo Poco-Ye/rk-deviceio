@@ -176,6 +176,12 @@ int rk_ble_register_recv_callback(RK_BLE_RECV_CALLBACK cb)
 	return 0;
 }
 
+int rk_ble_disconnect()
+{
+    pr_info("bluez don't support %s\n", __func__);
+    return 0;
+}
+
 /*****************************************************************
  *            Rockchip bluetooth master api                      *
  *****************************************************************/
@@ -1373,11 +1379,13 @@ int rk_bt_hfp_set_volume(int volume)
 void rk_bt_hfp_enable_cvsd(void)
 {
 	//for compile
+	pr_info("bluez don't support %s\n", __func__);
 }
 
 void rk_bt_hfp_disable_cvsd(void)
 {
 	//for compile
+	pr_info("bluez don't support %s\n", __func__);
 }
 
 int rk_bt_hfp_disconnect()

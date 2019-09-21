@@ -113,6 +113,7 @@ static command_bt_t bt_command_table[] = {
 	{"bt_test_sink_close", bt_test_sink_close},
 	{"bt_test_ble_start", bt_test_ble_start},
 	{"bt_test_ble_write", bt_test_ble_write},
+	{"bt_test_ble_disconnect", bt_test_ble_disconnect},
 	{"bt_test_ble_stop", bt_test_ble_stop},
 	{"bt_test_ble_setup", bt_test_ble_setup},
 	{"bt_test_ble_clean", bt_test_ble_clean},
