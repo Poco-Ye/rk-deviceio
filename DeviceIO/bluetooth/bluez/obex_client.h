@@ -2,7 +2,7 @@
 extern "C" {
 #endif
 
-void *obex_main_thread(void);
+void *obex_main_thread(void *arg);
 void obex_connect_pbap(char *dev_addr);
 void obex_get_pbap_pb(char *dir_name, char *dir_file);
 void obex_disconnect(int argc, char *btaddr);

@@ -326,12 +326,12 @@ void btmg_sink_avrcp_next_test(char *data)
 {
 	printf("%s: device addr: %s\n", __func__, data);
 	if(data) {
-		bt_manager_avrcp_command(data, BTMG_AVRCP_BACKWARD);
+		bt_manager_avrcp_command(data, BTMG_AVRCP_FORWARD);
 	} else {
 		char bd_addr[18];
 		memset(bd_addr, 0, 18);
 		rk_bt_sink_get_default_dev_addr(bd_addr, 18);
-		bt_manager_avrcp_command(bd_addr, BTMG_AVRCP_BACKWARD);
+		bt_manager_avrcp_command(bd_addr, BTMG_AVRCP_FORWARD);
 	}
 }
 
@@ -339,12 +339,12 @@ void btmg_sink_avrcp_previous_test(char *data)
 {
 	printf("%s: device addr: %s\n", __func__, data);
 	if(data) {
-		bt_manager_avrcp_command(data, BTMG_AVRCP_FORWARD);
+		bt_manager_avrcp_command(data, BTMG_AVRCP_BACKWARD);
 	} else {
 		char bd_addr[18];
 		memset(bd_addr, 0, 18);
 		rk_bt_sink_get_default_dev_addr(bd_addr, 18);
-		bt_manager_avrcp_command(bd_addr, BTMG_AVRCP_FORWARD);
+		bt_manager_avrcp_command(bd_addr, BTMG_AVRCP_BACKWARD);
 	}
 }
 

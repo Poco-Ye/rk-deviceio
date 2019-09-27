@@ -12,7 +12,7 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 
-#include "gdbus.h"
+#include "gdbus/gdbus.h"
 #include "avrcpctrl.h"
 #include "a2dp_source/a2dp_masterctrl.h"
 #include "DeviceIo/DeviceIo.h"

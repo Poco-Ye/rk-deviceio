@@ -673,7 +673,7 @@ bool rk_bt_sink_get_poschange()
 {
 	if (!bt_sink_is_open()) {
 		pr_info("bt sink isn't open, please open\n");
-		return -1;
+		return false;
 	}
 
 	return get_poschange_avrcp();
@@ -929,6 +929,7 @@ int rk_bt_deinit(void)
 	rk_bt_source_close();
 	rk_bt_spp_close();
 	rk_ble_stop();
+	rk_bt_obex_close();
 	bt_close();
 
 	bt_kill_task("bluealsa");
@@ -1036,7 +1037,7 @@ bool rk_bt_is_discovering()
 {
 	if (!bt_is_open()) {
 		pr_info("%: Please open bt!!!\n", __func__);
-		return -1;
+		return false;
 	}
 
 	return bt_is_discovering();
@@ -1046,7 +1047,7 @@ void rk_bt_display_devices()
 {
 	if (!bt_is_open()) {
 		pr_info("%: Please open bt!!!\n", __func__);
-		return -1;
+		return;
 	}
 
 	bt_display_devices();
@@ -1056,7 +1057,7 @@ void rk_bt_display_paired_devices()
 {
 	if (!bt_is_open()) {
 		pr_info("%: Please open bt!!!\n", __func__);
-		return -1;
+		return;
 	}
 
 	bt_display_paired_devices();
@@ -1465,8 +1466,6 @@ int rk_bt_obex_pbap_disconnect(char *btaddr)
 
 int rk_bt_obex_close()
 {
-	char result_buf[256] = {0};
-
 	if(!g_obex_thread) {
 		pr_info("obex has been closed\n");
 		return -1;
@@ -1479,6 +1478,7 @@ int rk_bt_obex_close()
 	g_obex_thread = 0;
 
 	bt_kill_task("obexd");
+	pr_info("[exit %s]\n", __func__);
 
 	return 0;
 }

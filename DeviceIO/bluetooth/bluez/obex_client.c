@@ -2264,7 +2264,7 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 		session_property_changed(proxy, name, iter);
 }
 
-void *obex_main_thread(void)
+void *obex_main_thread(void *arg)
 {
 	GDBusClient *client;
 	//int status = 0;

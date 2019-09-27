@@ -386,10 +386,10 @@ int bt_manager_avrcp_command(char *addr, btmg_avrcp_command_t command)
 			ret = rk_bt_sink_pause();
 			break;
 		case BTMG_AVRCP_FORWARD:
-			ret = rk_bt_sink_prev();
+			ret = rk_bt_sink_next();
 			break;
 		case BTMG_AVRCP_BACKWARD:
-			ret = rk_bt_sink_next();
+			ret = rk_bt_sink_prev();
 			break;
 	}
 

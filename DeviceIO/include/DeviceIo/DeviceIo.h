@@ -165,18 +165,18 @@ enum class DeviceInput {
     KEY_ONE_DOUBLE,
     KEY_ONE_LONG_10S,
     KEY_BLUETOOTH_SHORT,
-    KEY_BLUETOOTH_LONG = 5,
+    KEY_BLUETOOTH_LONG, //5
     KEY_MIC_MUTE,
     SLIDER_PRESSED,
     SLIDER_RELEASE,
     VOLUME_CHANGED,
 
-    KEY_VOLUME_UP = 10,
+    KEY_VOLUME_UP, //10
     KEY_VOLUME_DOWN,
     KEY_VOLUME_MUTE,
     KEY_WAKE_UP,
     KEY_ENTER_AP,
-    KEY_EXIT_AP = 15,
+    KEY_EXIT_AP, //15
 
     //蓝牙等待配对
     BT_WAIT_PAIR,
@@ -187,7 +187,7 @@ enum class DeviceInput {
     //配对失败,请重试
     BT_PAIR_FAILED_OTHER,
     //蓝牙配对成功
-    BT_PAIR_SUCCESS = 20,
+    BT_PAIR_SUCCESS, //20
     BT_CONNECT,
     //手机关闭蓝牙蓝牙断开
     BT_DISCONNECT,
@@ -195,23 +195,23 @@ enum class DeviceInput {
     BT_START_PLAY,
     BT_PAUSE_PLAY,
     //蓝牙结束播放
-    BT_STOP_PLAY,
+    BT_STOP_PLAY, //25
     //ble
     BLE_CLIENT_CONNECT,
-    BLE_CLIENT_DISCONNECT = 25,
+    BLE_CLIENT_DISCONNECT,
     BLE_SERVER_RECV,
     //BT CALL
     BT_HFP_AUDIO_CONNECT,
-    BT_HFP_AUDIO_DISCONNECT,
+    BT_HFP_AUDIO_DISCONNECT, //30
     BT_POWER_OFF,
 
-    DLNA_STOPPED = 30,
+    DLNA_STOPPED,
     DLNA_PLAYING,
     DLNA_PAUSED,
 
-    KEY_CLOSE_TIMER_ALARM,
+    KEY_CLOSE_TIMER_ALARM, //35
     KEY_IS_SLEEP_STATE,
-    KEY_PLAY_PAUSE = 35,
+    KEY_PLAY_PAUSE,
 
     KEY_SHUT_DOWN,
     KEY_SLEEP_MODE,
