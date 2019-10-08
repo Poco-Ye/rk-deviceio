@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-bool rk_ping(void);
+bool rk_ping(char *address);
 
 #ifdef __cplusplus
 }

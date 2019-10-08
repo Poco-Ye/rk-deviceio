@@ -54,7 +54,7 @@ int RK_wifi_set_hostname(const char* name);
 int RK_wifi_get_hostname(char* name, int len);
 int RK_wifi_get_mac(char *wifi_mac);
 int RK_wifi_has_config(void);
-int RK_wifi_ping(void);
+int RK_wifi_ping(char *address);
 int RK_wifi_airkiss_start(char *ssid, char *password);
 void RK_wifi_airkiss_stop(void);
 

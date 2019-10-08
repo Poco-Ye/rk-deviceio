@@ -300,15 +300,22 @@ static bool ping(string host, int count, PingResult& pingResult) {
     return true;
 }
 
-bool rk_ping(void)
+bool rk_ping(char *address)
 {
-    string hostOrIp = PING_DEST_HOST1;
+    string hostOrIp;
     int nsend = 0, nreceived = 0;
     bool ret;
     PingResult pingResult;
     InternetConnectivity networkResult = UNAVAILABLE;
 
     pthread_mutex_lock(&m_ping_lock);
+
+    if(address)
+        hostOrIp = address;
+    else
+        hostOrIp = PING_DEST_HOST1;
+
+    printf("%s: ping %s\n", __func__, hostOrIp.c_str());
 
     for (int count = 1; count <= MAX_PACKETS_COUNT; count ++) {
         memset(&pingResult.ip, 0x0, 32);

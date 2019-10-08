@@ -912,9 +912,9 @@ int RK_wifi_has_config()
 	return 0;
 }
 
-int RK_wifi_ping(void)
+int RK_wifi_ping(char *address)
 {
-	return rk_ping();
+	return rk_ping(address);
 }
 
 #define EVENT_BUF_SIZE 1024
