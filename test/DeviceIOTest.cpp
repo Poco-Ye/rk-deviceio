@@ -70,6 +70,8 @@ static command_t wifi_config_command_table[] = {
 	{"softap_wifi_config_stop", rk_wifi_softap_stop},
 	{"wifi_open", rk_wifi_open},
 	{"wifi_close", rk_wifi_close},
+	{"wifi_connect", rk_wifi_connect},
+	{"wifi_ping", rk_wifi_ping},
 };
 
 static command_bt_t bt_command_table[] = {

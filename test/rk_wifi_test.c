@@ -33,6 +33,8 @@ static int rk_wifi_state_callback(RK_WIFI_RUNNING_State_e state)
 		printf("RK_WIFI_State_OPEN\n");
 	} else if (state == RK_WIFI_State_OFF) {
 		printf("RK_WIFI_State_OFF\n");
+	} else if (state == RK_WIFI_State_DISCONNECTED) {
+		printf("RK_WIFI_State_DISCONNECTED\n");
 	}
 
 	return 0;
@@ -141,3 +143,18 @@ void rk_wifi_close(void *data)
 		printf("RK_wifi_enable 0 fail!\n");
 	}
 }
+
+void rk_wifi_connect(void *data)
+{
+	if (RK_wifi_connect1("fish1", "12345678", WPA, 1) < 0) {
+		printf("RK_wifi_connect1 fail!\n");
+	}
+}
+
+void rk_wifi_ping(void *data)
+{
+	if (RK_wifi_ping("www.baidu.com") < 0) {
+		printf("RK_wifi_ping fail!\n");
+	}
+}
+

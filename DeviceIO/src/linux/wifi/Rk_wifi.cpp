@@ -16,6 +16,8 @@
 #include "DeviceIo/RK_log.h"
 #include "DeviceIo/Rk_wifi.h"
 
+static bool save_last_ap = false;
+
 static RK_WIFI_RUNNING_State_e gstate = RK_WIFI_State_OFF;
 
 static char retry_connect_cmd[128];
@@ -345,12 +347,12 @@ int RK_wifi_enable(const int enable)
 			system("ifconfig wlan0 up");
 			system("ifconfig wlan0 0.0.0.0");
 			system("killall dhcpcd");
+			system("killall udhcpc");
 			system("killall wpa_supplicant");
 			usleep(600000);
 			system("wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf");
 			usleep(600000);
-			system("dhcpcd -L -f /etc/dhcpcd.conf");
-			system("dhcpcd wlan0 -t 0 &");
+			system("udhcpc -i wlan0 -t 10 &");
 
 			RK_WIFI_RUNNING_State_e state = RK_WIFI_State_OPEN;
 			gstate = state;
@@ -366,7 +368,7 @@ int RK_wifi_enable(const int enable)
 		if (is_wifi_enable()) {
 			system("ifconfig wlan0 down");
 			system("killall wpa_supplicant");
-			system("killall dhcpcd");
+			system("killall udhcpc");
 			usleep(500000);
 			if (start_wifi_monitor_threadId > 0) {
 				pthread_cancel(start_wifi_monitor_threadId);
@@ -573,13 +575,7 @@ static int set_network(const int id, const char* ssid, const char* psk, const RK
 		ret = exec(cmd, str);
 		if (0 != ret || 0 == strlen(str) || 0 != strncmp(str, "OK", 2))
 			return -2;
-	} else if (strlen(psk) || encryp == WPA) {
-		format_wifiinfo(1, wifi_psk);
-		snprintf(cmd, sizeof(cmd), "wpa_cli -iwlan0 set_network %d psk \\\"%s\\\"", id, wifi_psk);
-		ret = exec(cmd, str);
-		if (0 != ret || 0 == strlen(str) || 0 != strncmp(str, "OK", 2))
-			return -3;
-	} else if (encryp == WEP) {
+	}  else if (encryp == WEP) {
 		snprintf(cmd, sizeof(cmd), "wpa_cli -iwlan0 set_network %d key_mgmt NONE", id);
 		ret = exec(cmd, str);
 		if (0 != ret || 0 == strlen(str) || 0 != strncmp(str, "OK", 2))
@@ -591,7 +587,30 @@ static int set_network(const int id, const char* ssid, const char* psk, const RK
 		ret = exec(cmd, str);
 		if (0 != ret || 0 == strlen(str) || 0 != strncmp(str, "OK", 2))
 			return -42;
+	} else if (strlen(psk) || encryp == WPA) {
+		format_wifiinfo(1, wifi_psk);
+		snprintf(cmd, sizeof(cmd), "wpa_cli -iwlan0 set_network %d psk \\\"%s\\\"", id, wifi_psk);
+		ret = exec(cmd, str);
+		if (0 != ret || 0 == strlen(str) || 0 != strncmp(str, "OK", 2))
+			return -3;
 	}
+
+	return 0;
+}
+
+static int set_hide_network(const int id)
+{
+	int ret;
+	char str[8];
+	char cmd[128];
+
+	memset(str, 0, sizeof(str));
+	memset(cmd, 0, sizeof(cmd));
+	snprintf(cmd, sizeof(cmd), "wpa_cli -iwlan0 set_network %d scan_ssid %d", id, 1);
+	ret = exec(cmd, str);
+
+	if (0 != ret || 0 == strlen(str) || 0 != strncmp(str, "OK", 2))
+		return -1;
 
 	return 0;
 }
@@ -636,23 +655,10 @@ static int enable_network(const int id)
 static bool check_wifi_isconnected(void) {
 
 	printf("check_wifi_isconnected\n");
-	char ret_buff[256] = {0};
 	bool isWifiConnected = false;
 	int connect_retry_count = WIFI_CONNECT_RETRY;
 	RK_WIFI_INFO_Connection_s wifiinfo;
-
-retry:
-	// udhcpc network
-	exec1("dhcpcd -k wlan0");
-	usleep(200000);
-	exec1("killall dhcpcd");
-	usleep(300000);
-	exec1("dhcpcd -L -f /etc/dhcpcd.conf");
-	memset(ret_buff, 0, 256);
-	exec("pidof dhcpcd", ret_buff);
-	if (!ret_buff[0])
-		goto retry;
-	exec1("dhcpcd wlan0 -t 0 &");
+	int flag = 1;
 
 	for (int i = 0; i < connect_retry_count; i++) {
 		sleep(1);
@@ -664,16 +670,17 @@ retry:
 				isWifiConnected = true;
 				printf("wifi is connected.\n");
 				break;
+			} else {
+				if ((!(i%30)) || flag) {
+					flag = 0;
+					exec1("killall udhcpc");
+					usleep(300000);
+					system("udhcpc -i wlan0 -t 10 &");
+				}
 			}
 		}
 
 		printf("Check wifi state with none state. try more %d/%d, \n", i + 1, WIFI_CONNECT_RETRY / 2);
-
-		if (i >= (WIFI_CONNECT_RETRY / 2)) {
-			connect_retry_count = WIFI_CONNECT_RETRY / 2;
-			system(retry_connect_cmd);
-			goto retry;
-		}
 
 		if (wifi_wrong_key == true)
 			break;
@@ -754,9 +761,9 @@ static void* wifi_connect_state_check(void *arg)
 		else
 			state = RK_WIFI_State_CONNECTFAILED;
 		exec1("wpa_cli flush");
-		sleep(2);
-		exec1("wpa_cli reconfigure");
-		exec1("wpa_cli reconnect");
+		//sleep(2);
+		//exec1("wpa_cli reconfigure");
+		//exec1("wpa_cli reconnect");
 	}
 
 	if (m_cb != NULL)
@@ -785,6 +792,13 @@ int RK_wifi_connect1(const char* ssid, const char* psk, const RK_WIFI_CONNECTION
 	wifi_wrong_key = false;
 	sleep(1);
 
+	if (save_last_ap) {
+		exec1("cp /data/cfg/wpa_supplicant.conf /data/cfg/wpa_supplicant.conf.bak");
+		exec1("wpa_cli flush");
+		sleep(1);
+		exec1("wpa_cli save_config");
+	}
+
 	id = add_network();
 	if (id < 0)
 		return -1;
@@ -812,6 +826,8 @@ int RK_wifi_connect1(const char* ssid, const char* psk, const RK_WIFI_CONNECTION
 
 	priority = id + 1;
 	set_priority_network(id, priority);
+
+	set_hide_network(id);
 
 	ret = select_network(id);
 	if (0 != ret)
@@ -850,6 +866,17 @@ int RK_wifi_get_hostname(char* name, int len)
 		gethostname(name, len);
 
 	return 0;
+}
+
+int RK_wifi_recovery(void)
+{
+	if (save_last_ap) {
+		exec1("cp /data/cfg/wpa_supplicant.conf.bak /data/cfg/wpa_supplicant.conf");
+	}
+
+	exec1("wpa_cli flush");
+	exec1("wpa_cli reconfigure");
+	exec1("wpa_cli reconnect");
 }
 
 int RK_wifi_get_mac(char *wifi_mac)

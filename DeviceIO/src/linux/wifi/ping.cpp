@@ -310,7 +310,7 @@ bool rk_ping(char *address)
 
     pthread_mutex_lock(&m_ping_lock);
 
-    if(address)
+    if (address)
         hostOrIp = address;
     else
         hostOrIp = PING_DEST_HOST1;
@@ -331,7 +331,10 @@ bool rk_ping(char *address)
         }
 
         if (count == 2) {
-            hostOrIp = PING_DEST_HOST2;
+		    if (address)
+		        hostOrIp = address;
+		    else
+		        hostOrIp = PING_DEST_HOST2;
         }
     }
 
