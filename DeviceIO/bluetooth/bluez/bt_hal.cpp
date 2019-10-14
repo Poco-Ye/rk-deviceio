@@ -52,6 +52,12 @@ static underrun_handler_t g_underrun_handler = {
 /*****************************************************************
  *            Rockchip bluetooth LE api                      *
  *****************************************************************/
+int rk_bt_ble_set_visibility(const int visiable, const int connect)
+{
+	pr_info("bluez don't support %s\n", __func__);
+	return 0;
+}
+
 int rk_ble_start(RkBleContent *ble_content)
 {
 	if (!bt_is_open()) {

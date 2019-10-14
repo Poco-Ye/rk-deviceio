@@ -376,6 +376,16 @@ void bt_test_sink_visibility11(char *data)
 	rk_bt_sink_set_visibility(1, 1);
 }
 
+void bt_test_ble_visibility00(char *data)
+{
+	rk_bt_ble_set_visibility(0, 0);
+}
+
+void bt_test_ble_visibility11(char *data)
+{
+	rk_bt_ble_set_visibility(1, 1);
+}
+
 void bt_test_sink_status(char *data)
 {
 	RK_BT_SINK_STATE pState;

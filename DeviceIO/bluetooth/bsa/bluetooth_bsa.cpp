@@ -291,7 +291,7 @@ int rk_bt_init(RkBtContent *p_bt_content)
 
     g_bt_control.is_bt_open = true;
     bsa_bt_state_send(RK_BT_STATE_ON);
-    //app_mgr_set_sleep_mode_param();
+    //app_mgr_set_sleep_mode_param(); //for 联想3D塑形尺
     return 0;
 }
 
@@ -740,6 +740,15 @@ int rk_ble_get_state(RK_BLE_STATE *p_state)
 {
     app_ble_rk_server_get_state(p_state);
     return 0;
+}
+
+int rk_bt_ble_set_visibility(const int visiable, const int connect)
+{
+    bool discoverable, connectable;
+
+    discoverable = visiable == 0 ? false : true;
+    connectable = connect == 0 ? false : true;
+    return app_dm_set_ble_visibility(discoverable, connectable);
 }
 
 int rk_ble_start(RkBleContent *ble_content)

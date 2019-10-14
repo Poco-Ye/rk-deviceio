@@ -25,10 +25,19 @@ static char* exec(const char* cmd)
 
 	memset(buf, 0, sizeof(buf));
 	ret = (char*) calloc(sizeof(char), sizeof(char) * size);
+	if(ret == NULL) {
+		printf("exec, calloc %d failed\n", size);
+		return NULL;
+	}
+
 	while (NULL != fgets(buf, sizeof(buf)-1, fp)) {
 		if (size <= (strlen(ret) + strlen(buf))) {
 			size += SIZE_UNITE;
 			ret = (char*) realloc(ret, sizeof(char) * size);
+			if(ret == NULL) {
+				printf("exec, realloc %d failed\n", size);
+				return NULL;
+			}
 		}
 		strcat(ret, buf);
 	}
@@ -43,9 +52,12 @@ int RK_shell_exec(const char* cmd, char* result, size_t size)
 {
 	if (NULL == cmd || 0 == strlen(cmd))
 		return -1;
-	
+
 	char *str = exec(cmd);
 	int len = size - 1;
+
+	if (NULL == str)
+		return -1;
 
 	if (strlen(str) < len) {
 		len = strlen(str);

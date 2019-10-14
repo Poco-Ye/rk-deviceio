@@ -854,10 +854,10 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
             break;
 
         case AVRC_EVT_PLAY_POS_CHANGED:
-            APP_DEBUG0("AVRC_EVT_PLAY_POS_CHANGED");
+            //APP_DEBUG0("AVRC_EVT_PLAY_POS_CHANGED");
             app_avk_pos_change = TRUE;
             if(!app_avk_get_track) {
-                APP_DEBUG1("position: %u", p_data->reg_notif_rsp.rsp.param.play_pos);
+                //APP_DEBUG1("position: %u", p_data->reg_notif_rsp.rsp.param.play_pos);
                 app_avk_send_position(connection->bda_connected, app_avk_duration,
                                         p_data->reg_notif_rsp.rsp.param.play_pos);
             }

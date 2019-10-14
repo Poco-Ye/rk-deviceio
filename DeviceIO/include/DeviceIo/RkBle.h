@@ -31,6 +31,7 @@ int rk_ble_clean(void);
 int rk_ble_get_state(RK_BLE_STATE *p_state);
 int rk_ble_write(const char *uuid, char *data, int len);
 int rk_ble_disconnect(void);
+int rk_bt_ble_set_visibility(const int visiable, const int connect);
 
 #ifdef __cplusplus
 }

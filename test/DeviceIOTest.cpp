@@ -100,6 +100,8 @@ static command_bt_t bt_command_table[] = {
 	{"bt_test_sink_visibility01", bt_test_sink_visibility01},
 	{"bt_test_sink_visibility10", bt_test_sink_visibility10},
 	{"bt_test_sink_visibility11", bt_test_sink_visibility11},
+	{"bt_test_ble_visibility00", bt_test_ble_visibility00},
+	{"bt_test_ble_visibility11", bt_test_ble_visibility11},
 	{"bt_test_sink_status", bt_test_sink_status},
 	{"bt_test_sink_music_play", bt_test_sink_music_play},
 	{"bt_test_sink_music_pause", bt_test_sink_music_pause},

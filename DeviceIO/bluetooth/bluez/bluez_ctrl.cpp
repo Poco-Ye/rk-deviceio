@@ -224,6 +224,7 @@ static int bt_start_a2dp_source()
 static int bt_start_a2dp_sink(int sink_only)
 {
 	char ret_buff[1024];
+	int count = 10;
 
 	bt_kill_task("bluealsa");
 	bt_kill_task("bluealsa-aplay");
@@ -237,6 +238,16 @@ static int bt_start_a2dp_sink(int sink_only)
 	if (!ret_buff[0]) {
 		RK_LOGE("start a2dp sink profile failed!\n");
 		return -1;
+	}
+
+	while(count--) {
+		msleep(10);
+		if (access("/var/run/bluealsa/hci0", F_OK))
+			pr_info("%s: wait for /var/run/bluealsa/hci0 to set up\n", __func__);
+		else
+			break;
+
+		msleep(50);
 	}
 
 	bt_exec_command_system("bluealsa-aplay --profile-a2dp 00:00:00:00:00:00 &");
