@@ -10,6 +10,7 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include "DeviceIo/RK_log.h"
+#include "slog.h"
 
 #define MAX_BUFFER    (2048)
 
@@ -241,7 +242,7 @@ static int RK_LOG(const char level, const char *format, va_list arg)
 		}
 	}
 	if (m_logType & RK_LOG_TYPE_CONSOLE) {
-		printf("%s", buffer);
+		pr_info("%s", buffer);
 	}
 
 	if (m_logType & RK_LOG_TYPE_FILE) {

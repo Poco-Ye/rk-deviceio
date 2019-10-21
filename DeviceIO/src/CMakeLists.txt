@@ -5,6 +5,7 @@ file(GLOB_RECURSE DeviceIo_wifi "${DeviceIo_SOURCE_DIR}/src/linux/wifi/*.cpp")
 file(GLOB_RECURSE DeviceIo_netlink "${DeviceIo_SOURCE_DIR}/src/linux/netlink/*.cpp")
 file(GLOB_RECURSE DeviceIo_encode "${DeviceIo_SOURCE_DIR}/src/linux/encode/*.cpp")
 file(GLOB_RECURSE DeviceIo_voiceprint "${DeviceIo_SOURCE_DIR}/src/linux/voice_print/*.c")
+file(GLOB_RECURSE DeviceIo_U_C "${DeviceIo_SOURCE_DIR}/bluetooth/utility/*.c")
 
 if(REALTEK)
 add_definitions(-DREALTEK)
@@ -73,6 +74,7 @@ file(GLOB_RECURSE DeviceIo_BSA_BROADCOM_C "${DeviceIo_SOURCE_DIR}/bluetooth/bsa/
 add_library(DeviceIo SHARED
                 ${DeviceIo_SRC}
                 ${DeviceIo_SRC_C}
+                ${DeviceIo_U_C}
                 ${DeviceIo_Properties}
                 ${DeviceIo_wifi}
                 ${DeviceIo_netlink}
@@ -84,6 +86,7 @@ add_library(DeviceIo SHARED
                 )
 target_include_directories(DeviceIo PUBLIC
 		"${DeviceIo_SOURCE_DIR}/bluetooth/bsa"
+		"${DeviceIo_SOURCE_DIR}/bluetooth/utility"
                 "${DeviceIo_SOURCE_DIR}/bluetooth/bsa/broadcom/include")
 target_link_libraries (DeviceIo libbsa.so libasound.so)
 add_definitions(-DBROADCOM_BSA -DBUILDCFG -DPCM_ALSA -DPCM_ALSA_OPEN_BLOCKING -DFIXED_POINT=16 -DBSA_PEER_IOS)

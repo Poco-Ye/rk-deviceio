@@ -15,6 +15,7 @@
 #include "DeviceIo/RK_encode.h"
 #include "DeviceIo/RK_log.h"
 #include "DeviceIo/Rk_wifi.h"
+#include "slog.h"
 
 static bool save_last_ap = false;
 
@@ -115,7 +116,7 @@ static char* exec1(const char* cmd)
 	if (NULL == cmd || 0 == strlen(cmd))
 		return NULL;
 
-	printf("[RKWIFI] exec1: %s\n", cmd);
+	pr_info("[RKWIFI] exec1: %s\n", cmd);
 
 	FILE* fp = NULL;
 	char buf[128];
@@ -327,7 +328,7 @@ static int is_wifi_enable()
 		if (get_pid("wpa_supplicant") > 0)
 			ret = 1;
 		else
-			printf("BUG: wifi open but wpa_supplicant noexist!!!\n");
+			pr_info("BUG: wifi open but wpa_supplicant noexist!!!\n");
 	}
 
 out:
@@ -338,7 +339,7 @@ int RK_wifi_enable(const int enable)
 {
 	static pthread_t start_wifi_monitor_threadId = 0;
 
-	printf("[RKWIFI] start_wpa_supplicant wpa_pid: %d, monitor_id: 0x%x\n",
+	pr_info("[RKWIFI] start_wpa_supplicant wpa_pid: %d, monitor_id: 0x%x\n",
 			get_pid("wpa_supplicant"), start_wifi_monitor_threadId);
 
 	if (enable) {
@@ -362,7 +363,7 @@ int RK_wifi_enable(const int enable)
 			pthread_create(&start_wifi_monitor_threadId, nullptr, RK_wifi_start_monitor, nullptr);
 			pthread_detach(start_wifi_monitor_threadId);
 
-			printf("RK_wifi_enable enable ok!\n");
+			pr_info("RK_wifi_enable enable ok!\n");
 		}
 	} else {
 		if (is_wifi_enable()) {
@@ -380,7 +381,7 @@ int RK_wifi_enable(const int enable)
 			gstate = state;
 			if (m_cb != NULL)
 				m_cb(state);
-			printf("RK_wifi_enable disable ok!\n");
+			pr_info("RK_wifi_enable disable ok!\n");
 		}
 	}
 
@@ -654,7 +655,7 @@ static int enable_network(const int id)
 #define WIFI_CONNECT_RETRY 50
 static bool check_wifi_isconnected(void) {
 
-	printf("check_wifi_isconnected\n");
+	pr_info("check_wifi_isconnected\n");
 	bool isWifiConnected = false;
 	int connect_retry_count = WIFI_CONNECT_RETRY;
 	RK_WIFI_INFO_Connection_s wifiinfo;
@@ -668,7 +669,7 @@ static bool check_wifi_isconnected(void) {
 			if ((strlen(wifiinfo.ip_address) != 0) &&
 				strncmp(wifiinfo.ip_address, "127.0.0.1", 9) != 0) {
 				isWifiConnected = true;
-				printf("wifi is connected.\n");
+				pr_info("wifi is connected.\n");
 				break;
 			} else {
 				if ((!(i%30)) || flag) {
@@ -680,14 +681,14 @@ static bool check_wifi_isconnected(void) {
 			}
 		}
 
-		printf("Check wifi state with none state. try more %d/%d, \n", i + 1, WIFI_CONNECT_RETRY / 2);
+		pr_info("Check wifi state with none state. try more %d/%d, \n", i + 1, WIFI_CONNECT_RETRY / 2);
 
 		if (wifi_wrong_key == true)
 			break;
 	}
 
 	if (!isWifiConnected)
-		printf("wifi is not connected.\n");
+		pr_info("wifi is not connected.\n");
 
 	return isWifiConnected;
 }
@@ -703,7 +704,7 @@ static void format_wifiinfo(int flag, char *info)
 		}
 		temp[strlen(info)*2] = '\0';
 		strcpy(info, temp);
-		printf("format_wifiinfo ssid: %s\n", info);
+		pr_info("format_wifiinfo ssid: %s\n", info);
     } else if (flag == 1) {
 		for (int i = 0; i < strlen(info); i++) {
 		temp[j++] = '\\';
@@ -711,7 +712,7 @@ static void format_wifiinfo(int flag, char *info)
 		}
 		temp[j] = '\0';
 		strcpy(info, temp);
-		printf("format_wifiinfo password: %s\n", info);
+		pr_info("format_wifiinfo password: %s\n", info);
 	}
 }
 
@@ -788,6 +789,8 @@ int RK_wifi_connect1(const char* ssid, const char* psk, const RK_WIFI_CONNECTION
 	int id, ret;
 	char ori[strlen(ssid) + 1];
 
+	pr_info("RK_wifi_connect ssid:\"%s\", psk:\"%s\", encryp: %d.\n", ssid, psk, encryp);
+
 	exec1("wpa_cli -iwlan0 disable_network all");
 	wifi_wrong_key = false;
 	sleep(1);
@@ -800,47 +803,67 @@ int RK_wifi_connect1(const char* ssid, const char* psk, const RK_WIFI_CONNECTION
 	}
 
 	id = add_network();
-	if (id < 0)
-		return -1;
+	if (id < 0) {
+		pr_err("add_network id: %d failed!\n", id);
+		goto fail;
+	}
 
 	memset(ori, 0, sizeof(ori));
 	if (is_non_psk(ssid)) {
-		RK_LOGI("RK_wifi_connect is none psk. ssid:\"%s\"\n", ssid);
+		pr_info("RK_wifi_connect is none psk. ssid:\"%s\"\n", ssid);
 		get_encode_gbk_ori(m_nonpsk_head, ssid, ori);
 
 		ret = set_network(id, ori, "", NONE);
 		if (0 != ret) {
-			RK_LOGE("RK_wifi_connect set_network failed. ssid:\"%s\", psk:\"%s\"\n", ssid, psk);
-			return -2;
+			pr_info("RK_wifi_connect set_network failed. ssid:\"%s\", psk:\"%s\"\n", ssid, psk);
+			goto fail;
 		}
 	} else {
 		get_encode_gbk_ori(m_gbk_head, ssid, ori);
 
 		ret = set_network(id, ori, psk, encryp);
 		if (0 != ret) {
-			RK_LOGE("RK_wifi_connect set_network failed. ssid:\"%s\", psk:\"%s\"\n", ssid, psk);
-			return -2;
+			pr_info("RK_wifi_connect set_network failed. ssid:\"%s\", psk:\"%s\"\n", ssid, psk);
+			goto fail;
 		}
 	}
-	RK_LOGI("RK_wifi_connect ssid:\"%s\" strlen(ssid):%lu; ori:\"%s\" strlen(ori):%lu; psk:\"%s\"\n", ssid, strlen(ssid), ori, strlen(ori), psk);
+	pr_info("RK_wifi_connect ssid:\"%s\" strlen(ssid):%lu; ori:\"%s\" strlen(ori):%lu; psk:\"%s\"\n", ssid, strlen(ssid), ori, strlen(ori), psk);
 
 	priority = id + 1;
-	set_priority_network(id, priority);
+	ret = set_priority_network(id, priority);
+	if (0 != ret) {
+		pr_err("set_priority_network id: %d failed!\n", id);
+		goto fail;
+	}
 
-	set_hide_network(id);
+	ret = set_hide_network(id);
+	if (0 != ret) {
+		pr_err("set_hide_network id: %d failed!\n", id);
+		goto fail;
+	}
 
 	ret = select_network(id);
-	if (0 != ret)
-		return -3;
+	if (0 != ret) {
+		pr_err("select_network id: %d failed!\n", id);
+		goto fail;
+	}
 
 	ret = enable_network(id);
-	if (0 != ret)
-		return -4;
+	if (0 != ret) {
+		pr_err("enable_network id: %d failed!\n", id);
+		goto fail;
+	}
 
 	pthread_t pth;
 	pthread_create(&pth, NULL, wifi_connect_state_check, NULL);
 
 	return 0;
+
+fail:
+	RK_WIFI_RUNNING_State_e state = RK_WIFI_State_CONNECTFAILED;
+	if (m_cb != NULL)
+		m_cb(state);
+	return -1;
 }
 
 int RK_wifi_disconnect_network(void)
@@ -888,7 +911,7 @@ int RK_wifi_get_mac(char *wifi_mac)
     sock_mac = socket(AF_INET, SOCK_STREAM, 0);
 
     if (sock_mac == -1) {
-        printf("create mac socket failed.");
+        pr_info("create mac socket failed.");
         return -1;
     }
 
@@ -896,7 +919,7 @@ int RK_wifi_get_mac(char *wifi_mac)
     strncpy(ifr_mac.ifr_name, "wlan0", sizeof(ifr_mac.ifr_name) - 1);
 
     if ((ioctl(sock_mac, SIOCGIFHWADDR, &ifr_mac)) < 0) {
-        printf("Mac socket ioctl failed.");
+        pr_info("Mac socket ioctl failed.");
         return -1;
     }
 
@@ -910,7 +933,7 @@ int RK_wifi_get_mac(char *wifi_mac)
 
     close(sock_mac);
     strncpy(wifi_mac, mac_addr, 18);
-    printf("the wifi mac : %s\r\n", wifi_mac);
+    pr_info("the wifi mac : %s\r\n", wifi_mac);
 
     return 0;
 }
@@ -1027,30 +1050,30 @@ static int dispatch_event(char* event)
 	if (strstr(event, "CTRL-EVENT-BSS") || strstr(event, "CTRL-EVENT-TERMINATING"))
 		return 0;
 
-	printf("%s: %s\n", __func__, event);
+	pr_info("%s: %s\n", __func__, event);
 
 	if (str_starts_with(event, (char *)WPA_EVENT_DISCONNECTED)) {
-		printf("%s: wifi is disconnect\n", __FUNCTION__);
+		pr_info("%s: wifi is disconnect\n", __FUNCTION__);
 		system("ip addr flush dev wlan0");
 		RK_WIFI_RUNNING_State_e state = RK_WIFI_State_DISCONNECTED;
 		if (m_cb != NULL)
 			m_cb(state);
 	} else if (str_starts_with(event, (char *)WPA_EVENT_CONNECTED)) {
-		printf("%s: wifi is connected\n", __func__);
+		pr_info("%s: wifi is connected\n", __func__);
 		RK_WIFI_RUNNING_State_e state = RK_WIFI_State_CONNECTED;
 		if (m_cb != NULL)
 			m_cb(state);
 	} else if (str_starts_with(event, (char *)WPA_EVENT_SCAN_RESULTS)) {
-		printf("%s: wifi event results\n", __func__);
+		pr_info("%s: wifi event results\n", __func__);
 		system("echo 1 > /tmp/scan_r");
 	} else if (strstr(event, "reason=WRONG_KEY")) {
 		wifi_wrong_key = true;
-		printf("%s: wifi reason=WRONG_KEY \n", __func__);
+		pr_info("%s: wifi reason=WRONG_KEY \n", __func__);
 		RK_WIFI_RUNNING_State_e state = RK_WIFI_State_CONNECTFAILED_WRONG_KEY;
 		if (m_cb != NULL)
 			m_cb(state);
 	} else if (str_starts_with(event, (char *)WPA_EVENT_TERMINATING)) {
-		printf("%s: wifi is WPA_EVENT_TERMINATING!\n", __func__);
+		pr_info("%s: wifi is WPA_EVENT_TERMINATING!\n", __func__);
 		wifi_close_sockets();
 		return -1;
 	}
@@ -1062,7 +1085,7 @@ static int check_wpa_supplicant_state() {
 	int count = 5;
 	int wpa_supplicant_pid = 0;
 	wpa_supplicant_pid = get_pid(WPA_SUPPLICANT);
-	printf("%s: wpa_supplicant_pid = %d\n",__FUNCTION__,wpa_supplicant_pid);
+	pr_info("%s: wpa_supplicant_pid = %d\n",__FUNCTION__,wpa_supplicant_pid);
 	if(wpa_supplicant_pid > 0) {
 		return 1;
 	}
@@ -1083,7 +1106,7 @@ static int wifi_ctrl_recv(char *reply, size_t *reply_len)
 	do {
 		res = TEMP_FAILURE_RETRY(poll(rfds, 2, 30000));
 		if (res < 0) {
-			printf("Error poll = %d\n", res);
+			pr_info("Error poll = %d\n", res);
 			return res;
 		} else if (res == 0) {
             /* timed out, check if supplicant is activeor not .. */
@@ -1119,7 +1142,7 @@ static int wifi_wait_on_socket(char *buf, size_t buflen)
 	}
 
 	if (result < 0) {
-		//printf("wifi_ctrl_recv failed: %s\n", strerror(errno));
+		//pr_info("wifi_ctrl_recv failed: %s\n", strerror(errno));
 		//return snprintf(buf, buflen, "IFNAME=%s %s - recv error",
 		//	primary_iface, WPA_EVENT_TERMINATING);
 	}
@@ -1129,7 +1152,7 @@ static int wifi_wait_on_socket(char *buf, size_t buflen)
 	/* Check for EOF on the socket */
 	if (result == 0 && nread == 0) {
         /* Fabricate an event to pass up */
-		printf("Received EOF on supplicant socket\n");
+		pr_info("Received EOF on supplicant socket\n");
 		return snprintf(buf, buflen, "IFNAME=%s %s - signal 0 received",
 			primary_iface, WPA_EVENT_TERMINATING);
 	}
@@ -1153,11 +1176,11 @@ static int wifi_wait_on_socket(char *buf, size_t buflen)
 			nread -= (match + 1 - buf);
 			memmove(buf, match + 1, nread + 1);
 			if (0)
-				printf("supplicant generated event without interface - %s\n", buf);
+				pr_info("supplicant generated event without interface - %s\n", buf);
 		}
 	} else {
 		if (0)
-			printf("supplicant generated event without interface and without message level - %s\n", buf);
+			pr_info("supplicant generated event without interface and without message level - %s\n", buf);
 	}
 
 	return nread;
@@ -1168,13 +1191,13 @@ static int wifi_connect_on_socket_path(const char *path)
 	char supp_status[PROPERTY_VALUE_MAX] = {'\0'};
 
 	if(!check_wpa_supplicant_state()) {
-		printf("%s: wpa_supplicant is not ready\n",__FUNCTION__);
+		pr_info("%s: wpa_supplicant is not ready\n",__FUNCTION__);
 		return -1;
 	}
 
 	ctrl_conn = wpa_ctrl_open(path);
 	if (ctrl_conn == NULL) {
-		printf("Unable to open connection to supplicant on \"%s\": %s\n",
+		pr_info("Unable to open connection to supplicant on \"%s\": %s\n",
 		path, strerror(errno));
 		return -1;
 	}
@@ -1206,7 +1229,7 @@ static int wifi_connect_to_supplicant()
 	static char path[1024];
 	int count = 10;
 
-	printf("%s \n", __FUNCTION__);
+	pr_info("%s \n", __FUNCTION__);
 	while(count-- > 0) {
 		if (access(IFACE_DIR, F_OK) == 0)
 			break;
@@ -1226,7 +1249,7 @@ static void RK_wifi_start_monitor(void *arg)
 	prctl(PR_SET_NAME,"RK_wifi_start_monitor");
 
 	if ((ret = wifi_connect_to_supplicant()) != 0) {
-		printf("%s, connect to supplicant fail.\n", __FUNCTION__);
+		pr_info("%s, connect to supplicant fail.\n", __FUNCTION__);
 		return;
 	}
 
@@ -1235,7 +1258,7 @@ static void RK_wifi_start_monitor(void *arg)
 		if (!wifi_wait_on_socket(eventStr, EVENT_BUF_SIZE))
 			continue;
 		if (dispatch_event(eventStr)) {
-			printf("disconnecting from the supplicant, no more events\n");
+			pr_info("disconnecting from the supplicant, no more events\n");
 			break;
 		}
 	}
@@ -1243,13 +1266,13 @@ static void RK_wifi_start_monitor(void *arg)
 
 static void execute(const char cmdline[], char recv_buff[], int len)
 {
-	//printf("[AIRKISS] execute: %s\n", cmdline);
+	//pr_info("[AIRKISS] execute: %s\n", cmdline);
 
 	FILE *stream = NULL;
 	char *tmp_buff = recv_buff;
 
 	if ((stream = popen(cmdline, "r")) == NULL) {
-		printf("[AIRKISS] execute: %s failed\n", cmdline);
+		pr_info("[AIRKISS] execute: %s failed\n", cmdline);
 		return;
 	}
 
@@ -1263,7 +1286,7 @@ static void execute(const char cmdline[], char recv_buff[], int len)
 		tmp_buff += strlen(tmp_buff);
 		len -= strlen(tmp_buff);
 		if (len <= 1) {
-			printf("[AIRKISS] overflow, please enlarge recv_buff\n");
+			pr_info("[AIRKISS] overflow, please enlarge recv_buff\n");
 			break;
 		}
 	}
@@ -1282,7 +1305,7 @@ static int start_airkiss()
 		usleep(500000);
 
 		if(get_pid("rk_airkiss") > 0) {
-			printf("[AIRKISS] start rk_airkiss success, cnt: %d\n", cnt);
+			pr_info("[AIRKISS] start rk_airkiss success, cnt: %d\n", cnt);
 			ret = 0;
 			break;
 		}
@@ -1297,9 +1320,9 @@ static bool check_airkiss_conf()
 	bool file_exist = false;
 
 	while (wait_cnt--) {
-		printf("[AIRKISS] check airkiss conf, wait_cnt: %d\n", wait_cnt);
+		pr_info("[AIRKISS] check airkiss conf, wait_cnt: %d\n", wait_cnt);
 		if (access("/tmp/airkiss.conf", F_OK) == 0) {
-			printf("[AIRKISS] geted airkiss data\n");
+			pr_info("[AIRKISS] geted airkiss data\n");
 			file_exist = true;
 			break;
 		}
@@ -1320,20 +1343,20 @@ static void get_airkiss_ssid_password(char *ssid, char *password)
 	 * rk_password=cccccc
 	 */
 	execute("cat /tmp/airkiss.conf | grep rk_ssid", ret_buf, 1024);
-	printf("[AIRKISS] ssid ret_buf: %s\n", ret_buf);
+	pr_info("[AIRKISS] ssid ret_buf: %s\n", ret_buf);
 	if (cp = strstr(ret_buf, "=")) {
 		strcpy(ssid, cp + 1);
 		ssid[strlen(ssid) - 1] = '\0';
 	}
 
 	execute("cat /tmp/airkiss.conf | grep rk_password", ret_buf, 1024);
-	printf("[AIRKISS] password ret_buf: %s\n", ret_buf);
+	pr_info("[AIRKISS] password ret_buf: %s\n", ret_buf);
 	if (cp = strstr(ret_buf, "=")) {
 		strcpy(password, cp + 1);
 		password[strlen(password) - 1] = '\0';
 	}
 
-	printf("[AIRKISS] SSID: %s[%d], PSK: %s[%d]\n", ssid, strlen(ssid), password, strlen(password));
+	pr_info("[AIRKISS] SSID: %s[%d], PSK: %s[%d]\n", ssid, strlen(ssid), password, strlen(password));
 }
 
 static int RK_wifi_rtl_airkiss_start(char *ssid, char *password)
@@ -1341,23 +1364,23 @@ static int RK_wifi_rtl_airkiss_start(char *ssid, char *password)
 	int reset_cnt = 1;
 	bool file_exist = false;
 
-	printf("=== %s ===\n", __func__);
+	pr_info("=== %s ===\n", __func__);
 
 retry:
 	if(start_airkiss() < 0) {
-		printf("[AIRKISS] start rk_airkiss failed\n");
+		pr_info("[AIRKISS] start rk_airkiss failed\n");
 		return -1;
 	}
 
 	file_exist = check_airkiss_conf();
 
 	if ((!file_exist) && (--reset_cnt)) {
-		printf("[AIRKISS] geted airkiss data failed, reset_cnt: %d\n", reset_cnt);
+		pr_info("[AIRKISS] geted airkiss data failed, reset_cnt: %d\n", reset_cnt);
 		goto retry;
 	}
 
 	if (!file_exist) {
-		printf("[AIRKISS] don't get airkiss data\n");
+		pr_info("[AIRKISS] don't get airkiss data\n");
 		system("killall rk_airkiss");
 		return -1;
 	}
@@ -1377,7 +1400,7 @@ int RK_wifi_airkiss_start(char *ssid, char *password)
 #ifdef REALTEK
 	return RK_wifi_rtl_airkiss_start(ssid, password);
 #else
-	printf("Currently only supports realtek airkiss config\n");
+	pr_info("Currently only supports realtek airkiss config\n");
 	return -1;
 #endif
 }
@@ -1387,6 +1410,6 @@ void RK_wifi_airkiss_stop()
 #ifdef REALTEK
 	return RK_wifi_rtl_airkiss_stop();
 #else
-	printf("Currently only supports realtek airkiss config\n");
+	pr_info("Currently only supports realtek airkiss config\n");
 #endif
 }

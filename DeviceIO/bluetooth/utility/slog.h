@@ -7,7 +7,7 @@ extern "C" {
 #endif
 
 #define LOG_TAG "BLUEZ_LOG"
-//#define SYSLOG_DEBUG
+#define SYSLOG_DEBUG
 
 #ifdef SYSLOG_DEBUG
 #define pr_debug(fmt, ...)		syslog(LOG_DEBUG, fmt, ##__VA_ARGS__)
