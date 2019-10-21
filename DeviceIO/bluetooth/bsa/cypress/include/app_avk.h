@@ -852,5 +852,6 @@ void app_avk_stop(void);
 int app_avk_set_volume(int volume);
 int app_avk_get_play_status(void);
 BOOLEAN app_avk_get_pos_change(void);
+void app_avk_set_alsa_device(char *alsa_dev);
 
 #endif /* APP_AVK_H_ */

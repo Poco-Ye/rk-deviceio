@@ -511,6 +511,12 @@ int rk_bt_free_paired_devices(RkBtPraiedDevice *dev_list)
     return app_mgr_free_paired_devices(dev_list);
 }
 
+int rk_bt_get_playrole_by_addr(char *addr)
+{
+    APP_DEBUG1("bsa don't support %s", __func__);
+    return 0;
+}
+
 /******************************************/
 /*               A2DP SINK                */
 /******************************************/
@@ -714,6 +720,11 @@ int rk_bt_sink_disconnect_by_addr(char *addr)
     }
 
     return app_avk_close(bd_addr);
+}
+
+void rk_bt_sink_set_alsa_device(char *alsa_dev)
+{
+    app_avk_set_alsa_device(alsa_dev);
 }
 
 /******************************************/

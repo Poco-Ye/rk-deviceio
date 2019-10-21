@@ -296,6 +296,7 @@ int bt_sink_callback(RK_BT_SINK_STATE state)
 			break;
 		case RK_BT_SINK_STATE_DISCONNECT:
 			printf("++++++++++++ BT SINK EVENT: disconnected ++++++++++\n");
+			//system("amixer set bt 255");
 			break;
 		//avrcp
 		case RK_BT_SINK_STATE_PLAY:
@@ -325,6 +326,14 @@ int bt_sink_callback(RK_BT_SINK_STATE state)
 void bt_sink_volume_callback(int volume)
 {
 	printf("++++++++ bt sink volume change, volume: %d ++++++++\n", volume);
+
+	/* Change the code below based on which interface audio is going out to. */
+#if 0
+	char buffer[100];
+	sprintf(buffer, "amixer set bt %d", volume * 255 / 127);
+	if (-1 == system(buffer))
+		printf("set volume error: %d, volume: %d\n", errno, volume);
+#endif
 }
 
 void bt_sink_track_change_callback(const char *bd_addr, BtTrackInfo track_info)
@@ -353,6 +362,7 @@ void bt_test_sink_open(char *data)
 	rk_bt_sink_register_track_callback(bt_sink_track_change_callback);
 	rk_bt_sink_register_position_callback(bt_sink_position_change_callback);
 	rk_bt_sink_register_callback(bt_sink_callback);
+	//rk_bt_sink_set_alsa_device("bt");
 	rk_bt_sink_open();
 }
 

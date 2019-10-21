@@ -856,6 +856,11 @@ int rk_bt_sink_set_volume(int volume)
 	return ret;
 }
 
+void rk_bt_sink_set_alsa_device(char *alsa_dev)
+{
+	pr_info("bluez don't support %s\n", __func__);
+}
+
 /*****************************************************************
  *            Rockchip bluetooth spp api                         *
  *****************************************************************/
