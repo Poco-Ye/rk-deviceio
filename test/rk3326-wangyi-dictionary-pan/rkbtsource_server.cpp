@@ -42,11 +42,184 @@
 #define BLE_UUID_SEND		"dfd4416e-1810-47f7-8248-eb8be3dc47f9"
 #define BLE_UUID_RECV		"9884d812-1810-4a24-94d3-b2c11a851fac"
 
+#define SCAN_DEVICES_SAVE_COUNT 30
+
+static int sockfd = 0;
+static scan_devices_t scan_devices_bak[SCAN_DEVICES_SAVE_COUNT];
+static int scan_devices_count = 0;
+
+static void rk_bt_state_cb(RK_BT_STATE state)
+{
+	switch(state) {
+		case RK_BT_STATE_TURNING_ON:
+			printf("%s: RK_BT_STATE_TURNING_ON\n", PRINT_FLAG_RKBTSOURCE);
+			break;
+		case RK_BT_STATE_ON:
+			printf("%s: RK_BT_STATE_ON\n", PRINT_FLAG_RKBTSOURCE);
+			break;
+		case RK_BT_STATE_TURNING_OFF:
+			printf("%s: RK_BT_STATE_TURNING_OFF\n", PRINT_FLAG_RKBTSOURCE);
+			break;
+		case RK_BT_STATE_OFF:
+			printf("%s: RK_BT_STATE_OFF\n", PRINT_FLAG_RKBTSOURCE);
+			break;
+	}
+}
+
+static void rk_bt_bond_state_cb(const char *bd_addr, const char *name, RK_BT_BOND_STATE state)
+{
+	switch(state) {
+		case RK_BT_BOND_STATE_NONE:
+			printf("%s: BT BOND NONE: %s, %s\n", PRINT_FLAG_RKBTSOURCE, name, bd_addr);
+			break;
+		case RK_BT_BOND_STATE_BONDING:
+			printf("%s: BT BOND BONDING: %s, %s\n", PRINT_FLAG_RKBTSOURCE, name, bd_addr);
+			break;
+		case RK_BT_BOND_STATE_BONDED:
+			printf("%s: BT BONDED: %s, %s\n", PRINT_FLAG_RKBTSOURCE, name, bd_addr);
+			break;
+	}
+}
+
+static int rk_bt_send_scan_msg(char *scan_msg, int scan_msg_len)
+{
+	int ret;
+	struct sockaddr_un clientAddr;
+
+	/* Set client address */
+	clientAddr.sun_family = AF_UNIX;
+	strcpy(clientAddr.sun_path, "/tmp/rockchip_btsource_client");
+
+	ret = sendto(sockfd, scan_msg, scan_msg_len, 0, (struct sockaddr *)&clientAddr, sizeof(clientAddr));
+	if (ret < 0) {
+		printf("%s: sendto scan msg failed! ret = %d, scan_msg = %s\n", PRINT_FLAG_ERR, ret, scan_msg);
+		return -1;
+	}
+
+	return 0;
+}
+
+static void rk_bt_discovery_status_cb(RK_BT_DISCOVERY_STATE status)
+{
+	switch(status) {
+		case RK_BT_DISC_STARTED:
+			printf("%s: RK_BT_DISC_STARTED\n", PRINT_FLAG_RKBTSOURCE);
+			break;
+		case RK_BT_DISC_STOPPED_AUTO:
+			printf("%s: RK_BT_DISC_STOPPED_AUTO\n", PRINT_FLAG_RKBTSOURCE);
+			rk_bt_send_scan_msg("rkbt scan off", strlen("rkbt scan off"));
+			break;
+		case RK_BT_DISC_START_FAILED:
+			printf("%s: RK_BT_DISC_START_FAILED\n", PRINT_FLAG_RKBTSOURCE);
+			rk_bt_send_scan_msg("rkbt scan off", strlen("rkbt scan off"));
+			break;
+		case RK_BT_DISC_STOPPED_BY_USER:
+			printf("%s: RK_BT_DISC_STOPPED_BY_USER\n", PRINT_FLAG_RKBTSOURCE);
+			rk_bt_send_scan_msg("rkbt scan off", strlen("rkbt scan off"));
+			break;
+	}
+}
+
+static void rk_bt_dev_found_cb(const char *address, const char *name, unsigned int bt_class, int rssi)
+{
+	/*INVALID = 0, SOURCE = 1, SINK = 2*/
+	if(rk_bt_get_playrole_by_addr(address) == 2) {
+		int i, name_len, scan_msg_len = 0;
+		scan_devices_t *scan_devices;
+		scan_msg_t *scan_msg;
+		char buff[2048];
+		char *offset;
+
+		printf("%s: device is found\n", PRINT_FLAG_RKBTSOURCE);
+		printf("		address: %s\n", address);
+		printf("		name: %s\n", name);
+		printf("		class: 0x%x\n", bt_class);
+		printf("		rssi: %d\n", rssi);
+
+		for(i = 0; i < scan_devices_count; i++) {
+			if(!strcmp(scan_devices_bak[i].name, name) && !strcmp(scan_devices_bak[i].addr, address)) {
+				printf("%s: just rssi change(%s, %s)\n", PRINT_FLAG_RKBTSOURCE, name, address);
+				return;
+			}
+		}
+
+		memset(buff, 0, sizeof(buff));
+		scan_msg = (scan_msg_t *)buff;
+		scan_msg->magic[0] = 'r';
+		scan_msg->magic[1] = 'k';
+		scan_msg->magic[2] = 'b';
+		scan_msg->magic[3] = 't';
+		scan_msg->start_flag = 0x01;
+		scan_msg->devices_cnt = 1;
+		offset = buff + sizeof(scan_msg_t);
+
+		scan_devices = (scan_devices_t *)(offset);
+		name_len = strlen(name) > (sizeof(scan_devices->name) - 1) ? (sizeof(scan_devices->name) - 1) : strlen(name);
+		memcpy(scan_devices->name, name, name_len);
+		scan_devices->name[name_len] = '\0';
+
+		memcpy(scan_devices->addr, address, 17);
+		scan_devices->addr[17] = '\0';
+
+		if(rssi == 0x7FFF)
+			scan_devices->rssi = 0xFF;
+		else
+			scan_devices->rssi = rssi;
+
+		if(scan_devices_count < SCAN_DEVICES_SAVE_COUNT) {
+			memcpy(&(scan_devices_bak[scan_devices_count]), scan_devices, sizeof(scan_devices_t));
+			scan_devices_count++;
+		}
+
+		offset += sizeof(scan_devices_t);
+		*offset = 0x04;
+		scan_msg_len = sizeof(scan_msg_t) + scan_msg->devices_cnt * sizeof(scan_devices_t) + 1;
+
+		rk_bt_send_scan_msg(buff, scan_msg_len);
+	}
+}
+
+void rk_bt_source_status_callback(void *userdata, const RK_BT_SOURCE_EVENT enEvent)
+{
+	switch(enEvent) {
+		case BT_SOURCE_EVENT_CONNECT_FAILED:
+			printf("%s: BT_SOURCE_EVENT_CONNECT_FAILED\n", PRINT_FLAG_RKBTSOURCE);
+			break;
+		case BT_SOURCE_EVENT_CONNECTED:
+			printf("%s: BT_SOURCE_EVENT_CONNECTED\n", PRINT_FLAG_RKBTSOURCE);
+			break;
+		case BT_SOURCE_EVENT_DISCONNECTED:
+			printf("%s: BT_SOURCE_EVENT_DISCONNECTED\n", PRINT_FLAG_RKBTSOURCE);
+			break;
+		case BT_SOURCE_EVENT_RC_PLAY:
+			printf("%s: BT_SOURCE_EVENT_RC_PLAY\n", PRINT_FLAG_RKBTSOURCE);
+			break;
+		case BT_SOURCE_EVENT_RC_STOP:
+			printf("%s: BT_SOURCE_EVENT_RC_STOP\n", PRINT_FLAG_RKBTSOURCE);
+			break;
+		case BT_SOURCE_EVENT_RC_PAUSE:
+			printf("%s: BT_SOURCE_EVENT_RC_PAUSE\n", PRINT_FLAG_RKBTSOURCE);
+			break;
+		case BT_SOURCE_EVENT_RC_FORWARD:
+			printf("%s: BT_SOURCE_EVENT_RC_FORWARD\n", PRINT_FLAG_RKBTSOURCE);
+			break;
+		case BT_SOURCE_EVENT_RC_BACKWARD:
+			printf("%s: BT_SOURCE_EVENT_RC_BACKWARD\n", PRINT_FLAG_RKBTSOURCE);
+			break;
+		case BT_SOURCE_EVENT_RC_VOL_UP:
+			printf("%s: BT_SOURCE_EVENT_RC_VOL_UP\n", PRINT_FLAG_RKBTSOURCE);
+			break;
+		case BT_SOURCE_EVENT_RC_VOL_DOWN:
+			printf("%s: BT_SOURCE_EVENT_RC_VOL_DOWN\n", PRINT_FLAG_RKBTSOURCE);
+			break;
+	}
+}
+
 static int rk_bt_server_init(const char *name)
 {
 	static RkBtContent bt_content;
 
-	printf("---------------BT SERVER INIT(%s)----------------\n", name);
+	printf("%s: BT SERVER INIT(%s)\n", PRINT_FLAG_RKBTSOURCE, name);
 	memset (&bt_content, 0, sizeof(bt_content));
 	bt_content.bt_name = name;
 	bt_content.ble_content.ble_name = "ROCKCHIP_AUDIO BLE";
@@ -63,92 +236,55 @@ static int rk_bt_server_init(const char *name)
 	bt_content.ble_content.cb_ble_recv_fun = NULL;
 	bt_content.ble_content.cb_ble_request_data = NULL;
 
-	rk_bt_init(&bt_content);
-
-	return 0;
+	rk_bt_register_state_callback(rk_bt_state_cb);
+	rk_bt_register_bond_callback(rk_bt_bond_state_cb);
+	rk_bt_register_discovery_callback(rk_bt_discovery_status_cb);
+	rk_bt_register_dev_found_callback(rk_bt_dev_found_cb);
+	return rk_bt_init(&bt_content);
 }
 
 static int rk_bt_server_deinit()
 {
-	char ret_buff[1024];
-
-	printf("---------------BT SERVER DEINIT----------------\n");
-	RK_shell_system("killall bluealsa");
-	RK_shell_system("killall bluealsa-aplay");
-	RK_shell_system("killall bluetoothctl");
-	RK_shell_system("killall bluetoothd");
-
-	msleep(100);
-	RK_shell_exec("pidof bluetoothd", ret_buff, 1024);
-	while (ret_buff[0]) {
-		msleep(10);
-		RK_shell_system("killall bluetoothd");
-		msleep(100);
-		RK_shell_exec("pidof bluetoothd", ret_buff, 1024);
-	}
-
-	RK_shell_system("killall rtk_hciattach");
-	msleep(800);
-	RK_shell_exec("pidof rtk_hciattach", ret_buff, 1024);
-	while (ret_buff[0]) {
-		msleep(10);
-		RK_shell_system("killall rtk_hciattach");
-		msleep(800);
-		RK_shell_exec("pidof rtk_hciattach", ret_buff, 1024);
-	}
-
-	return 0;
+	printf("%s: BT SERVER DEINIT\n", PRINT_FLAG_RKBTSOURCE);
+	return rk_bt_deinit();
 }
 
 int main(int argc, char *argv[])
 {
-	int i, item_cnt, ret, j;
+	int i, item_cnt, ret;
 	char buff[128] = {0};
-	char scan_buff[2048] = {0};
 	bt_msg_t *msg;
-	scan_msg_t *scan_msg;
-	int scan_msg_len = 0;
-	char *offset;
-	scan_devices_t *scan_devices;
-	int sockfd = 0;
 	struct sockaddr_un serverAddr;
-	struct sockaddr_un clientAddr;
-	socklen_t addr_len;
-	BtScanParam scan_param;
 
 	RK_read_version(buff, 128);
 	printf("====== Version:%s =====\n", buff);
-	memset(buff, 0, 128);
+	memset(buff, 0, sizeof(buff));
 
 	sockfd = socket(AF_UNIX, SOCK_DGRAM, 0);
 	if (sockfd < 0) {
-		printf("Create socket failed!\n");
-		return NULL;
+		printf("%s: Create socket failed!\n", PRINT_FLAG_ERR);
+		return -1;
 	}
 
-	/* Set client address */
-	clientAddr.sun_family = AF_UNIX;
-	strcpy(clientAddr.sun_path, "/tmp/rockchip_btsource_client");
 	/* Set server address */
 	system("rm -rf /tmp/rockchip_btsource_server");
 	serverAddr.sun_family = AF_UNIX;
 	strcpy(serverAddr.sun_path, "/tmp/rockchip_btsource_server");
 	ret = bind(sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
 	if (ret < 0) {
-		printf("%s:Bind Local addr failed!\n", PRINT_FLAG_ERR);
-		return NULL;
+		printf("%s: Bind Local addr failed!\n", PRINT_FLAG_ERR);
+		goto fail;
 	}
 
 	msg = (bt_msg_t *)buff;
-	addr_len = strlen(serverAddr.sun_path) + sizeof(serverAddr.sun_family);
 	item_cnt = sizeof(bt_command_table) / sizeof(bt_command_t);
 
 	while(1) {
 		memset(buff, 0, sizeof(buff));
 		ret = recv(sockfd, buff, sizeof(buff), 0);
 		if (ret <= 0) {
-			printf("%s:Recv cmd failed! ret = %d\n", PRINT_FLAG_ERR, ret);
-			break;
+			printf("%s: Recv cmd failed! ret = %d\n", PRINT_FLAG_ERR, ret);
+			goto fail;
 		}
 
 		for (i = 0; i < item_cnt; i++) {
@@ -157,104 +293,86 @@ int main(int argc, char *argv[])
 		}
 
 		if (i >= item_cnt) {
-			printf("%s:Invalid cmd(%s) recved!\n", PRINT_FLAG_ERR, buff);
+			printf("%s: Invalid cmd(%s) recved!\n", PRINT_FLAG_ERR, buff);
 			continue;
 		}
 
 		switch (bt_command_table[i].cmd_id) {
-			case RK_BT_SOURCE_INIT:
-				if (strlen(msg->name))
-					rk_bt_server_init(msg->name);
-				else
-					rk_bt_server_init("ROCKCHIP_AUDIO");
-				rk_bt_source_open();
-				printf("%s:bt server init sucess!\n", PRINT_FLAG_SUCESS);
-				break;
-			case RK_BT_SOURCE_CONNECT:
-				ret = rk_bt_source_connect(msg->addr);
-				if (ret < 0)
-					printf("%s:connect %s failed!\n", PRINT_FLAG_ERR, msg->addr);
-				else
-					printf("%s:connect sucess!\n", PRINT_FLAG_SUCESS);
-				break;
-			case RK_BT_SOURCE_SCAN:
-				/* Scan bluetooth devices */
-				memset(&scan_param, 0, sizeof(scan_param));
-				scan_param.mseconds = 10000; /* 10s for default */
-				scan_param.item_cnt = 0;
-				ret = rk_bt_source_scan(&scan_param);
-				if (ret < 0) {
-					printf("%s:scan failed!\n", PRINT_FLAG_ERR);
-					break;
-				}
-				memset(scan_buff, 0, sizeof(scan_buff));
-				scan_msg = (scan_msg_t *)scan_buff;
-				scan_msg->magic[0] = 'r';
-				scan_msg->magic[1] = 'k';
-				scan_msg->magic[2] = 'b';
-				scan_msg->magic[3] = 't';
-				scan_msg->start_flag = 0x01;
-				scan_msg->devices_cnt = 0;
-				offset = scan_buff + sizeof(scan_msg_t);
+		case RK_BT_SOURCE_INIT:
+			if (strlen(msg->name))
+				ret = rk_bt_server_init(msg->name);
+			else
+				ret = rk_bt_server_init("ROCKCHIP_AUDIO");
 
-				for (j = 0; j < scan_param.item_cnt; j++) {
-					printf("\t name:%s\n", scan_param.devices[j].name);
-					printf("\t address:%s\n", scan_param.devices[j].address);
-					printf("\t playrole:%s\n", scan_param.devices[j].playrole);
-					printf("\t rssi:%d\n\n", scan_param.devices[j].rssi);
+			if(ret < 0) {
+				printf("%s: bt server init failed!\n", PRINT_FLAG_ERR);
+				goto fail;
+			}
 
-					if (strncmp(scan_param.devices[j].playrole, "Audio Sink", 10))
-						continue;
+			rk_bt_source_register_status_cb(NULL, rk_bt_source_status_callback);
+			if(rk_bt_source_open() < 0) {
+				printf("%s: bt source open failed!\n", PRINT_FLAG_ERR);
+				goto fail;
+			}
 
-					scan_devices = (scan_devices_t *)(offset);
-					ret = strlen(scan_param.devices[j].name);
-					if (ret > sizeof(scan_devices->name))
-						ret = sizeof(scan_devices->name);
-					memcpy(scan_devices->name, scan_param.devices[j].name, ret);
-					memcpy(scan_devices->addr, scan_param.devices[j].address, 17);
-					if (scan_param.devices[j].rssi_valid)
-						scan_devices->rssi = scan_param.devices[j].rssi * (-1);
-					else
-						scan_devices->rssi = 0xFF;
+			printf("%s: bt server init sucessful!\n", PRINT_FLAG_SUCESS);
+			//system("echo 'bt server init sucessful' > /tmp/rk_bt.log");
+			break;
 
-					scan_msg->devices_cnt++;
-					offset += sizeof(scan_devices_t);
-				}
-				*offset = 0x04;
-				scan_msg_len = sizeof(scan_msg_t) + scan_msg->devices_cnt * sizeof(scan_devices_t) + 1;
-				ret = sendto(sockfd, scan_buff, scan_msg_len, 0, (struct sockaddr *)&clientAddr, sizeof(clientAddr));
-				if (ret < 0) {
-					printf("%s:scan failed! ret = %d\n", PRINT_FLAG_ERR, ret);
-					break;
-				}
+		case RK_BT_SOURCE_CONNECT:
+			if (rk_bt_source_connect(msg->addr) < 0)
+				printf("%s: rk_bt_source_connect %s failed!\n", PRINT_FLAG_ERR, msg->addr);
+			break;
 
-				printf("%s:scan sucess!\n", PRINT_FLAG_SUCESS);
-				break;
-			case RK_BT_SOURCE_DISCONNECT:
-				ret = rk_bt_source_disconnect(msg->addr);
-				if (ret < 0)
-					printf("%s:disconnect failed!\n", PRINT_FLAG_ERR);
-				else
-					printf("%s:disconnect sucess!\n", PRINT_FLAG_SUCESS);
-				break;
-			case RK_BT_SOURCE_REMOVE:
-				ret = rk_bt_source_remove(msg->addr);
-				if (ret < 0)
-					printf("%s:remove failed!\n", PRINT_FLAG_ERR);
-				else
-					printf("%s:remove sucess!\n", PRINT_FLAG_SUCESS);
-				break;
-			case RK_BT_SOURCE_DEINIT:
-				rk_bt_source_close();
-				rk_bt_server_deinit();
+		case RK_BT_SOURCE_SCAN_ON:
+			memset(scan_devices_bak, 0, sizeof(scan_devices_t) * SCAN_DEVICES_SAVE_COUNT);
+			scan_devices_count = 0;
+			/* Scan bluetooth devices, 10s for default*/
+			if(rk_bt_start_discovery(10000) < 0)
+				printf("%s: rk_bt_start_discovery failed\n", PRINT_FLAG_ERR);
+			break;
+
+		case RK_BT_SOURCE_SCAN_OFF:
+			rk_bt_cancel_discovery();
+			break;
+
+		case RK_BT_SOURCE_DISCONNECT:
+			if (rk_bt_source_disconnect(msg->addr) < 0)
+				printf("%s: rk_bt_source_disconnect failed!\n", PRINT_FLAG_ERR);
+			break;
+
+		case RK_BT_SOURCE_REMOVE:
+			if (rk_bt_source_remove(msg->addr) < 0)
+				printf("%s: remove failed!\n", PRINT_FLAG_ERR);
+			else
+				printf("%s: remove sucess!\n", PRINT_FLAG_SUCESS);
+			break;
+
+		case RK_BT_SOURCE_DEINIT:
+			rk_bt_server_deinit();
+
+			if(sockfd) {
 				close(sockfd);
-				printf("%s:deinit bt server sucess!\n", PRINT_FLAG_SUCESS);
-				return 0;
+				printf("%s: close server socket\n", PRINT_FLAG_RKBTSOURCE);
+				sockfd = 0;
+			}
 
-			default:
-				break;
+			printf("%s:deinit bt server sucess!\n", PRINT_FLAG_SUCESS);
+			return 0;
+
+		default:
+			break;
 		}
 	}
 
-	return 0;
+fail:
+	printf("%s: rkbtsource_server failed and exit\n", PRINT_FLAG_ERR);
+	if(sockfd) {
+		close(sockfd);
+		printf("%s: close server socket\n", PRINT_FLAG_RKBTSOURCE);
+		sockfd = 0;
+	}
+
+	rk_bt_server_deinit();
+	return -1;
 }

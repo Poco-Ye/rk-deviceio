@@ -99,6 +99,9 @@ int rk_bt_get_paired_devices(RkBtPraiedDevice **dev_list,int *count);
 int rk_bt_free_paired_devices(RkBtPraiedDevice *dev_list);
 void rk_bt_display_paired_devices();
 
+/*INVALID = 0, SOURCE = 1, SINK = 2*/
+int rk_bt_get_playrole_by_addr(char *addr);
+
 #ifdef __cplusplus
 }
 #endif

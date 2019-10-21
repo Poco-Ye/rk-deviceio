@@ -61,7 +61,7 @@ int rk_bt_ble_set_visibility(const int visiable, const int connect)
 int rk_ble_start(RkBleContent *ble_content)
 {
 	if (!bt_is_open()) {
-		pr_info("%: Please open bt!!!\n", __func__);
+		pr_info("%s: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -245,7 +245,7 @@ scan_retry:
 	if (!target_vaild) {
 		pr_info("=== Cannot find audio Sink devices. ===\n");
 		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
-		return;
+		return NULL;
 	} else if (max_rssi < -80) {
 		pr_info("=== BT SOURCE RSSI is is too weak !!! ===\n");
 		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
@@ -278,7 +278,7 @@ int rk_bt_source_auto_connect_start(void *userdata, RK_BT_SOURCE_CALLBACK cb)
 	int ret;
 
 	if (!bt_is_open()) {
-		pr_info("%: Please open bt!!!\n", __func__);
+		pr_info("%s: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -318,7 +318,7 @@ int rk_bt_source_auto_connect_stop(void)
 int rk_bt_source_open(void)
 {
 	if (!bt_is_open()) {
-		pr_info("%: Please open bt!!!\n", __func__);
+		pr_info("%s: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -560,7 +560,7 @@ int rk_bt_sink_get_default_dev_addr(char *addr, int len)
 int rk_bt_sink_open()
 {
 	if (!bt_is_open()) {
-		pr_info("%: Please open bt!!!\n", __func__);
+		pr_info("%s: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -864,7 +864,7 @@ int rk_bt_spp_open()
 	int ret = 0;
 
 	if (!bt_is_open()) {
-		pr_info("%: Please open bt!!!\n", __func__);
+		pr_info("%s: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -942,6 +942,8 @@ int rk_bt_deinit(void)
 	bt_kill_task("bluealsa-aplay");
 	bt_kill_task("bluetoothctl");
 	bt_kill_task("bluetoothd");
+	bt_exec_command_system("hciconfig hci0 down");
+	bt_kill_task("rtk_hciattach");
 
 	sleep(1);
 	rk_ble_clean();
@@ -1022,7 +1024,7 @@ int rk_bt_enable_reconnect(int value)
 int rk_bt_start_discovery(unsigned int mseconds)
 {
 	if (!bt_is_open()) {
-		pr_info("%: Please open bt!!!\n", __func__);
+		pr_info("%s: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -1032,7 +1034,7 @@ int rk_bt_start_discovery(unsigned int mseconds)
 int rk_bt_cancel_discovery()
 {
 	if (!bt_is_open()) {
-		pr_info("%: Please open bt!!!\n", __func__);
+		pr_info("%s: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -1042,7 +1044,7 @@ int rk_bt_cancel_discovery()
 bool rk_bt_is_discovering()
 {
 	if (!bt_is_open()) {
-		pr_info("%: Please open bt!!!\n", __func__);
+		pr_info("%s: Please open bt!!!\n", __func__);
 		return false;
 	}
 
@@ -1052,7 +1054,7 @@ bool rk_bt_is_discovering()
 void rk_bt_display_devices()
 {
 	if (!bt_is_open()) {
-		pr_info("%: Please open bt!!!\n", __func__);
+		pr_info("%s: Please open bt!!!\n", __func__);
 		return;
 	}
 
@@ -1062,7 +1064,7 @@ void rk_bt_display_devices()
 void rk_bt_display_paired_devices()
 {
 	if (!bt_is_open()) {
-		pr_info("%: Please open bt!!!\n", __func__);
+		pr_info("%s: Please open bt!!!\n", __func__);
 		return;
 	}
 
@@ -1072,7 +1074,7 @@ void rk_bt_display_paired_devices()
 int rk_bt_pair_by_addr(char *addr)
 {
 	if (!bt_is_open()) {
-		pr_info("%: Please open bt!!!\n", __func__);
+		pr_info("%s: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -1082,7 +1084,7 @@ int rk_bt_pair_by_addr(char *addr)
 int rk_bt_unpair_by_addr(char *addr)
 {
 	if (!bt_is_open()) {
-		pr_info("%: Please open bt!!!\n", __func__);
+		pr_info("%s: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -1092,7 +1094,7 @@ int rk_bt_unpair_by_addr(char *addr)
 int rk_bt_set_device_name(char *name)
 {
 	if (!bt_is_open()) {
-		pr_info("%: Please open bt!!!\n", __func__);
+		pr_info("%s: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -1102,7 +1104,7 @@ int rk_bt_set_device_name(char *name)
 int rk_bt_get_device_name(char *name, int len)
 {
 	if (!bt_is_open()) {
-		pr_info("%: Please open bt!!!\n", __func__);
+		pr_info("%s: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -1112,7 +1114,7 @@ int rk_bt_get_device_name(char *name, int len)
 int rk_bt_get_device_addr(char *addr, int len)
 {
 	if (!bt_is_open()) {
-		pr_info("%: Please open bt!!!\n", __func__);
+		pr_info("%s: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -1122,7 +1124,7 @@ int rk_bt_get_device_addr(char *addr, int len)
 int rk_bt_get_paired_devices(RkBtPraiedDevice **dev_list, int *count)
 {
 	if (!bt_is_open()) {
-		pr_info("%: Please open bt!!!\n", __func__);
+		pr_info("%s: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -1132,13 +1134,22 @@ int rk_bt_get_paired_devices(RkBtPraiedDevice **dev_list, int *count)
 int rk_bt_free_paired_devices(RkBtPraiedDevice *dev_list)
 {
 	if (!bt_is_open()) {
-		pr_info("%: Please open bt!!!\n", __func__);
+		pr_info("%s: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
 	return bt_free_paired_devices(dev_list);
 }
 
+int rk_bt_get_playrole_by_addr(char *addr)
+{
+	if (!bt_is_open()) {
+		pr_info("%s: Please open bt!!!\n", __func__);
+		return -1;
+	}
+
+	return bt_get_playrole_by_addr(addr);
+}
 /*****************************************************************
  *            Rockchip bluetooth hfp-hf api                        *
  *****************************************************************/
@@ -1152,7 +1163,7 @@ void rk_bt_hfp_register_callback(RK_BT_HFP_CALLBACK cb)
 int rk_bt_hfp_open()
 {
 	if (!bt_is_open()) {
-		pr_info("%: Please open bt!!!\n", __func__);
+		pr_info("%s: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -1192,7 +1203,7 @@ int rk_bt_hfp_open()
 int rk_bt_hfp_sink_open(void)
 {
 	if (!bt_is_open()) {
-		pr_info("%: Please open bt!!!\n", __func__);
+		pr_info("%s: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
@@ -1407,7 +1418,7 @@ int rk_bt_obex_init()
 	int ret = 0;
 
 	if (!bt_is_open()) {
-		pr_info("%: Please open bt!!!\n", __func__);
+		pr_info("%s: Please open bt!!!\n", __func__);
 		return -1;
 	}
 

@@ -662,8 +662,10 @@ enum BT_Device_Class dist_dev_class(GDBusProxy *proxy)
 			pr_info("%s address: %s\n", __func__, address);
 		}
 
-		if (strcmp(addressType, "random") == 0)
+		if (strcmp(addressType, "random") == 0) {
+			pr_info("%s The device is ble\n", __func__);
 			return BT_Device_Class::BT_BLE_DEVICE;
+		}
 
 		if (strcmp(addressType, "public") == 0) {
 			if (g_dbus_proxy_get_property(proxy, "Class", &class_iter) == TRUE) {
@@ -716,9 +718,11 @@ enum BT_Device_Class dist_dev_class(GDBusProxy *proxy)
 
 							if (strstr(str, "Audio Sink")) {
 								ret = BT_Device_Class::BT_SINK_DEVICE;
+								pr_info("%s The device is sink\n", __func__);
 								break;
 							} else if (strstr(str, "Audio Source")) {
 								ret = BT_Device_Class::BT_SOURCE_DEVICE;
+								pr_info("%s The device is source\n", __func__);
 								break;
 							}
 						}
@@ -732,6 +736,7 @@ enum BT_Device_Class dist_dev_class(GDBusProxy *proxy)
 		}
 	}
 
+	pr_info("%s The device is unknow\n", __func__);
 	return BT_Device_Class::BT_IDLE;
 }
 
@@ -1169,13 +1174,11 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 			else
 				str = g_strdup("");
 
-			if (strcmp(name, "Paired") == 0) {
+			if (strcmp(name, "Paired") == 0)
 				device_paired_process(proxy, iter, dev_addr);
-			}
 
-			if (strcmp(name, "Connected") == 0) {
+			if (strcmp(name, "Connected") == 0)
 				device_connected_process(proxy, iter, user_data);
-			}
 
 			print_iter(str, name, iter);
 			g_free(str);
@@ -4359,4 +4362,22 @@ bool bt_is_connected()
 		ret = true;
 
 	return ret;
+}
+
+int bt_get_playrole_by_addr(char *addr)
+{
+	GDBusProxy *proxy;
+
+	if (!addr || (strlen(addr) < 17)) {
+		pr_err("%s: Invalid address\n", __func__);
+		return -1;
+	}
+
+	proxy = find_device_by_address(addr);
+	if (!proxy) {
+		pr_err("%s: Invalid proxy\n", __func__);
+		return -1;
+	}
+
+	return a2dp_master_get_playrole(proxy);
 }

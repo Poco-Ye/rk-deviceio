@@ -67,5 +67,6 @@ int bt_cancel_discovery(RK_BT_DISCOVERY_STATE state);
 bool bt_is_discovering();
 bool bt_is_connected();
 int ble_disconnect(void);
+int bt_get_playrole_by_addr(char *addr);
 
 #endif /* __A2DP_SOURCE_CTRL__ */

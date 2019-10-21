@@ -344,9 +344,7 @@ bool bt_sink_is_open(void)
 bool bt_hfp_is_open(void)
 {
 	if (bt_control.is_hfp_open) {
-		RK_LOGD("bt hfp has been opened.\n");
 		if (get_ps_pid("bluetoothd") && get_ps_pid("bluealsa")) {
-			RK_LOGD("Bluetooth has been opened.\n");
 			return true;
 		} else {
 			RK_LOGE("bt hfp has been opened but bluetoothd server exit.\n");
@@ -359,9 +357,7 @@ bool bt_hfp_is_open(void)
 bool bt_source_is_open(void)
 {
 	if (bt_control.is_a2dp_source_open) {
-		RK_LOGD("bt_source has been opened.\n");
 		if (get_ps_pid("bluetoothd") && get_ps_pid("bluealsa")) {
-			RK_LOGD("Bluetooth has been opened.\n");
 			return true;
 		} else {
 			RK_LOGE("bt_source has been opened but bluetoothd server exit.\n");
@@ -375,7 +371,6 @@ bool ble_is_open()
 {
 	if (bt_control.is_ble_open) {
 		if (get_ps_pid("bluetoothd")) {
-			RK_LOGD("ble has been opened.\n");
 			return true;
 		} else {
 			RK_LOGE("ble has been opened but bluetoothd server exit.\n");

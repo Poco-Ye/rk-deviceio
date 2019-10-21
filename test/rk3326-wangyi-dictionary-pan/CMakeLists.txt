@@ -8,6 +8,8 @@ set(CLIENT_SRC_FILES
     rkbtsource.cpp
 )
 
+add_definitions("-fpermissive")
+
 add_executable(rkbtsource_server ${SERVER_SRC_FILES})
 target_include_directories(rkbtsource_server PUBLIC
         "${deviceio_test_SOURCE_DIR}/DeviceIO/include" )
