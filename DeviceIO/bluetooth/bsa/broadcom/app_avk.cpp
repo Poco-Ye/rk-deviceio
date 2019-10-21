@@ -86,7 +86,8 @@ tBSA_AVK_REG_NOTIFICATIONS reg_notifications =
 tAPP_AVK_CB app_avk_cb;
 
 #ifdef PCM_ALSA
-static const char *alsa_device = "default"; /* ALSA playback device */
+//static const char *alsa_device = "default"; /* ALSA playback device */
+static char alsa_device[30]; /* ALSA playback device */
 #ifdef PCM_ALSA_OPEN_BLOCKING
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
@@ -351,7 +352,6 @@ void app_avk_end(void)
     BSA_AvkDisable(&disable_param);
 }
 
-
 /*******************************************************************************
 **
 ** Function         app_avk_handle_start
@@ -405,6 +405,7 @@ static void app_avk_handle_start(tBSA_AVK_MSG *p_data, tAPP_AVK_CONNECTION *conn
         }
 
         /* Open ALSA driver */
+        app_avk_set_alsa_device(NULL);
 #ifdef PCM_ALSA_OPEN_BLOCKING
         /* Configure as blocking */
         status = snd_pcm_open(&(app_avk_cb.alsa_handle), alsa_device,
@@ -890,7 +891,7 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
             //0:title, 1:artist, 2:album, 3:track_num, 4:num_tracks, 5:genre, 6:playing_time
             for(i = 0; i < p_data->elem_attr.num_attr ; i++) {
                 //APP_INFO1("attr_id:0x%x", p_data->elem_attr.attr_entry[i].attr_id);
-                APP_INFO1("name:%s", p_data->elem_attr.attr_entry[i].name.data);
+                //APP_INFO1("name:%s", p_data->elem_attr.attr_entry[i].name.data);
             }
         }
 
@@ -3123,6 +3124,8 @@ int app_avk_start()
 
     app_avk_send_state(RK_BT_SINK_STATE_IDLE);
 
+    memset(alsa_device, 0, sizeof(alsa_device));
+
     if (app_avk_init(NULL) < 0) {
         APP_DEBUG0("app_avk_init failed");
         return -1;
@@ -3177,3 +3180,22 @@ BOOLEAN app_avk_get_pos_change()
 {
     return app_avk_pos_change;
 }
+
+void app_avk_set_alsa_device(char *alsa_dev)
+{
+    int len = 0;
+
+    if(alsa_dev == NULL) {
+        if(alsa_device[0] == 0) {
+            len = sizeof(alsa_device) > sizeof(APP_AVK_ASLA_DEV) ? sizeof(APP_AVK_ASLA_DEV) : sizeof(alsa_device);
+            strncpy(alsa_device, APP_AVK_ASLA_DEV, len);
+        }
+    } else {
+        memset(alsa_device, 0, sizeof(alsa_device));
+        len = sizeof(alsa_device) > sizeof(alsa_dev) ? sizeof(alsa_dev) : sizeof(alsa_device);
+        strncpy(alsa_device, alsa_dev, len);
+    }
+
+    APP_DEBUG1("sink alsa device: %s", alsa_device);
+}
+
