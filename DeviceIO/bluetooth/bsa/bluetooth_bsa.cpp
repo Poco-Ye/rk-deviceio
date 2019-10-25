@@ -291,7 +291,6 @@ int rk_bt_init(RkBtContent *p_bt_content)
 
     g_bt_control.is_bt_open = true;
     bsa_bt_state_send(RK_BT_STATE_ON);
-    //app_mgr_set_sleep_mode_param(); //for 联想3D塑形尺
     return 0;
 }
 
@@ -335,6 +334,11 @@ int rk_bt_set_class(int value)
     }
 
     return app_mgt_set_cod(value);
+}
+
+int rk_bt_set_sleep_mode()
+{
+    return app_mgr_set_sleep_mode_param();
 }
 
 int rk_bt_enable_reconnect(int enable)
@@ -814,6 +818,11 @@ int rk_ble_disconnect()
     }
 
     return app_ble_rk_server_disconnect();
+}
+
+void rk_ble_set_local_privacy(bool local_privacy)
+{
+    app_ble_rk_server_set_local_privacy(local_privacy);
 }
 
 int rk_ble_setup(RkBleContent *ble_content)

@@ -85,6 +85,7 @@ int rk_bt_init(RkBtContent *p_bt_content);
 int rk_bt_deinit(void);
 int rk_bt_is_connected(void);
 int rk_bt_set_class(int value);
+int rk_bt_set_sleep_mode(void);
 int rk_bt_enable_reconnect(int value);
 int rk_bt_start_discovery(unsigned int mseconds);
 int rk_bt_cancel_discovery();

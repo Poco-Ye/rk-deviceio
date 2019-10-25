@@ -362,8 +362,8 @@ void bt_test_sink_open(char *data)
 	rk_bt_sink_register_track_callback(bt_sink_track_change_callback);
 	rk_bt_sink_register_position_callback(bt_sink_position_change_callback);
 	rk_bt_sink_register_callback(bt_sink_callback);
-	//rk_bt_sink_set_alsa_device("bt");
 	rk_bt_sink_open();
+	//rk_bt_sink_set_alsa_device("bt");
 }
 
 void bt_test_sink_visibility00(char *data)

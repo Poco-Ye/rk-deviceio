@@ -49,6 +49,8 @@ static tAPP_BLE_RK_SERVER_CB app_ble_rk_server_cb;
 static RK_BLE_RECV_CALLBACK app_ble_recv_data_cb = NULL;
 static RK_BLE_STATE app_ble_state = RK_BLE_STATE_IDLE;
 static RK_BLE_STATE_CALLBACK app_ble_state_cb = NULL;
+static BOOLEAN app_ble_local_privacy = TRUE;
+
 static void app_ble_rk_server_send_state(RK_BLE_STATE state) {
     if(app_ble_state_cb)
         app_ble_state_cb(state);
@@ -1388,7 +1390,9 @@ int app_ble_rk_server_open(RkBleContent *ble_content)
         return -1;
     }
 
-    app_dm_set_ble_local_privacy(TRUE);
+    if(app_ble_local_privacy)
+        app_dm_set_ble_local_privacy(TRUE);
+
     app_dm_set_ble_visibility(TRUE, TRUE);
 
     return 0;
@@ -1497,4 +1501,9 @@ int app_ble_rk_server_disconnect(void)
     }
 
     return 0;
+}
+
+void app_ble_rk_server_set_local_privacy(BOOLEAN local_privacy)
+{
+    app_ble_local_privacy = local_privacy;
 }

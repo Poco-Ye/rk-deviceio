@@ -188,6 +188,11 @@ int rk_ble_disconnect()
     return 0;
 }
 
+void rk_ble_set_local_privacy(bool local_privacy)
+{
+	pr_info("bluez don't support %s\n", __func__);
+}
+
 /*****************************************************************
  *            Rockchip bluetooth master api                      *
  *****************************************************************/
@@ -1003,6 +1008,12 @@ int rk_bt_set_class(int value)
 	RK_shell_system(cmd);
 	msleep(100);
 
+	return 0;
+}
+
+int rk_bt_set_sleep_mode()
+{
+	pr_info("bluez don't support %s\n", __func__);
 	return 0;
 }
 
