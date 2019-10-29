@@ -39,9 +39,9 @@
 #define PERIOD_SIZE_1024	READ_FRAME_1024
 
 static const char *alsa_playback_device = "default";
-static const char *alsa_capture_device = "2mic_loopback";
-static const char *bt_playback_device = "bluetooth";
-static const char *bt_capture_device = "bluetooth";
+static const char *alsa_capture_device = "6mic_loopback"; //"2mic_loopback";
+static const char *bt_playback_device = "hw:1,0";
+static const char *bt_capture_device = "hw:1,0";
 
 typedef struct {
 	unsigned int channels;
