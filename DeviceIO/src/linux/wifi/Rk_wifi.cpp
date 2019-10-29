@@ -347,7 +347,7 @@ int RK_wifi_enable(const int enable)
 			system("ifconfig wlan0 down");
 			system("ifconfig wlan0 up");
 			system("ifconfig wlan0 0.0.0.0");
-			system("killall dhcpcd");
+			//system("killall dhcpcd");
 			system("killall udhcpc");
 			system("killall wpa_supplicant");
 			usleep(600000);
