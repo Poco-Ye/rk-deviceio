@@ -1466,6 +1466,11 @@ int rk_bt_obex_pbap_connect(char *btaddr)
 		return -1;
 	}
 
+	if (!btaddr || (strlen(btaddr) < 17)) {
+		pr_err("%s: Invalid address\n", __func__);
+		return -1;
+	}
+
 	pr_info("[enter %s]\n", __func__);
 	obex_connect_pbap(btaddr);
 
@@ -1476,6 +1481,11 @@ int rk_bt_obex_pbap_get_vcf(char *dir_name, char *dir_file)
 {
 	if(!g_obex_thread) {
 		pr_err("obex don't inited, please init\n");
+		return -1;
+	}
+
+	if (!dir_name || !dir_file) {
+		pr_err("%s: Invalid dir_name or dir_file\n", __func__);
 		return -1;
 	}
 

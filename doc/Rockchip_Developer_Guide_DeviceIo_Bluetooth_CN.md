@@ -38,7 +38,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 | 2019-5-27 | V1.3 | V1.2.2 | francis.fan | 增加A2DP SOURCE 反向控制事件通知<br />添加HFP HF接口支持<br />添加蓝牙类设置接口<br />添加蓝牙自动重连属性设置接口<br />添加A2DP SINK 音量反向控制（BSA only） |
 | 2019-6-4 | V1.4 | V1.2.3 | francis.fan | Bluez：实现A2DP SINK音量正反向控制<br />Bluez：取消SPP与A2DP SINK的关联<br />Bluez：rk_bt_enable_reconnec 保存属性到文件，设备重启后属性设置依旧生效<br />Bluez：修复A2DP SOURCE 反向控制功能初始化概率性失败<br/>Bluez：修复 rk_bt_sink_set_visibilit <br />BSA: 修复A2DP SOURCE自动重连失败<br/>BSA：修复 rk_bt_hfp_hangup api<br />删除rk_bt_sink_set_auto_reconnect接口 |
 | 2019-6-24 | V1.5 | V1.2.4 | ctf | 增加HFP HF alsa控制 demo<br/>添加hfp断开连接api：rk_bt_hfp_disconnect<br/>修复手机上接听电话和拒接电话时，无法收到PICKUP、HANGUP事件BUG<br />Bsa：增加HFP HF 使能CVSD（8K采样）接口<br />Bsa：修复cypress bsa 配对弹窗提示问题<br/>Bsa：更新broadcom bsa 版本 (rockchip_20190617)<br />Bsa：修复蓝牙扫描时，无法识别个别蓝牙音箱设备类型BUG <br/>Bsa：修复电池电量上报BUG |
-| 2019-9-3 | V1.6 | V1.3 | ctf | Bluez：实现蓝牙反初始化<br/>Bluez：修正获取本机设备名、本机蓝牙Mac地址接口<br/>Bluez：添加pbap profile 支持<br />添加蓝牙启动状态上报<br />添加蓝牙配对状态上报<br/>添加启动蓝牙扫描、停止蓝牙扫描接口<br/>添加获取蓝牙是否处于扫描状态接口<br/>添加打印当前扫描到的设备列表接口<br />添加主动和指定设备配对、取消和指定设备配对接口<br/>添加获取当前已配对设备列表、释放获取的配对设备列表接口<br/>添加打印当前配对设备列表接口<br />添加设置本机设备名接口<br />添加歌曲信息上报<br/>添加歌曲播放进度上报<br />添加avdtp(a2dp sink)状态上报<br />sink添加主动和指定设备连接、主动断开指定设备连接接口<br/>添加获取当前播放状态接口<br/>添加获取当前连接的远程设备是否支持主动上报播放进度接口 |
+| 2019-10-30 | V1.6 | V1.3.0 | ctf | Bluez：实现蓝牙反初始化<br/>Bluez：修正获取本机设备名、本机蓝牙Mac地址接口<br/>Bluez：添加pbap profile 支持<br />Bluez：支持hfp 8K和16K采样率自适应<br/>Bluez：添加sink 播放underrun上报<br/>Bsa：添加设置sink 播放设备节点接口<br/>Bsa：添加ble可见性设置接口<br/>Bsa：添加ble主动断开连接接口<br/>Bsa：支持在蓝牙初始化时，设置蓝牙地址<br/>添加蓝牙启动状态上报<br />添加蓝牙配对状态上报<br/>添加启动蓝牙扫描、停止蓝牙扫描接口<br/>添加获取蓝牙是否处于扫描状态接口<br/>添加打印当前扫描到的设备列表接口<br />添加主动和指定设备配对、取消和指定设备配对接口<br/>添加获取当前已配对设备列表、释放获取的配对设备列表接口<br/>添加打印当前配对设备列表接口<br />添加设置本机设备名接口<br />添加歌曲信息上报<br/>添加歌曲播放进度上报<br />添加avdtp(a2dp sink)状态上报<br />sink添加主动和指定设备连接、主动断开指定设备连接接口<br/>添加获取当前播放状态接口<br/>添加获取当前连接的远程设备是否支持主动上报播放进度接口<br/>支持打印日志到syslog |
 
 <div STYLE="page-break-after: always;"></div>
 
@@ -82,6 +82,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
       typedef struct {
       	RkBleContent ble_content; //BLE 参数配置
       	const char *bt_name; //蓝牙名称
+      	const char *bt_addr; //蓝牙地址（Bsa only，默认使用芯片内部固化的bt mac地址）
       } RkBtContent;
 
 - `RkBtPraiedDevice`结构
@@ -286,6 +287,14 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
   为保持良好的兼容性，当前MTU值默认为：134 Bytes
 
+- `int rk_bt_ble_set_visibility(const int visiable, const int connect)`
+
+  设置ble可见/可连接特性。visiable：0表示不可见，1表示可见。connect：0表示不可连接，1表示可连接。该接口仅适用于bsa（BSA only）
+
+- `int rk_ble_disconnect(void)`
+
+  主动断开当前ble连接，该接口仅适用于bsa（BSA only）
+
 <div STYLE="page-break-after: always;"></div>
 
 ## 3、SPP接口介绍（RkBtSpp.h） ##
@@ -377,13 +386,25 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
   音量变化回调函数。当手机端音量变化时，调用该回调函数。volume：新的音量值。
   *注：因AVRCP版本以及不同手机厂商实现不同，因此有的手机并不兼容该功能。iPhone系列手机对该接口支持良好。*
 
-- `void (*RK_BT_AVRCP_TRACK_CHANGE_CB)(const char *bd_addr, BtTrackInfo track_info)`
+- `typedef void (*RK_BT_AVRCP_TRACK_CHANGE_CB)(const char *bd_addr, BtTrackInfo track_info)`
 
      歌曲信息回调函数，当播放歌曲变化时，会触发该回调。bd_addr：远程设备地址，track_info：歌曲信息
 
-- `void (*RK_BT_AVRCP_PLAY_POSITION_CB)(const char *bd_addr, int song_len, int song_pos)`
+- `typedef void (*RK_BT_AVRCP_PLAY_POSITION_CB)(const char *bd_addr, int song_len, int song_pos)`
 
      歌曲播放进度回调，当远程设备支持position change时，会自动上报播放进度，触发该函数。bd_addr：远程设备地址，song_len：歌曲总长度，song_pos：当前播放进度
+
+- `typedef void (*RK_BT_SINK_UNDERRUN_CB)(void)`
+
+     播放underrun状态回调，当播放出现underrun时自动触发，该接口只适用于bluez（Bluez only）
+
+- `int rk_bt_sink_register_callback(RK_BT_SINK_CALLBACK cb)`
+
+  注册状态回调函数。
+
+- `int rk_bt_sink_register_volume_callback(RK_BT_SINK_VOLUME_CALLBACK cb)`
+
+  注册音量变化回调函数。
 
 - `int rk_bt_sink_register_track_callback(RK_BT_AVRCP_TRACK_CHANGE_CB cb)`
 
@@ -393,13 +414,9 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
      注册歌曲播放进度回调
 
-- `int rk_bt_sink_register_callback(RK_BT_SINK_CALLBACK cb)`
+- `void rk_bt_sink_register_underurn_callback(RK_BT_SINK_UNDERRUN_CB cb)`
 
-  注册状态回调函数。
-
-- `int rk_bt_sink_register_volume_callback(RK_BT_SINK_VOLUME_CALLBACK cb)`
-
-  注册音量变化回调函数。
+     注册underrun回调函数，该接口只适用于bluez（Bluez only）
 
 - `int rk_bt_sink_open()`
 
@@ -478,6 +495,12 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 - `bool rk_bt_sink_get_poschange()`
 
   当前连接的远程设备是否支持主动上报播放进度，支持则返回true，否则返回false
+
+- `void rk_bt_sink_set_alsa_device(char *alsa_dev)`
+
+     设置蓝牙播放设备节点，必须在rk_bt_sink_open后面调用。默认使用default，该接口仅适用于bsa（BSA only）
+
+     bluez播放设备节点位于external/bluez-alsa/utils/aplay.c，可自行修改
 
 <div STYLE="page-break-after: always;"></div>
 
@@ -683,11 +706,13 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
 - `void rk_bt_hfp_enable_cvsd(void)`
 
-  hfp codec强制使用CVSD（8K 采样率），AG（手机） 和 HF（耳机） 不会再协商SCO codec类型，此时SCO codec类型必须强制设为BT_SCO_CODEC_CVSD。该接口只适用于bsa，目前bluez只支持8K ( BSA  only )。
+  hfp codec强制使用CVSD（8K 采样率），AG（手机） 和 HF（耳机） 不会再协商SCO codec类型，此时SCO codec类型必须强制设为BT_SCO_CODEC_CVSD。该接口只适用于bsa ( BSA  only )。
+
+  bluez支持8K和16K采样率自适应，SCO codec 类型由AG（手机） 和 HF（耳机）协商决定，不支持强制使用CVSD。
 
 - `void rk_bt_hfp_disable_cvsd(void)`
 
-  禁止hfp codec强制使用CVSD（8K 采样率），SCO codec 类型由AG（手机） 和 HF（耳机）协商决定，协商结果通过回调事件RK_BT_HFP_BCS_EVT告知应用层。该接口只适用于bsa，目前bluez只支持8K (BSA  only)。
+  禁止hfp codec强制使用CVSD（8K 采样率），SCO codec 类型由AG（手机） 和 HF（耳机）协商决定，协商结果通过回调事件RK_BT_HFP_BCS_EVT告知应用层。该接口只适用于bsa (BSA  only)。
 
 ### 6.2 OBEX PBAP（电话薄）接口介绍 ( BLUEZ  only )
 

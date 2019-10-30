@@ -338,6 +338,7 @@ void bt_sink_volume_callback(int volume)
 
 void bt_sink_track_change_callback(const char *bd_addr, BtTrackInfo track_info)
 {
+#if 0
 	printf("++++++++ bt sink track change ++++++++\n");
 	printf("    remote device address: %s\n", bd_addr);
 	printf("    title: %s\n", track_info.title);
@@ -347,13 +348,16 @@ void bt_sink_track_change_callback(const char *bd_addr, BtTrackInfo track_info)
 	printf("    num_tracks: %s\n", track_info.num_tracks);
 	printf("    track_num: %s\n", track_info.track_num);
 	printf("    playing_time: %s\n", track_info.playing_time);
+#endif
 }
 
 void bt_sink_position_change_callback(const char *bd_addr, int song_len, int song_pos)
 {
+#if 0
 	printf("++++++++ bt sink position change ++++++++\n");
 	printf("    remote device address: %s\n", bd_addr);
 	printf("    song_len: %d, song_pos: %d\n", song_len, song_pos);
+#endif
 }
 
 void bt_test_sink_open(char *data)
@@ -1386,7 +1390,7 @@ void bt_test_obex_init(char *data)
 
 void bt_test_obex_pbap_connect(char *data)
 {
-	rk_bt_obex_pbap_connect("24:31:54:8E:00:0A");
+	rk_bt_obex_pbap_connect(data);
 }
 
 void bt_test_obex_pbap_get_pb_vcf(char *data)

@@ -553,8 +553,14 @@ int rk_bt_sink_register_position_callback(RK_BT_AVRCP_PLAY_POSITION_CB cb)
     return 0;
 }
 
+void rk_bt_sink_register_underurn_callback(RK_BT_SINK_UNDERRUN_CB cb)
+{
+    APP_DEBUG1("bsa don't support %s", __func__);
+}
+
 int rk_bt_sink_get_default_dev_addr(char *addr, int len)
 {
+    APP_DEBUG1("bsa don't support %s", __func__);
     return 0;
 }
 
