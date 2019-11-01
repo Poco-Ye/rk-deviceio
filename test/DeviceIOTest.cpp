@@ -72,6 +72,12 @@ static command_t wifi_config_command_table[] = {
 	{"wifi_close", rk_wifi_close},
 	{"wifi_connect", rk_wifi_connect},
 	{"wifi_ping", rk_wifi_ping},
+	{"wifi_scan", rk_wifi_scan},
+	{"wifi_getSavedInfo", rk_wifi_getSavedInfo},
+	{"wifi_connect_with_bssid", rk_wifi_connect_with_bssid},
+	{"wifi_cancel", rk_wifi_cancel},
+	{"wifi_forget_with_bssid", rk_wifi_forget_with_bssid},
+	{"wifi_connect1", rk_wifi_connect1},
 };
 
 static command_bt_t bt_command_table[] = {

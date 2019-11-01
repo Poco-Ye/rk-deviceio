@@ -35,6 +35,11 @@ static int rk_wifi_state_callback(RK_WIFI_RUNNING_State_e state)
 		printf("RK_WIFI_State_OFF\n");
 	} else if (state == RK_WIFI_State_DISCONNECTED) {
 		printf("RK_WIFI_State_DISCONNECTED\n");
+	} else if (state == RK_WIFI_State_SCAN_RESULTS) {
+		char *scan_r;
+		printf("RK_WIFI_State_SCAN_RESULTS\n");
+		scan_r = RK_wifi_scan_r();
+		printf("%s\n", scan_r);
 	}
 
 	return 0;
@@ -146,7 +151,14 @@ void rk_wifi_close(void *data)
 
 void rk_wifi_connect(void *data)
 {
-	if (RK_wifi_connect1("fish1", "12345678", WPA, 1) < 0) {
+	if (RK_wifi_connect("NETGEAR75", "huskymint860") < 0) {
+		printf("RK_wifi_connect1 fail!\n");
+	}
+}
+
+void rk_wifi_connect1(void *data)
+{
+	if (RK_wifi_connect("fish1", "rk12345678") < 0) {
 		printf("RK_wifi_connect1 fail!\n");
 	}
 }
@@ -158,3 +170,46 @@ void rk_wifi_ping(void *data)
 	}
 }
 
+void rk_wifi_scan(void *data)
+{
+	if (RK_wifi_scan() < 0) {
+		printf("RK_wifi_scan fail!\n");
+	}
+}
+
+void rk_wifi_getSavedInfo(void *data)
+{
+	RK_WIFI_SAVED_INFO wsi;
+
+	RK_wifi_getSavedInfo(&wsi);
+
+	for (int i = 0; i < wsi.count; i++) {
+		printf("id: %d, name: %s, bssid: %s, state: %s\n",
+					wsi.save_info[i].id,
+					wsi.save_info[i].ssid,
+					wsi.save_info[i].bssid,
+					wsi.save_info[i].state);
+
+	}
+}
+
+void rk_wifi_connect_with_bssid(void *data)
+{
+	if (RK_wifi_connect_with_bssid("dc:ef:09:a7:77:53") < 0) {
+		printf("RK_wifi_connect_with_bssid fail!\n");
+	}
+}
+
+void rk_wifi_cancel(void *data)
+{
+	if (RK_wifi_cancel() < 0) {
+		printf("RK_wifi_cancel fail!\n");
+	}
+}
+
+void rk_wifi_forget_with_bssid(void *data)
+{
+	if (RK_wifi_forget_with_bssid("dc:ef:09:a7:77:53") < 0) {
+		printf("rk_wifi_forget_with_bssid fail!\n");
+	}
+}
