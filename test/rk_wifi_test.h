@@ -13,6 +13,12 @@ void rk_wifi_open(void *data);
 void rk_wifi_close(void *data);
 void rk_wifi_connect(void *data);
 void rk_wifi_ping(void *data);
+void rk_wifi_scan(void *data);
+void rk_wifi_getSavedInfo(void *data);
+void rk_wifi_connect_with_bssid(void *data);
+void rk_wifi_cancel(void *data);
+void rk_wifi_forget_with_bssid(void *data);
+void rk_wifi_connect1(void *data);
 
 #ifdef __cplusplus
 }
