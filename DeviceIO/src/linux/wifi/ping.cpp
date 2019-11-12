@@ -322,7 +322,7 @@ bool rk_ping(char *address)
         ret = ping(hostOrIp, 1, pingResult);
 
         if (!ret) {
-            printf("Ping error:%s", pingResult.error.c_str());
+            printf("Ping error:%s\n", pingResult.error.c_str());
         } else {
             nsend += pingResult.nsend;
             nreceived += pingResult.nreceived;

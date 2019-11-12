@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include <sys/prctl.h>
+#include <sys/time.h>
 
 #include "DeviceIo/Rk_wifi.h"
 #include "DeviceIo/Rk_softap.h"
@@ -15,16 +16,72 @@ struct wifi_info {
 	char psk[512];
 };
 
+static void printf_system_time()
+{
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+
+	printf("--- time: %lld ms ---\n", tv.tv_sec * 1000 + tv.tv_usec/1000 + tv.tv_usec%1000);
+}
+
+static void ping_test()
+{
+	char line[2048];
+
+	while(1) {
+#if 0
+		if (RK_wifi_ping("www.baidu.com")) {
+			printf("ping ok\n");
+			printf_system_time();
+			rk_wifi_getConnectionInfo(NULL);
+			break;
+		}
+#else
+		memset(line, 0, sizeof(line));
+		//RK_shell_exec("ping www.baidu.com -c 1", line, sizeof(line));
+		RK_shell_exec("ping 8.8.8.8 -c 1", line, sizeof(line));
+		usleep(100000);
+		printf("line: %s\n", line);
+		//if (strstr(line, "PING www.baidu.com") && strstr(line, "bytes from")) {
+		if (strstr(line, "PING 8.8.8.8") && strstr(line, "bytes from")) {
+			printf("ping ok\n");
+			printf_system_time();
+			rk_wifi_getConnectionInfo(NULL);
+			break;
+		}
+#endif
+		usleep(100000);
+	}
+}
+
+static void printf_connect_info(RK_WIFI_INFO_Connection_s *info)
+{
+	if(!info)
+		return;
+
+	printf("	id: %d\n", info->id);
+	printf("	bssid: %s\n", info->bssid);
+	printf("	ssid: %s\n", info->ssid);
+	printf("	freq: %d\n", info->freq);
+	printf("	mode: %s\n", info->mode);
+	printf("	wpa_state: %s\n", info->wpa_state);
+	printf("	ip_address: %s\n", info->ip_address);
+	printf("	mac_address: %s\n", info->mac_address);
+}
+
 /*****************************************************************
  *                     wifi config                               *
  *****************************************************************/
 static RK_WIFI_RUNNING_State_e wifi_state = 0;
-static int rk_wifi_state_callback(RK_WIFI_RUNNING_State_e state)
+static int rk_wifi_state_callback(RK_WIFI_RUNNING_State_e state, RK_WIFI_INFO_Connection_s *info)
 {
 	printf("%s state: %d\n", __func__, state);
+	printf_connect_info(info);
+
 	wifi_state = state;
 	if (state == RK_WIFI_State_CONNECTED) {
 		printf("RK_WIFI_State_CONNECTED\n");
+		//ping_test();
 	} else if (state == RK_WIFI_State_CONNECTFAILED) {
 		printf("RK_WIFI_State_CONNECTFAILED\n");
 	} else if (state == RK_WIFI_State_CONNECTFAILED_WRONG_KEY) {
@@ -137,44 +194,62 @@ void rk_wifi_softap_stop(void *data)
 void rk_wifi_open(void *data)
 {
 	RK_wifi_register_callback(rk_wifi_state_callback);
-	if (RK_wifi_enable(1) < 0) {
+
+	if (RK_wifi_enable(1) < 0)
 		printf("RK_wifi_enable 1 fail!\n");
-	}
 }
 
 void rk_wifi_close(void *data)
 {
-	if (RK_wifi_enable(0) < 0) {
+	if (RK_wifi_enable(0) < 0)
 		printf("RK_wifi_enable 0 fail!\n");
-	}
 }
 
+//9 input fish1:rk12345678
 void rk_wifi_connect(void *data)
 {
-	if (RK_wifi_connect("NETGEAR75", "huskymint860") < 0) {
-		printf("RK_wifi_connect1 fail!\n");
+	char *ssid = NULL, *psk = NULL;
+
+	if(data == NULL) {
+		printf("%s: invalid input\n", __func__);
+		return;
 	}
+
+	ssid = strtok(data, ":");
+	if(ssid)
+		psk = strtok(NULL, ":");
+
+	if (RK_wifi_connect(ssid, psk) < 0)
+		printf("RK_wifi_connect1 fail!\n");
 }
 
 void rk_wifi_connect1(void *data)
 {
-	if (RK_wifi_connect("fish1", "rk12345678") < 0) {
-		printf("RK_wifi_connect1 fail!\n");
+	char *ssid = NULL, *psk = NULL;
+
+	if(data == NULL) {
+		printf("%s: invalid input\n", __func__);
+		return;
 	}
+
+	ssid = strtok(data, ":");
+	if(ssid)
+		psk = strtok(NULL, ":");
+
+	if (RK_wifi_connect(ssid, psk) < 0)
+		printf("RK_wifi_connect1 fail!\n");
 }
 
 void rk_wifi_ping(void *data)
 {
-	if (RK_wifi_ping("www.baidu.com") < 0) {
+	if (!RK_wifi_ping("www.baidu.com"))
 		printf("RK_wifi_ping fail!\n");
-	}
 }
 
 void rk_wifi_scan(void *data)
 {
-	if (RK_wifi_scan() < 0) {
+	if (RK_wifi_scan() < 0)
 		printf("RK_wifi_scan fail!\n");
-	}
 }
 
 void rk_wifi_getSavedInfo(void *data)
@@ -182,7 +257,6 @@ void rk_wifi_getSavedInfo(void *data)
 	RK_WIFI_SAVED_INFO wsi;
 
 	RK_wifi_getSavedInfo(&wsi);
-
 	for (int i = 0; i < wsi.count; i++) {
 		printf("id: %d, name: %s, bssid: %s, state: %s\n",
 					wsi.save_info[i].id,
@@ -193,23 +267,54 @@ void rk_wifi_getSavedInfo(void *data)
 	}
 }
 
+void rk_wifi_getConnectionInfo(void *data)
+{
+	RK_WIFI_INFO_Connection_s info;
+
+	if(!RK_wifi_running_getConnectionInfo(&info))
+		printf_connect_info(&info);
+}
+
 void rk_wifi_connect_with_bssid(void *data)
 {
-	if (RK_wifi_connect_with_bssid("dc:ef:09:a7:77:53") < 0) {
-		printf("RK_wifi_connect_with_bssid fail!\n");
+	if(data == NULL) {
+		printf("%s: bssid is null\n", __func__);
+		return;
 	}
+
+	if(strlen(data) < 17) {
+		printf("%s: invalid bssid %s\n", __func__, data);
+		return;
+	}
+
+	if (RK_wifi_connect_with_bssid(data) < 0)
+		printf("RK_wifi_connect_with_bssid fail!\n");
 }
 
 void rk_wifi_cancel(void *data)
 {
-	if (RK_wifi_cancel() < 0) {
+	if (RK_wifi_cancel() < 0)
 		printf("RK_wifi_cancel fail!\n");
-	}
 }
 
 void rk_wifi_forget_with_bssid(void *data)
 {
-	if (RK_wifi_forget_with_bssid("dc:ef:09:a7:77:53") < 0) {
+	if(data == NULL) {
+		printf("%s: bssid is null\n", __func__);
+		return;
+	}
+
+	if(strlen(data) < 17) {
+		printf("%s: invalid bssid %s\n", __func__, data);
+		return;
+	}
+
+	if (RK_wifi_forget_with_bssid(data) < 0) {
 		printf("rk_wifi_forget_with_bssid fail!\n");
 	}
+}
+
+void rk_wifi_disconnect(void *data)
+{
+	RK_wifi_disconnect_network();
 }

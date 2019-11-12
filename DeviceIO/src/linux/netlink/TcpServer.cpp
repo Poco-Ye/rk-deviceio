@@ -85,6 +85,7 @@ static int initSocket(const unsigned int port) {
 	/* create a socket */
 	fd_socket = socket(AF_INET, SOCK_STREAM, 0);
 	if (fd_socket < 0) {
+		printf("%s: create socket failed\n", __func__);
 		return -1;
 	}
 
@@ -95,6 +96,7 @@ static int initSocket(const unsigned int port) {
 
 	ret = setsockopt(fd_socket, SOL_SOCKET, SO_REUSEADDR, (void *)&val, sizeof(int));
 	if (ret < 0) {
+		printf("%s: setsockopt failed, ret: %d\n", __func__, ret);
 		return -2;
 	}
 
@@ -107,6 +109,7 @@ static int initSocket(const unsigned int port) {
 	/* bind with the local file */
 	ret = bind(fd_socket, (struct sockaddr *)&server_addr, sizeof(server_addr));
 	if (ret < 0) {
+		printf("%s: bind failed, ret: %d\n", __func__, ret);
 		close(fd_socket);
 		return -3;
 	}
@@ -114,6 +117,7 @@ static int initSocket(const unsigned int port) {
 	/* listen */
 	ret = listen(fd_socket, 1);
 	if (ret < 0) {
+		printf("%s: listen failed, ret: %d\n", __func__, ret);
 		close(fd_socket);
 		return -4;
 	}
@@ -184,9 +188,10 @@ static bool wifiSetup(const int fd, const char* buf) {
 	char msg[MSG_BUFF_LEN] = {0};
 	WifiManager* wifiManager;
 
+	printf("enter %s\n", __func__);
+
 	memset(msg, 0, sizeof(msg));
 	snprintf(msg, sizeof(msg), HTTP_RESPOSE_MESSAGE, 0, "");
-
 	if (send(fd, msg, sizeof(msg), 0) < 0) {
 		return false;
 	}
@@ -240,6 +245,7 @@ static bool wifiSetup(const int fd, const char* buf) {
 		m_isConnecting = true;
 	}
 
+	printf("exit %s\n", __func__);
 	return true;
 }
 
@@ -315,6 +321,7 @@ void* TcpServer::threadAccept(void *arg) {
 
 	port = *(int*) arg;
 
+	printf("threadAccept port = %d\n", port);
 	fd_server = initSocket(port);
 	if (fd_server < 0) {
 		printf("TcpServer::threadAccept init tcp socket port %d fail. error:%d\n", port, fd_server);
@@ -323,7 +330,9 @@ void* TcpServer::threadAccept(void *arg) {
 
 	/* Accept connection all time */
 	while (1) {
+		printf("accept...\n");
 		fd_client = accept(fd_server, (struct sockaddr *)&addr_client, &len_addr_client);
+		printf("accept fd_client = %d\n", fd_client);
 		if (fd_client < 0)
 			goto end;
 
@@ -339,6 +348,7 @@ int TcpServer::startTcpServer(const unsigned int port) {
 	int ret;
 
 	m_port = port;
+	printf("startTcpServer m_port = %d\n", m_port);
 	ret = pthread_create(&m_thread, NULL, threadAccept, &m_port);
 	if (0 != ret) {
 		m_thread = 0;

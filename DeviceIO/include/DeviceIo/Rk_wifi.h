@@ -6,6 +6,8 @@ extern "C" {
 #endif
 
 #define RK_WIFI_SAVED_INFO_MAX 10
+#define SSID_BUF_LEN 64
+#define BSSID_BUF_LEN 20
 
 typedef enum {
 	RK_WIFI_State_IDLE = 0,
@@ -27,8 +29,8 @@ typedef enum {
 
 typedef struct {
 	int id;
-	char bssid[20];
-	char ssid[64];
+	char bssid[BSSID_BUF_LEN];
+	char ssid[SSID_BUF_LEN];
 	int freq;
 	char mode[20];
 	char wpa_state[20];
@@ -48,10 +50,9 @@ typedef struct {
 	RK_WIFI_SAVED_INFO_s save_info[RK_WIFI_SAVED_INFO_MAX];
 } RK_WIFI_SAVED_INFO;
 
-typedef int(*RK_wifi_state_callback)(RK_WIFI_RUNNING_State_e state);
+typedef int(*RK_wifi_state_callback)(RK_WIFI_RUNNING_State_e state, RK_WIFI_INFO_Connection_s *info);
 
 int RK_wifi_register_callback(RK_wifi_state_callback cb);
-int RK_wifi_ble_register_callback(RK_wifi_state_callback cb);
 int RK_wifi_running_getState(RK_WIFI_RUNNING_State_e* pState);
 int RK_wifi_running_getConnectionInfo(RK_WIFI_INFO_Connection_s* pInfo);
 int RK_wifi_enable_ap(const char* ssid, const char* psk, const char* ip);

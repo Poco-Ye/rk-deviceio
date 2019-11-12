@@ -56,7 +56,6 @@ struct wifi_config {
 
 static struct wifi_config wifi_cfg;
 typedef int (*RK_blewifi_state_callback)(RK_BLE_WIFI_State_e state);
-static RK_blewifi_state_callback blewifi_status_callback = NULL;
 
 #define RK_BLE_DATA_CMD_LEN      12
 #define RK_BLE_DATA_SSID_LEN     32
@@ -94,50 +93,34 @@ void _rk_ble_status_cb(RK_BLE_STATE state)
 	}
 }
 
-int RK_blewifi_register_callback(RK_blewifi_state_callback cb)
+static int rk_blewifi_state_callback(RK_WIFI_RUNNING_State_e state, RK_WIFI_INFO_Connection_s *info)
 {
-	if (cb)
-		blewifi_status_callback = cb;
-
-	return 0;
-}
-
-static int rk_blewifi_state_callback(RK_WIFI_RUNNING_State_e state)
-{
-	uint8_t ret = 0x2;
+	uint8_t ret = 0;
 
 	printf("[RK] %s state: %d\n", __func__, state);
-	if (state == RK_WIFI_State_CONNECTED) {
-		if (blewifi_status_callback)
-			blewifi_status_callback(RK_BLE_WIFI_State_SUCCESS);
-		//gstate = RK_BLE_WIFI_State_SUCCESS;
-		ret = 0x1;
-	} else if (state == RK_WIFI_State_CONNECTFAILED) {
-		if (blewifi_status_callback)
-			blewifi_status_callback(RK_BLE_WIFI_State_FAIL);
-		//gstate = RK_BLE_WIFI_State_FAIL;
-		ret = 0x2;
-	} else if (state == RK_WIFI_State_CONNECTFAILED_WRONG_KEY) {
-		if (blewifi_status_callback)
-			blewifi_status_callback(RK_BLE_WIFI_State_WRONGKEY_FAIL);
-		ret = 0x2;
+	switch(state) {
+		case RK_WIFI_State_CONNECTED:
+			ret = 0x1;
+			break;
+		case RK_WIFI_State_CONNECTFAILED:
+		case RK_WIFI_State_CONNECTFAILED_WRONG_KEY:
+			ret = 0x2;
+			break;
 	}
 
-	rk_ble_write(BLE_UUID_WIFI_CHAR, &ret, 0x1);
+	if(ret)
+		rk_ble_write(BLE_UUID_WIFI_CHAR, &ret, 0x1);
+
 	return 0;
 }
 
 static void *rk_config_wifi_thread(void)
 {
 	printf("[RK] rk_config_wifi_thread\n");
-	if (blewifi_status_callback)
-		blewifi_status_callback(RK_BLE_WIFI_State_CONNECTTING);
 
-	//gstate = RK_BLEWIFI_State_CONNECTTING;
-	printf("[RK] controlWifi connect ...\n");
 	prctl(PR_SET_NAME,"rk_config_wifi_thread");
 
-	RK_wifi_ble_register_callback(rk_blewifi_state_callback);
+	RK_wifi_register_callback(rk_blewifi_state_callback);
 	RK_wifi_enable(0);
 	RK_wifi_enable(1);
 	RK_wifi_connect(wifi_cfg.ssid, wifi_cfg.psk);

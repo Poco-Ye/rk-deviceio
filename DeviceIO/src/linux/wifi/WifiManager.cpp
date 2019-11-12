@@ -233,7 +233,7 @@ std::list<ScanResult*> WifiManager::getScanResults() {
 }
 
 int WifiManager::addNetwork() {
-	int id;
+	int id = -1;
 	std::string cmdRet;
 
 	cmdRet = exec("wpa_cli -iwlan0 add_network");
@@ -363,20 +363,28 @@ int WifiManager::connect(const std::string& ssid, const std::string& pwd, const 
 	int id, ret;
 
 	id = addNetwork();
-	if (0 != id)
+	if (id < 0) {
+		printf("%s: addNetwork (%s, %s) failed, id = %d\n", __func__, ssid.c_str(), pwd.c_str(), id);
 		return -1;
+	}
 
 	ret = setNetwork(id, ssid, pwd, encryp);
-	if (0 != ret)
+	if (0 != ret) {
+		printf("%s: setNetwork (%s, %s) failed, ret = %d\n", __func__, ssid.c_str(), pwd.c_str(), ret);
 		return -2;
+	}
 
 	ret = selectNetwork(id);
-	if (0 != ret)
+	if (0 != ret) {
+		printf("%s: selectNetwork (%s, %s) failed, ret = %d\n", __func__, ssid.c_str(), pwd.c_str(), ret);
 		return -3;
+	}
 
 	ret = enableNetwork(id);
-	if (0 != ret)
+	if (0 != ret) {
+		printf("%s: enableNetwork (%s, %s) failed, ret = %d\n", __func__, ssid.c_str(), pwd.c_str(), ret);
 		return -4;
+	}
 
 	std::string pid;
 	pid = exec("pidof dhcpcd");
