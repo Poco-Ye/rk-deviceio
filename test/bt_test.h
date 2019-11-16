@@ -68,6 +68,11 @@ void bt_test_sink_get_poschange(char *data);
 void bt_test_source_auto_start(char *data);
 void bt_test_source_auto_stop(char *data);
 void bt_test_source_connect_status(char *data);
+void bt_test_source_open(char *data);
+void bt_test_source_close(char *data);
+void bt_test_source_connect_by_addr(char *data);
+void bt_test_source_disconnect_by_addr(char *data);
+void bt_test_source_remove_by_addr(char *data);
 
 /******************************************/
 /*              SPP Test                  */

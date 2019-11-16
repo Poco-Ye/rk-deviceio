@@ -746,16 +746,22 @@ static void set_source_device(GDBusProxy *proxy)
 	DBusMessageIter addr_iter;
 	const char *address = NULL;
 
-	default_src_dev = proxy;
-
 	if (proxy == NULL) {
+		char addr[18], name[256];
+
+		memset(addr, 0, 18);
+		memset(name, 0, 256);
+		bt_get_device_addr_by_proxy(default_src_dev, addr, 18);
+		bt_get_device_name_by_proxy(default_src_dev, name, 256);
+
 		default_src_dev = NULL;
 		a2dp_master_save_status(NULL);
 		a2dp_master_avrcp_close();
-		a2dp_master_event_send(BT_SOURCE_EVENT_DISCONNECTED);
+		a2dp_master_event_send(BT_SOURCE_EVENT_DISCONNECTED, addr, name);
 		return;
 	}
 
+	default_src_dev = proxy;
 	if (!g_dbus_proxy_get_property(proxy, "Alias", &iter)) {
 		if (!g_dbus_proxy_get_property(proxy, "Address", &iter)) {
 			pr_info("%s NO VAILD\n", __func__);
@@ -768,7 +774,7 @@ static void set_source_device(GDBusProxy *proxy)
 	}
 
 	if (g_bt_callback.bt_source_event_cb) {
-		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECTED);
+		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECTED, NULL, NULL);
 		a2dp_master_avrcp_open();
 	}
 	a2dp_master_save_status(address);
@@ -2944,8 +2950,15 @@ static void connect_reply(DBusMessage *message, void *user_data)
 			return;
 		}
 
-		if (dist_dev_class(proxy) == BT_Device_Class::BT_SINK_DEVICE)
-			a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
+		if (dist_dev_class(proxy) == BT_Device_Class::BT_SINK_DEVICE) {
+			char addr[18], name[256];
+
+			memset(addr, 0, 18);
+			memset(name, 0, 256);
+			bt_get_device_addr_by_proxy(proxy, addr, 18);
+			bt_get_device_name_by_proxy(proxy, name, 256);
+			a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED, addr, name);
+		}
 
 		conn_count = 2;
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
@@ -3240,27 +3253,31 @@ int a2dp_master_connect(char *t_address)
 
 	if (!t_address || (strlen(t_address) < 17)) {
 		pr_err("%s: Invalid address\n", __func__);
-		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
+		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED, t_address, t_address);
 		return -1;
 	}
 
 	memcpy(address, t_address, 17);
 	if (check_default_ctrl() == FALSE) {
-		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
+		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED, t_address, t_address);
 		return -1;
 	}
 
 	proxy = find_proxy_by_address(default_ctrl->devices, address);
 	if (!proxy) {
 		pr_info("Device %s not available\n", address);
-		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
+		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED, t_address, t_address);
 		return -1;
 	}
 
 	if (g_dbus_proxy_method_call(proxy, "Connect", NULL, connect_reply,
 							proxy, NULL) == FALSE) {
+		char name[256];
+		memset(name, 0, 256);
+		bt_get_device_name_by_proxy(proxy, name, 256);
+
 		pr_info("Failed to connect\n");
-		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
+		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED, t_address, name);
 		return -1;
 	}
 
@@ -3447,10 +3464,23 @@ static int a2dp_master_save_status(char *address)
 	return 0;
 }
 
-void a2dp_master_event_send(RK_BT_SOURCE_EVENT event)
+void a2dp_master_event_send(RK_BT_SOURCE_EVENT event, char *dev_addr, char *dev_name)
 {
-	if(g_bt_callback.bt_source_event_cb)
-		g_bt_callback.bt_source_event_cb(g_btmaster_userdata, event);
+	if(!g_bt_callback.bt_source_event_cb)
+		return;
+
+	if(!dev_addr && !dev_name) {
+		char addr[18], name[256];
+
+		memset(addr, 0, 18);
+		memset(name, 0, 256);
+		bt_get_device_addr_by_proxy(default_src_dev, addr, 18);
+		bt_get_device_name_by_proxy(default_src_dev, name, 256);
+
+		g_bt_callback.bt_source_event_cb(g_btmaster_userdata, addr, name, event);
+	} else {
+		g_bt_callback.bt_source_event_cb(g_btmaster_userdata, dev_addr, dev_name, event);
+	}
 }
 
 void a2dp_master_register_cb(void *userdata, RK_BT_SOURCE_CALLBACK cb)
@@ -3595,22 +3625,22 @@ static void *bt_source_listen_avrcp_event(void *arg)
 
 		switch(ev_key.code) {
 			case KEY_PLAYCD:
-				a2dp_master_event_send(BT_SOURCE_EVENT_RC_PLAY);
+				a2dp_master_event_send(BT_SOURCE_EVENT_RC_PLAY, NULL, NULL);
 				break;
 			case KEY_PAUSECD:
-				a2dp_master_event_send(BT_SOURCE_EVENT_RC_PAUSE);
+				a2dp_master_event_send(BT_SOURCE_EVENT_RC_PAUSE, NULL, NULL);
 				break;
 			case KEY_VOLUMEUP:
-				a2dp_master_event_send(BT_SOURCE_EVENT_RC_VOL_UP);
+				a2dp_master_event_send(BT_SOURCE_EVENT_RC_VOL_UP, NULL, NULL);
 				break;
 			case KEY_VOLUMEDOWN:
-				a2dp_master_event_send(BT_SOURCE_EVENT_RC_VOL_DOWN);
+				a2dp_master_event_send(BT_SOURCE_EVENT_RC_VOL_DOWN, NULL, NULL);
 				break;
 			case KEY_NEXTSONG:
-				a2dp_master_event_send(BT_SOURCE_EVENT_RC_BACKWARD);
+				a2dp_master_event_send(BT_SOURCE_EVENT_RC_BACKWARD, NULL, NULL);
 				break;
 			case KEY_PREVIOUSSONG:
-				a2dp_master_event_send(BT_SOURCE_EVENT_RC_FORWARD);
+				a2dp_master_event_send(BT_SOURCE_EVENT_RC_FORWARD, NULL, NULL);
 				break;
 			default:
 				break;

@@ -43,7 +43,7 @@ int a2dp_master_connect(char *address);
 int a2dp_master_disconnect(char *address);
 int a2dp_master_status(char *addr_buf, int addr_len, char *name_buf, int name_len);
 int a2dp_master_remove(char *address);
-void a2dp_master_event_send(RK_BT_SOURCE_EVENT event);
+void a2dp_master_event_send(RK_BT_SOURCE_EVENT event, char *dev_addr, char *dev_name);
 int a2dp_master_avrcp_open();
 int a2dp_master_avrcp_close();
 int reconn_last_devices(BtDeviceType type);

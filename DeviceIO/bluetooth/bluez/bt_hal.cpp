@@ -223,7 +223,7 @@ scan_retry:
 		goto scan_retry;
 	} else if (ret) {
 		pr_info("ERROR: Scan error!\n");
-		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
+		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED, "", "");
 		return NULL;
 	}
 
@@ -249,11 +249,11 @@ scan_retry:
 
 	if (!target_vaild) {
 		pr_info("=== Cannot find audio Sink devices. ===\n");
-		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
+		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED, "", "");
 		return NULL;
 	} else if (max_rssi < -80) {
 		pr_info("=== BT SOURCE RSSI is is too weak !!! ===\n");
-		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED);
+		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED, "", "");
 		return NULL;
 	}
 
@@ -323,12 +323,12 @@ int rk_bt_source_auto_connect_stop(void)
 int rk_bt_source_open(void)
 {
 	if (!bt_is_open()) {
-		pr_info("%s: Please open bt!!!\n", __func__);
+		pr_err("%s: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
 	if (g_btmaster_thread) {
-		pr_info("The last operation is still in progress\n");
+		pr_err("The last operation is still in progress\n");
 		return -1;
 	}
 

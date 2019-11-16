@@ -43,11 +43,11 @@ typedef enum {
 } RK_BT_SOURCE_EVENT;
 
 typedef enum {
+	BT_SOURCE_STATUS_DISCONNECTED = 0,
 	BT_SOURCE_STATUS_CONNECTED,
-	BT_SOURCE_STATUS_DISCONNECTED,
 } RK_BT_SOURCE_STATUS;
 
-typedef void (*RK_BT_SOURCE_CALLBACK)(void *userdata, const RK_BT_SOURCE_EVENT event);
+typedef void (*RK_BT_SOURCE_CALLBACK)(void *userdata, const char *bd_addr, const char *name, const RK_BT_SOURCE_EVENT event);
 
 int rk_bt_source_auto_connect_start(void *userdata, RK_BT_SOURCE_CALLBACK cb);
 int rk_bt_source_auto_connect_stop(void);

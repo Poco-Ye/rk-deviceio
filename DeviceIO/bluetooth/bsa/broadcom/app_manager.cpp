@@ -2127,7 +2127,7 @@ UINT8 app_mgr_get_dev_platform(BD_ADDR bd_addr)
 
 int app_mgr_bd2str(BD_ADDR bd_addr, char *address, int addr_len)
 {
-    if(addr_len < 17) {
+    if(!address || addr_len < 17) {
         APP_ERROR1("address buffer length is too small: %d", addr_len);
         return -1;
     }
