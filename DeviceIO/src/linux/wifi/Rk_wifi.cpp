@@ -417,7 +417,12 @@ int RK_wifi_running_getConnectionInfo(RK_WIFI_INFO_Connection_s* pInfo)
 		} else if (0 == strncmp(line, "ssid", 4)) {
 			value = strchr(line, '=');
 			if (value && strlen(value) > 0) {
-				strncpy(pInfo->ssid, value + 1, sizeof(pInfo->ssid));
+				char sname[128];
+				char utf8[128];
+				spec_char_convers(value + 1, sname);
+				get_encode_gbk_utf8(m_gbk_head, sname, utf8);
+				pr_info("convers str: %s, sname: %s, ori: %s\n", value + 1, sname, utf8);
+				strncpy(pInfo->ssid,  utf8, strlen(utf8));
 			}
 		} else if (0 == strncmp(line, "id", 2)) {
 			value = strchr(line, '=');
@@ -671,7 +676,6 @@ char* RK_wifi_scan_r_sec(const unsigned int cols)
 		scan_r[strlen(scan_r) - 1] = '\0';
 	}
 	strcat(scan_r, "]");
-
 	fclose(fp);
 	return scan_r;
 }
@@ -978,6 +982,7 @@ int RK_wifi_connect1(const char* ssid, const char* psk, const RK_WIFI_CONNECTION
 		pr_err("%s: invalid ssid\n", __func__);
 		return -1;
 	}
+	pr_info("ssid:%s\n", ssid);
 
 	save_connect_info(ssid, NULL);
 	wifi_state_send(RK_WIFI_State_CONNECTING, NULL);
@@ -1380,7 +1385,14 @@ static void get_wifi_info_by_event(char *event, RK_WIFI_RUNNING_State_e state, R
 				break;
 			}
 			len = strlen(start_tag) - strlen(end_tag) - strlen("ssid=\"");
-			strncpy(info->ssid, start_tag + strlen("ssid=\""), len);
+			char value[128] = {0};
+			char sname[128];
+			char utf8[128];
+			strncpy(value, start_tag + strlen("ssid=\""), len);
+			spec_char_convers(value, sname);
+			get_encode_gbk_utf8(m_gbk_head, sname, utf8);
+			pr_info("convers str: %s, sname: %s, ori: %s\n", value, sname, utf8);
+			strncpy(info->ssid,  utf8, strlen(utf8));
 		}
 
 		id_tag =  strstr(event, "id=");
