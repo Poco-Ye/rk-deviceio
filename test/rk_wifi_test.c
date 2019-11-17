@@ -29,6 +29,7 @@ static void ping_test()
 	char line[2048];
 
 	while(1) {
+		sleep(1);
 #if 0
 		if (RK_wifi_ping("www.baidu.com")) {
 			printf("ping ok\n");
@@ -38,12 +39,12 @@ static void ping_test()
 		}
 #else
 		memset(line, 0, sizeof(line));
-		//RK_shell_exec("ping www.baidu.com -c 1", line, sizeof(line));
-		RK_shell_exec("ping 8.8.8.8 -c 1", line, sizeof(line));
-		usleep(100000);
+		RK_shell_exec("ping www.baidu.com -c 1", line, sizeof(line));
+		//RK_shell_exec("ping 8.8.8.8 -c 1", line, sizeof(line));
+		//usleep(100000);
 		printf("line: %s\n", line);
-		//if (strstr(line, "PING www.baidu.com") && strstr(line, "bytes from")) {
-		if (strstr(line, "PING 8.8.8.8") && strstr(line, "bytes from")) {
+		if (strstr(line, "PING www.baidu.com") && strstr(line, "bytes from")) {
+		//if (strstr(line, "PING 8.8.8.8") && strstr(line, "bytes from")) {
 			printf("ping ok\n");
 			printf_system_time();
 			rk_wifi_getConnectionInfo(NULL);
@@ -81,7 +82,7 @@ static int rk_wifi_state_callback(RK_WIFI_RUNNING_State_e state, RK_WIFI_INFO_Co
 	wifi_state = state;
 	if (state == RK_WIFI_State_CONNECTED) {
 		printf("RK_WIFI_State_CONNECTED\n");
-		//ping_test();
+		ping_test();
 	} else if (state == RK_WIFI_State_CONNECTFAILED) {
 		printf("RK_WIFI_State_CONNECTFAILED\n");
 	} else if (state == RK_WIFI_State_CONNECTFAILED_WRONG_KEY) {
@@ -96,7 +97,7 @@ static int rk_wifi_state_callback(RK_WIFI_RUNNING_State_e state, RK_WIFI_INFO_Co
 		char *scan_r;
 		printf("RK_WIFI_State_SCAN_RESULTS\n");
 		scan_r = RK_wifi_scan_r();
-		printf("%s\n", scan_r);
+		//printf("%s\n", scan_r);
 	}
 
 	return 0;
