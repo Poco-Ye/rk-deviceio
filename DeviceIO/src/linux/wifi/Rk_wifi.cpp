@@ -103,6 +103,26 @@ static char* get_encode_gbk_ori(RK_WIFI_encode_gbk_t* head, const char* str, cha
 	return dst;
 }
 
+static char* get_encode_gbk_utf8(RK_WIFI_encode_gbk_t* head, const char* str, char* dst)
+{
+	int is_gbk = 0;
+	RK_WIFI_encode_gbk_t *gbk = head;
+
+	while (gbk) {
+		if (strcmp(gbk->ori, str) == 0) {
+			is_gbk = 1;
+			strncpy(dst, gbk->utf8, strlen(gbk->utf8));
+			break;
+		}
+		gbk = gbk->next;
+	}
+	if (!is_gbk) {
+		strncpy(dst, str, strlen(str));
+	}
+
+	return dst;
+}
+
 static int is_non_psk(const char* str)
 {
 	RK_WIFI_encode_gbk_t *nonpsk = m_nonpsk_head;
@@ -260,17 +280,36 @@ static int RK_wifi_search_with_bssid(const char *bssid)
 	return -1;
 }
 
+static int RK_wifi_search_with_ssid(const char *ssid)
+{
+	RK_WIFI_SAVED_INFO wsi;
+	int id;
+
+	RK_wifi_getSavedInfo(&wsi);
+	for (int i = 0; i < wsi.count; i++) {
+		if (strncmp(wsi.save_info[i].ssid, ssid, strlen(ssid)) == 0) {
+			return wsi.save_info[i].id;
+		}
+	}
+
+	return -1;
+}
+
 int RK_wifi_getSavedInfo(RK_WIFI_SAVED_INFO* pInfo)
 {
 	FILE *fp = NULL;
 	char cmd[128];
 	char str[128];
 	int cnt;
-	
+	char sname[128];
+	char utf8[128];
+
 	if (pInfo == NULL)
 		return -1;
 
 	memset(pInfo, 0, sizeof(RK_WIFI_SAVED_INFO));
+	memset(sname, 0, 128);
+	memset(utf8, 0, 128);
 
 	exec("wpa_cli list_network | wc -l", str);
 	cnt = atoi(str) - 2;
@@ -289,7 +328,11 @@ int RK_wifi_getSavedInfo(RK_WIFI_SAVED_INFO* pInfo)
 	for (int i = 0; i < cnt; i++) {
 		snprintf(cmd, sizeof(cmd), "wpa_cli list_network | awk '{print $2}' | sed -n %dp", i+3);
 		exec(cmd, str);
-		strncpy(pInfo->save_info[i].ssid, str, strlen(str)-1);
+		str[strlen(str)-1] = '\0';
+		spec_char_convers(str, sname);
+		get_encode_gbk_utf8(m_gbk_head, sname, utf8);
+		pr_info("convers str: %s, sname: %s, ori: %s\n", str, sname, utf8);
+		strncpy(pInfo->save_info[i].ssid, utf8, strlen(utf8));
 	}
 
 	for (int i = 0; i < cnt; i++) {
@@ -441,7 +484,7 @@ int RK_wifi_enable(const int enable)
 
 	if (enable) {
 		if (!is_wifi_enable()) {
-			system("ifconfig wlan0 down");
+			//system("ifconfig wlan0 down");
 			system("ifconfig wlan0 up");
 			system("ifconfig wlan0 0.0.0.0");
 
@@ -453,7 +496,7 @@ int RK_wifi_enable(const int enable)
 			}
 			system("wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf");
 			usleep(100000);
-			system("udhcpc -i wlan0 &");
+			system("udhcpc -i wlan0 -t 5 &");
 
 			gstate = RK_WIFI_State_OPEN;
 			wifi_state_send(gstate, NULL);
@@ -495,8 +538,10 @@ int RK_wifi_scan(void)
 	if (0 != ret)
 		return -1;
 
-	if (0 != strncmp(str, "OK", 2) &&  0 != strncmp(str, "ok", 2))
+	if (0 != strncmp(str, "OK", 2) &&  0 != strncmp(str, "ok", 2)) {
+		pr_info("scan error: %s\n", str);
 		return -2;
+	}
 
 	return 0;
 }
@@ -948,10 +993,12 @@ int RK_wifi_connect1(const char* ssid, const char* psk, const RK_WIFI_CONNECTION
 		exec1("wpa_cli save_config");
 	}
 
-	id = add_network();
-	if (id < 0) {
-		pr_err("%s: add_network id: %d failed!\n", __func__, id);
-		goto fail;
+	if ((id = RK_wifi_search_with_ssid(ssid)) < 0) {
+		id = add_network();
+		if (id < 0) {
+			pr_err("add_network id: %d failed!\n", id);
+			goto fail;
+		}
 	}
 
 	memset(ori, 0, sizeof(ori));
