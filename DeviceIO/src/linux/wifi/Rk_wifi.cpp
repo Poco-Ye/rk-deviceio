@@ -485,18 +485,20 @@ int RK_wifi_enable(const int enable)
 	if (enable) {
 		if (!is_wifi_enable()) {
 			//system("ifconfig wlan0 down");
-			system("ifconfig wlan0 up");
-			system("ifconfig wlan0 0.0.0.0");
+			exec1("ifconfig wlan0 up");
+			exec1("ifconfig wlan0 0.0.0.0");
+			exec1("killall dhcpcd");
+			exec1("killall dnsmasq");
 
 			if (get_pid("wpa_supplicant") > 0) {
-				//system("killall dhcpcd");
-				system("killall udhcpc");
-				system("killall wpa_supplicant");
+				//system("killall udhcpc");
+				exec1("killall wpa_supplicant");
 				usleep(600000);
 			}
-			system("wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf");
+			exec1("wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf");
 			usleep(100000);
-			system("udhcpc -i wlan0 -t 5 &");
+			//system("udhcpc -i wlan0 -t 5 &");
+			system("dhcpcd wlan0 -AL -t 0 &");
 
 			gstate = RK_WIFI_State_OPEN;
 			wifi_state_send(gstate, NULL);
@@ -510,7 +512,7 @@ int RK_wifi_enable(const int enable)
 		if (is_wifi_enable()) {
 			system("ifconfig wlan0 down");
 			system("killall wpa_supplicant");
-			system("killall udhcpc");
+			//system("killall udhcpc");
 			usleep(600000);
 			if (start_wifi_monitor_threadId > 0) {
 				pthread_cancel(start_wifi_monitor_threadId);
@@ -815,9 +817,12 @@ static bool check_wifi_isconnected(void) {
 			} else {
 				if ((!(i%30)) || flag) {
 					flag = 0;
-					exec1("killall udhcpc");
+					//exec1("killall udhcpc");
+					//usleep(300000);
+					//system("udhcpc -i wlan0 -t 10 &");
+					exec1("killall dhcpcd");
 					usleep(300000);
-					system("udhcpc -i wlan0 -t 10 &");
+					system("dhcpcd wlan0 -AL -t 0 &");
 				}
 			}
 		}
@@ -891,6 +896,40 @@ static int save_configuration()
 	return 0;
 }
 
+static void check_ping_test()
+{
+	char line[1024];
+	int ping_retry = 10;
+	int dns_retry;
+
+	while (ping_retry--) {
+		dns_retry = 5;
+		memset(line, 0, sizeof(line));
+		pr_info("check dns\n");
+		while (dns_retry--) {
+			exec("cat /etc/resolv.conf", line);
+			if (strstr(line, "nameserver"))
+				break;
+			sleep(1);
+		}
+		pr_info("dns ok: %s\n", line);
+		pr_info("to ping\n");
+		sync();
+		sleep(1);
+		memset(line, 0, sizeof(line));
+		exec("ping www.baidu.com -c 1", line);
+		//RK_shell_exec("ping 8.8.8.8 -c 1", line, sizeof(line));
+		//usleep(100000);
+		pr_info("line: %s\n", line);
+		if (strstr(line, "PING www.baidu.com") && strstr(line, "bytes from")) {
+		//if (strstr(line, "PING 8.8.8.8") && strstr(line, "bytes from")) {
+			pr_info("ping ok\n");
+			break;
+		}
+		usleep(200000);
+	}
+}
+
 static void* wifi_connect_state_check(void *arg)
 {
 	RK_WIFI_RUNNING_State_e state = -1;
@@ -914,7 +953,8 @@ static void* wifi_connect_state_check(void *arg)
 		RK_wifi_getSavedInfo(&wsi);
 
 		save_configuration();
-		//state = RK_WIFI_State_CONNECTED;
+		check_ping_test();
+		state = RK_WIFI_State_DHCP_OK;
 	} else {
 		if (wifi_wrong_key == false)
 			state = RK_WIFI_State_CONNECTFAILED;
