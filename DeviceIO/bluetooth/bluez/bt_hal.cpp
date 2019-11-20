@@ -193,6 +193,12 @@ void rk_ble_set_local_privacy(bool local_privacy)
 	pr_info("bluez don't support %s\n", __func__);
 }
 
+int rk_ble_set_adv_interval(unsigned short adv_int_min, unsigned short adv_int_max)
+{
+    pr_info("bluez don't support %s\n", __func__);
+    return 0;
+}
+
 /*****************************************************************
  *            Rockchip bluetooth master api                      *
  *****************************************************************/

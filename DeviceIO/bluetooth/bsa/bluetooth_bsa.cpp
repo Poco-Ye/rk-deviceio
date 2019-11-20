@@ -831,6 +831,11 @@ void rk_ble_set_local_privacy(bool local_privacy)
     app_ble_rk_server_set_local_privacy(local_privacy);
 }
 
+int rk_ble_set_adv_interval(unsigned short adv_int_min, unsigned short adv_int_max)
+{
+    return app_ble_rk_server_set_adv_interval(adv_int_min, adv_int_max);
+}
+
 int rk_ble_setup(RkBleContent *ble_content)
 {
     APP_DEBUG1("bsa don't support %s", __func__);

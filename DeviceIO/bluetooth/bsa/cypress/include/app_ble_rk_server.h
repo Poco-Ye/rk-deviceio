@@ -163,4 +163,6 @@ void app_ble_rk_server_get_state(RK_BLE_STATE *p_state);
 int app_ble_rk_server_disconnect(void);
 
 void app_ble_rk_server_set_local_privacy(BOOLEAN local_privacy);
+
+int app_ble_rk_server_set_adv_interval(UINT16 adv_int_min, UINT16 adv_int_max);
 #endif
