@@ -329,6 +329,8 @@ int RK_wifi_getSavedInfo(RK_WIFI_SAVED_INFO* pInfo)
 		snprintf(cmd, sizeof(cmd), "wpa_cli list_network | awk '{print $2}' | sed -n %dp", i+3);
 		exec(cmd, str);
 		str[strlen(str)-1] = '\0';
+		memset(sname, 0, sizeof(sname));
+		memset(utf8, 0, sizeof(utf8));
 		spec_char_convers(str, sname);
 		get_encode_gbk_utf8(m_gbk_head, sname, utf8);
 		pr_info("convers str: %s, sname: %s, ori: %s\n", str, sname, utf8);
@@ -419,6 +421,8 @@ int RK_wifi_running_getConnectionInfo(RK_WIFI_INFO_Connection_s* pInfo)
 			if (value && strlen(value) > 0) {
 				char sname[128];
 				char utf8[128];
+				memset(sname, 0, sizeof(sname));
+				memset(utf8, 0, sizeof(utf8));
 				spec_char_convers(value + 1, sname);
 				get_encode_gbk_utf8(m_gbk_head, sname, utf8);
 				pr_info("convers str: %s, sname: %s, ori: %s\n", value + 1, sname, utf8);
@@ -1428,6 +1432,8 @@ static void get_wifi_info_by_event(char *event, RK_WIFI_RUNNING_State_e state, R
 			char value[128] = {0};
 			char sname[128];
 			char utf8[128];
+			memset(sname, 0, sizeof(sname));
+			memset(utf8, 0, sizeof(utf8));
 			strncpy(value, start_tag + strlen("ssid=\""), len);
 			spec_char_convers(value, sname);
 			get_encode_gbk_utf8(m_gbk_head, sname, utf8);
