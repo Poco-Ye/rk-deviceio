@@ -19,6 +19,7 @@ typedef enum {
 	RK_WIFI_State_OPEN,
 	RK_WIFI_State_OFF,
 	RK_WIFI_State_SCAN_RESULTS,
+	RK_WIFI_State_DHCP_OK,
 } RK_WIFI_RUNNING_State_e;
 
 typedef enum {
