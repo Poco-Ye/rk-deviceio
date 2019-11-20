@@ -29,8 +29,8 @@
 * Defines
 */
 #define APP_BLE_RK_SERVER_UUID              0xFEAA
-//#define BSA_BLE_GAP_ADV_SLOW_INT           2048         /* Tgap(adv_slow_interval) = 1.28 s= 512 * 0.625 ms */
-#define BSA_BLE_GAP_ADV_SLOW_INT            2056
+#define APP_BLE_ADV_INT_MIN                 32 //20ms
+#define BSA_BLE_GAP_ADV_SLOW_INT            48 //30ms
 #define BSA_BLE_CONNECT_EVT                 BTA_BLE_CONNECT_EVT
 #define BTM_BLE_ADVERT_TYPE_NAME_COMPLETE   0x09
 
@@ -50,6 +50,10 @@ static RK_BLE_RECV_CALLBACK app_ble_recv_data_cb = NULL;
 static RK_BLE_STATE app_ble_state = RK_BLE_STATE_IDLE;
 static RK_BLE_STATE_CALLBACK app_ble_state_cb = NULL;
 static BOOLEAN app_ble_local_privacy = TRUE;
+
+static tBSA_DM_BLE_ADV_PARAM app_ble_adv_param = {
+    0, 0
+};
 
 static void app_ble_rk_server_send_state(RK_BLE_STATE state) {
     if(app_ble_state_cb)
@@ -1098,7 +1102,7 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
                           p_data->ser_open.remote_bda[5]);
 
             /* Stop advertising */
-            app_dm_set_ble_visibility(TRUE, FALSE);
+            app_dm_set_ble_visibility(FALSE, FALSE);
 
             app_ble_state = RK_BLE_STATE_CONNECT;
             app_ble_rk_server_send_state(RK_BLE_STATE_CONNECT);
@@ -1122,8 +1126,18 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
         /* Set ADV params */
         memset(&adv_param, 0, sizeof(tBSA_DM_BLE_ADV_PARAM));
         adv_param.adv_type = BSA_BLE_CONNECT_EVT;
-        adv_param.adv_int_min = BSA_BLE_GAP_ADV_SLOW_INT;
-        adv_param.adv_int_max = BSA_BLE_GAP_ADV_SLOW_INT;
+        if(app_ble_adv_param.adv_int_min >= APP_BLE_ADV_INT_MIN)
+            adv_param.adv_int_min = app_ble_adv_param.adv_int_min;
+        else
+            adv_param.adv_int_min = BSA_BLE_GAP_ADV_SLOW_INT;
+
+        if(app_ble_adv_param.adv_int_max >= APP_BLE_ADV_INT_MIN){
+            if(app_ble_adv_param.adv_int_max < app_ble_adv_param.adv_int_min)
+                app_ble_adv_param.adv_int_max = app_ble_adv_param.adv_int_min;
+            adv_param.adv_int_max = app_ble_adv_param.adv_int_max;
+        } else {
+            adv_param.adv_int_max = BSA_BLE_GAP_ADV_SLOW_INT;
+        }
         app_dm_set_ble_adv_param(&adv_param);
 
         /* Set visisble and connectable */
@@ -1400,6 +1414,7 @@ void app_ble_rk_server_close()
     int index;
 
     app_ble_recv_data_cb = NULL;
+    memset(&app_ble_adv_param, 0, sizeof(tBSA_DM_BLE_ADV_PARAM));
 
     /* stop service */
     for (index = 0; index < APP_BLE_RK_SERVER_ATTRIBUTE_MAX; index++) {
@@ -1503,4 +1518,28 @@ int app_ble_rk_server_disconnect(void)
 void app_ble_rk_server_set_local_privacy(BOOLEAN local_privacy)
 {
     app_ble_local_privacy = local_privacy;
+}
+
+int app_ble_rk_server_set_adv_interval(UINT16 adv_int_min, UINT16 adv_int_max)
+{
+    tBSA_DM_BLE_ADV_PARAM adv_param;
+
+    memset(&adv_param, 0, sizeof(tBSA_DM_BLE_ADV_PARAM));
+
+    if(adv_int_min < 32) {
+        APP_ERROR1("the minimum is 32(20ms), adv_int_min = %d", adv_int_min);
+        adv_int_min = 32;
+    }
+
+    if(adv_int_max < adv_int_min)
+        adv_int_max = adv_int_min;
+
+    adv_param.adv_int_min = adv_int_min;
+    adv_param.adv_int_max = adv_int_max;
+    APP_DEBUG1("adv_param.adv_int_min: %d, adv_param.adv_int_max: %d", adv_param.adv_int_min, adv_param.adv_int_max);
+
+    app_ble_adv_param.adv_int_min = adv_param.adv_int_min;
+    app_ble_adv_param.adv_int_max = adv_param.adv_int_max;
+
+    return app_dm_set_ble_adv_param(&adv_param);
 }

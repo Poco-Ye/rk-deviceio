@@ -34,6 +34,9 @@ int rk_ble_disconnect(void);
 int rk_bt_ble_set_visibility(const int visiable, const int connect);
 void rk_ble_set_local_privacy(bool local_privacy);
 
+/*smallest value: 32(32 * 0.625ms = 20ms)*/
+int rk_ble_set_adv_interval(unsigned short adv_int_min, unsigned short adv_int_max);
+
 #ifdef __cplusplus
 }
 #endif
