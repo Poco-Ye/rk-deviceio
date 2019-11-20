@@ -895,6 +895,23 @@ static int set_priority_network(const int id, int priority)
 	return 0;
 }
 
+static void set_network_highest_priority(const int id)
+{
+	char str[128];
+	int cnt;
+
+	exec("wpa_cli list_network | wc -l", str);
+	cnt = atoi(str) - 2;
+	pr_info("wifi cnt: %d(%s)\n", cnt, str);
+
+	for (int i = 0; i < cnt; i++) {
+		if (i == id)
+			set_priority_network(i, cnt);
+		else
+			set_priority_network(i, 1);
+	}
+}
+
 static int save_configuration()
 {
 	system("wpa_cli -iwlan0 enable_network all");
@@ -1072,12 +1089,7 @@ int RK_wifi_connect1(const char* ssid, const char* psk, const RK_WIFI_CONNECTION
 	}
 	pr_info("%s: ori:\"%s\" ori_len:%lu\n", __func__, ori, strlen(ori));
 
-	priority = id + 1;
-	ret = set_priority_network(id, priority);
-	if (0 != ret) {
-		pr_err("%s: set_priority_network id: %d failed!\n", __func__, id);
-		goto fail;
-	}
+	set_network_highest_priority(id);
 
 	ret = set_hide_network(id);
 	if (0 != ret) {
@@ -1193,6 +1205,8 @@ int RK_wifi_connect_with_bssid(const char *bssid)
 		pr_err("select_network id: %d failed!\n", id);
 		goto fail;
 	}
+
+	set_network_highest_priority(id);
 
 	ret = enable_network(id);
 	if (0 != ret) {
