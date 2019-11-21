@@ -899,16 +899,22 @@ static void set_network_highest_priority(const int id)
 {
 	char str[128];
 	int cnt;
+	int network_id;
+	char cmd[128];
 
 	exec("wpa_cli list_network | wc -l", str);
 	cnt = atoi(str) - 2;
 	pr_info("wifi cnt: %d(%s)\n", cnt, str);
 
 	for (int i = 0; i < cnt; i++) {
-		if (i == id)
-			set_priority_network(i, cnt);
+		snprintf(cmd, sizeof(cmd), "wpa_cli list_network | awk '{print $1}' | sed -n %dp", i+3);
+		exec(cmd, str);
+		network_id = atoi(str);
+
+		if (network_id == id)
+			set_priority_network(network_id, cnt);
 		else
-			set_priority_network(i, 1);
+			set_priority_network(network_id, 1);
 	}
 }
 
