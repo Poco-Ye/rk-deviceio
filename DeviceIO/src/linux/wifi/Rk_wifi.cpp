@@ -300,6 +300,7 @@ int RK_wifi_getSavedInfo(RK_WIFI_SAVED_INFO* pInfo)
 	FILE *fp = NULL;
 	char cmd[128];
 	char str[128];
+	char str1[128];
 	int cnt;
 	char sname[128];
 	char utf8[128];
@@ -310,6 +311,8 @@ int RK_wifi_getSavedInfo(RK_WIFI_SAVED_INFO* pInfo)
 	memset(pInfo, 0, sizeof(RK_WIFI_SAVED_INFO));
 	memset(sname, 0, 128);
 	memset(utf8, 0, 128);
+	memset(str, 0, 128);
+	memset(str1, 0, 128);
 
 	exec("wpa_cli list_network | wc -l", str);
 	cnt = atoi(str) - 2;
@@ -331,9 +334,10 @@ int RK_wifi_getSavedInfo(RK_WIFI_SAVED_INFO* pInfo)
 		str[strlen(str)-1] = '\0';
 		memset(sname, 0, sizeof(sname));
 		memset(utf8, 0, sizeof(utf8));
-		spec_char_convers(str, sname);
+		remove_escape_character(str, str1);
+		spec_char_convers(str1, sname);
 		get_encode_gbk_utf8(m_gbk_head, sname, utf8);
-		pr_info("convers str: %s, sname: %s, ori: %s\n", str, sname, utf8);
+		pr_info("convers str: %s, sname: %s, ori: %s\n", str1, sname, utf8);
 		strncpy(pInfo->save_info[i].ssid, utf8, strlen(utf8));
 	}
 
@@ -420,12 +424,15 @@ int RK_wifi_running_getConnectionInfo(RK_WIFI_INFO_Connection_s* pInfo)
 			value = strchr(line, '=');
 			if (value && strlen(value) > 0) {
 				char sname[128];
+				char sname1[128];
 				char utf8[128];
 				memset(sname, 0, sizeof(sname));
+				memset(sname1, 0, sizeof(sname));
 				memset(utf8, 0, sizeof(utf8));
 				spec_char_convers(value + 1, sname);
-				get_encode_gbk_utf8(m_gbk_head, sname, utf8);
-				pr_info("convers str: %s, sname: %s, ori: %s\n", value + 1, sname, utf8);
+				remove_escape_character(sname, sname1);
+				get_encode_gbk_utf8(m_gbk_head, sname1, utf8);
+				pr_info("convers str: %s, sname: %s, ori: %s\n", value + 1, sname1, utf8);
 				strncpy(pInfo->ssid,  utf8, strlen(utf8));
 			}
 		} else if (0 == strncmp(line, "id", 2)) {
@@ -1451,13 +1458,16 @@ static void get_wifi_info_by_event(char *event, RK_WIFI_RUNNING_State_e state, R
 			len = strlen(start_tag) - strlen(end_tag) - strlen("ssid=\"");
 			char value[128] = {0};
 			char sname[128];
+			char sname1[128];
 			char utf8[128];
 			memset(sname, 0, sizeof(sname));
+			memset(sname1, 0, sizeof(sname));
 			memset(utf8, 0, sizeof(utf8));
 			strncpy(value, start_tag + strlen("ssid=\""), len);
 			spec_char_convers(value, sname);
-			get_encode_gbk_utf8(m_gbk_head, sname, utf8);
-			pr_info("convers str: %s, sname: %s, ori: %s\n", value, sname, utf8);
+			remove_escape_character(sname, sname1);
+			get_encode_gbk_utf8(m_gbk_head, sname1, utf8);
+			pr_info("convers str: %s, sname: %s, ori: %s\n", value, sname1, utf8);
 			strncpy(info->ssid,  utf8, strlen(utf8));
 		}
 

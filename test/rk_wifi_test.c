@@ -228,6 +228,11 @@ void rk_wifi_connect1(void *data)
 {
 	char *ssid = NULL, *psk = NULL;
 
+	if (RK_wifi_connect1("1a~!@#%^*()=+]['\\\\\\\":\\/?.>,<", "12345678", WPA, 1) < 0)
+		printf("RK_wifi_connect1 fail!\n");
+
+	return;
+
 	if(data == NULL) {
 		printf("%s: invalid input\n", __func__);
 		return;
