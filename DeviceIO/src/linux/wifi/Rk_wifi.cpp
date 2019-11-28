@@ -146,6 +146,19 @@ static void format_wifiinfo(int flag, char *info);
 static int get_pid(const char Name[]);
 static void RK_wifi_start_monitor(void *arg);
 
+static char* wifi_state[] = {
+	"RK_WIFI_State_IDLE",
+	"RK_WIFI_State_CONNECTING",
+	"RK_WIFI_State_CONNECTFAILED",
+	"RK_WIFI_State_CONNECTFAILED_WRONG_KEY",
+	"RK_WIFI_State_CONNECTED",
+	"RK_WIFI_State_DISCONNECTED",
+	"RK_WIFI_State_OPEN",
+	"RK_WIFI_State_OFF",
+	"RK_WIFI_State_SCAN_RESULTS",
+	"RK_WIFI_State_DHCP_OK",
+};
+
 static void wifi_state_send(RK_WIFI_RUNNING_State_e state, RK_WIFI_INFO_Connection_s *info)
 {
 	if (m_cb == NULL)
@@ -157,9 +170,16 @@ static void wifi_state_send(RK_WIFI_RUNNING_State_e state, RK_WIFI_INFO_Connecti
 		RK_wifi_running_getConnectionInfo(&cndinfo);
 		strncpy(cndinfo.ssid, connect_info.ssid, SSID_BUF_LEN);
 		strncpy(cndinfo.bssid, connect_info.bssid, BSSID_BUF_LEN);
-
+		cndinfo.ssid[SSID_BUF_LEN - 1] = '\0';
+		cndinfo.bssid[BSSID_BUF_LEN - 1] = '\0';
+		pr_info("[RKWIFI]: %s: %s, %s, %s\n", __func__, wifi_state[state], cndinfo.ssid, cndinfo.bssid);
 		m_cb(state, &cndinfo);
 	} else {
+		if (info) {
+			info->ssid[SSID_BUF_LEN - 1] = '\0';
+			info->bssid[BSSID_BUF_LEN - 1] = '\0';
+			pr_info("[RKWIFI]: %s: %s, %s, %s\n", __func__, wifi_state[state], info->ssid, info->bssid);
+		}
 		m_cb(state, info);
 	}
 }
