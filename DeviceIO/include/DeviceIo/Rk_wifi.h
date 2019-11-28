@@ -37,6 +37,7 @@ typedef struct {
 	char wpa_state[20];
 	char ip_address[20];
 	char mac_address[20];
+       int reason;
 } RK_WIFI_INFO_Connection_s;
 
 typedef struct {

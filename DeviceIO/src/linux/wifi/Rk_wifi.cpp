@@ -172,13 +172,13 @@ static void wifi_state_send(RK_WIFI_RUNNING_State_e state, RK_WIFI_INFO_Connecti
 		strncpy(cndinfo.bssid, connect_info.bssid, BSSID_BUF_LEN);
 		cndinfo.ssid[SSID_BUF_LEN - 1] = '\0';
 		cndinfo.bssid[BSSID_BUF_LEN - 1] = '\0';
-		pr_info("[RKWIFI]: %s: %s, %s, %s\n", __func__, wifi_state[state], cndinfo.ssid, cndinfo.bssid);
+		pr_info("[RKWIFI]: %s: %s, %s, %s, reason=%d\n", __func__, wifi_state[state], cndinfo.ssid, cndinfo.bssid, cndinfo.reason);
 		m_cb(state, &cndinfo);
 	} else {
 		if (info) {
 			info->ssid[SSID_BUF_LEN - 1] = '\0';
 			info->bssid[BSSID_BUF_LEN - 1] = '\0';
-			pr_info("[RKWIFI]: %s: %s, %s, %s\n", __func__, wifi_state[state], info->ssid, info->bssid);
+			pr_info("[RKWIFI]: %s: %s, %s, %s, reason=%d\n", __func__, wifi_state[state], info->ssid, info->bssid, info->reason);
 		}
 		m_cb(state, info);
 	}
@@ -1485,7 +1485,7 @@ static void get_wifi_info_by_event(char *event, RK_WIFI_RUNNING_State_e state, R
 {
 	int len = 0;
 	char buf[10];
-	char *start_tag = NULL, *end_tag = NULL, *id_tag = NULL;
+	char *start_tag = NULL, *end_tag = NULL, *id_tag = NULL, *reason_tag = NULL;
 
 	if(event == NULL)
 		return;
@@ -1500,6 +1500,13 @@ static void get_wifi_info_by_event(char *event, RK_WIFI_RUNNING_State_e state, R
 			strncpy(info->bssid, start_tag + strlen("bssid="), 17);
 
 		//strncpy(info->ssid, connect_info.ssid, SSID_BUF_LEN);
+		reason_tag =  strstr(event, "reason=");
+		if(reason_tag) {
+			memset(buf, 0, sizeof(buf));
+			strncpy(buf, reason_tag + strlen("reason="), 2);
+			info->reason = atoi(buf);
+		}
+
 		break;
 
 	case RK_WIFI_State_CONNECTFAILED_WRONG_KEY:
