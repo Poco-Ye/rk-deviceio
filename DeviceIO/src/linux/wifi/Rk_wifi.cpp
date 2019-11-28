@@ -19,6 +19,7 @@
 #include "slog.h"
 
 static bool save_last_ap = false;
+static int connecting_id = -1;
 
 static RK_WIFI_RUNNING_State_e gstate = RK_WIFI_State_OFF;
 
@@ -272,7 +273,7 @@ static int RK_wifi_search_with_bssid(const char *bssid)
 
 	RK_wifi_getSavedInfo(&wsi);
 	for (int i = 0; i < wsi.count; i++) {
-		if (strcmp(wsi.save_info[i].bssid, bssid) == 0) {
+		if (strncmp(wsi.save_info[i].bssid, bssid, strlen(bssid)) == 0) {
 			return wsi.save_info[i].id;
 		}
 	}
@@ -844,8 +845,10 @@ static bool check_wifi_isconnected(void) {
 
 		pr_info("Check wifi state with none state. try more %d/%d, \n", i + 1, WIFI_CONNECT_RETRY / 2);
 
-		if (wifi_wrong_key == true)
+		if (wifi_wrong_key == true) {
+			pr_info("check_wifi_isconnected is wifi_wrong_key break.\n");
 			break;
+		}
 
 		if (wifi_cancel == true) {
 			exec1("wpa_cli flush");
@@ -968,11 +971,38 @@ static void check_ping_test()
 	}
 }
 
+static void wifi_connectfail_process(int id)
+{
+	char str[128];
+	char cmd[128];
+	char cmd1[128];
+	char cmd2[128];
+
+	memset(str, 0, sizeof(str));
+	memset(cmd, 0, sizeof(cmd));
+	memset(cmd1, 0, sizeof(cmd));
+
+	snprintf(cmd, sizeof(cmd), "wpa_cli get_network %d bssid", id);
+	snprintf(cmd1, sizeof(cmd1), "wpa_cli disable_network %d", id);
+	snprintf(cmd2, sizeof(cmd2), "wpa_cli remove_network %d", id);
+
+	exec(cmd, str);
+	if (strstr(str, ":")) {
+		exec(cmd1, str);
+	} else {
+		exec(cmd2, str);
+	}
+	//exec1("wpa_cli flush");
+	//exec1("wpa_cli reconfigure");
+	//exec1("wpa_cli reconnect");
+}
+
 static void* wifi_connect_state_check(void *arg)
 {
 	RK_WIFI_RUNNING_State_e state = -1;
 	bool isconnected;
 	RK_WIFI_INFO_Connection_s cndinfo;
+	int id = *((int *)arg);
 
 	prctl(PR_SET_NAME,"wifi_connect_state_check");
 
@@ -996,10 +1026,7 @@ static void* wifi_connect_state_check(void *arg)
 	} else {
 		if (wifi_wrong_key == false)
 			state = RK_WIFI_State_CONNECTFAILED;
-		exec1("wpa_cli flush");
-		//sleep(2);
-		//exec1("wpa_cli reconfigure");
-		//exec1("wpa_cli reconnect");
+		wifi_connectfail_process(id);
 	}
 
 	if (state < 0)
@@ -1080,6 +1107,8 @@ int RK_wifi_connect1(const char* ssid, const char* psk, const RK_WIFI_CONNECTION
 		}
 	}
 
+	connecting_id = id;
+
 	memset(ori, 0, sizeof(ori));
 	if ((psk == NULL) || is_non_psk(ssid)) {
 		pr_info("%s: is none psk, ssid:\"%s\" ssid_len:%lu\n", __func__, ssid, strlen(ssid));
@@ -1123,7 +1152,7 @@ int RK_wifi_connect1(const char* ssid, const char* psk, const RK_WIFI_CONNECTION
 	}
 
 	pthread_t pth;
-	pthread_create(&pth, NULL, wifi_connect_state_check, NULL);
+	pthread_create(&pth, NULL, wifi_connect_state_check, &connecting_id);
 
 	return 0;
 
@@ -1192,6 +1221,10 @@ int RK_wifi_connect_with_bssid(const char *bssid)
 {
 	int id, ret;
 
+	wifi_wrong_key = false;
+
+	pr_err("%s: %s\n", __func__, bssid);
+
 	if(!bssid) {
 		pr_err("%s: bssid is null\n", __func__);
 		return -1;
@@ -1202,14 +1235,16 @@ int RK_wifi_connect_with_bssid(const char *bssid)
 		return -1;
 	}
 
-	save_connect_info(NULL, bssid);
-	wifi_state_send(RK_WIFI_State_CONNECTING, NULL);
-
 	id = RK_wifi_search_with_bssid(bssid);
 	if (id < 0) {
 		pr_err("RK_wifi_connect_with_bssid not found!\n", id);
 		return -1;
 	}
+
+	connecting_id = id;
+
+	save_connect_info(NULL, bssid);
+	wifi_state_send(RK_WIFI_State_CONNECTING, NULL);
 
 	exec1("wpa_cli -iwlan0 disable_network all");
 
@@ -1228,7 +1263,7 @@ int RK_wifi_connect_with_bssid(const char *bssid)
 	}
 
 	pthread_t pth;
-	pthread_create(&pth, NULL, wifi_connect_state_check, NULL);
+	pthread_create(&pth, NULL, wifi_connect_state_check, &connecting_id);
 
 	return 0;
 
