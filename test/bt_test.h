@@ -34,8 +34,6 @@ void bt_test_ble_start(char *data);
 void bt_test_ble_write(char *data);
 void bt_test_ble_get_status(char *data);
 void bt_test_ble_stop(char *data);
-void bt_test_ble_setup(char *data);
-void bt_test_ble_clean(char *data);
 void bt_test_ble_disconnect(char *data);
 void bt_test_ble_visibility00(char *data);
 void bt_test_ble_visibility11(char *data);

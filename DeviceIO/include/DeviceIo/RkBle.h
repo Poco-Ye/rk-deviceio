@@ -26,8 +26,6 @@ int rk_ble_register_status_callback(RK_BLE_STATE_CALLBACK cb);
 int rk_ble_register_recv_callback(RK_BLE_RECV_CALLBACK cb);
 int rk_ble_start(RkBleContent *ble_content);
 int rk_ble_stop(void);
-int rk_ble_setup(RkBleContent *ble_content);
-int rk_ble_clean(void);
 int rk_ble_get_state(RK_BLE_STATE *p_state);
 int rk_ble_write(const char *uuid, char *data, int len);
 int rk_ble_disconnect(void);

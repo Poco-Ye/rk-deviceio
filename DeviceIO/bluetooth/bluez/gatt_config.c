@@ -106,8 +106,9 @@ typedef struct BLE_CONTENT_T
 ble_content_t *ble_content_internal = NULL;
 ble_content_t ble_content_internal_bak;
 static int gid = 0;
-static int characteristic_id;
-static int service_id;
+static int gdesc_id = 0;
+static int characteristic_id = 1;
+static int service_id = 1;
 
 char le_random_addr[6];
 char CMD_RA[256] = "hcitool -i hci0 cmd 0x08 0x0005";
@@ -142,7 +143,8 @@ struct characteristic {
 };
 
 struct characteristic *gchr[GATT_MAX_CHR];
-char gservice_path[512];
+struct descriptor *gdesc[GATT_MAX_CHR];
+char *gservice_path;
 
 struct descriptor {
 	struct characteristic *chr;
@@ -425,7 +427,8 @@ static const GDBusPropertyTable service_properties[] = {
 static void chr_iface_destroy(gpointer user_data)
 {
 	struct characteristic *chr = user_data;
-	pr_info("== chr_iface_destroy ==\n");
+
+	pr_info("== %s ==\n", __func__);
 	g_free(chr->uuid);
 	g_free(chr->service);
 	g_free(chr->value);
@@ -437,6 +440,7 @@ static void desc_iface_destroy(gpointer user_data)
 {
 	struct descriptor *desc = user_data;
 
+	pr_info("== %s ==\n", __func__);
 	g_free(desc->uuid);
 	g_free(desc->value);
 	g_free(desc->path);
@@ -673,11 +677,17 @@ static gboolean unregister_ble(void)
 {
 	int i;
 
-	for (i = 0; i < ble_content_internal->char_cnt; i++) {
-		pr_info("unregister_blechar_uuid[%d]: %s, gchr[i]->path: %s.\n", i, ble_content_internal->char_uuid[i], gchr[i]->path);
+	for (i = 0; i < gdesc_id; i++) {
+		pr_info("%s: desc_uuid[%d]: %s, gdesc[%d]->path: %s\n", __func__, i, gdesc[i]->uuid, i, gdesc[i]->path);
+		g_dbus_unregister_interface(dbus_conn, gdesc[i]->path, GATT_DESCRIPTOR_IFACE);
+	}
+
+	for (i = 0; i < gid; i++) {
+		pr_info("%s: char_uuid[%d]: %s, gchr[%d]->path: %s\n", __func__, i, ble_content_internal->char_uuid[i], i, gchr[i]->path);
 		g_dbus_unregister_interface(dbus_conn, gchr[i]->path, GATT_CHR_IFACE);
 	}
-	pr_info("unregister_ble gservice_path: %s.\n", gservice_path);
+
+	pr_info("%s: gservice_path: %s\n", __func__, gservice_path);
 	g_dbus_unregister_interface(dbus_conn, gservice_path, GATT_SERVICE_IFACE);
 
 	return TRUE;
@@ -692,7 +702,6 @@ static gboolean register_characteristic(const char *chr_uuid,
 {
 	struct characteristic *chr;
 	struct descriptor *desc;
-	static int id = 1;
 
 	chr = g_new0(struct characteristic, 1);
 	chr->uuid = g_strdup(chr_uuid);
@@ -733,6 +742,7 @@ static gboolean register_characteristic(const char *chr_uuid,
 		return FALSE;
 	}
 
+	gdesc[gdesc_id++] = desc;
 	return TRUE;
 }
 
@@ -764,7 +774,7 @@ static void gatt_create_services(void)
 	if (!service_path)
 		return;
 
-	strcpy(gservice_path, service_path);
+	gservice_path = service_path;
 
 	for (i = 0; i < ble_content_internal->char_cnt; i++) {
 		pr_info("char_uuid[%d]: %s\n", i, ble_content_internal->char_uuid[i]);
@@ -957,7 +967,7 @@ static void unregister_app_setup(DBusMessageIter *iter, void *user_data)
 	dbus_message_iter_append_basic(iter, DBUS_TYPE_OBJECT_PATH, &path);
 }
 
-static void gatt_unregister_app(GDBusProxy *proxy)
+void unregister_app(GDBusProxy *proxy)
 {
 	if (g_dbus_proxy_method_call(proxy, "UnregisterApplication",
 						unregister_app_setup,
@@ -979,23 +989,9 @@ int gatt_setup(void)
 
 void gatt_cleanup(void)
 {
-	int i;
-
 	if(ble_content_internal) {
 		pr_info("gatt_cleanup\n");
-
-		//gatt_unregister_app(ble_proxy);
-		sleep(1);
-
-		for (i = 0; i < ble_content_internal->char_cnt; i++) {
-			pr_info("char_uuid[%d]: %s\n", i,  gchr[i]->path);
-			g_dbus_unregister_interface(dbus_conn,	gchr[i]->path,
-								GATT_CHR_IFACE);
-		}
-
-		g_dbus_unregister_interface(dbus_conn, "/service1",
-							GATT_SERVICE_IFACE);
-
+		unregister_ble();
 		ble_content_internal = NULL;
 	}
 }
@@ -1166,6 +1162,7 @@ int gatt_init(RkBtContent *bt_content)
 	characteristic_id = 1;
 	service_id = 1;
 	gid = 0;
+	gdesc_id = 0;
 
 	// random addr
 	srand(time(NULL) + getpid() + getpid() * 987654 + rand());

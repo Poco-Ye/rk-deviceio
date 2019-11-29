@@ -132,8 +132,6 @@ static command_bt_t bt_command_table[] = {
 	{"bt_test_ble_write", bt_test_ble_write},
 	{"bt_test_ble_disconnect", bt_test_ble_disconnect},
 	{"bt_test_ble_stop", bt_test_ble_stop},
-	{"bt_test_ble_setup", bt_test_ble_setup},
-	{"bt_test_ble_clean", bt_test_ble_clean},
 	{"bt_test_ble_get_status", bt_test_ble_get_status},
 	{"bt_test_spp_open", bt_test_spp_open},
 	{"bt_test_spp_write", bt_test_spp_write},

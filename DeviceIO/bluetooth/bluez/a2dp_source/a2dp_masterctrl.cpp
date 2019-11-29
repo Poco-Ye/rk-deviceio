@@ -106,7 +106,8 @@ static bt_callback_t g_bt_callback = {
 extern "C" {
 #endif
 
-void register_app(GDBusProxy *proxy);
+extern void register_app(GDBusProxy *proxy);
+extern void unregister_app(GDBusProxy *proxy);
 int gatt_set_on_adv(void);
 void ble_wifi_clean(void);
 
@@ -1086,7 +1087,8 @@ static void proxy_removed(GDBusProxy *proxy, void *user_data)
 		if (default_attr == proxy)
 			set_default_attribute(NULL);
 	} else if (!strcmp(interface, "org.bluez.GattManager1")) {
-		gatt_remove_manager(proxy);
+		//gatt_remove_manager(proxy);
+		unregister_app(proxy);
 	} else if (!strcmp(interface, "org.bluez.LEAdvertisingManager1")) {
 		ad_unregister(dbus_conn, NULL);
 	}
@@ -3040,6 +3042,7 @@ static void *bluetooth_open(RkBtContent *bt_content)
 	btsrc_client = g_dbus_client_new(dbus_conn, "org.bluez", "/org/bluez");
 	if (NULL == btsrc_client) {
 		pr_info("btsrc_client inti fail");
+		g_free(auto_register_agent);
 		dbus_connection_unref(dbus_conn);
 		return NULL;
 	}
@@ -3060,18 +3063,21 @@ static void *bluetooth_open(RkBtContent *bt_content)
 	g_dbus_client_set_proxy_handlers(btsrc_client, proxy_added, proxy_removed,
 						  property_changed, NULL);
 
-	pr_info("#### %s server start...\n", __func__);
 	BT_OPENED = 1;
+	pr_info("#### %s server start...\n", __func__);
 
 	g_main_loop_run(btsrc_main_loop);
 
-	//clean up
-	g_dbus_client_unref(btsrc_client);
-	dbus_connection_unref(dbus_conn);
-	dbus_conn = NULL;
-
 	g_main_loop_unref(btsrc_main_loop);
 	btsrc_main_loop = NULL;
+
+	g_dbus_client_unref(btsrc_client);
+	btsrc_client = NULL;
+
+	gatt_cleanup();
+
+	dbus_connection_unref(dbus_conn);
+	dbus_conn = NULL;
 
 	g_list_free_full(ctrl_list, proxy_leak);
 	g_free(auto_register_agent);

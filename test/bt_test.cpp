@@ -688,14 +688,6 @@ void bt_test_ble_stop(char *data) {
 	rk_ble_stop();
 }
 
-void bt_test_ble_setup(char *data) {
-	rk_ble_setup(NULL);
-}
-
-void bt_test_ble_clean(char *data) {
-	rk_ble_clean();
-}
-
 void bt_test_ble_disconnect(char *data) {
 	rk_ble_disconnect();
 }

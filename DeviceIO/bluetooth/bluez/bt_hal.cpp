@@ -961,9 +961,6 @@ int rk_bt_deinit(void)
 	bt_exec_command_system("hciconfig hci0 down");
 	bt_kill_task("rtk_hciattach");
 
-	sleep(1);
-	rk_ble_clean();
-
 	bt_deregister_bond_callback();
 	bt_deregister_discovery_callback();
 	bt_deregister_dev_found_callback();
