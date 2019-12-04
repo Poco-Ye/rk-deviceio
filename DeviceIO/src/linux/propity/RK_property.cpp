@@ -54,7 +54,7 @@ static char *rtrim(char *str) {
 	return str;
 }
 
-static char *trim(char *str)
+char *RK_property_trim(char *str)
 {
 	str = rtrim(str);
 	str = ltrim(str);
@@ -75,7 +75,7 @@ static BOOL is_property_line(const char *str)
 	if (chr) {
 		memset(key, 0, sizeof(key));
 		strncpy(key, str, chr - str);
-		trim(key);
+		RK_property_trim(key);
 
 		return strlen(key) > 0 ? 1 : 0;
 	}
@@ -93,7 +93,7 @@ static BOOL is_empty_line(const char *str)
 	memset(tmp, 0, sizeof(tmp));
 	strcpy(tmp, str);
 
-	trim(tmp);
+	RK_property_trim(tmp);
 
 	return strlen(tmp) > 0 ? 0 : 1;
 }
@@ -122,13 +122,13 @@ static RK_property_map* property_parse(const char *str)
 			memset(key, 0, sizeof(key));
 			memset(prop->key, 0, sizeof(prop->key));
 			strncpy(key, str, chr - str);
-			trim(key);
+			RK_property_trim(key);
 			strcpy(prop->key, key);
 
 			memset(value, 0, sizeof(value));
 			memset(prop->value, 0, sizeof(prop->value));
 			strncpy(value, chr + 1, strlen(str) - (chr - str) - 1);
-			trim(value);
+			RK_property_trim(value);
 			strcpy(prop->value, value);
 		}
 	}
@@ -215,7 +215,7 @@ int RK_property_set(const char *key, const char *value)
 		fp = fopen(LOCAL_PATH, "r");
 		if (fp) {
 			while (fgets(line, sizeof(line), fp)) {
-				trim(line);
+				RK_property_trim(line);
 				if (strstr(line, prop->key) && 0 == strncmp(line, prop->key, strlen(prop->key))) {
 					memset(str_prop, 0, sizeof(str_prop));
 					snprintf(str_prop, sizeof(str_prop), "%s = %s\n", prop->key, prop->value);

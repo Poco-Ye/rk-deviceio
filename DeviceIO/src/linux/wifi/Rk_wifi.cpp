@@ -15,6 +15,7 @@
 #include "ping.h"
 #include "DeviceIo/RK_encode.h"
 #include "DeviceIo/RK_log.h"
+#include "DeviceIo/RK_property.h"
 #include "DeviceIo/Rk_wifi.h"
 #include "slog.h"
 
@@ -274,6 +275,7 @@ static int exec(const char* cmd, const char* ret)
 
 	char convers[strlen(tmp) + 1];
 
+	memset(ret, 0, strlen(ret));
 	strncpy(ret, tmp, strlen(tmp) + 1);
 	free(tmp);
 
@@ -316,26 +318,151 @@ static int RK_wifi_search_with_ssid(const char *ssid)
 	return -1;
 }
 
+static bool get_ssid_directly(char *flags, int row, int columns)
+{
+	/* <=3: id ssid bssid
+	   4: id ssid bssid flags*/
+	if(columns <= 3 || (columns == 4 && strlen(flags) > 0))
+		return true;
+
+	return false;
+}
+
+static int get_ssid_from_list_network(RK_WIFI_SAVED_INFO_s *info, int row, int columns)
+{
+	int start = 0, end = 0;
+	char cmd[128], str[128];
+	char ssid[128], sname[128], utf8[128];
+	char *bssid;
+
+	if(!info)
+		return -1;
+
+	memset(info->ssid, 0, SSID_BUF_LEN);
+	memset(cmd, 0, 128);
+	memset(str, 0, 128);
+
+	if(get_ssid_directly(info->state, row, columns)) {
+		snprintf(cmd, sizeof(cmd), "wpa_cli -i wlan0 list_network | awk '{print $2}' | sed -n %dp", row);
+		exec(cmd, str);
+		pr_info("%s: row = %d, column(2) = %s\n", __func__, row, str);
+		strncpy(info->ssid, str, ((strlen(str) - 1) > SSID_BUF_LEN) ? SSID_BUF_LEN : (strlen(str) - 1));
+
+		return 0;
+	}
+
+	snprintf(cmd, sizeof(cmd), "wpa_cli -i wlan0 list_network | sed -n %dp", row);
+	exec(cmd, str);
+	pr_info("%s: row(%d) = %s\n", __func__, row, str);
+
+	memset(cmd, 0, 128);
+	sprintf(cmd, "%d", info->id);
+	start = strlen(cmd);
+
+	if((bssid = strstr(str, info->bssid)) == NULL) {
+		pr_err("%s: %s can't find bssid(%s)\n", __func__, str, info->bssid);
+		return -1;
+	}
+	end = strlen(str) - strlen(bssid);
+
+	memset(ssid, 0, 128);
+	strncpy(ssid, str + start, end - start);
+	RK_property_trim(ssid);
+
+	memset(str, 0, 128);
+	memset(sname, 0, 128);
+	memset(utf8, 0, 128);
+	remove_escape_character(ssid, str);
+	spec_char_convers(str, sname);
+	get_encode_gbk_utf8(m_gbk_head, sname, utf8);
+	pr_info("convers str: %s, sname: %s, ori: %s\n", str, sname, utf8);
+	strncpy(info->ssid, utf8, strlen(utf8));
+}
+
+int get_bssid_from_list_network(RK_WIFI_SAVED_INFO_s *info, int row, int columns)
+{
+	char cmd[128], str[128];
+	int bssid_column = columns;
+
+	if(!info)
+		return -1;
+
+	memset(info->bssid, 0, BSSID_BUF_LEN);
+	memset(cmd, 0, 128);
+	memset(str, 0, 128);
+
+	if(strlen(info->state) > 0)
+		bssid_column = columns - 1;
+
+	snprintf(cmd, sizeof(cmd), "wpa_cli -i wlan0 list_network | awk '{print $%d}' | sed -n %dp", bssid_column, row);
+	exec(cmd, str);
+	pr_info("%s: row = %d, column(%d) = %s\n", __func__, row, bssid_column, str);
+
+	strncpy(info->bssid, str, ((strlen(str) - 1) > BSSID_BUF_LEN) ? BSSID_BUF_LEN : (strlen(str) - 1));
+	return 0;
+}
+
+int get_id_from_list_network(int row)
+{
+	int network_id;
+	char cmd[128], str[128];
+
+	memset(cmd, 0, 128);
+	memset(str, 0, 128);
+	snprintf(cmd, sizeof(cmd), "wpa_cli -i wlan0 list_network | awk '{print $1}' | sed -n %dp", row);
+	exec(cmd, str);
+	network_id = atoi(str);
+
+	pr_info("%s: row = %d, network_id = %d\n", __func__, row, network_id);
+	return network_id;
+}
+
+int get_columns_from_list_network(int row)
+{
+	int columns;
+	char cmd[128], str[128];
+
+	memset(cmd, 0, 128);
+	memset(str, 0, 128);
+
+	snprintf(cmd, sizeof(cmd), "wpa_cli -i wlan0 list_network | awk '{print NF}' | sed -n %dp", row);
+	exec(cmd, str);
+	columns = atoi(str);
+
+	pr_info("%s: row = %d, columns = %d\n", __func__, row, columns);
+	return columns;
+}
+
+void get_flags_from_list_network(char *flags_buf, int buf_len, int row, int columns)
+{
+	char cmd[128], str[128];
+
+	memset(flags_buf, 0, buf_len);
+	memset(cmd, 0, 128);
+	memset(str, 0, 128);
+
+	snprintf(cmd, sizeof(cmd), "wpa_cli -i wlan0 list_network | awk '{print $%d}' | sed -n %dp", columns, row);
+	exec(cmd, str);
+	if(!strncmp(str, "[CURRENT]", strlen("[CURRENT]"))
+				|| !strncmp(str, "[DISABLED]", strlen("[DISABLED]"))) {
+		strncpy(flags_buf, str, ((strlen(str) - 1) > buf_len) ? buf_len : (strlen(str) - 1));
+		pr_info("%s: row = %d, column(%d) = %s\n", __func__, row, columns, flags_buf);
+	}
+}
+
 int RK_wifi_getSavedInfo(RK_WIFI_SAVED_INFO* pInfo)
 {
 	FILE *fp = NULL;
-	char cmd[128];
+	int cnt, row, columns;
 	char str[128];
-	char str1[128];
-	int cnt;
-	char sname[128];
-	char utf8[128];
 
 	if (pInfo == NULL)
 		return -1;
 
 	memset(pInfo, 0, sizeof(RK_WIFI_SAVED_INFO));
-	memset(sname, 0, 128);
-	memset(utf8, 0, 128);
-	memset(str, 0, 128);
-	memset(str1, 0, 128);
 
-	exec("wpa_cli list_network | wc -l", str);
+	memset(str, 0, 128);
+	exec("wpa_cli -i wlan0 list_network | wc -l", str);
 	cnt = atoi(str) - 2;
 	pInfo->count = cnt;
 	pr_info("wifi cnt: %d(%s)\n", cnt, str);
@@ -344,34 +471,13 @@ int RK_wifi_getSavedInfo(RK_WIFI_SAVED_INFO* pInfo)
 		return -1;
 
 	for (int i = 0; i < cnt; i++) {
-		snprintf(cmd, sizeof(cmd), "wpa_cli list_network | awk '{print $1}' | sed -n %dp", i+3);
-		exec(cmd, str);
-		pInfo->save_info[i].id = atoi(str);
-	}
+		row = i+3;
 
-	for (int i = 0; i < cnt; i++) {
-		snprintf(cmd, sizeof(cmd), "wpa_cli list_network | awk '{print $2}' | sed -n %dp", i+3);
-		exec(cmd, str);
-		str[strlen(str)-1] = '\0';
-		memset(sname, 0, sizeof(sname));
-		memset(utf8, 0, sizeof(utf8));
-		remove_escape_character(str, str1);
-		spec_char_convers(str1, sname);
-		get_encode_gbk_utf8(m_gbk_head, sname, utf8);
-		pr_info("convers str: %s, sname: %s, ori: %s\n", str1, sname, utf8);
-		strncpy(pInfo->save_info[i].ssid, utf8, strlen(utf8));
-	}
-
-	for (int i = 0; i < cnt; i++) {
-		snprintf(cmd, sizeof(cmd), "wpa_cli list_network | awk '{print $3}' | sed -n %dp", i+3);
-		exec(cmd, str);
-		strncpy(pInfo->save_info[i].bssid, str, strlen(str)-1);
-	}
-
-	for (int i = 0; i < cnt; i++) {
-		snprintf(cmd, sizeof(cmd), "wpa_cli list_network | awk '{print $4}' | sed -n %dp", i+3);
-		exec(cmd, str);
-		strncpy(pInfo->save_info[i].state, str, strlen(str)-1);
+		columns = get_columns_from_list_network(row);
+		pInfo->save_info[i].id = get_id_from_list_network(row);
+		get_flags_from_list_network(pInfo->save_info[i].state, STATE_BUF_LEN, row, columns);
+		get_bssid_from_list_network(&pInfo->save_info[i], row, columns);
+		get_ssid_from_list_network(&pInfo->save_info[i], row, columns);
 	}
 
 	for (int i = 0; i < cnt; i++) {
@@ -518,6 +624,8 @@ int RK_wifi_enable(const int enable)
 
 	pr_info("[RKWIFI] start_wpa_supplicant wpa_pid: %d, monitor_id: 0x%x\n",
 			get_pid("wpa_supplicant"), start_wifi_monitor_threadId);
+
+	pr_info("+++++ wifi version: %s +++++\n", RK_WIFI_VERSION);
 
 	if (enable) {
 		if (!is_wifi_enable()) {
@@ -1556,7 +1664,7 @@ static void get_valid_connect_info(RK_WIFI_INFO_Connection_s *info)
 				&& !strlen(info->bssid) && !info->freq
 				&& !strlen(info->mode) && !strlen(info->ip_address)
 				&& !strlen(info->mac_address) && !strlen(info->wpa_state)) {
-			printf("wait to get valid connect info\n");
+			pr_info("wait to get valid connect info\n");
 			usleep(100000);
 		} else {
 			break;
