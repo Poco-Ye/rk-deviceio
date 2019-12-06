@@ -346,7 +346,17 @@ static int get_ssid_from_list_network(RK_WIFI_SAVED_INFO_s *info, int row, int c
 		snprintf(cmd, sizeof(cmd), "wpa_cli -i wlan0 list_network | awk '{print $2}' | sed -n %dp", row);
 		exec(cmd, str);
 		pr_info("%s: row = %d, column(2) = %s\n", __func__, row, str);
-		strncpy(info->ssid, str, ((strlen(str) - 1) > SSID_BUF_LEN) ? SSID_BUF_LEN : (strlen(str) - 1));
+
+		memset(sname, 0, sizeof(sname));
+		memset(utf8, 0, sizeof(utf8));
+		memset(ssid, 0, sizeof(ssid));
+
+		str[strlen(str)-1] = '\0';
+		remove_escape_character(str, ssid);
+		spec_char_convers(ssid, sname);
+		get_encode_gbk_utf8(m_gbk_head, sname, utf8);
+		pr_info("direct: convers str: %s, sname: %s, ori: %s\n", ssid, sname, utf8);
+		strncpy(info->ssid, utf8, strlen(utf8));
 
 		return 0;
 	}
@@ -375,7 +385,7 @@ static int get_ssid_from_list_network(RK_WIFI_SAVED_INFO_s *info, int row, int c
 	remove_escape_character(ssid, str);
 	spec_char_convers(str, sname);
 	get_encode_gbk_utf8(m_gbk_head, sname, utf8);
-	pr_info("convers str: %s, sname: %s, ori: %s\n", str, sname, utf8);
+	pr_info("ndirect convers str: %s, sname: %s, ori: %s\n", str, sname, utf8);
 	strncpy(info->ssid, utf8, strlen(utf8));
 }
 
@@ -463,7 +473,7 @@ int RK_wifi_getSavedInfo(RK_WIFI_SAVED_INFO* pInfo)
 
 	memset(str, 0, 128);
 	exec("wpa_cli -i wlan0 list_network | wc -l", str);
-	cnt = atoi(str) - 2;
+	cnt = atoi(str) - 1;
 	pInfo->count = cnt;
 	pr_info("wifi cnt: %d(%s)\n", cnt, str);
 
@@ -471,7 +481,7 @@ int RK_wifi_getSavedInfo(RK_WIFI_SAVED_INFO* pInfo)
 		return -1;
 
 	for (int i = 0; i < cnt; i++) {
-		row = i+3;
+		row = i+2;
 
 		columns = get_columns_from_list_network(row);
 		pInfo->save_info[i].id = get_id_from_list_network(row);
@@ -1040,12 +1050,12 @@ static void set_network_highest_priority(const int id)
 	int network_id;
 	char cmd[128];
 
-	exec("wpa_cli list_network | wc -l", str);
-	cnt = atoi(str) - 2;
+	exec("wpa_cli -i wlan0 list_network | wc -l", str);
+	cnt = atoi(str) - 1;
 	pr_info("wifi cnt: %d(%s)\n", cnt, str);
 
 	for (int i = 0; i < cnt; i++) {
-		snprintf(cmd, sizeof(cmd), "wpa_cli list_network | awk '{print $1}' | sed -n %dp", i+3);
+		snprintf(cmd, sizeof(cmd), "wpa_cli -i wlan0 list_network | awk '{print $1}' | sed -n %dp", i+2);
 		exec(cmd, str);
 		network_id = atoi(str);
 
