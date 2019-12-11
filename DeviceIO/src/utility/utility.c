@@ -63,15 +63,18 @@ int exec_command_system(const char *cmd)
 	status = system_fd_closexec(cmd);
 
 	if (-1 == status) {
+		pr_err("[system_exec_err] -1\n");
 		return -1;
 	} else {
 		if (WIFEXITED(status)) {
 			if (0 == WEXITSTATUS(status)) {
 				return 0;
 			} else {
+				pr_err("[system_exec_err] -2\n");
 				return -2;
 			}
 		} else {
+			pr_err("[system_exec_err] -3\n");
 			return -3;
 		}
 	}
@@ -99,7 +102,8 @@ void exec_command(const char cmdline[], char recv_buff[], int len)
 
 		if (DEBUG) pr_info("[BT_DEBUG] execute_r: %s \n", recv_buff);
 		pclose(stream);
-	}
+	} else
+		pr_err("[popen] error: %s\n", cmdline);
 }
 
 int test_pthread(pthread_t tid) /*pthread_kill的返回值：成功（0） 线程不存在（ESRCH） 信号不合法（EINVAL）*/

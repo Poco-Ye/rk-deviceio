@@ -188,8 +188,10 @@ static void wifi_state_send(RK_WIFI_RUNNING_State_e state, RK_WIFI_INFO_Connecti
 
 static char* exec1(const char* cmd)
 {
-	if (NULL == cmd || 0 == strlen(cmd))
+	if (NULL == cmd || 0 == strlen(cmd)) {
+		pr_err("exec1 cmd is NULL!\n");
 		return NULL;
+	}
 
 	pr_info("[RKWIFI] exec1: %s\n", cmd);
 
@@ -200,8 +202,10 @@ static char* exec1(const char* cmd)
 	size_t size = SIZE_UNITE;
 
 	fp = popen((const char *) cmd, "r");
-	if (NULL == fp)
+	if (NULL == fp) {
+		pr_err("exec1 popen fp NULL!\n");
 		return NULL;
+	}
 
 	memset(buf, 0, sizeof(buf));
 	ret = (char*) malloc(sizeof(char) * size);
@@ -271,8 +275,10 @@ static int exec(const char* cmd, const char* ret)
 	char* tmp;
 	tmp = exec1(cmd);
 
-	if (NULL == cmd)
+	if (NULL == tmp) {
+		pr_err("exec tmp is NULL!\n");
 		return -1;
+	}
 
 	char convers[strlen(tmp) + 1];
 
@@ -307,11 +313,19 @@ static int RK_wifi_search_with_bssid(const char *bssid)
 static int RK_wifi_search_with_ssid(const char *ssid)
 {
 	RK_WIFI_SAVED_INFO wsi;
-	int id;
+	int id, len;
 
 	RK_wifi_getSavedInfo(&wsi);
 	for (int i = 0; i < wsi.count; i++) {
-		if (strncmp(wsi.save_info[i].ssid, ssid, strlen(ssid)) == 0) {
+		if ((strlen(wsi.save_info[i].ssid) > 64) || (strlen(ssid) > 64))
+			pr_err("RK_wifi_search_with_ssid ssid error!!!\n");
+		pr_err("RK_wifi_search_with_ssid save_info[%d].ssid: %s, ssid: %s \n",
+				i, wsi.save_info[i].ssid, ssid);
+		if (strlen(wsi.save_info[i].ssid) > strlen(ssid))
+			len = strlen(wsi.save_info[i].ssid);
+		else
+			len = strlen(ssid);
+		if (strncmp(wsi.save_info[i].ssid, ssid, len) == 0) {
 			return wsi.save_info[i].id;
 		}
 	}
@@ -550,8 +564,10 @@ int RK_wifi_running_getConnectionInfo(RK_WIFI_INFO_Connection_s* pInfo)
 	pr_info("wpa_cli status: %s\n", line);
 
 	fp = fopen("/tmp/status.tmp", "r");
-	if (!fp)
+	if (!fp) {
+		pr_err("fopen /tmp/status.tmp failed!\n");
 		return -1;
+	}
 
 	memset(pInfo, 0, sizeof(RK_WIFI_INFO_Connection_s));
 	memset(line, 0, sizeof(line));
@@ -925,11 +941,32 @@ static int set_hide_network(const int id)
 	return 0;
 }
 
+static int clear_bssid_network(const int id)
+{
+	int ret;
+	char str[8];
+	char cmd[128];
+
+	memset(str, 0, sizeof(str));
+	memset(cmd, 0, sizeof(cmd));
+	snprintf(cmd, sizeof(cmd), "wpa_cli -iwlan0 bssid %d 00:00:00:00:00:00", id);
+	ret = exec(cmd, str);
+
+	if (0 != ret || 0 == strlen(str) || 0 != strncmp(str, "OK", 2)) {
+		pr_err("clear_bssid_network fail!\n");
+		return -1;
+	}
+
+	return 0;
+}
+
 static int select_network(const int id)
 {
 	int ret;
 	char str[8];
 	char cmd[128];
+
+	clear_bssid_network(id);
 
 	memset(str, 0, sizeof(str));
 	memset(cmd, 0, sizeof(cmd));
@@ -1133,9 +1170,9 @@ static void wifi_connectfail_process(int id)
 	memset(cmd, 0, sizeof(cmd));
 	memset(cmd1, 0, sizeof(cmd));
 
-	snprintf(cmd, sizeof(cmd), "wpa_cli get_network %d bssid", id);
-	snprintf(cmd1, sizeof(cmd1), "wpa_cli disable_network %d", id);
-	snprintf(cmd2, sizeof(cmd2), "wpa_cli remove_network %d", id);
+	snprintf(cmd, sizeof(cmd), "wpa_cli -iwlan0 get_network %d bssid", id);
+	snprintf(cmd1, sizeof(cmd1), "wpa_cli -iwlan0 disable_network %d", id);
+	snprintf(cmd2, sizeof(cmd2), "wpa_cli -iwlan0 remove_network %d", id);
 
 	exec(cmd, str);
 	if (strstr(str, ":")) {
