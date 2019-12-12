@@ -65,7 +65,6 @@ static GSList *folders = NULL;
 static GSList *items = NULL;
 
 static int first_ctrl = 1;
-extern volatile bool A2DP_SINK_FLAG;
 extern GDBusClient *btsrc_client;
 
 static int g_btsrc_connect_status = RK_BT_SINK_STATE_IDLE;
@@ -261,7 +260,7 @@ void player_added(GDBusProxy *proxy)
 	players = g_slist_append(players, proxy);
 
 	if (default_player == NULL) {
-		pr_info("set default player\n");
+		pr_info("set default player: %s\n", g_dbus_proxy_get_path(proxy));
 		default_player = proxy;
 	}
 
@@ -632,7 +631,7 @@ void a2dp_sink_device_added(GDBusProxy *proxy)
 
 void a2dp_sink_proxy_added(GDBusProxy *proxy, void *user_data)
 {
-	pr_info("BT SINK proxy_added A2DP_SINK_FLAG: %d\n", A2DP_SINK_FLAG);
+	pr_info("BT SINK proxy_added\n");
 	const char *interface;
 	interface = g_dbus_proxy_get_interface(proxy);
 
@@ -695,7 +694,7 @@ void item_removed(GDBusProxy *proxy)
 {
 	const char *interface;
 
-	pr_info("BT SINK proxy_removed A2DP_SINK_FLAG: %d\n", A2DP_SINK_FLAG);
+	pr_info("BT SINK proxy_removed\n");
 	interface = g_dbus_proxy_get_interface(proxy);
 
 	if (!strcmp(interface, BLUEZ_MEDIA_PLAYER_INTERFACE))
@@ -969,30 +968,19 @@ int init_avrcp_ctrl(void)
 	return 1;
 }
 
-extern volatile bool A2DP_SRC_FLAG;
-int a2dp_sink_open(void)
+void a2dp_sink_open(void)
 {
 	pr_info("call avrcp_thread init_avrcp\n");
+
 	g_btsrc_connect_status = RK_BT_SINK_STATE_IDLE;
-	A2DP_SINK_FLAG = true;
-	A2DP_SRC_FLAG = 0;
+
 	system("hciconfig hci0 piscan");
 	system("hciconfig hci0 piscan");
-
-	return 1;
-}
-
-int a2dp_sink_colse_coexist()
-{
-	A2DP_SINK_FLAG = false;
-	return 0;
 }
 
 int release_avrcp_ctrl(void)
 {
-	//g_main_loop_quit(main_loop);
 	pr_info("=== release_avrcp_ctrl ===\n");
-	A2DP_SINK_FLAG = false;
 	g_btsrc_connect_status = RK_BT_SINK_STATE_IDLE;
 	system("hciconfig hci0 noscan");
 	system("hciconfig hci0 noscan");
@@ -1002,7 +990,6 @@ int release_avrcp_ctrl(void)
 int release_avrcp_ctrl2(void)
 {
 	pr_info("=== release_avrcp_ctrl2 ===\n");
-	A2DP_SINK_FLAG = false;
 	g_btsrc_connect_status = RK_BT_SINK_STATE_IDLE;
 	return 0;
 }

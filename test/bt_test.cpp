@@ -12,6 +12,7 @@
 #include <DeviceIo/RkBle.h>
 #include <DeviceIo/RkBtSpp.h>
 #include <DeviceIo/RkBtHfp.h>
+#include <DeviceIo/RkBleClient.h>
 
 #include "bt_test.h"
 
@@ -164,7 +165,7 @@ void bt_test_bluetooth_init(char *data)
 	rk_bt_register_state_callback(bt_test_state_cb);
 	rk_bt_register_bond_callback(bt_test_bond_state_cb);
 	rk_bt_register_discovery_callback(bt_test_discovery_status_cb);
-	rk_bt_register_dev_found_callback(bt_test_dev_found_cb);
+	//rk_bt_register_dev_found_callback(bt_test_dev_found_cb);
 	rk_bt_init(&bt_content);
 }
 
@@ -690,6 +691,149 @@ void bt_test_ble_stop(char *data) {
 
 void bt_test_ble_disconnect(char *data) {
 	rk_ble_disconnect();
+}
+
+
+/******************************************/
+/*               BLE CLIENT               */
+/******************************************/
+static void ble_client_test_dev_found_cb(const char *address,const char *name, unsigned int bt_class, int rssi)
+{
+	printf("++++++++++++ BLE device is found ++++++++++++\n");
+	printf("    address: %s\n", address);
+	printf("    name: %s\n", name);
+	printf("    class: 0x%x\n", bt_class);
+	printf("    rssi: %d\n", rssi);
+	printf("+++++++++++++++++++++++++++++++++++++++++\n");
+}
+
+void ble_client_test_state_callback(const RK_BLE_CLIENT_STATE state)
+{
+	switch(state)
+	{
+		case RK_BLE_CLIENT_STATE_IDLE:
+			printf("+++++ RK_BLE_CLIENT_STATE_IDLE +++++\n");
+			break;
+		case RK_BLE_CLIENT_STATE_CONNECT:
+			printf("+++++ RK_BLE_CLIENT_STATE_CONNECT +++++\n");
+			break;
+		case RK_BLE_CLIENT_STATE_DISCONNECT:
+			printf("+++++ RK_BLE_CLIENT_STATE_DISCONNECT +++++\n");
+			break;
+	}
+}
+
+static void bt_test_ble_client_recv_data_callback(const char *uuid, char *data, int len)
+{
+	printf("+++++ recv data +++++\n");
+	printf("	uuid: %s\n", uuid);
+	printf("	data len: %d\n	", len);
+	for (int i = 0 ; i < len; i++) {
+		printf("%02x ", data[i]);
+	}
+	printf("\n");
+}
+
+
+void bt_test_ble_client_open(char *data)
+{
+	rk_ble_client_register_dev_found_callback(ble_client_test_dev_found_cb);
+	rk_ble_client_register_state_callback(ble_client_test_state_callback);
+	rk_ble_client_register_recv_callback(bt_test_ble_client_recv_data_callback);
+	rk_ble_client_open();
+}
+
+void bt_test_ble_client_close(char *data)
+{
+	rk_ble_client_close();
+}
+
+void bt_test_ble_client_get_status(char *data)
+{
+	RK_BLE_CLIENT_STATE state;
+
+	state = rk_ble_client_get_state();
+	switch (state) {
+		case RK_BLE_CLIENT_STATE_IDLE:
+			printf("RK_BLE_CLIENT_STATE_IDLE\n");
+			break;
+		case RK_BLE_CLIENT_STATE_CONNECT:
+			printf("RK_BLE_CLIENT_STATE_CONNECT\n");
+			break;
+		case RK_BLE_CLIENT_STATE_DISCONNECT:
+			printf("RK_BLE_CLIENT_STATE_DISCONNECT\n");
+			break;
+	}
+}
+
+void bt_test_ble_client_connect(char *data)
+{
+	rk_ble_client_connect(data);
+}
+
+void bt_test_ble_client_disconnect(char *data)
+{
+	rk_ble_client_disconnect(data);
+}
+
+void bt_test_ble_client_get_service_info(char *data)
+{
+	int i, j, k;
+	RK_BLE_CLIENT_SERVICE_INFO info;
+
+	if(!rk_ble_client_get_service_info(data, &info)) {
+		printf("+++++ get device(%s) service info +++++\n", data);
+		for(i = 0; i < info.service_cnt; i++) {
+			printf("service[%d]:\n", i);
+			printf("	path: %s\n", info.service[i].path);
+			printf("	uuid: %s\n", info.service[i].uuid);
+
+			for(j = 0; j < info.service[i].chrc_cnt; j++) {
+				printf("	characteristic[%d]:\n", j);
+				printf("		path: %s\n", info.service[i].chrc[j].path);
+				printf("		uuid: %s\n", info.service[i].chrc[j].uuid);
+				printf("		props: 0x%x\n", info.service[i].chrc[j].props);
+				printf("		ext_props: 0x%x\n", info.service[i].chrc[j].ext_props);
+				printf("		perm: 0x%x\n", info.service[i].chrc[j].perm);
+				printf("		notifying: %d\n", info.service[i].chrc[j].notifying);
+
+				for(k = 0; k < info.service[i].chrc[j].desc_cnt; k++) {
+					printf("		descriptor[%d]:\n", k);
+
+					printf("			path: %s\n", info.service[i].chrc[j].desc[k].path);
+					printf("			uuid: %s\n", info.service[i].chrc[j].desc[k].uuid);
+				}
+			}
+		}
+	}
+}
+
+void bt_test_ble_client_read(char *data)
+{
+	rk_ble_client_read(data);
+}
+
+void bt_test_ble_client_write(char *data)
+{
+	rk_ble_client_write(data, "rockchip ble client write test");
+}
+
+void bt_test_ble_client_is_notify(char *data)
+{
+	bool notifying;
+
+	notifying = rk_ble_client_is_notifying(data);
+	printf("%s notifying %s\n", data, notifying ? "yes" : "no");
+}
+
+void bt_test_ble_client_notify_on(char *data)
+{
+	rk_ble_client_notify(data, true);
+}
+
+void bt_test_ble_client_notify_off(char *data)
+{
+	rk_ble_client_notify(data, false);
 }
 
 /******************************************/

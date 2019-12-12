@@ -128,10 +128,10 @@ struct adapter {
 	GList *devices;
 };
 
-extern volatile bool BLE_FLAG;
+extern GDBusProxy *default_dev;
+extern GDBusProxy *ble_dev;
 extern struct adapter *default_ctrl;
 extern DBusConnection *dbus_conn;
-extern volatile GDBusProxy *ble_dev;
 
 struct characteristic {
 	char *service;
@@ -894,7 +894,7 @@ int gatt_set_on_adv(void)
 	// LE Set Advertise Enable Command
 	execute(CMD_EN, ret_buff, 1024);
 
-	return 1;
+	return 0;
 }
 
 static void register_app_reply(DBusMessage *reply, void *user_data)
@@ -994,21 +994,6 @@ void gatt_cleanup(void)
 		unregister_ble();
 		ble_content_internal = NULL;
 	}
-}
-
-int gatt_open(void)
-{
-	pr_info("=== gatt_open ===\n");
-	ble_enable_adv();
-	BLE_FLAG = true;
-
-	return 1;
-}
-
-void gatt_close(void)
-{
-	pr_info("release_ble_gatt gatt_init ...\n");
-	BLE_FLAG = false;
 }
 
 #define HOSTNAME_MAX_LEN	250	/* 255 - 3 (FQDN) - 2 (DNS enc) */
@@ -1144,12 +1129,6 @@ static int ble_adv_set(RkBtContent *bt_content, ble_content_t *ble_content)
 	ble_content->char_cnt = bt_content->ble_content.chr_cnt;
 	ble_content->cb_ble_recv_fun = bt_content->ble_content.cb_ble_recv_fun;
 	ble_content->cb_ble_request_data = bt_content->ble_content.cb_ble_request_data;
-}
-
-volatile unsigned short rk_gatt_mtu = 0;
-unsigned int gatt_mtu(void)
-{
-	return (unsigned int)rk_gatt_mtu;
 }
 
 int gatt_init(RkBtContent *bt_content)

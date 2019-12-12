@@ -24,6 +24,8 @@
 #ifndef __A2DP_SOURCE_GATT__
 #define __A2DP_SOURCE_GATT__
 
+#include <DeviceIo/RkBleClient.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -41,9 +43,9 @@ void gatt_list_attributes(const char *device);
 GDBusProxy *gatt_select_attribute(GDBusProxy *parent, const char *path);
 char *gatt_attribute_generator(const char *text, int state);
 
-void gatt_read_attribute(GDBusProxy *proxy, int argc, char *argv[]);
-void gatt_write_attribute(GDBusProxy *proxy, int argc, char *argv[]);
-void gatt_notify_attribute(GDBusProxy *proxy, bool enable);
+int gatt_read_attribute(GDBusProxy *proxy, int offset);
+int gatt_write_attribute(GDBusProxy *proxy, char *data, int offset);
+int gatt_notify_attribute(GDBusProxy *proxy, bool enable);
 
 void gatt_acquire_write(GDBusProxy *proxy, const char *arg);
 void gatt_release_write(GDBusProxy *proxy, const char *arg);
@@ -77,6 +79,9 @@ void gatt_register_include(DBusConnection *conn, GDBusProxy *proxy,
 					int argc, char *argv[]);
 void gatt_unregister_include(DBusConnection *conn, GDBusProxy *proxy,
 						int argc, char *argv[]);
+
+void gatt_get_list_attributes(const char *path, RK_BLE_CLIENT_SERVICE_INFO *info);
+bool gatt_get_notifying(GDBusProxy *proxy);
 
 #ifdef __cplusplus
 }

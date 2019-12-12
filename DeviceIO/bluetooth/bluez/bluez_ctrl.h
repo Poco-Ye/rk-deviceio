@@ -15,34 +15,24 @@ using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
 #define HOSTNAME_MAX_LEN	250	/* 255 - 3 (FQDN) - 2 (DNS enc) */
 
-enum class BtControlType {
-	BT_NONE = 0,
-	BT_SINK,
-	BT_SOURCE,
-	BT_BLE_MODE,
-	BT_HFP_HF,
-	BT_SINK_HFP_MODE,
-	BLE_SINK_BLE_MODE,
-	BLE_WIFI_INTRODUCER
-};
-
 typedef struct {
 	pthread_t tid;
 	bool is_bt_open;
 	bool is_ble_open;
+	bool is_ble_client_open;
 	bool is_a2dp_sink_open;
 	bool is_a2dp_source_open;
 	bool is_hfp_open;
-	BtControlType type;
-	BtControlType last_type;
 } bt_control_t;
 
 bool bt_is_open();
 bool ble_is_open();
+bool ble_client_is_open();
 bool bt_source_is_open(void);
 bool bt_sink_is_open(void);
 bool bt_hfp_is_open(void);
 int bt_interface(BtControl type, void *data);
+void bt_close_ble(void);
 int bt_close_sink(void);
 int bt_close_source(void);
 int bt_control_cmd_send(enum BtControl bt_ctrl_cmd);

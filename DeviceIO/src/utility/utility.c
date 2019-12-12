@@ -56,7 +56,7 @@ static int system_fd_closexec(const char* command)
 	return wait_val;
 }
 
-int bt_exec_command_system(const char *cmd)
+int exec_command_system(const char *cmd)
 {
 	pid_t status;
 
@@ -79,7 +79,7 @@ int bt_exec_command_system(const char *cmd)
 	return 0;
 }
 
-void bt_exec_command(const char cmdline[], char recv_buff[], int len)
+void exec_command(const char cmdline[], char recv_buff[], int len)
 {
 	if (DEBUG) pr_info("[BT_DEBUG] execute: %s\n", cmdline);
 
@@ -117,7 +117,7 @@ int test_pthread(pthread_t tid) /*pthread_kill的返回值：成功（0） 线�
 	return pthread_kill_err;
 }
 
-int bt_get_ps_pid(const char Name[])
+int get_ps_pid(const char Name[])
 {
 	int len;
 	char name[32] = {0};
@@ -144,7 +144,7 @@ int bt_get_ps_pid(const char Name[])
 	return pid;
 }
 
-int bt_kill_task(char *name)
+int kill_task(char *name)
 {
 	char cmd[128] = {0};
 	int retry_cnt = 6;
@@ -153,34 +153,34 @@ int bt_kill_task(char *name)
 	sprintf(cmd, "killall %s", name);
 
 retry:
-	bt_exec_command_system(cmd);
+	exec_command_system(cmd);
 	msleep(100);
 
-	if (bt_get_ps_pid(name) && (retry_cnt--)) {
+	if (get_ps_pid(name) && (retry_cnt--)) {
 		msleep(100);
 		goto retry;
 	}
 
-	if (bt_get_ps_pid(name))
+	if (get_ps_pid(name))
 		return -1;
 	else
 		return 0;
 }
 
-int bt_run_task(char *name, char *cmd)
+int run_task(char *name, char *cmd)
 {
 	int retry_cnt = 3;
 
 retry:
-	bt_exec_command_system(cmd);
+	exec_command_system(cmd);
 	msleep(100);
 
-	if (!bt_get_ps_pid(name) && (retry_cnt--)) {
+	if (!get_ps_pid(name) && (retry_cnt--)) {
 		msleep(100);
 		goto retry;
 	}
 
-	if (!bt_get_ps_pid(name))
+	if (!get_ps_pid(name))
 		return -1;
 	else
 		return 0;

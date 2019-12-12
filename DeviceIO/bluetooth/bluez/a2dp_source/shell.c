@@ -21,11 +21,17 @@
  *
  */
 #include <stdio.h>
+#include "util.h"
 #include "shell.h"
+
+static void print_string(const char *str, void *user_data)
+{
+	pr_info("%s\n", str);
+}
 
 void bt_shell_hexdump(void *buf, size_t len)
 {
-	return;
+	util_hexdump(' ', buf, len, print_string, NULL);
 }
 
 void bt_shell_usage()

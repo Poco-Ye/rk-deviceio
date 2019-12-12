@@ -2,11 +2,11 @@
 
 ---
 
-发布版本：1.6
+发布版本：1.8
 
 作者：ctf
 
-日期：2019.09.03
+日期：2019.12.16
 
 文件密级：公开资料
 
@@ -39,6 +39,8 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 | 2019-6-4 | V1.4 | V1.2.3 | francis.fan | Bluez：实现A2DP SINK音量正反向控制<br />Bluez：取消SPP与A2DP SINK的关联<br />Bluez：rk_bt_enable_reconnec 保存属性到文件，设备重启后属性设置依旧生效<br />Bluez：修复A2DP SOURCE 反向控制功能初始化概率性失败<br/>Bluez：修复 rk_bt_sink_set_visibilit <br />BSA: 修复A2DP SOURCE自动重连失败<br/>BSA：修复 rk_bt_hfp_hangup api<br />删除rk_bt_sink_set_auto_reconnect接口 |
 | 2019-6-24 | V1.5 | V1.2.4 | ctf | 增加HFP HF alsa控制 demo<br/>添加hfp断开连接api：rk_bt_hfp_disconnect<br/>修复手机上接听电话和拒接电话时，无法收到PICKUP、HANGUP事件BUG<br />Bsa：增加HFP HF 使能CVSD（8K采样）接口<br />Bsa：修复cypress bsa 配对弹窗提示问题<br/>Bsa：更新broadcom bsa 版本 (rockchip_20190617)<br />Bsa：修复蓝牙扫描时，无法识别个别蓝牙音箱设备类型BUG <br/>Bsa：修复电池电量上报BUG |
 | 2019-10-30 | V1.6 | V1.3.0 | ctf | Bluez：实现蓝牙反初始化<br/>Bluez：修正获取本机设备名、本机蓝牙Mac地址接口<br/>Bluez：添加pbap profile 支持<br />Bluez：支持hfp 8K和16K采样率自适应<br/>Bluez：添加sink 播放underrun上报<br/>Bsa：添加设置sink 播放设备节点接口<br/>Bsa：添加ble可见性设置接口<br/>Bsa：添加ble主动断开连接接口<br/>Bsa：支持在蓝牙初始化时，设置蓝牙地址<br/>添加蓝牙启动状态上报<br />添加蓝牙配对状态上报<br/>添加启动蓝牙扫描、停止蓝牙扫描接口<br/>添加获取蓝牙是否处于扫描状态接口<br/>添加打印当前扫描到的设备列表接口<br />添加主动和指定设备配对、取消和指定设备配对接口<br/>添加获取当前已配对设备列表、释放获取的配对设备列表接口<br/>添加打印当前配对设备列表接口<br />添加设置本机设备名接口<br />添加歌曲信息上报<br/>添加歌曲播放进度上报<br />添加avdtp(a2dp sink)状态上报<br />sink添加主动和指定设备连接、主动断开指定设备连接接口<br/>添加获取当前播放状态接口<br/>添加获取当前连接的远程设备是否支持主动上报播放进度接口<br/>支持打印日志到syslog |
+| 2019-11-16 | v1.7 | V1.3.1 | ctf | source 回调增加连接设备的address和name参数 |
+| 2019-12-12 | V1.8 | V1.3.2 | ctf | bluez：实现ble client 功能 |
 
 <div STYLE="page-break-after: always;"></div>
 
@@ -53,14 +55,14 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 - `RkBtContent`结构
 
 	    typedef struct {
-	    	Ble_Uuid_Type_t server_uuid; //BLE server uuid
+	    	Ble_Uuid_Type_t server_uuid;  //BLE server uuid
 	    	Ble_Uuid_Type_t chr_uuid[12]; //BLE CHR uuid，最多12个
-	    	uint8_t chr_cnt; //CHR 个数
-	    	const char *ble_name; //BLE名称，该名称可与bt_name不一致。
-	    	uint8_t advData[256]; //广播数据
-	    	uint8_t advDataLen; //广播数据长度
-	    	uint8_t respData[256]; //广播回应数据
-	    	uint8_t respDataLen; //广播回应数据长度
+	    	uint8_t chr_cnt;              //CHR 个数
+	    	const char *ble_name;         //BLE名称，该名称可与bt_name不一致。
+	    	uint8_t advData[256];         //广播数据
+	    	uint8_t advDataLen;           //广播数据长度
+	    	uint8_t respData[256];        //广播回应数据
+	    	uint8_t respDataLen;          //广播回应数据长度
 	    	/* 生成广播数据的方式，取值：BLE_ADVDATA_TYPE_USER/BLE_ADVDATA_TYPE_SYSTEM
 	    	 * BLE_ADVDATA_TYPE_USER：使用advData和respData中的数据作为BLE广播
 	    	 * BLE_ADVDATA_TYPE_SYSTEM：系统默认广播数据。
@@ -81,8 +83,8 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
       typedef struct {
       	RkBleContent ble_content; //BLE 参数配置
-      	const char *bt_name; //蓝牙名称
-      	const char *bt_addr; //蓝牙地址（Bsa only，默认使用芯片内部固化的bt mac地址）
+      	const char *bt_name;      //蓝牙名称
+      	const char *bt_addr;      //蓝牙地址（Bsa only，默认使用芯片内部固化的bt mac地址）
       } RkBtContent;
 
 - `RkBtPraiedDevice`结构
@@ -241,8 +243,8 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
   ```
   typedef enum {
-  	RK_BLE_STATE_IDLE = 0, //空闲状态
-  	RK_BLE_STATE_CONNECT, //连接成功
+  	RK_BLE_STATE_IDLE = 0,  //空闲状态
+  	RK_BLE_STATE_CONNECT,   //连接成功
     	RK_BLE_STATE_DISCONNECT //断开连接
   } RK_BLE_STATE;
   ```
@@ -293,17 +295,129 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
 - `int rk_ble_disconnect(void)`
 
-  主动断开当前ble连接，该接口仅适用于bsa（BSA only）
+  主动断开当前ble连接
 
 <div STYLE="page-break-after: always;"></div>
 
-## 3、SPP接口介绍（RkBtSpp.h） ##
+## 3、BLE CLIENT接口介绍（RkBleClient.h, BLUEZ only）
+
+- `RK_BLE_CLIENT_STATE`说明
+
+  ```
+  typedef enum {
+  	RK_BLE_CLIENT_STATE_IDLE,      //空闲状态
+  	RK_BLE_CLIENT_STATE_CONNECT,   //连接成功
+    	RK_BLE_CLIENT_STATE_DISCONNECT //断开连接
+  } RK_BLE_CLIENT_STATE;
+  ```
+
+- `RK_BLE_CLIENT_SERVICE_INFO`说明
+
+  ```
+  typedef struct {
+  	int service_cnt;                                  //连接的远程设备包含的service数量
+  	RK_BLE_CLIENT_SERVICE service[SERVICE_COUNT_MAX]; //每个service的具体信息
+  } RK_BLE_CLIENT_SERVICE_INFO;
+  
+  typedef struct {
+  	char path[PATH_BUF_LEN];
+  	char uuid[UUID_BUF_LEN];                 //service uuid
+  	int chrc_cnt;                            //该service 包含的characteristic数量
+  	RK_BLE_CLIENT_CHRC chrc[CHRC_COUNT_MAX]; //每个characteristic的具体信息
+  } RK_BLE_CLIENT_SERVICE;
+  
+  typedef struct {
+  	char path[PATH_BUF_LEN];
+  	char uuid[UUID_BUF_LEN];                 //characteristic uuid
+  	unsigned int props;                      //characteristic 属性
+  	unsigned int ext_props;                  //characteristic 扩展属性
+  	unsigned int perm;                       //characteristic 权限
+  	bool notifying;                          //characteristic 是否开启notification
+  	int desc_cnt;                            //该characteristic 包含的descriptor 数量
+  	RK_BLE_CLIENT_DESC desc[DESC_COUNT_MAX]; //每个descriptor 的具体信息
+  } RK_BLE_CLIENT_CHRC;
+  
+  typedef struct {
+  	char path[PATH_BUF_LEN];
+  	char uuid[UUID_BUF_LEN]; //descriptor uuid
+  } RK_BLE_CLIENT_DESC;
+  ```
+
+- `typedef void (*RK_BLE_CLIENT_STATE_CALLBACK)(RK_BLE_CLIENT_STATE state)`
+
+  ble client 状态回调函数
+
+- `typedef void (*RK_BLE_CLIENT_RECV_CALLBACK)(const char *uuid, char *data, int len)`
+
+  ble client 数据接收回调函数。uuid：CHR UUID，data：数据指针，len：数据长度。
+
+- `void rk_ble_client_register_state_callback(RK_BLE_CLIENT_STATE_CALLBACK cb)`
+
+  注册ble client 状态回调函数
+
+- `int rk_ble_client_register_recv_callback(RK_BLE_CLIENT_RECV_CALLBACK cb)`
+
+  注册ble client 数据接收回调函数
+
+- `oid rk_ble_client_register_dev_found_callback(RK_BT_DEV_FOUND_CALLBACK cb)`
+
+  注册ble 设备发现回调函数，该回调会过滤掉AddressType 为public 的设备，只返回random address 设备，也可以使用本文档第一章节的RK_BT_DEV_FOUND_CALLBACK scan 所有类型的设备。
+
+- `int rk_ble_client_open(void)`
+
+  初始胡ble client
+
+- `void rk_ble_client_close(void)`
+
+  反初始胡ble client
+
+- `RK_BLE_CLIENT_STATE rk_ble_client_get_state()`
+
+  主动获取ble client状态
+
+- `int rk_ble_client_get_service_info(char *address, RK_BLE_CLIENT_SERVICE_INFO *info)`
+
+  回去address指定设备的信息，包括service uuid，characteristic uuid、permission、Properties，descriptor uuid等，具体可查看RK_BLE_CLIENT_SERVICE_INFO 结构体
+
+- `int rk_ble_client_write(const char *uuid, char *data)`
+
+  往对端指定uuid发送数据
+
+  uuid：写入数据的CHR对象
+
+  data：写入数据的指针
+
+  len：写入数据的长度。特别说明：该长度受到BLE连接的MTU限制，超过MTU将被截断，bluez 默认协商的MTU为最大值517
+
+- `int rk_ble_client_read(const char *uuid)`
+
+  读取对端指定uuid的数据，读取成功会触发RK_BLE_CLIENT_RECV_CALLBACK回调
+
+- `int rk_ble_client_connect(char *address)`
+
+  连接指定address的设备
+
+- `int rk_ble_client_disconnect(char *address)`
+
+  断开与address指定设备的连接
+
+- `bool rk_ble_client_is_notifying(const char *uuid)`
+
+  查询指定uuid是否开启notification，开启则返回true，此时远程设备（server） write 该uuid时，会触发RK_BLE_CLIENT_RECV_CALLBACK回调，自动上报修改的值
+
+- `int rk_ble_client_notify(const char *uuid, bool enable)`
+
+  设置指定uuid 的notification，该uuid本身必须支持notifications 或 indications，enable = true时开启，enable = false时关闭。
+
+<div STYLE="page-break-after: always;"></div>
+
+## 4、SPP接口介绍（RkBtSpp.h） ##
 
 - `RK_BT_SPP_STATE`介绍
 
 	    typedef enum {
-	    	RK_BT_SPP_STATE_IDLE = 0, //空闲状态
-	    	RK_BT_SPP_STATE_CONNECT, //连接成功状态
+	    	RK_BT_SPP_STATE_IDLE = 0,   //空闲状态
+	    	RK_BT_SPP_STATE_CONNECT,   //连接成功状态
 	    	RK_BT_SPP_STATE_DISCONNECT //断开连接
 	    } RK_BT_SPP_STATE;
 
@@ -341,7 +455,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
 <div STYLE="page-break-after: always;"></div>
 
-## 4、A2DP SINK接口介绍（RkBtSink.h） ##
+## 5、A2DP SINK接口介绍（RkBtSink.h） ##
 
 - `BtTrackInfo`结构
 
@@ -504,14 +618,14 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
 <div STYLE="page-break-after: always;"></div>
 
-## 5、A2DP SOURCE接口介绍（RkBtSource.h） ##
+## 6、A2DP SOURCE接口介绍（RkBtSource.h） ##
 
 - `BtDeviceInfo`介绍
 
   ```
   typedef struct _bt_device_info {
-  	char name[128]; // bt name
-  	char address[17]; // bt address
+  	char name[128];    // bt name
+  	char address[17];  // bt address
   	bool rssi_valid;
   	int rssi;
   	char playrole[12]; // Audio Sink? Audio Source? Unknown?
@@ -557,63 +671,63 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
    } RK_BT_SOURCE_STATUS;
    ```
 
-- `typedef void (*RK_BT_SOURCE_CALLBACK)(void *userdata, const RK_BT_SOURCE_EVENT event)`
+- `typedef void (*RK_BT_SOURCE_CALLBACK)(void *userdata, const char *bd_addr, const char *name, const RK_BT_SOURCE_EVENT event)`
 
-	状态回调函数。userdata：用户指针，event：连接事件。建议在`rk_bt_source_open`接口之前注册状态回调函数，以免状态事件丢失。
+  状态回调函数。userdata：用户指针，bd_addr：连接的远程设备的地址，name：连接的远程设备的名称，event：连接事件。建议在`rk_bt_source_open`接口之前注册状态回调函数，以免状态事件丢失。
 
 - `int rk_bt_source_auto_connect_start(void *userdata, RK_BT_SOURCE_CALLBACK cb)`
 
-	自动扫描周围Audio Sink类型设备，并主动连接rssi最强的设备。userdata：用户指针，cb：状态回调函数。该接口自动扫描时长为10秒，若10秒内每扫描到任何一个Audio Sink类型设备，该接口则不会做任何操作。若扫描到Audio Sink类型设备，则会打印出设备的基本信息，如果扫描不到Audio Sink设备则会打印“=== Cannot find audio Sink devices. ===”；若扫到的设备信号强度太低，则也会连接失败，并打印“=== BT SOURCE RSSI is is too weak !!! ===”。
+  自动扫描周围Audio Sink类型设备，并主动连接rssi最强的设备。userdata：用户指针，cb：状态回调函数。该接口自动扫描时长为10秒，若10秒内每扫描到任何一个Audio Sink类型设备，该接口则不会做任何操作。若扫描到Audio Sink类型设备，则会打印出设备的基本信息，如果扫描不到Audio Sink设备则会打印“=== Cannot find audio Sink devices. ===”；若扫到的设备信号强度太低，则也会连接失败，并打印“=== BT SOURCE RSSI is is too weak !!! ===”。
 
 - `int rk_bt_source_auto_connect_stop(void)`
 
-	关闭自动扫描。
+  关闭自动扫描。
 
 - `int rk_bt_source_open(void)`
 
-	打开A2DP Source功能。
+  打开A2DP Source功能。
 
 - `int rk_bt_source_close(void)`
 
-	关闭A2DP Source功能。
+  关闭A2DP Source功能。
 
 - `int rk_bt_source_get_device_name(char *name, int len)`
 
-	获取本机设备名称。name：存放名称的buffer，len：name空间大小。
+  获取本机设备名称。name：存放名称的buffer，len：name空间大小。
 
 - `int rk_bt_source_get_device_addr(char *addr, int len)`
 
-	获取本机设备地址。addr：存放地址的buffer，len：addr空间大小。
+  获取本机设备地址。addr：存放地址的buffer，len：addr空间大小。
 
 - `int rk_bt_source_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, int name_len, char *addr, int addr_len)`
 
-	获取A2DP Source连接状态。pstatus：保存当前状态值的指针。若当前处于连接状态，name保存对端设备（A2DP Sink）的名称，name_len为name长度，addr保存对端设备（A2DP Sink）的地址，addr_len为addr长度。参数name和addr均可置空。
+  获取A2DP Source连接状态。pstatus：保存当前状态值的指针。若当前处于连接状态，name保存对端设备（A2DP Sink）的名称，name_len为name长度，addr保存对端设备（A2DP Sink）的地址，addr_len为addr长度。参数name和addr均可置空。
 
 - `int rk_bt_source_scan(BtScanParam *data)`
 
-	扫描设备。扫描参数通过data指定，扫描到的结果也保存在data中。具体参见BtScanParam说明。
+  扫描设备。扫描参数通过data指定，扫描到的结果也保存在data中。具体参见BtScanParam说明。
 
 - `int rk_bt_source_connect(char *address)`
 
-	主动连接address指定的设备。
+  主动连接address指定的设备。
 
 - `int rk_bt_source_disconnect(char *address)`
 
-	断开连接。
+  断开连接。
 
 - `int rk_bt_source_remove(char *address)`
 
-	删除已连接成功的设备。删除后无法自动连接。
+  删除已连接成功的设备。删除后无法自动连接。
 
 - `int rk_bt_source_register_status_cb(void *userdata, RK_BT_SOURCE_CALLBACK cb)`
 
-	注册状态回调函数。
+  注册状态回调函数。
 
 <div STYLE="page-break-after: always;"></div>
 
-## 6、HFP-HF接口介绍（RkBtHfp.h）
+## 7、HFP-HF接口介绍（RkBtHfp.h）
 
-### 6.1 HFP基础接口介绍
+### 7.1 HFP基础接口介绍
 
 - `RK_BT_HFP_EVENT`介绍
 
@@ -714,7 +828,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
   禁止hfp codec强制使用CVSD（8K 采样率），SCO codec 类型由AG（手机） 和 HF（耳机）协商决定，协商结果通过回调事件RK_BT_HFP_BCS_EVT告知应用层。该接口只适用于bsa (BSA  only)。
 
-### 6.2 OBEX PBAP（电话薄）接口介绍 ( BLUEZ  only )
+### 7.2 OBEX PBAP（电话薄）接口介绍 ( BLUEZ  only )
 
 - `int rk_bt_obex_init()`
 
@@ -754,11 +868,11 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
 <div STYLE="page-break-after: always;"></div>
 
-## 7、示例程序说明 ##
+## 8、示例程序说明 ##
 
 示例程序的路径为：external/deviceio/test。其中bluetooth相关的测试用例都实现在bt_test.cpp中，该测试用例涵盖了上述所有接口。函数调用在DeviceIOTest.cpp中。
 
-###7.1 编译说明
+###8.1 编译说明
 
 1、在SDK根目录下执行`make deviceio-dirclean && make deviceio -j4`，编译成功会提示如下log（注：仅截取部分，rk-xxxx对应具体的工程根目录）
 -- Installing: /home/rk-xxxx/buildroot/output/target/usr/lib/librkmediaplayer.so
@@ -770,11 +884,11 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
 2、执行./build.sh生成新固件，然后将新固件烧写到设备中。
 
-###  7.2 基础接口演示程序  ###
+###  8.2 基础接口演示程序  ###
 
-#### 7.2.1 接口说明
+#### 8.2.1 接口说明
 
-***7.2.1.1 蓝牙服务的基础接口测试说明***
+***8.2.1.1 蓝牙服务的基础接口测试说明***
 
 - void bt_test_bluetooth_init(char *data)
 
@@ -844,7 +958,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
   打印当前已配对的设备信息
 
-***7.2.1.2 BLE接口测试说明***
+***8.2.1.2 BLE接口测试说明***
 
 1、手机安装第三方ble测试apk，如nrfconnnect。
 
@@ -872,7 +986,27 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
   停止BLE。
 
-***7.2.1.3 A2DP SINK接口测试说明***
+***8.2.1.3 BLE CLIENT接口测试说明***
+
+1、选择bt_test_ble_client_open函数，启动ble client
+
+2、选择bt_test_start_discovery，开始扫描设备
+
+3、输入”52 input xx:xx:xx:xx:xx:xx“，调用bt_test_ble_client_connect连接指定地址的ble server设备
+
+4、连接成功后，会触发回调ble_client_test_state_callback，打印“+++++ RK_BLE_CLIENT_STATE_IDLE +++++”
+
+5、输入”53 input xx:xx:xx:xx:xx:xx“，调用bt_test_ble_client_disconnect断开和指定地址的ble server设备的连接，成功断开连接，打印“+++++ RK_BLE_CLIENT_STATE_DISCONNECT +++++”
+
+6、输入“55 input xx:xx:xx:xx:xx:xx”，调用bt_test_ble_client_get_service_info获取已连接设备的service uuid，characteristic uuid、permission、Properties，descriptor uuid等信息
+
+7、输入“56 input uuid”，比如“56 input 00009999-0000-1000-8000-00805F9B34FB” 通过bt_test_ble_client_read 读取 9999 uuid的数据，读取成功会触发bt_test_ble_client_recv_data_callback 打印读取到的值
+
+8、输入“57 input uuid”，比如“57 input 00009999-0000-1000-8000-00805F9B34FB” 通过bt_test_ble_client_write 写 9999 uuid
+
+9、选择59、60打开或关闭指定uuid 的notification
+
+***8.2.1.4 A2DP SINK接口测试说明***
 
 1、选择bt_test_sink_open函数。
 
@@ -964,7 +1098,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
   当前连接的设备，是否支持播放进度上报
 
-***7.2.1.4 A2DP SOURCE接口测试说明***
+***8.2.1.5 A2DP SOURCE接口测试说明***
 
 1、选择bt_test_source_auto_start函数。
 
@@ -988,7 +1122,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
   
   获取 A2DP Source 连接状态。
 
-***7.2.1.5 SPP接口测试说明***
+***8.2.1.6 SPP接口测试说明***
 
 1、手机安装第三方SPP测试apk，如“Serial Bluetooth Terminal”。
 
@@ -1016,7 +1150,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
   查询SPP连接状态。
 
-***7.2.1.6 HFP接口测试说明***
+***8.2.1.7 HFP接口测试说明***
 
 1、选择bt_test_hfp_sink_open或bt_test_hfp_hp_open函数。
 
@@ -1098,13 +1232,13 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
   关闭obex服务
 
-#### 7.2.2 测试步骤 ####
+#### 8.2.2 测试步骤 ####
 
 1、执行测试程序命令：`DeviceIOTest bluetooth`显示如下界面：
 
 ```
 # deviceio_test bluetooth
-version:V1.3
+version:V1.3.2
 #### Please Input Your Test Command Index ####
 01.  bt_server_open 
 02.  bt_test_set_class 
@@ -1125,52 +1259,69 @@ version:V1.3
 17.  bt_test_source_auto_start 
 18.  bt_test_source_connect_status 
 19.  bt_test_source_auto_stop 
-20.  bt_test_sink_open 
-21.  bt_test_sink_visibility00 
-22.  bt_test_sink_visibility01 
-23.  bt_test_sink_visibility10 
-24.  bt_test_sink_visibility11 
-25.  bt_test_sink_status 
-26.  bt_test_sink_music_play 
-27.  bt_test_sink_music_pause 
-28.  bt_test_sink_music_next 
-29.  bt_test_sink_music_previous 
-30.  bt_test_sink_music_stop 
-31.  bt_test_sink_set_volume 
-32.  bt_test_sink_connect_by_addr 
-33.  bt_test_sink_disconnect_by_addr 
-34.  bt_test_sink_get_play_status 
-35.  bt_test_sink_get_poschange 
-36.  bt_test_sink_disconnect 
-37.  bt_test_sink_close 
-38.  bt_test_ble_start 
-39.  bt_test_ble_write 
-40.  bt_test_ble_stop 
-41.  bt_test_ble_setup 
-42.  bt_test_ble_clean 
-43.  bt_test_ble_get_status 
-44.  bt_test_spp_open 
-45.  bt_test_spp_write 
-46.  bt_test_spp_close 
-47.  bt_test_spp_status 
-48.  bt_test_hfp_sink_open 
-49.  bt_test_hfp_hp_open 
-50.  bt_test_hfp_hp_accept 
-51.  bt_test_hfp_hp_hungup 
-52.  bt_test_hfp_hp_redail 
-53.  bt_test_hfp_hp_report_battery 
-54.  bt_test_hfp_hp_set_volume 
-55.  bt_test_hfp_hp_close 
-56.  bt_test_hfp_hp_disconnect 
-57.  bt_test_obex_init 
-58.  bt_test_obex_pbap_connect 
-59.  bt_test_obex_pbap_get_pb_vcf 
-60.  bt_test_obex_pbap_get_ich_vcf 
-61.  bt_test_obex_pbap_get_och_vcf 
-62.  bt_test_obex_pbap_get_mch_vcf 
-63.  bt_test_obex_pbap_disconnect 
-64.  bt_test_obex_close 
-65.  bt_server_close 
+20.  bt_test_source_open 
+21.  bt_test_source_close 
+22.  bt_test_source_connect_by_addr 
+23.  bt_test_source_disconnect_by_addr 
+24.  bt_test_source_remove_by_addr 
+25.  bt_test_sink_open 
+26.  bt_test_sink_visibility00 
+27.  bt_test_sink_visibility01 
+28.  bt_test_sink_visibility10 
+29.  bt_test_sink_visibility11 
+30.  bt_test_ble_visibility00 
+31.  bt_test_ble_visibility11 
+32.  bt_test_sink_status 
+33.  bt_test_sink_music_play 
+34.  bt_test_sink_music_pause 
+35.  bt_test_sink_music_next 
+36.  bt_test_sink_music_previous 
+37.  bt_test_sink_music_stop 
+38.  bt_test_sink_set_volume 
+39.  bt_test_sink_connect_by_addr 
+40.  bt_test_sink_disconnect_by_addr 
+41.  bt_test_sink_get_play_status 
+42.  bt_test_sink_get_poschange 
+43.  bt_test_sink_disconnect 
+44.  bt_test_sink_close 
+45.  bt_test_ble_start 
+46.  bt_test_ble_write 
+47.  bt_test_ble_disconnect 
+48.  bt_test_ble_stop 
+49.  bt_test_ble_get_status 
+50.  bt_test_ble_client_open 
+51.  bt_test_ble_client_close 
+52.  bt_test_ble_client_connect 
+53.  bt_test_ble_client_disconnect 
+54.  bt_test_ble_client_get_status 
+55.  bt_test_ble_client_get_service_info 
+56.  bt_test_ble_client_read 
+57.  bt_test_ble_client_write 
+58.  bt_test_ble_client_is_notify 
+59.  bt_test_ble_client_notify_on 
+60.  bt_test_ble_client_notify_off 
+61.  bt_test_spp_open 
+62.  bt_test_spp_write 
+63.  bt_test_spp_close 
+64.  bt_test_spp_status 
+65.  bt_test_hfp_sink_open 
+66.  bt_test_hfp_hp_open 
+67.  bt_test_hfp_hp_accept 
+68.  bt_test_hfp_hp_hungup 
+69.  bt_test_hfp_hp_redail 
+70.  bt_test_hfp_hp_report_battery 
+71.  bt_test_hfp_hp_set_volume 
+72.  bt_test_hfp_hp_close 
+73.  bt_test_hfp_hp_disconnect 
+74.  bt_test_obex_init 
+75.  bt_test_obex_pbap_connect 
+76.  bt_test_obex_pbap_get_pb_vcf 
+77.  bt_test_obex_pbap_get_ich_vcf 
+78.  bt_test_obex_pbap_get_och_vcf 
+79.  bt_test_obex_pbap_get_mch_vcf 
+80.  bt_test_obex_pbap_disconnect 
+81.  bt_test_obex_close 
+82.  bt_server_close 
 Which would you like: 
 ```
 
@@ -1190,6 +1341,6 @@ Which would you like:15 input 94:87:E0:B6:6D:AE
 #注：开始和地址为 94:87:E0:B6:6D:AE 的设备进行配对
 ```
 
-### 7.3 BLE配网演示程序
+### 8.3 BLE配网演示程序
 
 请参见《Rockchip_Developer_Guide_Network_Config_CN》文档。

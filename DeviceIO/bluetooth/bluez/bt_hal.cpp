@@ -16,6 +16,7 @@
 #include <DeviceIo/RkBle.h>
 #include <DeviceIo/RkBtSource.h>
 #include <DeviceIo/RkBtHfp.h>
+#include <DeviceIo/RkBleClient.h>
 
 #include "avrcpctrl.h"
 #include "bluez_ctrl.h"
@@ -25,6 +26,7 @@
 #include "bluez_alsa_client/ctl-client.h"
 #include "bluez_alsa_client/rfcomm_msg.h"
 #include "obex_client.h"
+#include "gatt_client.h"
 #include "utility.h"
 #include "slog.h"
 
@@ -70,41 +72,24 @@ int rk_ble_start(RkBleContent *ble_content)
 		return -1;
 	}
 
+	if(ble_client_is_open()) {
+		pr_info("ble client has been opened, close ble client\n");
+		rk_ble_client_close();
+	}
+
 	rk_bt_control(BtControl::BT_BLE_OPEN, NULL, 0);
 	ble_state_send(RK_BLE_STATE_IDLE);
 	return 0;
 }
 
-int rk_ble_stop(void)
+int rk_ble_stop()
 {
 	if (!ble_is_open()) {
 		pr_info("ble has been closed\n");
 		return -1;
 	}
 
-	rk_bt_control(BtControl::BT_BLE_COLSE, NULL, 0);
-	return 0;
-}
-
-int rk_ble_setup(RkBleContent *ble_content)
-{
-	if (!ble_is_open()) {
-		pr_info("ble isn't open, please open\n");
-		return -1;
-	}
-
-	rk_bt_control(BtControl::BT_BLE_SETUP, NULL, 0);
-	return 0;
-}
-
-int rk_ble_clean(void)
-{
-	if (!ble_is_open()) {
-		pr_info("ble isn't open, please open\n");
-		return -1;
-	}
-
-	rk_bt_control(BtControl::BT_BLE_CLEAN, NULL, 0);
+	bt_close_ble();
 	return 0;
 }
 
@@ -184,8 +169,12 @@ int rk_ble_register_recv_callback(RK_BLE_RECV_CALLBACK cb)
 
 int rk_ble_disconnect()
 {
-    pr_info("bluez don't support %s\n", __func__);
-    return 0;
+	if (!ble_is_open()) {
+		pr_info("ble isn't open, please open\n");
+		return -1;
+	}
+
+	return ble_disconnect();
 }
 
 void rk_ble_set_local_privacy(bool local_privacy)
@@ -197,6 +186,142 @@ int rk_ble_set_adv_interval(unsigned short adv_int_min, unsigned short adv_int_m
 {
     pr_info("bluez don't support %s\n", __func__);
     return 0;
+}
+
+/*****************************************************************
+ *            Rockchip bluetooth LE Client api                      *
+ *****************************************************************/
+void rk_ble_client_register_dev_found_callback(RK_BT_DEV_FOUND_CALLBACK cb)
+{
+	gatt_client_register_dev_found_callback(cb);
+}
+
+void rk_ble_client_register_state_callback(RK_BLE_CLIENT_STATE_CALLBACK cb)
+{
+	gatt_client_register_state_callback(cb);
+}
+
+int rk_ble_client_register_recv_callback(RK_BLE_CLIENT_RECV_CALLBACK cb)
+{
+	gatt_client_register_recv_callback(cb);
+}
+
+int rk_ble_client_open()
+{
+	if (!bt_is_open()) {
+		pr_info("%s: Please open bt!!!\n", __func__);
+		return -1;
+	}
+
+	if(ble_client_is_open()) {
+		pr_info("ble client has been opened\n");
+		return -1;
+	}
+
+	if(ble_is_open()) {
+		pr_info("ble has been opened, close ble\n");
+		rk_ble_stop();
+	}
+
+	gatt_client_open();
+	bt_control.is_ble_client_open = true;
+	gatt_client_state_send(RK_BLE_CLIENT_STATE_IDLE);
+
+	return 0;
+}
+
+void rk_ble_client_close()
+{
+	if(!ble_client_is_open()) {
+		pr_info("ble client has been closed\n");
+		return;
+	}
+
+	if(!ble_disconnect())
+		sleep(3);
+
+	gatt_client_close();
+	bt_control.is_ble_client_open = false;
+}
+
+RK_BLE_CLIENT_STATE rk_ble_client_get_state()
+{
+	if(!ble_client_is_open()) {
+		pr_info("ble client isn't open, please open\n");
+		return -1;
+	}
+
+	return gatt_client_get_state();
+}
+
+int rk_ble_client_connect(char *address)
+{
+	if(!ble_client_is_open()) {
+		pr_info("ble client isn't open, please open\n");
+		return -1;
+	}
+
+	return connect_by_address(address);
+}
+
+int rk_ble_client_disconnect(char *address)
+{
+	if(!ble_client_is_open()) {
+		pr_info("ble client isn't open, please open\n");
+		return -1;
+	}
+
+	return disconnect_by_address(address);
+}
+
+int rk_ble_client_get_service_info(char *address, RK_BLE_CLIENT_SERVICE_INFO *info)
+{
+	if(!ble_client_is_open()) {
+		pr_info("ble client isn't open, please open\n");
+		return -1;
+	}
+
+	return gatt_client_get_service_info(address, info);
+}
+
+int rk_ble_client_read(const char *uuid)
+{
+	if(!ble_client_is_open()) {
+		pr_info("ble client isn't open, please open\n");
+		return -1;
+	}
+
+	return gatt_client_read(uuid, 0);
+}
+
+int rk_ble_client_write(const char *uuid, char *data)
+{
+	if(!ble_client_is_open()) {
+		pr_info("ble client isn't open, please open\n");
+		return -1;
+	}
+
+	return gatt_client_write(uuid, data, 0);
+}
+
+bool rk_ble_client_is_notifying(const char *uuid)
+{
+	if(!ble_client_is_open()) {
+		pr_info("ble client isn't open, please open\n");
+		return -1;
+	}
+
+	return gatt_client_is_notifying(uuid);
+}
+
+int rk_ble_client_notify(const char *uuid, bool enable)
+{
+	if(!ble_client_is_open()) {
+		pr_info("ble client isn't open, please open\n");
+		return -1;
+	}
+
+	return gatt_client_notify(uuid, enable);
 }
 
 /*****************************************************************
@@ -326,7 +451,7 @@ int rk_bt_source_auto_connect_stop(void)
 	return rk_bt_source_close();
 }
 
-int rk_bt_source_open(void)
+int rk_bt_source_open()
 {
 	if (!bt_is_open()) {
 		pr_err("%s: Please open bt!!!\n", __func__);
@@ -338,38 +463,37 @@ int rk_bt_source_open(void)
 		return -1;
 	}
 
-	/* Set bluetooth to master mode */
-	if (!bt_source_is_open()) {
-		pr_info("=== BtControl::BT_SOURCE_OPEN ===\n");
-		bt_control.type = BtControlType::BT_SOURCE;
-		if (bt_sink_is_open()) {
-			RK_LOGE("bt sink isn't coexist with source!!!\n");
-			bt_close_sink();
-		}
-
-		if (bt_interface(BtControl::BT_SOURCE_OPEN, NULL) < 0) {
-			bt_control.is_a2dp_source_open = false;
-			bt_control.type = BtControlType::BT_NONE;
-			return -1;
-		}
-
-		bt_control.is_a2dp_source_open = true;
-		bt_control.type = BtControlType::BT_SOURCE;
-		bt_control.last_type = BtControlType::BT_SOURCE;
+	if (bt_source_is_open()) {
+		pr_info("bt source has been opened\n");
+		return -1;
 	}
+
+	if (bt_sink_is_open()){
+		pr_info("bt sink has been opened, close bt sink");
+		rk_bt_sink_close();
+	}
+
+	if (bt_interface(BtControl::BT_SOURCE_OPEN, NULL) < 0) {
+		bt_control.is_a2dp_source_open = false;
+		return -1;
+	}
+
+	bt_control.is_a2dp_source_open = true;
 
 	return 0;
 }
 
-int rk_bt_source_close(void)
+int rk_bt_source_close()
 {
 	if (!bt_source_is_open()) {
-		pr_info("bt source has benn closed\n");
+		pr_info("bt source has been closed\n");
 		return -1;
 	}
 
 	bt_close_source();
 	a2dp_master_deregister_cb();
+
+	bt_control.is_a2dp_source_open = false;
 	return 0;
 }
 
@@ -400,7 +524,7 @@ int rk_bt_source_disconnect(char *address)
 		return -1;
 	}
 
-	return a2dp_master_disconnect(address);
+	return disconnect_by_address(address);
 }
 
 int rk_bt_source_remove(char *address)
@@ -440,6 +564,36 @@ int rk_bt_source_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, int name_l
 	else
 		*pstatus = BT_SOURCE_STATUS_DISCONNECTED;
 
+	return 0;
+}
+
+int rk_bt_source_resume()
+{
+	pr_info("bluez don't support %s\n", __func__);
+	return 0;
+}
+
+int rk_bt_source_stop()
+{
+	pr_info("bluez don't support %s\n", __func__);
+	return 0;
+}
+
+int rk_bt_source_pause()
+{
+	pr_info("bluez don't support %s\n", __func__);
+	return 0;
+}
+
+int rk_bt_source_vol_up()
+{
+	pr_info("bluez don't support %s\n", __func__);
+	return 0;
+}
+
+int rk_bt_source_vol_down()
+{
+	pr_info("bluez don't support %s\n", __func__);
 	return 0;
 }
 
@@ -580,23 +734,19 @@ int rk_bt_sink_open()
 		return -1;
 	}
 
-	if (bt_source_is_open()) {
-		RK_LOGE("bt sink isn't coexist with source!!!\n");
-		bt_close_source();
+	if(bt_source_is_open()) {
+		pr_info("bt source has been opened, close bt source");
+		rk_bt_source_close();
 	}
 
 	if (bt_interface(BtControl::BT_SINK_OPEN, NULL) < 0) {
 		bt_control.is_a2dp_sink_open = false;
-		bt_control.type = BtControlType::BT_NONE;
 		return -1;
 	}
 
 	reconn_last_devices(BT_DEVICES_A2DP_SOURCE);
 
 	bt_control.is_a2dp_sink_open = true;
-	/* Set bluetooth control current type */
-	bt_control.type = BtControlType::BT_SINK;
-	bt_control.last_type = BtControlType::BT_SINK;
 
 	return 0;
 }
@@ -708,12 +858,12 @@ int rk_bt_sink_disconnect()
 
 int rk_bt_sink_connect_by_addr(char *addr)
 {
-	if(bt_sink_is_open()) {
-		//bt_sink_state_send(RK_BT_SINK_STATE_CONNECTING);
-		return connect_by_address(addr);
+	if (!bt_sink_is_open()) {
+		pr_info("bt sink isn't open, please open\n");
+		return -1;
 	}
 
-	return -1;
+	return connect_by_address(addr);
 }
 
 int rk_bt_sink_disconnect_by_addr(char *addr)
@@ -884,7 +1034,6 @@ int rk_bt_spp_open()
 		return -1;
 	}
 
-
 	ret = bt_spp_server_open();
 	return ret;
 }
@@ -951,15 +1100,16 @@ int rk_bt_deinit(void)
 	rk_bt_source_close();
 	rk_bt_spp_close();
 	rk_ble_stop();
+	rk_ble_client_close();
 	rk_bt_obex_close();
 	bt_close();
 
-	bt_kill_task("bluealsa");
-	bt_kill_task("bluealsa-aplay");
-	bt_kill_task("bluetoothctl");
-	bt_kill_task("bluetoothd");
-	bt_exec_command_system("hciconfig hci0 down");
-	bt_kill_task("rtk_hciattach");
+	kill_task("bluealsa");
+	kill_task("bluealsa-aplay");
+	kill_task("bluetoothctl");
+	kill_task("bluetoothd");
+	exec_command_system("hciconfig hci0 down");
+	kill_task("rtk_hciattach");
 
 	bt_deregister_bond_callback();
 	bt_deregister_discovery_callback();
@@ -1191,14 +1341,13 @@ int rk_bt_hfp_open()
 		return -1;
 	}
 
-	if (bt_source_is_open()) {
-		RK_LOGE("bt hfp isn't coexist with source!!!\n");
-		bt_close_source();
+	if(bt_source_is_open()) {
+		pr_info("bt source has been opened, close bt source");
+		rk_bt_source_close();
 	}
 
 	if (bt_interface(BtControl::BT_HFP_OPEN, NULL) < 0) {
 		bt_control.is_hfp_open = false;
-		bt_control.type = BtControlType::BT_NONE;
 		return -1;
 	}
 
@@ -1210,9 +1359,6 @@ int rk_bt_hfp_open()
 
 	rfcomm_listen_ba_msg_start();
 	bt_control.is_hfp_open = true;
-	/* Set bluetooth control current type */
-	bt_control.type = BtControlType::BT_HFP_HF;
-	bt_control.last_type = BtControlType::BT_HFP_HF;
 
 	reconn_last_devices(BT_DEVICES_HFP);
 
@@ -1233,15 +1379,14 @@ int rk_bt_hfp_sink_open(void)
 		return -1;
 	}
 
-	if (bt_source_is_open()) {
-		RK_LOGE("bt sink isn't coexist with source!!!\n");
-		bt_close_source();
+	if(bt_source_is_open()) {
+		pr_info("bt source has been opened, close bt source");
+		rk_bt_source_close();
 	}
 
 	if (bt_interface(BtControl::BT_HFP_SINK_OPEN, NULL) < 0) {
 		bt_control.is_a2dp_sink_open = false;
 		bt_control.is_hfp_open = false;
-		bt_control.type = BtControlType::BT_NONE;
 		return -1;
 	}
 
@@ -1255,9 +1400,6 @@ int rk_bt_hfp_sink_open(void)
 
 	bt_control.is_a2dp_sink_open = true;
 	bt_control.is_hfp_open = true;
-	/* Set bluetooth control current type */
-	bt_control.type = BtControlType::BT_SINK_HFP_MODE;
-	bt_control.last_type = BtControlType::BT_SINK_HFP_MODE;
 
 	return 0;
 }
@@ -1273,18 +1415,12 @@ int rk_bt_hfp_close(void)
 	if (!bt_hfp_is_open())
 		return -1;
 
-	bt_control.is_hfp_open = false;
 	rfcomm_hfp_send_event(RK_BT_HFP_DISCONNECT_EVT, NULL);
-	if (bt_control.type == BtControlType::BT_HFP_HF) {
-		bt_control.type = BtControlType::BT_NONE;
-		bt_control.last_type = BtControlType::BT_NONE;
-	}
+	rfcomm_hfp_hf_regist_cb(NULL);
+	bt_control.is_hfp_open = false;
 
-	if (bt_sink_is_open()) {
-		bt_control.type = BtControlType::BT_SINK;
-		bt_control.last_type = BtControlType::BT_SINK;
+	if (bt_sink_is_open())
 		return 0;
-	}
 
 	if(!disconnect_current_devices())
 		sleep(3);
@@ -1293,7 +1429,6 @@ int rk_bt_hfp_close(void)
 	system("killall bluealsa-aplay");
 	system("killall bluealsa");
 
-	rfcomm_hfp_hf_regist_cb(NULL);
 	return 0;
 }
 
@@ -1523,7 +1658,7 @@ int rk_bt_obex_close()
 	pthread_join(g_obex_thread, NULL);
 	g_obex_thread = 0;
 
-	bt_kill_task("obexd");
+	kill_task("obexd");
 	pr_info("[exit %s]\n", __func__);
 
 	return 0;

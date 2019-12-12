@@ -6,6 +6,8 @@ extern "C" {
 #endif
 
 /*
+ *Version 1.3.2 Release 2019/12/12
+  bluez: support ble client
  *Version 1.3.1 Release 2019/11/16
   bt source callback add device address and device name
  *Version 1.3.0 Release 2019/10/30
@@ -92,7 +94,7 @@ extern "C" {
  *Version 1.0.0 Release 2018/12/22
  */
 
-#define DEVICEIO_VERSION "V1.3.1"
+#define DEVICEIO_VERSION "V1.3.2"
 
 int RK_read_chip_id(char *buffer, const int size);
 int RK_read_version(char *buffer, const int size);

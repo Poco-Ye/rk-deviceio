@@ -87,10 +87,9 @@ void volumeup_avrcp();
 
 void volumedown_avrcp();
 bool check_default_player(void);
-int a2dp_sink_colse_coexist();
 bool reconn_last(void);
 bool disconn_device(void);
-int a2dp_sink_open(void);
+void a2dp_sink_open(void);
 void rkbt_inquiry_scan(bool scan);
 void a2dp_sink_register_cb(RK_BT_SINK_CALLBACK cb);
 void a2dp_sink_register_track_cb(RK_BT_AVRCP_TRACK_CHANGE_CB cb);

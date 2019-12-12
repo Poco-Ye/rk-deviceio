@@ -20,6 +20,7 @@
 #include "DeviceIo/RkBtSource.h"
 #include "DeviceIo/RkBtSink.h"
 #include "DeviceIo/RkBle.h"
+#include "DeviceIo/RkBleClient.h"
 #include "DeviceIo/RkBtSpp.h"
 #include "DeviceIo/RkBtHfp.h"
 #include <DeviceIo/Rk_socket_app.h>

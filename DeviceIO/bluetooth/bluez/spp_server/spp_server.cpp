@@ -165,7 +165,7 @@ int bt_spp_server_open()
 	if (!g_spp_handler.tid) {
 		memset(cmd, 0, 128);
 		sprintf(cmd, "sdptool add --channel=%d SP", g_spp_handler.server_channel);
-		bt_exec_command_system(cmd);
+		exec_command_system(cmd);
 
 		if(pthread_create(&g_spp_handler.tid, NULL, spp_server_thread, NULL)) {
 			g_spp_handler.server_state = RK_BT_SPP_STATE_IDLE;
@@ -200,7 +200,7 @@ void bt_spp_server_close()
 	usleep(100000); //100ms
 	close_server_fd();
 
-	//bt_exec_command_system("sdptool del SP");
+	//exec_command_system("sdptool del SP");
 	if (g_spp_handler.tid) {
 		pthread_join(g_spp_handler.tid, NULL);
 		g_spp_handler.tid = 0;

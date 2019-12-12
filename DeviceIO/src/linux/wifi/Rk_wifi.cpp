@@ -538,7 +538,7 @@ int RK_wifi_running_getConnectionInfo(RK_WIFI_INFO_Connection_s* pInfo)
 
 	if (remove("/tmp/status.tmp"))
 		pr_err("remove /tmp/status.tmp failed!\n");
-	bt_exec_command_system("wpa_cli -iwlan0 status > /tmp/status.tmp");
+	exec_command_system("wpa_cli -iwlan0 status > /tmp/status.tmp");
 
 	// check wpa is running first
 	memset(line, 0, sizeof(line));
@@ -651,21 +651,21 @@ int RK_wifi_enable(const int enable)
 
 	if (enable) {
 		if (!is_wifi_enable()) {
-			//bt_exec_command_system("ifconfig wlan0 down");
-			bt_exec_command_system("ifconfig wlan0 up");
-			bt_exec_command_system("ifconfig wlan0 0.0.0.0");
-			bt_exec_command_system("killall dhcpcd");
-			bt_exec_command_system("killall dnsmasq");
+			//exec_command_system("ifconfig wlan0 down");
+			exec_command_system("ifconfig wlan0 up");
+			exec_command_system("ifconfig wlan0 0.0.0.0");
+			exec_command_system("killall dhcpcd");
+			exec_command_system("killall dnsmasq");
 
 			if (get_pid("wpa_supplicant") > 0) {
-				//bt_exec_command_system("killall udhcpc");
-				bt_exec_command_system("killall wpa_supplicant");
+				//exec_command_system("killall udhcpc");
+				exec_command_system("killall wpa_supplicant");
 				usleep(600000);
 			}
-			bt_exec_command_system("wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf -d");
+			exec_command_system("wpa_supplicant -B -i wlan0 -c /data/cfg/wpa_supplicant.conf -d");
 			usleep(100000);
-			//bt_exec_command_system("udhcpc -i wlan0 -t 5 &");
-			bt_exec_command_system("dhcpcd wlan0 -AL -t 0 &");
+			//exec_command_system("udhcpc -i wlan0 -t 5 &");
+			exec_command_system("dhcpcd wlan0 -AL -t 0 &");
 
 			gstate = RK_WIFI_State_OPEN;
 			wifi_state_send(gstate, NULL);
@@ -677,9 +677,9 @@ int RK_wifi_enable(const int enable)
 		}
 	} else {
 		if (is_wifi_enable()) {
-			bt_exec_command_system("ifconfig wlan0 down");
-			bt_exec_command_system("killall wpa_supplicant");
-			//bt_exec_command_system("killall udhcpc");
+			exec_command_system("ifconfig wlan0 down");
+			exec_command_system("killall wpa_supplicant");
+			//exec_command_system("killall udhcpc");
 			usleep(600000);
 			if (start_wifi_monitor_threadId > 0) {
 				pthread_cancel(start_wifi_monitor_threadId);
@@ -740,7 +740,7 @@ char* RK_wifi_scan_r_sec(const unsigned int cols)
 	}
 
 	remove("/tmp/scan_r.tmp");
-	bt_exec_command_system("wpa_cli -iwlan0 scan_r > /tmp/scan_r.tmp");
+	exec_command_system("wpa_cli -iwlan0 scan_r > /tmp/scan_r.tmp");
 
 	fp = fopen("/tmp/scan_r.tmp", "r");
 	if (!fp)
@@ -983,12 +983,12 @@ static bool check_wifi_isconnected(void) {
 			} else {
 				if ((!(i%30)) || flag) {
 					flag = 0;
-					//bt_exec_command_system("killall udhcpc");
+					//exec_command_system("killall udhcpc");
 					//usleep(300000);
-					//bt_exec_command_system("udhcpc -i wlan0 -t 10 &");
-					bt_exec_command_system("killall dhcpcd");
+					//exec_command_system("udhcpc -i wlan0 -t 10 &");
+					exec_command_system("killall dhcpcd");
 					usleep(300000);
-					bt_exec_command_system("dhcpcd wlan0 -AL -t 0 &");
+					exec_command_system("dhcpcd wlan0 -AL -t 0 &");
 				}
 			}
 		}
@@ -1001,9 +1001,9 @@ static bool check_wifi_isconnected(void) {
 		}
 
 		if (wifi_cancel == true) {
-			bt_exec_command_system("wpa_cli flush");
-			bt_exec_command_system("wpa_cli reconfigure");
-			bt_exec_command_system("wpa_cli -iwlan0 disable_network all");
+			exec_command_system("wpa_cli flush");
+			exec_command_system("wpa_cli reconfigure");
+			exec_command_system("wpa_cli -iwlan0 disable_network all");
 			wifi_cancel = false;
 			break;
 		}
@@ -1080,9 +1080,9 @@ static void set_network_highest_priority(const int id)
 
 static int save_configuration()
 {
-	bt_exec_command_system("wpa_cli -iwlan0 enable_network all");
-	bt_exec_command_system("wpa_cli -iwlan0 save_config");
-	bt_exec_command_system("sync");
+	exec_command_system("wpa_cli -iwlan0 enable_network all");
+	exec_command_system("wpa_cli -iwlan0 save_config");
+	exec_command_system("sync");
 
 	return 0;
 }
@@ -1143,9 +1143,9 @@ static void wifi_connectfail_process(int id)
 	} else {
 		exec(cmd2, str);
 	}
-	//bt_exec_command_system("wpa_cli flush");
-	//bt_exec_command_system("wpa_cli reconfigure");
-	//bt_exec_command_system("wpa_cli reconnect");
+	//exec_command_system("wpa_cli flush");
+	//exec_command_system("wpa_cli reconfigure");
+	//exec_command_system("wpa_cli reconnect");
 }
 
 static void* wifi_connect_state_check(void *arg)
@@ -1239,15 +1239,15 @@ int RK_wifi_connect1(const char* ssid, const char* psk, const RK_WIFI_CONNECTION
 	save_connect_info(ssid, NULL);
 	wifi_state_send(RK_WIFI_State_CONNECTING, NULL);
 
-	bt_exec_command_system("wpa_cli -iwlan0 disable_network all");
+	exec_command_system("wpa_cli -iwlan0 disable_network all");
 	wifi_wrong_key = false;
 	usleep(100000);
 
 	if (save_last_ap) {
-		bt_exec_command_system("cp /data/cfg/wpa_supplicant.conf /data/cfg/wpa_supplicant.conf.bak");
-		bt_exec_command_system("wpa_cli flush");
+		exec_command_system("cp /data/cfg/wpa_supplicant.conf /data/cfg/wpa_supplicant.conf.bak");
+		exec_command_system("wpa_cli flush");
 		sleep(100000);
-		bt_exec_command_system("wpa_cli save_config");
+		exec_command_system("wpa_cli save_config");
 	}
 
 	if ((id = RK_wifi_search_with_ssid(ssid)) < 0) {
@@ -1340,7 +1340,7 @@ int RK_wifi_forget_with_bssid(const char *bssid)
 	if (0 != ret || 0 == strlen(str) || 0 != strncmp(str, "OK", 2))
 		return -1;
 
-	bt_exec_command_system("wpa_cli -iwlan0 save");
+	exec_command_system("wpa_cli -iwlan0 save");
 
 	return 0;
 }
@@ -1397,7 +1397,7 @@ int RK_wifi_connect_with_bssid(const char *bssid)
 	save_connect_info(NULL, bssid);
 	wifi_state_send(RK_WIFI_State_CONNECTING, NULL);
 
-	bt_exec_command_system("wpa_cli -iwlan0 disable_network all");
+	exec_command_system("wpa_cli -iwlan0 disable_network all");
 
 	ret = select_network(id);
 	if (0 != ret) {
@@ -1425,7 +1425,7 @@ fail:
 
 int RK_wifi_disconnect_network(void)
 {
-	bt_exec_command_system("wpa_cli -iwlan0 disconnect");
+	exec_command_system("wpa_cli -iwlan0 disconnect");
 	return 0;
 }
 
@@ -1456,12 +1456,12 @@ int RK_wifi_get_hostname(char* name, int len)
 int RK_wifi_recovery(void)
 {
 	if (save_last_ap) {
-		bt_exec_command_system("cp /data/cfg/wpa_supplicant.conf.bak /data/cfg/wpa_supplicant.conf");
+		exec_command_system("cp /data/cfg/wpa_supplicant.conf.bak /data/cfg/wpa_supplicant.conf");
 	}
 
-	bt_exec_command_system("wpa_cli flush");
-	bt_exec_command_system("wpa_cli reconfigure");
-	bt_exec_command_system("wpa_cli reconnect");
+	exec_command_system("wpa_cli flush");
+	exec_command_system("wpa_cli reconfigure");
+	exec_command_system("wpa_cli reconnect");
 }
 
 int RK_wifi_get_mac(char *wifi_mac)
@@ -1706,7 +1706,7 @@ static int dispatch_event(char* event)
 
 	if (str_starts_with(event, (char *)WPA_EVENT_DISCONNECTED)) {
 		pr_info("%s: wifi is disconnect\n", __FUNCTION__);
-		bt_exec_command_system("ip addr flush dev wlan0");
+		exec_command_system("ip addr flush dev wlan0");
 		get_wifi_info_by_event(event, RK_WIFI_State_DISCONNECTED, &info);
 		wifi_state_send(RK_WIFI_State_DISCONNECTED, &info);
 	} else if (str_starts_with(event, (char *)WPA_EVENT_CONNECTED)) {
@@ -1715,7 +1715,7 @@ static int dispatch_event(char* event)
 		wifi_state_send(RK_WIFI_State_CONNECTED, &info);
 	} else if (str_starts_with(event, (char *)WPA_EVENT_SCAN_RESULTS)) {
 		pr_info("%s: wifi event results\n", __func__);
-		bt_exec_command_system("echo 1 > /tmp/scan_r");
+		exec_command_system("echo 1 > /tmp/scan_r");
 		wifi_state_send(RK_WIFI_State_SCAN_RESULTS, NULL);
 	} else if (strstr(event, "reason=WRONG_KEY")) {
 		wifi_wrong_key = true;
@@ -1949,10 +1949,10 @@ static int start_airkiss()
 	int ret = -1, cnt = 3;
 
 	while(cnt--) {
-		bt_exec_command_system("rm /tmp/airkiss.conf");
-		bt_exec_command_system("killall rk_airkiss");
+		exec_command_system("rm /tmp/airkiss.conf");
+		exec_command_system("killall rk_airkiss");
 		usleep(500000);
-		bt_exec_command_system("rk_airkiss &");
+		exec_command_system("rk_airkiss &");
 		usleep(500000);
 
 		if(get_pid("rk_airkiss") > 0) {
@@ -2032,7 +2032,7 @@ retry:
 
 	if (!file_exist) {
 		pr_info("[AIRKISS] don't get airkiss data\n");
-		bt_exec_command_system("killall rk_airkiss");
+		exec_command_system("killall rk_airkiss");
 		return -1;
 	}
 
@@ -2042,8 +2042,8 @@ retry:
 
 static void RK_wifi_rtl_airkiss_stop()
 {
-	bt_exec_command_system("rm /tmp/airkiss.conf");
-	bt_exec_command_system("killall rk_airkiss");
+	exec_command_system("rm /tmp/airkiss.conf");
+	exec_command_system("killall rk_airkiss");
 }
 
 int RK_wifi_airkiss_start(char *ssid, char *password)

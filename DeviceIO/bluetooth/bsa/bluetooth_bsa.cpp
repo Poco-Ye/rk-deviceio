@@ -25,15 +25,7 @@
 #include "app_hs.h"
 #include "../bluetooth.h"
 #include "bluetooth_bsa.h"
-
-enum class BtControlType {
-    BT_NONE = 0,
-    BT_SINK,
-    BT_SOURCE,
-    BT_BLE_MODE,
-    BLE_SINK_BLE_MODE,
-    BLE_WIFI_INTRODUCER
-};
+#include "utility.h"
 
 typedef struct {
     bool is_bt_open;
@@ -111,30 +103,6 @@ static void bsa_get_bt_mac(char *bt_mac, int len)
 
     app_mgr_get_bt_config(NULL, 0, (char *)bd_addr, BD_ADDR_LEN);
     app_mgr_bd2str(bd_addr, bt_mac, len);
-}
-
-static int get_ps_pid(const char Name[])
-{
-    int len, pid = 0;
-    char name[20] = {0};
-    char cmdresult[256] = {0};
-    char cmd[20] = {0};
-    FILE *pFile = NULL;
-
-    len = strlen(Name);
-    strncpy(name,Name,len);
-    name[len] ='\0';
-
-    sprintf(cmd, "pidof %s", name);
-    pFile = popen(cmd, "r");
-    if (pFile != NULL)  {
-        while (fgets(cmdresult, sizeof(cmdresult), pFile)) {
-            pid = atoi(cmdresult);
-            break;
-        }
-    }
-    pclose(pFile);
-    return pid;
 }
 
 typedef void (*sighandler_t)(int);
@@ -836,13 +804,79 @@ int rk_ble_set_adv_interval(unsigned short adv_int_min, unsigned short adv_int_m
     return app_ble_rk_server_set_adv_interval(adv_int_min, adv_int_max);
 }
 
-int rk_ble_setup(RkBleContent *ble_content)
+/*****************************************************
+ *                   BLE CLIENT                      *
+ *****************************************************/
+void rk_ble_client_register_dev_found_callback(RK_BT_DEV_FOUND_CALLBACK cb)
+{
+    APP_DEBUG1("bsa don't support %s", __func__);
+}
+
+void rk_ble_client_register_state_callback(RK_BLE_CLIENT_STATE_CALLBACK cb)
+{
+    APP_DEBUG1("bsa don't support %s", __func__);
+}
+
+int rk_ble_client_register_recv_callback(RK_BLE_CLIENT_RECV_CALLBACK cb)
 {
     APP_DEBUG1("bsa don't support %s", __func__);
     return 0;
 }
 
-int rk_ble_clean(void)
+int rk_ble_client_open()
+{
+    APP_DEBUG1("bsa don't support %s", __func__);
+    return 0;
+}
+
+void rk_ble_client_close()
+{
+    APP_DEBUG1("bsa don't support %s", __func__);
+}
+
+RK_BLE_CLIENT_STATE rk_ble_client_get_state()
+{
+    APP_DEBUG1("bsa don't support %s", __func__);
+    return 0;
+}
+
+int rk_ble_client_connect(char *address)
+{
+    APP_DEBUG1("bsa don't support %s", __func__);
+    return 0;
+}
+
+int rk_ble_client_disconnect(char *address)
+{
+    APP_DEBUG1("bsa don't support %s", __func__);
+    return 0;
+}
+
+int rk_ble_client_get_service_info(char *address, RK_BLE_CLIENT_SERVICE_INFO *info)
+{
+    APP_DEBUG1("bsa don't support %s", __func__);
+    return 0;
+}
+
+int rk_ble_client_read(const char *uuid)
+{
+    APP_DEBUG1("bsa don't support %s", __func__);
+    return 0;
+}
+
+int rk_ble_client_write(const char *uuid, char *data)
+{
+    APP_DEBUG1("bsa don't support %s", __func__);
+    return 0;
+}
+
+bool rk_ble_client_is_notifying(const char *uuid)
+{
+    APP_DEBUG1("bsa don't support %s", __func__);
+    return false;
+}
+
+int rk_ble_client_notify(const char *uuid, bool enable)
 {
     APP_DEBUG1("bsa don't support %s", __func__);
     return 0;

@@ -111,16 +111,12 @@ enum class BtControl {
 	BT_BLE_WRITE,
 	BT_BLE_READ,
 	BT_VISIBILITY,
-	BT_GATT_MTU,
 	BT_BLE_DISCONNECT,
 
 	BT_HFP_OPEN,
 	BT_HFP_SINK_OPEN,
 
-	BT_BLE_SETUP,
-	BT_BLE_CLEAN,
-
-    GET_BT_MAC,
+	GET_BT_MAC,
 };
 
 /* wifi control cmd */

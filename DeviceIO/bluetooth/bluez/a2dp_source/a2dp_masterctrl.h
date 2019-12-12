@@ -1,9 +1,14 @@
 #ifndef __A2DP_SOURCE_CTRL__
 #define __A2DP_SOURCE_CTRL__
 
+#include "../gdbus/gdbus.h"
 #include "DeviceIo/RkBtBase.h"
 #include "DeviceIo/RkBle.h"
 #include "DeviceIo/RkBtSource.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define DEV_PLATFORM_UNKNOWN    0 /* unknown platform */
 #define DEV_PLATFORM_IOS        1 /* Apple iOS */
@@ -36,11 +41,8 @@ void ble_state_send(RK_BLE_STATE status);
 void ble_get_state(RK_BLE_STATE *p_state);
 int bt_open(RkBtContent *bt_content);
 int bt_close();
-int init_a2dp_master_ctrl();
-int release_a2dp_master_ctrl();
 int a2dp_master_scan(void *data, int len);
 int a2dp_master_connect(char *address);
-int a2dp_master_disconnect(char *address);
 int a2dp_master_status(char *addr_buf, int addr_len, char *name_buf, int name_len);
 int a2dp_master_remove(char *address);
 void a2dp_master_event_send(RK_BT_SOURCE_EVENT event, char *dev_addr, char *dev_name);
@@ -68,5 +70,12 @@ bool bt_is_discovering();
 bool bt_is_connected();
 int ble_disconnect(void);
 int bt_get_playrole_by_addr(char *addr);
+void dev_found_send(GDBusProxy *proxy, RK_BT_DEV_FOUND_CALLBACK cb);
+struct GDBusProxy *find_device_by_address(char *address);
+void set_default_attribute(GDBusProxy *proxy);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __A2DP_SOURCE_CTRL__ */

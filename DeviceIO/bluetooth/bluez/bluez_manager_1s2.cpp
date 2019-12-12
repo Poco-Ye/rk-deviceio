@@ -428,7 +428,7 @@ bool bt_manager_is_support_pos_changed()
 int bt_manager_switch_throughput(bool sw_to_wlan)
 {
 	if (sw_to_wlan)
-		return bt_exec_command_system("hcitool cmd 0x3f 0xa7 0x01");
+		return exec_command_system("hcitool cmd 0x3f 0xa7 0x01");
 	else
-		return bt_exec_command_system("hcitool cmd 0x3f 0xa7 0x00");
+		return exec_command_system("hcitool cmd 0x3f 0xa7 0x00");
 }
