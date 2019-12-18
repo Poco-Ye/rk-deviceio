@@ -40,7 +40,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 | 2019-6-24 | V1.5 | V1.2.4 | ctf | 增加HFP HF alsa控制 demo<br/>添加hfp断开连接api：rk_bt_hfp_disconnect<br/>修复手机上接听电话和拒接电话时，无法收到PICKUP、HANGUP事件BUG<br />Bsa：增加HFP HF 使能CVSD（8K采样）接口<br />Bsa：修复cypress bsa 配对弹窗提示问题<br/>Bsa：更新broadcom bsa 版本 (rockchip_20190617)<br />Bsa：修复蓝牙扫描时，无法识别个别蓝牙音箱设备类型BUG <br/>Bsa：修复电池电量上报BUG |
 | 2019-10-30 | V1.6 | V1.3.0 | ctf | Bluez：实现蓝牙反初始化<br/>Bluez：修正获取本机设备名、本机蓝牙Mac地址接口<br/>Bluez：添加pbap profile 支持<br />Bluez：支持hfp 8K和16K采样率自适应<br/>Bluez：添加sink 播放underrun上报<br/>Bsa：添加设置sink 播放设备节点接口<br/>Bsa：添加ble可见性设置接口<br/>Bsa：添加ble主动断开连接接口<br/>Bsa：支持在蓝牙初始化时，设置蓝牙地址<br/>添加蓝牙启动状态上报<br />添加蓝牙配对状态上报<br/>添加启动蓝牙扫描、停止蓝牙扫描接口<br/>添加获取蓝牙是否处于扫描状态接口<br/>添加打印当前扫描到的设备列表接口<br />添加主动和指定设备配对、取消和指定设备配对接口<br/>添加获取当前已配对设备列表、释放获取的配对设备列表接口<br/>添加打印当前配对设备列表接口<br />添加设置本机设备名接口<br />添加歌曲信息上报<br/>添加歌曲播放进度上报<br />添加avdtp(a2dp sink)状态上报<br />sink添加主动和指定设备连接、主动断开指定设备连接接口<br/>添加获取当前播放状态接口<br/>添加获取当前连接的远程设备是否支持主动上报播放进度接口<br/>支持打印日志到syslog |
 | 2019-11-16 | v1.7 | V1.3.1 | ctf | source 回调增加连接设备的address和name参数 |
-| 2019-12-12 | V1.8 | V1.3.2 | ctf | bluez：实现ble client 功能 |
+| 2019-12-12 | V1.8 | V1.3.2 | ctf | bluez：实现ble client 功能<br/>bluez：实现obex文件传输功能 |
 
 <div STYLE="page-break-after: always;"></div>
 
@@ -727,8 +727,6 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
 ## 7、HFP-HF接口介绍（RkBtHfp.h）
 
-### 7.1 HFP基础接口介绍
-
 - `RK_BT_HFP_EVENT`介绍
 
   ```
@@ -828,11 +826,25 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
   禁止hfp codec强制使用CVSD（8K 采样率），SCO codec 类型由AG（手机） 和 HF（耳机）协商决定，协商结果通过回调事件RK_BT_HFP_BCS_EVT告知应用层。该接口只适用于bsa (BSA  only)。
 
-### 7.2 OBEX PBAP（电话薄）接口介绍 ( BLUEZ  only )
+<div STYLE="page-break-after: always;"></div>
 
-- `int rk_bt_obex_init()`
+## 8、 OBEX 接口介绍 ( RkBtObex.h BLUEZ only )
 
-  打开obex服务
+- `int rk_bt_obex_init(char *path)`
+
+  启动obexd进程，蓝牙文件传输功能只需要调用该接口即可，path：文件存储路径
+
+- `int rk_bt_obex_deinit()`
+
+  关闭obexd进程，和rk_bt_obex_init配套使用
+
+- `int rk_bt_obex_pbap_init()`
+
+  初始化蓝牙电话薄，调用该接口之前必须先调用rk_bt_obex_init启动obexd
+
+- `int rk_bt_obex_pbap_deinit()`
+
+  反初始化蓝牙电话薄，调用该接口之后必须调用rk_bt_obex_deinit关闭obexd
 
 - `int rk_bt_obex_pbap_connect(char *btaddr)`
 
@@ -860,19 +872,15 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
 - `int rk_bt_obex_pbap_disconnect(char *btaddr)`
 
-  关闭pbap服务，并主动断开和btaddr指定设备的连接
-
-- `int rk_bt_obex_close()`
-
-  关闭obex服务
+  主动断开和btaddr指定设备的连接
 
 <div STYLE="page-break-after: always;"></div>
 
-## 8、示例程序说明 ##
+## 9、示例程序说明 ##
 
 示例程序的路径为：external/deviceio/test。其中bluetooth相关的测试用例都实现在bt_test.cpp中，该测试用例涵盖了上述所有接口。函数调用在DeviceIOTest.cpp中。
 
-###8.1 编译说明
+###9.1 编译说明
 
 1、在SDK根目录下执行`make deviceio-dirclean && make deviceio -j4`，编译成功会提示如下log（注：仅截取部分，rk-xxxx对应具体的工程根目录）
 -- Installing: /home/rk-xxxx/buildroot/output/target/usr/lib/librkmediaplayer.so
@@ -884,11 +892,11 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
 2、执行./build.sh生成新固件，然后将新固件烧写到设备中。
 
-###  8.2 基础接口演示程序  ###
+###  9.2 基础接口演示程序  ###
 
-#### 8.2.1 接口说明
+#### 9.2.1 接口说明
 
-***8.2.1.1 蓝牙服务的基础接口测试说明***
+***9.2.1.1 蓝牙服务的基础接口测试说明***
 
 - void bt_test_bluetooth_init(char *data)
 
@@ -958,7 +966,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
   打印当前已配对的设备信息
 
-***8.2.1.2 BLE接口测试说明***
+***9.2.1.2 BLE接口测试说明***
 
 1、手机安装第三方ble测试apk，如nrfconnnect。
 
@@ -968,7 +976,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
 4、连接成功后，设备端会回调bt_test.cpp中的ble_status_callback_test函数，打印“+++++ RK_BLE_STATE_CONNECT +++++”。
 
-5、执行如下函数，进行具体功能测试。
+5、执行如下函数，进行具体功能测试:
 
 - void bt_test_ble_start(char *data)
 
@@ -986,7 +994,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
   停止BLE。
 
-***8.2.1.3 BLE CLIENT接口测试说明***
+***9.2.1.3 BLE CLIENT接口测试说明***
 
 1、选择bt_test_ble_client_open函数，启动ble client
 
@@ -1006,7 +1014,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
 9、选择59、60打开或关闭指定uuid 的notification
 
-***8.2.1.4 A2DP SINK接口测试说明***
+***9.2.1.4 A2DP SINK接口测试说明***
 
 1、选择bt_test_sink_open函数。
 
@@ -1016,7 +1024,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
 4、打开手机的音乐播放器，准备播放歌曲。
 
-5、执行如下函数，进行具体功能测试。
+5、执行如下函数，进行具体功能测试:
 
 - void bt_test_sink_open(char *data)
 
@@ -1098,7 +1106,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
   当前连接的设备，是否支持播放进度上报
 
-***8.2.1.5 A2DP SOURCE接口测试说明***
+***9.2.1.5 A2DP SOURCE接口测试说明***
 
 1、选择bt_test_source_auto_start函数。
 
@@ -1108,7 +1116,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
 4、此时设备播放音乐，则音乐会从连接的A2dp Sink设备中播出。
 
-5、执行如下函数，进行具体功能测试。
+5、执行如下函数，进行具体功能测试:
 
 - void bt_test_source_auto_start(char *data)
 
@@ -1122,7 +1130,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
   
   获取 A2DP Source 连接状态。
 
-***8.2.1.6 SPP接口测试说明***
+***9.2.1.6 SPP接口测试说明***
 
 1、手机安装第三方SPP测试apk，如“Serial Bluetooth Terminal”。
 
@@ -1132,7 +1140,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
 4、打开第三方SPP测试apk，使用spp连接设备。设备连接成功后，设备端会回调bt_test.cpp中的_btspp_status_callback函数，打印“+++++++ RK_BT_SPP_EVENT_CONNECT +++++”。
 
-5、执行如下函数，进行具体功能测试。
+5、执行如下函数，进行具体功能测试:
 
 - void bt_test_spp_open(char *data)
 
@@ -1150,7 +1158,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
   查询SPP连接状态。
 
-***8.2.1.7 HFP接口测试说明***
+***9.2.1.7 HFP接口测试说明***
 
 1、选择bt_test_hfp_sink_open或bt_test_hfp_hp_open函数。
 
@@ -1158,7 +1166,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
 3、设备连接成功后，设备端会回调bt_test.cpp中的bt_test_hfp_hp_cb函数，打印“+++++ BT HFP HP CONNECT +++++”。如果手机被呼叫，此时打印“+++++ BT HFP HP RING +++++”，接通电话时会打印“+++++ BT HFP AUDIO OPEN +++++”。其他状态打印请直接阅读bt_test.cpp中bt_test_hfp_hp_cb函数源码。*注：若调用了bt_test_hfp_sink_open接口，当设备连接成功后，A2DP SINK的连接状态也会打印，比如*“++++++++++++ BT SINK EVENT: connect sucess ++++++++++”。
 
-4、执行如下函数，进行具体功能测试。
+4、执行如下函数，进行具体功能测试:
 
 - bt_test_hfp_sink_open 
 
@@ -1200,9 +1208,25 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
   关闭hfp音频通路，在回调事件RK_BT_HFP_AUDIO_CLOSE_EVT中调用。
 
+***9.2.1.8 OBEX接口测试说明***
+
+执行如下函数，进行具体功能测试:
+
 - bt_test_obex_init
 
-  打开obex服务
+  打开obexd进程，执行该函数即可进行文件传输测试
+
+- bt_test_obex_deinit
+
+  关闭obexd进程
+
+- bt_test_obex_pbap_init
+
+  蓝牙电话薄测试，需要先执行bt_test_obex_init
+
+- bt_test_obex_pbap_deinit
+
+  反初始化蓝牙电话薄，之后需要执行bt_test_obex_deinit
 
 - bt_test_obex_pbap_connect
 
@@ -1232,7 +1256,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
   关闭obex服务
 
-#### 8.2.2 测试步骤 ####
+#### 9.2.2 测试步骤 ####
 
 1、执行测试程序命令：`DeviceIOTest bluetooth`显示如下界面：
 
@@ -1241,6 +1265,34 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 version:V1.3.2
 #### Please Input Your Test Command Index ####
 01.  bt_server_open 
+02.  bt_test_set_class 
+03.  bt_test_get_device_name 
+04.  bt_test_get_device_addr 
+05.  bt_test_set_device_name 
+06.  bt_test_enable_reconnect 
+07.  bt_test_disable_reconnect 
+08.  bt_test_start_discovery 
+09.  bt_test_cancel_discovery 
+10.  bt_test_is_discovering 
+11.  bt_test_display_devices 
+12.  bt_test_display_paired_devices 
+13.  bt_test_get_paired_devices 
+14.  bt_test_free_paired_devices 
+15.  bt_test_pair_by_addr 
+16.  bt_test_unpair_by_addr 
+17.  bt_test_source_auto_start 
+18.  bt_test_source_connect_status 
+19.  bt_test_source_auto_stop 
+20.  bt_test_source_open 
+21.  bt_test_source_close 
+22.  bt_test_source_connect_by_addr 
+23.  bt_test_source_disconnect_by_addr 
+24.  bt_test_source_remove_by_addr 
+25.  bt_test_sink_open 
+26.  bt_test_sink_visibility00 
+27.  bt_test_sink_visibility01 
+28.  bt_test_sink_visibility10 
+201.  bt_server_open 
 02.  bt_test_set_class 
 03.  bt_test_get_device_name 
 04.  bt_test_get_device_addr 
@@ -1314,15 +1366,17 @@ version:V1.3.2
 72.  bt_test_hfp_hp_close 
 73.  bt_test_hfp_hp_disconnect 
 74.  bt_test_obex_init 
-75.  bt_test_obex_pbap_connect 
-76.  bt_test_obex_pbap_get_pb_vcf 
-77.  bt_test_obex_pbap_get_ich_vcf 
-78.  bt_test_obex_pbap_get_och_vcf 
-79.  bt_test_obex_pbap_get_mch_vcf 
-80.  bt_test_obex_pbap_disconnect 
-81.  bt_test_obex_close 
-82.  bt_server_close 
-Which would you like: 
+75.  bt_test_obex_pbap_init 
+76.  bt_test_obex_pbap_connect 
+77.  bt_test_obex_pbap_get_pb_vcf 
+78.  bt_test_obex_pbap_get_ich_vcf 
+79.  bt_test_obex_pbap_get_och_vcf 
+80.  bt_test_obex_pbap_get_mch_vcf 
+81.  bt_test_obex_pbap_disconnect 
+82.  bt_test_obex_pbap_deinit 
+83.  bt_test_obex_deinit 
+84.  bt_server_close 
+Which would you like:
 ```
 
 2、选择对应测试程序编号。首先要选择01进行初始化蓝牙基础服务。比如测试BT Source功能
@@ -1341,6 +1395,6 @@ Which would you like:15 input 94:87:E0:B6:6D:AE
 #注：开始和地址为 94:87:E0:B6:6D:AE 的设备进行配对
 ```
 
-### 8.3 BLE配网演示程序
+### 9.3 BLE配网演示程序
 
 请参见《Rockchip_Developer_Guide_Network_Config_CN》文档。

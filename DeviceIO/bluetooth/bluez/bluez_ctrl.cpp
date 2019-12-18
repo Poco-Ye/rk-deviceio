@@ -80,6 +80,12 @@ static int _bt_close_server(void)
 {
 	RK_LOGD("=== _bt_close_server ===\n");
 
+	if (kill_task("obexctl") < 0)
+		return -1;
+
+	if (kill_task("obexd") < 0)
+		return -1;
+
 	if (kill_task("bluealsa") < 0)
 		return -1;
 

@@ -37,13 +37,6 @@ void rk_bt_hfp_enable_cvsd(void);
 void rk_bt_hfp_disable_cvsd(void);
 int rk_bt_hfp_disconnect(void);
 
-/* OBEX FOR PBAP */
-int rk_bt_obex_init();
-int rk_bt_obex_pbap_connect(char *btaddr);
-int rk_bt_obex_pbap_get_vcf(char *dir_name, char *dir_file);
-int rk_bt_obex_pbap_disconnect(char *btaddr);
-int rk_bt_obex_close();
-
 #ifdef __cplusplus
 }
 #endif

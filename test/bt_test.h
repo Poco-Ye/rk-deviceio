@@ -108,15 +108,19 @@ void bt_test_hfp_hp_set_volume(char *data);
 void bt_test_hfp_hp_close(char *data);
 void bt_test_hfp_hp_disconnect(char *data);
 
-//obex pbap
+/******************************************/
+/*              OBEX Test             */
+/******************************************/
 void bt_test_obex_init(char *data);
+void bt_test_obex_pbap_init(char *data);
 void bt_test_obex_pbap_connect(char *data);
 void bt_test_obex_pbap_get_pb_vcf(char *data);
 void bt_test_obex_pbap_get_ich_vcf(char *data);
 void bt_test_obex_pbap_get_och_vcf(char *data);
 void bt_test_obex_pbap_get_mch_vcf(char *data);
 void bt_test_obex_pbap_disconnect(char *data);
-void bt_test_obex_close(char *data);
+void bt_test_obex_pbap_deinit(char *data);
+void bt_test_obex_deinit(char *data);
 
 #ifdef __cplusplus
 }

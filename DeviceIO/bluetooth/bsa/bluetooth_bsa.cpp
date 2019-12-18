@@ -1255,8 +1255,16 @@ int rk_bt_hfp_disconnect()
     return app_hs_close_all();
 }
 
-/* OBEX FOR PBAP */
-int rk_bt_obex_init()
+/*****************************************************************
+ *            Rockchip bluetooth obex api                        *
+ *****************************************************************/
+int rk_bt_obex_init(char *path)
+{
+    APP_DEBUG1("bsa don't support %s", __func__);
+    return 0;
+}
+
+int rk_bt_obex_pbap_init()
 {
     APP_DEBUG1("bsa don't support %s", __func__);
     return 0;
@@ -1280,7 +1288,13 @@ int rk_bt_obex_pbap_disconnect(char *btaddr)
     return 0;
 }
 
-int rk_bt_obex_close()
+int rk_bt_obex_pbap_deinit()
+{
+    APP_DEBUG1("bsa don't support %s", __func__);
+    return 0;
+}
+
+int rk_bt_obex_deinit()
 {
     APP_DEBUG1("bsa don't support %s", __func__);
     return 0;

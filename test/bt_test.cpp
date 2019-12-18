@@ -13,6 +13,7 @@
 #include <DeviceIo/RkBtSpp.h>
 #include <DeviceIo/RkBtHfp.h>
 #include <DeviceIo/RkBleClient.h>
+#include <DeviceIo/RkBtObex.h>
 
 #include "bt_test.h"
 
@@ -1545,10 +1546,18 @@ void bt_test_hfp_sink_open(char *data)
 	rk_bt_hfp_sink_open();
 }
 
-/* OBEX FOR PBAP */
+
+/******************************************/
+/*                 OBEX                   */
+/******************************************/
 void bt_test_obex_init(char *data)
 {
-	rk_bt_obex_init();
+	rk_bt_obex_init(data);
+}
+
+void bt_test_obex_pbap_init(char *data)
+{
+	rk_bt_obex_pbap_init();
 }
 
 void bt_test_obex_pbap_connect(char *data)
@@ -1581,7 +1590,12 @@ void bt_test_obex_pbap_disconnect(char *data)
 	rk_bt_obex_pbap_disconnect(NULL);
 }
 
-void bt_test_obex_close(char *data)
+void bt_test_obex_pbap_deinit(char *data)
 {
-	rk_bt_obex_close();
+	rk_bt_obex_pbap_deinit();
+}
+
+void bt_test_obex_deinit(char *data)
+{
+	rk_bt_obex_deinit();
 }
