@@ -877,7 +877,7 @@ static int set_network(const int id, const char* ssid, const char* psk, const RK
 {
 	int ret;
 	char str[8];
-	char cmd[128];
+	char cmd[512];
 	char wifi_ssid[512];
 	char wifi_psk[512];
 
@@ -1496,9 +1496,9 @@ int RK_wifi_recovery(void)
 		exec_command_system("cp /data/cfg/wpa_supplicant.conf.bak /data/cfg/wpa_supplicant.conf");
 	}
 
-	exec_command_system("wpa_cli flush");
-	exec_command_system("wpa_cli reconfigure");
-	exec_command_system("wpa_cli reconnect");
+	exec_command_system("wpa_cli -i wlan0 flush");
+	exec_command_system("wpa_cli -i wlan0 reconfigure");
+	exec_command_system("wpa_cli -i wlan0 reconnect");
 }
 
 int RK_wifi_get_mac(char *wifi_mac)
@@ -1746,6 +1746,7 @@ static int dispatch_event(char* event)
 		exec_command_system("ip addr flush dev wlan0");
 		get_wifi_info_by_event(event, RK_WIFI_State_DISCONNECTED, &info);
 		wifi_state_send(RK_WIFI_State_DISCONNECTED, &info);
+		exec_command_system("wpa_cli -i wlan0 reconnect");
 	} else if (str_starts_with(event, (char *)WPA_EVENT_CONNECTED)) {
 		pr_info("%s: wifi is connected\n", __func__);
 		get_valid_connect_info(&info);
