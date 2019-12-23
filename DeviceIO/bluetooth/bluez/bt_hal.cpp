@@ -17,6 +17,7 @@
 #include <DeviceIo/RkBtSource.h>
 #include <DeviceIo/RkBtHfp.h>
 #include <DeviceIo/RkBleClient.h>
+#include <DeviceIo/RkBtObex.h>
 
 #include "avrcpctrl.h"
 #include "bluez_ctrl.h"
@@ -1101,9 +1102,10 @@ int rk_bt_deinit(void)
 	rk_bt_spp_close();
 	rk_ble_stop();
 	rk_ble_client_close();
-	rk_bt_obex_close();
+	rk_bt_obex_pbap_deinit();
 	bt_close();
 
+	kill_task("obexd");
 	kill_task("bluealsa");
 	kill_task("bluealsa-aplay");
 	kill_task("bluetoothctl");
@@ -1319,8 +1321,9 @@ int rk_bt_get_playrole_by_addr(char *addr)
 
 	return bt_get_playrole_by_addr(addr);
 }
+
 /*****************************************************************
- *            Rockchip bluetooth hfp-hf api                        *
+ *            Rockchip bluetooth hfp-hf api                      *
  *****************************************************************/
 static int g_ba_hfp_client = -1;
 
@@ -1565,27 +1568,55 @@ int rk_bt_hfp_disconnect()
 	return disconnect_current_devices();
 }
 
+/*****************************************************************
+ *            Rockchip bluetooth obex api                        *
+ *****************************************************************/
 static pthread_t g_obex_thread = 0;
-int rk_bt_obex_init()
+int rk_bt_obex_init(char *path)
 {
-	char result_buf[256] = {0};
-	int ret = 0;
+	char buf[100];
 
 	if (!bt_is_open()) {
 		pr_info("%s: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
-	if(g_obex_thread) {
-		pr_info("obex has been initialized\n");
+	if (get_ps_pid("obexd")) {
+		pr_info("%s: obexd has been opened\n", __func__);
+		return 0;
+	}
+
+	if(!path) {
+		pr_info("%s: error, path == NULL\n", __func__);
 		return -1;
 	}
 
-	pr_info("[enter %s]\n", __func__);
+	/* run obexd */
+	memset(buf, 0, 100);
+	sprintf(buf, "%s%s%s", "/usr/libexec/bluetooth/obexd -d -n -l -a -r /", path, "/ &");
+	pr_info("%s: run obexd(%s)\n", __func__, buf);
 
 	setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/var/run/dbus/system_bus_socket", 1);
 	usleep(6000);
-	system("usr/libexec/bluetooth/obexd -d -n -l -a -r /data/ &");
+	if (run_task("obexd", buf)) {
+		RK_LOGE("%s: run obexd failed!\n", __func__);
+		return -1;
+	}
+
+	return 0;
+}
+
+int rk_bt_obex_pbap_init()
+{
+	if (!get_ps_pid("obexd")) {
+		pr_info("%s: Please open obex!!!\n", __func__);
+		return -1;
+	}
+
+	if(g_obex_thread) {
+		pr_info("g_obex_thread has been initialized\n");
+		return -1;
+	}
 
 	/* Create thread to do connect task. */
 	if (pthread_create(&g_obex_thread, NULL, obex_main_thread, NULL)) {
@@ -1645,7 +1676,7 @@ int rk_bt_obex_pbap_disconnect(char *btaddr)
 	return 0;
 }
 
-int rk_bt_obex_close()
+int rk_bt_obex_pbap_deinit()
 {
 	if(!g_obex_thread) {
 		pr_info("obex has been closed\n");
@@ -1653,13 +1684,17 @@ int rk_bt_obex_close()
 	}
 
 	pr_info("[enter %s]\n", __func__);
+
 	obex_quit();
 
 	pthread_join(g_obex_thread, NULL);
 	g_obex_thread = 0;
 
-	kill_task("obexd");
 	pr_info("[exit %s]\n", __func__);
-
 	return 0;
+}
+
+int rk_bt_obex_deinit()
+{
+	return kill_task("obexd");
 }

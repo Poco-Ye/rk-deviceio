@@ -158,13 +158,15 @@ static command_bt_t bt_command_table[] = {
 	{"bt_test_hfp_hp_close", bt_test_hfp_hp_close},
 	{"bt_test_hfp_hp_disconnect", bt_test_hfp_hp_disconnect},
 	{"bt_test_obex_init", bt_test_obex_init},
+	{"bt_test_obex_pbap_init", bt_test_obex_pbap_init},
 	{"bt_test_obex_pbap_connect", bt_test_obex_pbap_connect},
 	{"bt_test_obex_pbap_get_pb_vcf", bt_test_obex_pbap_get_pb_vcf},
 	{"bt_test_obex_pbap_get_ich_vcf", bt_test_obex_pbap_get_ich_vcf},
 	{"bt_test_obex_pbap_get_och_vcf", bt_test_obex_pbap_get_och_vcf},
 	{"bt_test_obex_pbap_get_mch_vcf", bt_test_obex_pbap_get_mch_vcf},
 	{"bt_test_obex_pbap_disconnect", bt_test_obex_pbap_disconnect},
-	{"bt_test_obex_close", bt_test_obex_close},
+	{"bt_test_obex_pbap_deinit", bt_test_obex_pbap_deinit},
+	{"bt_test_obex_deinit", bt_test_obex_deinit},
 	{"bt_server_close", bt_test_bluetooth_deinit},
 };
 
