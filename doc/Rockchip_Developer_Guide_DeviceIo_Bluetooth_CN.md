@@ -320,6 +320,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
   } RK_BLE_CLIENT_SERVICE_INFO;
   
   typedef struct {
+  	char describe[DESCRIBE_BUG_LEN];         //uuid 对应的描述
   	char path[PATH_BUF_LEN];
   	char uuid[UUID_BUF_LEN];                 //service uuid
   	int chrc_cnt;                            //该service 包含的characteristic数量
@@ -327,6 +328,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
   } RK_BLE_CLIENT_SERVICE;
   
   typedef struct {
+  	char describe[DESCRIBE_BUG_LEN];         //uuid 对应的描述
   	char path[PATH_BUF_LEN];
   	char uuid[UUID_BUF_LEN];                 //characteristic uuid
   	unsigned int props;                      //characteristic 属性
@@ -338,8 +340,9 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
   } RK_BLE_CLIENT_CHRC;
   
   typedef struct {
+  	char describe[DESCRIBE_BUG_LEN];         //uuid 对应的描述
   	char path[PATH_BUF_LEN];
-  	char uuid[UUID_BUF_LEN]; //descriptor uuid
+  	char uuid[UUID_BUF_LEN];                 //descriptor uuid
   } RK_BLE_CLIENT_DESC;
   ```
 
@@ -361,7 +364,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
 - `oid rk_ble_client_register_dev_found_callback(RK_BT_DEV_FOUND_CALLBACK cb)`
 
-  注册ble 设备发现回调函数，该回调会过滤掉AddressType 为public 的设备，只返回random address 设备，也可以使用本文档第一章节的RK_BT_DEV_FOUND_CALLBACK scan 所有类型的设备。
+  注册ble 设备发现回调函数，该回调会过滤掉AddressType 为public 的设备，只返回AddressType 为random 的设备，也可以使用本文档第一章节的RK_BT_DEV_FOUND_CALLBACK 扫描所有类型的设备。
 
 - `int rk_ble_client_open(void)`
 
@@ -377,17 +380,11 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
 - `int rk_ble_client_get_service_info(char *address, RK_BLE_CLIENT_SERVICE_INFO *info)`
 
-  回去address指定设备的信息，包括service uuid，characteristic uuid、permission、Properties，descriptor uuid等，具体可查看RK_BLE_CLIENT_SERVICE_INFO 结构体
+  获取address指定设备的信息，包括service uuid，characteristic uuid、permission、Properties，descriptor uuid等，具体可查看RK_BLE_CLIENT_SERVICE_INFO 结构体
 
 - `int rk_ble_client_write(const char *uuid, char *data)`
 
   往对端指定uuid发送数据
-
-  uuid：写入数据的CHR对象
-
-  data：写入数据的指针
-
-  len：写入数据的长度。特别说明：该长度受到BLE连接的MTU限制，超过MTU将被截断，bluez 默认协商的MTU为最大值517
 
 - `int rk_ble_client_read(const char *uuid)`
 

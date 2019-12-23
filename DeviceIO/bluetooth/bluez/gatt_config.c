@@ -162,7 +162,7 @@ int gatt_set_on_adv(void);
  * property of the GattCharacteristic1.
  */
 static const char *ias_alert_level_props[] = { "read", "write", NULL };
-static const char *chr_props[] = { "read", "write", "notify", NULL };
+static const char *chr_props[] = { "read", "write", "notify", "indicate", NULL };
 static const char *desc_props[] = { "read", "write", NULL };
 
 static void chr_write(struct characteristic *chr, const uint8_t *value, int len);

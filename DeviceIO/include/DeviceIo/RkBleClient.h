@@ -7,6 +7,7 @@
 extern "C" {
 #endif
 
+#define DESCRIBE_BUG_LEN	50
 #define UUID_BUF_LEN		40
 #define PATH_BUF_LEN		70
 #define MAX_ATTR_VAL_LEN	512
@@ -66,11 +67,13 @@ typedef enum {
 } RK_BLE_CLIENT_STATE;
 
 typedef struct {
+	char describe[DESCRIBE_BUG_LEN];
 	char path[PATH_BUF_LEN];
 	char uuid[UUID_BUF_LEN];
 } RK_BLE_CLIENT_DESC;
 
 typedef struct {
+	char describe[DESCRIBE_BUG_LEN];
 	char path[PATH_BUF_LEN];
 	char uuid[UUID_BUF_LEN];
 	unsigned int props;
@@ -82,6 +85,7 @@ typedef struct {
 } RK_BLE_CLIENT_CHRC;
 
 typedef struct {
+	char describe[DESCRIBE_BUG_LEN];
 	char path[PATH_BUF_LEN];
 	char uuid[UUID_BUF_LEN];
 	int chrc_cnt;

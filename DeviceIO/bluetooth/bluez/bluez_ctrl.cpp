@@ -162,9 +162,6 @@ static int _bt_open_server(const char *bt_name)
 		}
 	}
 
-	exec_command_system("hciconfig hci0 up");
-	msleep(10);
-
 #if 0
 	exec_command_system("hcidump -i hci0 -w /data/btsnoop.log &");
 	sleep(1);
@@ -190,9 +187,6 @@ static int _bt_open_server(const char *bt_name)
 		return -1;
 	}
 	msleep(100);
-
-	exec_command_system("hciconfig hci0 up");
-	msleep(10);
 
 	//set Bluetooth NoInputNoOutput mode
 	exec_command_system("bluetoothctl -a NoInputNoOutput &");
@@ -680,7 +674,7 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 		break;
 
 	case BtControl::BT_SOURCE_REMOVE:
-		ret = a2dp_master_remove((char *)data);
+		ret = remove_by_address((char *)data);
 		break;
 
 	case BtControl::BT_SINK_CLOSE:
