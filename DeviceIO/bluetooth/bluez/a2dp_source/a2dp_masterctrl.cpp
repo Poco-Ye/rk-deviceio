@@ -3350,10 +3350,9 @@ int a2dp_master_status(char *addr_buf, int addr_len, char *name_buf, int name_le
 	return 1;
 }
 
-int a2dp_master_remove(char *t_address)
+int remove_by_address(char *t_address)
 {
 	GDBusProxy *proxy;
-	char address[18] = {'\0'};
 
 	if(t_address == NULL) {
 		pr_err("%s: Invalid address\n", __func__);
@@ -3367,7 +3366,7 @@ int a2dp_master_remove(char *t_address)
 		GList *list;
 
 		for (list = default_ctrl->devices; list; list = g_list_next(list)) {
-			GDBusProxy *proxy = (GDBusProxy *)list->data;
+			proxy = (GDBusProxy *)list->data;
 			remove_device(proxy);
 		}
 		return 0;
@@ -3376,15 +3375,13 @@ int a2dp_master_remove(char *t_address)
 		return -1;
 	}
 
-	memcpy(address, t_address, 17);
-	proxy = find_proxy_by_address(default_ctrl->devices, address);
+	proxy = find_proxy_by_address(default_ctrl->devices, t_address);
 	if (!proxy) {
-		pr_info("Device %s not available\n", address);
+		pr_info("Device %s not available\n", t_address);
 		return -1;
 	}
 
-	remove_device(proxy);
-	return 0;
+	return remove_device(proxy);
 }
 
 static int a2dp_master_save_status(char *address)
@@ -4364,4 +4361,29 @@ int bt_get_playrole_by_addr(char *addr)
 	}
 
 	return a2dp_master_get_playrole(proxy);
+}
+
+char *bt_get_address_type(char *addr)
+{
+	GDBusProxy *proxy;
+	DBusMessageIter iter;
+	const char *type = NULL;
+
+	if (!addr || (strlen(addr) < 17)) {
+		pr_err("%s: Invalid address\n", __func__);
+		return NULL;
+	}
+
+	proxy = find_device_by_address(addr);
+	if (!proxy) {
+		pr_info("%s: Invalid proxy\n", __func__);
+		return NULL;
+	}
+
+	if (g_dbus_proxy_get_property(proxy, "AddressType", &iter) == FALSE)
+		return NULL;
+
+	dbus_message_iter_get_basic(&iter, &type);
+	pr_info("%s: device(%s) type = %s\n", __func__, addr, type);
+	return type;
 }

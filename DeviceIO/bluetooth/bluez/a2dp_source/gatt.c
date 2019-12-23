@@ -2434,6 +2434,7 @@ void gatt_unregister_desc(DBusConnection *conn, GDBusProxy *proxy,
 static void get_service_proxy(GDBusProxy *proxy, const char *proxy_path, RK_BLE_CLIENT_SERVICE_INFO *info)
 {
 	DBusMessageIter iter;
+	const char *text;
 	const char *uuid;
 	int len;
 
@@ -2446,6 +2447,10 @@ static void get_service_proxy(GDBusProxy *proxy, const char *proxy_path, RK_BLE_
 
 	len = strlen(proxy_path) > PATH_BUF_LEN ? PATH_BUF_LEN : strlen(proxy_path);
 	strncpy(info->service[info->service_cnt].path, proxy_path, len);
+
+	text = bt_uuidstr_to_str(uuid);
+	len = strlen(text) > DESCRIBE_BUG_LEN ? DESCRIBE_BUG_LEN : strlen(text);
+	strncpy(info->service[info->service_cnt].describe, text, len);
 
 	info->service_cnt++;
 }
@@ -2595,6 +2600,7 @@ static void get_characteristic(GDBusProxy *proxy, const char *proxy_path, RK_BLE
 	DBusMessageIter iter;
 	dbus_bool_t notifying = FALSE;
 	const char *uuid;
+	const char *text;
 	RK_BLE_CLIENT_CHRC *chrc;
 	int i, len;
 
@@ -2617,6 +2623,10 @@ static void get_characteristic(GDBusProxy *proxy, const char *proxy_path, RK_BLE
 			gatt_parse_flags(proxy, &chrc->props, &chrc->ext_props, &chrc->perm);
 			chrc->notifying = notifying;
 
+			text = bt_uuidstr_to_str(uuid);
+			len = strlen(text) > DESCRIBE_BUG_LEN ? DESCRIBE_BUG_LEN : strlen(text);
+			strncpy(chrc->describe, text, len);
+
 			info->service[i].chrc_cnt++;
 		}
 	}
@@ -2626,6 +2636,7 @@ static void get_descriptor(GDBusProxy *proxy, const char *proxy_path, RK_BLE_CLI
 {
 	DBusMessageIter iter;
 	const char *uuid;
+	const char *text;
 	RK_BLE_CLIENT_DESC *desc;
 	int i, j, len, desc_id;
 
@@ -2652,6 +2663,10 @@ static void get_descriptor(GDBusProxy *proxy, const char *proxy_path, RK_BLE_CLI
 			strncpy(desc->path, proxy_path, len);
 
 			//gatt_parse_flags(proxy, NULL, NULL, &desc->perm);
+
+			text = bt_uuidstr_to_str(uuid);
+			len = strlen(text) > DESCRIBE_BUG_LEN ? DESCRIBE_BUG_LEN : strlen(text);
+			strncpy(desc->describe, text, len);
 
 			info->service[i].chrc[j].desc_cnt++;
 			break;

@@ -267,12 +267,23 @@ int rk_ble_client_connect(char *address)
 
 int rk_ble_client_disconnect(char *address)
 {
+	int ret;
+	char *address_type;
+
 	if(!ble_client_is_open()) {
 		pr_info("ble client isn't open, please open\n");
 		return -1;
 	}
 
-	return disconnect_by_address(address);
+	address_type = bt_get_address_type(address);
+
+	ret = disconnect_by_address(address);
+	if(!ret && (address_type && !strcmp(address_type, "public"))) {
+		sleep(2);
+		return remove_by_address(address);
+	}
+
+	return ret;
 }
 
 int rk_ble_client_get_service_info(char *address, RK_BLE_CLIENT_SERVICE_INFO *info)
@@ -535,7 +546,7 @@ int rk_bt_source_remove(char *address)
 		return -1;
 	}
 
-	return a2dp_master_remove(address);
+	return remove_by_address(address);
 }
 
 int rk_bt_source_register_status_cb(void *userdata, RK_BT_SOURCE_CALLBACK cb)

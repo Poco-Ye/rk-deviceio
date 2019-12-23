@@ -786,11 +786,13 @@ void bt_test_ble_client_get_service_info(char *data)
 		printf("+++++ get device(%s) service info +++++\n", data);
 		for(i = 0; i < info.service_cnt; i++) {
 			printf("service[%d]:\n", i);
+			printf("	describe: %s\n", info.service[i].describe);
 			printf("	path: %s\n", info.service[i].path);
 			printf("	uuid: %s\n", info.service[i].uuid);
 
 			for(j = 0; j < info.service[i].chrc_cnt; j++) {
 				printf("	characteristic[%d]:\n", j);
+				printf("		describe: %s\n", info.service[i].chrc[j].describe);
 				printf("		path: %s\n", info.service[i].chrc[j].path);
 				printf("		uuid: %s\n", info.service[i].chrc[j].uuid);
 				printf("		props: 0x%x\n", info.service[i].chrc[j].props);
@@ -801,6 +803,7 @@ void bt_test_ble_client_get_service_info(char *data)
 				for(k = 0; k < info.service[i].chrc[j].desc_cnt; k++) {
 					printf("		descriptor[%d]:\n", k);
 
+					printf("			describe: %s\n", info.service[i].chrc[j].desc[k].describe);
 					printf("			path: %s\n", info.service[i].chrc[j].desc[k].path);
 					printf("			uuid: %s\n", info.service[i].chrc[j].desc[k].uuid);
 				}

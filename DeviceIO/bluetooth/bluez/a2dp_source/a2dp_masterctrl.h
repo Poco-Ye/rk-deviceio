@@ -44,7 +44,7 @@ int bt_close();
 int a2dp_master_scan(void *data, int len);
 int a2dp_master_connect(char *address);
 int a2dp_master_status(char *addr_buf, int addr_len, char *name_buf, int name_len);
-int a2dp_master_remove(char *address);
+int remove_by_address(char *address);
 void a2dp_master_event_send(RK_BT_SOURCE_EVENT event, char *dev_addr, char *dev_name);
 int a2dp_master_avrcp_open();
 int a2dp_master_avrcp_close();
@@ -73,6 +73,7 @@ int bt_get_playrole_by_addr(char *addr);
 void dev_found_send(GDBusProxy *proxy, RK_BT_DEV_FOUND_CALLBACK cb);
 struct GDBusProxy *find_device_by_address(char *address);
 void set_default_attribute(GDBusProxy *proxy);
+char *bt_get_address_type(char *addr);
 
 #ifdef __cplusplus
 }
