@@ -144,6 +144,8 @@ static int priority = 0;
 static volatile bool wifi_wrong_key = false;
 static volatile bool wifi_cancel = false;
 static volatile bool wifi_connect_lock = false;
+static volatile bool wifi_is_exist = false;
+
 static void format_wifiinfo(int flag, char *info);
 static int get_pid(const char Name[]);
 static void RK_wifi_start_monitor(void *arg);
@@ -1030,7 +1032,7 @@ static bool check_wifi_isconnected(void) {
 			}
 		}
 
-		pr_info("Check wifi state with none state. try more %d/%d, \n", i + 1, WIFI_CONNECT_RETRY / 2);
+		pr_info("Check wifi state with none state. try more %d/%d, \n", i + 1, WIFI_CONNECT_RETRY);
 
 		if (wifi_wrong_key == true) {
 			pr_info("check_wifi_isconnected is wifi_wrong_key break.\n");
@@ -1162,20 +1164,16 @@ static void check_ping_test()
 static void wifi_connectfail_process(int id)
 {
 	char str[128];
-	char cmd[128];
 	char cmd1[128];
 	char cmd2[128];
 
 	memset(str, 0, sizeof(str));
-	memset(cmd, 0, sizeof(cmd));
-	memset(cmd1, 0, sizeof(cmd));
+	memset(cmd1, 0, sizeof(cmd1));
 
-	snprintf(cmd, sizeof(cmd), "wpa_cli -iwlan0 get_network %d bssid", id);
 	snprintf(cmd1, sizeof(cmd1), "wpa_cli -iwlan0 disable_network %d", id);
 	snprintf(cmd2, sizeof(cmd2), "wpa_cli -iwlan0 remove_network %d", id);
 
-	exec(cmd, str);
-	if (strstr(str, ":")) {
+	if (wifi_is_exist == true) {
 		exec(cmd1, str);
 	} else {
 		exec(cmd2, str);
@@ -1193,6 +1191,7 @@ static void* wifi_connect_state_check(void *arg)
 	int id = *((int *)arg);
 
 	prctl(PR_SET_NAME,"wifi_connect_state_check");
+	pr_info("[%s]\n", __func__);
 
 	isconnected = check_wifi_isconnected();
 
@@ -1201,10 +1200,10 @@ static void* wifi_connect_state_check(void *arg)
 		char str[8];
 		RK_WIFI_SAVED_INFO wsi;
 
-		RK_wifi_running_getConnectionInfo(&cndinfo);
-		snprintf(cmd, sizeof(cmd), "wpa_cli -iwlan0 bssid %d %s", cndinfo.id, cndinfo.bssid);
-		exec(cmd, str);
-		pr_info("set bssid: %s\n", cmd);
+		//RK_wifi_running_getConnectionInfo(&cndinfo);
+		//snprintf(cmd, sizeof(cmd), "wpa_cli -iwlan0 bssid %d %s", cndinfo.id, cndinfo.bssid);
+		//exec(cmd, str);
+		//pr_info("set bssid: %s\n", cmd);
 
 		RK_wifi_getSavedInfo(&wsi);
 
@@ -1216,6 +1215,8 @@ static void* wifi_connect_state_check(void *arg)
 			state = RK_WIFI_State_CONNECTFAILED;
 		wifi_connectfail_process(id);
 	}
+
+	wifi_is_exist = false;
 
 	if (state < 0)
 		return NULL;
@@ -1271,7 +1272,7 @@ int RK_wifi_connect1(const char* ssid, const char* psk, const RK_WIFI_CONNECTION
 		pr_err("%s: invalid ssid\n", __func__);
 		return -1;
 	}
-	pr_info("ssid:%s\n", ssid);
+	pr_info("[%s] ssid: %s, psk: %s\n", __func__, ssid, psk);
 
 	save_connect_info(ssid, NULL);
 	wifi_state_send(RK_WIFI_State_CONNECTING, NULL);
@@ -1349,6 +1350,37 @@ fail:
 	return -1;
 }
 
+int RK_wifi_forget_with_ssid(const char *ssid)
+{
+	int id, ret;
+	char cmd[64];
+	char str[8];
+
+	pr_info("[%s]: ssid %s\n", __func__, ssid);
+
+	if(!ssid) {
+		pr_err("%s: ssid is null\n", __func__);
+		return -1;
+	}
+
+	id = RK_wifi_search_with_ssid(ssid);
+	if (id < 0) {
+		pr_err("RK_wifi_forget_with_ssid [%s] not found!\n", ssid);
+		return -1;
+	}
+
+	snprintf(cmd, sizeof(cmd), "wpa_cli -iwlan0 remove_network %d", id);
+	ret = exec(cmd, str);
+	pr_info("[%s]: ret: %s\n", __func__, ret);
+
+	if (0 != ret || 0 == strlen(str) || 0 != strncmp(str, "OK", 2))
+		return -1;
+
+	exec_command_system("wpa_cli -iwlan0 save");
+
+	return 0;
+}
+
 int RK_wifi_forget_with_bssid(const char *bssid)
 {
 	int id, ret;
@@ -1403,6 +1435,58 @@ int RK_wifi_cancel(void)
 		return 0;
 	else
 		return -1;
+}
+
+int RK_wifi_connect_with_ssid(const char *ssid)
+{
+	int id, ret;
+
+	wifi_wrong_key = false;
+	wifi_is_exist = true;
+
+	pr_err("%s: %s\n", __func__, ssid);
+
+	if(!ssid) {
+		pr_err("%s: ssid is null\n", __func__);
+		goto fail;
+	}
+
+	id = RK_wifi_search_with_ssid(ssid);
+	if (id < 0) {
+		pr_err("RK_wifi_connect_with_bssid not found!\n", id);
+		goto fail;
+	}
+
+	connecting_id = id;
+
+	save_connect_info(NULL, ssid);
+	wifi_state_send(RK_WIFI_State_CONNECTING, NULL);
+
+	exec_command_system("wpa_cli -iwlan0 disable_network all");
+
+	ret = select_network(id);
+	if (0 != ret) {
+		pr_err("select_network id: %d failed!\n", id);
+		goto fail;
+	}
+
+	set_network_highest_priority(id);
+
+	ret = enable_network(id);
+	if (0 != ret) {
+		pr_err("enable_network id: %d failed!\n", id);
+		goto fail;
+	}
+
+	pthread_t pth;
+	pthread_create(&pth, NULL, wifi_connect_state_check, &connecting_id);
+
+	return 0;
+
+fail:
+	wifi_state_send(RK_WIFI_State_CONNECTFAILED, NULL);
+	wifi_is_exist = false;
+	return -1;
 }
 
 int RK_wifi_connect_with_bssid(const char *bssid)

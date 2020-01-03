@@ -78,10 +78,10 @@ int RK_wifi_ping(char *address);
 int RK_wifi_recovery(void);
 int RK_wifi_airkiss_start(char *ssid, char *password);
 void RK_wifi_airkiss_stop(void);
-int RK_wifi_forget_with_bssid(const char *bssid);
+int RK_wifi_forget_with_ssid(const char *ssid);
 int RK_wifi_cancel(void);
 int RK_wifi_getSavedInfo(RK_WIFI_SAVED_INFO *pSaveInfo);
-int RK_wifi_connect_with_bssid(const char* bssid);
+int RK_wifi_connect_with_ssid(const char* ssid);
 
 #ifdef __cplusplus
 }

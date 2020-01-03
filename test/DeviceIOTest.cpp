@@ -75,9 +75,9 @@ static command_t wifi_config_command_table[] = {
 	{"wifi_scan", rk_wifi_scan},
 	{"wifi_getSavedInfo", rk_wifi_getSavedInfo},
 	{"rk_wifi_getConnectionInfo", rk_wifi_getConnectionInfo},
-	{"wifi_connect_with_bssid", rk_wifi_connect_with_bssid},
+	{"wifi_connect_with_ssid", rk_wifi_connect_with_ssid},
 	{"wifi_cancel", rk_wifi_cancel},
-	{"wifi_forget_with_bssid", rk_wifi_forget_with_bssid},
+	{"wifi_forget_with_ssid", rk_wifi_forget_with_ssid},
 	{"wifi_connect1", rk_wifi_connect1},
 	{"rk_wifi_disconnect", rk_wifi_disconnect},
 };

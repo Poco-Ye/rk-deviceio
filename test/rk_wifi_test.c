@@ -281,20 +281,15 @@ void rk_wifi_getConnectionInfo(void *data)
 		printf_connect_info(&info);
 }
 
-void rk_wifi_connect_with_bssid(void *data)
+void rk_wifi_connect_with_ssid(void *data)
 {
 	if(data == NULL) {
-		printf("%s: bssid is null\n", __func__);
+		printf("%s: ssid is null\n", __func__);
 		return;
 	}
 
-	if(strlen(data) < 17) {
-		printf("%s: invalid bssid %s\n", __func__, data);
-		return;
-	}
-
-	if (RK_wifi_connect_with_bssid(data) < 0)
-		printf("RK_wifi_connect_with_bssid fail!\n");
+	if (RK_wifi_connect_with_ssid(data) < 0)
+		printf("RK_wifi_connect_with_ssid fail!\n");
 }
 
 void rk_wifi_cancel(void *data)
@@ -303,20 +298,15 @@ void rk_wifi_cancel(void *data)
 		printf("RK_wifi_cancel fail!\n");
 }
 
-void rk_wifi_forget_with_bssid(void *data)
+void rk_wifi_forget_with_ssid(void *data)
 {
 	if(data == NULL) {
-		printf("%s: bssid is null\n", __func__);
+		printf("%s: ssid is null\n", __func__);
 		return;
 	}
 
-	if(strlen(data) < 17) {
-		printf("%s: invalid bssid %s\n", __func__, data);
-		return;
-	}
-
-	if (RK_wifi_forget_with_bssid(data) < 0) {
-		printf("rk_wifi_forget_with_bssid fail!\n");
+	if (RK_wifi_forget_with_ssid(data) < 0) {
+		printf("rk_wifi_forget_with_ssid fail!\n");
 	}
 }
 
