@@ -1410,6 +1410,7 @@ int RK_wifi_forget_with_bssid(const char *bssid)
 		return -1;
 
 	exec_command_system("wpa_cli -iwlan0 save");
+	exec_command_system("sync");
 
 	return 0;
 }
@@ -1572,6 +1573,18 @@ int RK_wifi_get_hostname(char* name, int len)
 		gethostname(name, len);
 
 	return 0;
+}
+
+int RK_wifi_reset(void)
+{
+	if (get_pid("wpa_supplicant")) {
+		exec_command_system("wpa_cli -i wlan0 flush");
+		exec_command_system("wpa_cli -i wlan0 save");
+	} else {
+		exec_command_system("rm /data/cfg/wpa_supplicant.conf");
+		exec_command_system("cp /etc/wpa_supplicant.conf /data/cfg/wpa_supplicant.conf");
+	}
+	exec_command_system("sync");
 }
 
 int RK_wifi_recovery(void)

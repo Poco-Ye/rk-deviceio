@@ -82,6 +82,7 @@ int RK_wifi_forget_with_ssid(const char *ssid);
 int RK_wifi_cancel(void);
 int RK_wifi_getSavedInfo(RK_WIFI_SAVED_INFO *pSaveInfo);
 int RK_wifi_connect_with_ssid(const char* ssid);
+int RK_wifi_reset(void);
 
 #ifdef __cplusplus
 }
