@@ -66,7 +66,7 @@ static duplex_info_t g_duplex_control = {
 	0,
 };
 
-static RkBtPraiedDevice *g_dev_list_test;
+static RkBtScanedDevice *g_paired_dev_list;
 
 static void bt_test_ble_recv_data_callback(const char *uuid, char *data, int len);
 static void bt_test_ble_request_data_callback(const char *uuid);
@@ -86,6 +86,9 @@ static void bt_test_state_cb(RK_BT_STATE state)
 			break;
 		case RK_BT_STATE_ON:
 			printf("++++++++++ RK_BT_STATE_ON ++++++++++\n");
+			//rk_bt_enable_reconnect(1);
+			//bt_test_source_open(NULL);
+			//bt_test_start_discovery(NULL);
 			break;
 		case RK_BT_STATE_TURNING_OFF:
 			printf("++++++++++ RK_BT_STATE_TURNING_OFF ++++++++++\n");
@@ -127,6 +130,12 @@ static void bt_test_discovery_status_cb(RK_BT_DISCOVERY_STATE status)
 			printf("++++++++++ RK_BT_DISC_STOPPED_BY_USER ++++++++++\n");
 			break;
 	}
+
+	if(status != RK_BT_DISC_STARTED) {
+		printf("+++++++++ deregister scan callback +++++++++\n");
+		rk_bt_register_discovery_callback(NULL);
+		rk_bt_register_dev_found_callback(NULL);
+	}
 }
 
 static void bt_test_dev_found_cb(const char *address,const char *name, unsigned int bt_class, int rssi)
@@ -137,18 +146,26 @@ static void bt_test_dev_found_cb(const char *address,const char *name, unsigned 
 	printf("    class: 0x%x\n", bt_class);
 	printf("    rssi: %d\n", rssi);
 	printf("+++++++++++++++++++++++++++++++++++++++++\n");
+
+#if 0
+	if(!strcmp(address, "88:2D:53:CC:DC:63")) {
+		printf("%s: connect 88:2D:53:CC:DC:63\n", __func__);
+		bt_test_source_connect_by_addr("88:2D:53:CC:DC:63");
+	}
+#endif
 }
 
 /*
  * The Bluetooth basic service is turned on and the function
  * must be called before using the Bluetooth function.
  */
-void bt_test_bluetooth_init(char *data)
+void *bt_test_bluetooth_init_thread(void *)
 {
-	printf("--------------- BT BLUETOOTH INIT ----------------\n");
+	printf("%s: BT BLUETOOTH INIT\n", __func__);
 	memset(&bt_content, 0, sizeof(RkBtContent));
 	bt_content.bt_name = "ROCKCHIP_AUDIO";
 	//bt_content.bt_addr = "11:22:33:44:55:66";
+
 	bt_content.ble_content.ble_name = "ROCKCHIP_AUDIO BLE";
 	bt_content.ble_content.server_uuid.uuid = BLE_UUID_SERVICE;
 	bt_content.ble_content.server_uuid.len = UUID_128;
@@ -165,15 +182,42 @@ void bt_test_bluetooth_init(char *data)
 
 	rk_bt_register_state_callback(bt_test_state_cb);
 	rk_bt_register_bond_callback(bt_test_bond_state_cb);
-	rk_bt_register_discovery_callback(bt_test_discovery_status_cb);
-	//rk_bt_register_dev_found_callback(bt_test_dev_found_cb);
 	rk_bt_init(&bt_content);
+}
+
+static pthread_t bt_init_thread = 0;
+void bt_test_bluetooth_init(char *data)
+{
+	printf("%s: ", __func__);
+
+	if (bt_init_thread) {
+		printf("bt init thread already exist\n");
+		return;
+	}
+
+	if (pthread_create(&bt_init_thread, NULL, bt_test_bluetooth_init_thread, NULL)) {
+		printf("Create bt init pthread failed\n");
+		return;
+	}
 }
 
 void bt_test_bluetooth_deinit(char *data)
 {
-	printf("--------------- BT BLUETOOTH DEINIT ----------------\n");
+	int ret;
+
+	printf("%s: BT BLUETOOTH DEINIT\n", __func__);
 	rk_bt_deinit();
+
+	if(bt_init_thread) {
+		ret = pthread_join(bt_init_thread, NULL);
+		if (ret) {
+			printf("%s: bt init thread exit failed!\n", __func__);
+		} else {
+			printf("%s: bt init thread exit ok\n", __func__);
+		}
+		bt_init_thread = 0;
+	}
+
 }
 
 void bt_test_set_class(char *data)
@@ -226,15 +270,15 @@ void bt_test_unpair_by_addr(char *data)
 void bt_test_get_paired_devices(char *data)
 {
 	int i, count;
-	bt_paried_device *dev_tmp = NULL;
+	RkBtScanedDevice *dev_tmp = NULL;
 
-	if(g_dev_list_test)
+	if(g_paired_dev_list)
 		bt_test_free_paired_devices(NULL);
 
-	rk_bt_get_paired_devices(&g_dev_list_test, &count);
+	rk_bt_get_paired_devices(&g_paired_dev_list, &count);
 
 	printf("%s: current paired devices count: %d\n", __func__, count);
-	dev_tmp = g_dev_list_test;
+	dev_tmp = g_paired_dev_list;
 	for(i = 0; i < count; i++) {
 		printf("device %d\n", i);
 		printf("	remote_address: %s\n", dev_tmp->remote_address);
@@ -246,13 +290,29 @@ void bt_test_get_paired_devices(char *data)
 
 void bt_test_free_paired_devices(char *data)
 {
-	rk_bt_free_paired_devices(g_dev_list_test);
-	g_dev_list_test = NULL;
+	rk_bt_free_paired_devices(g_paired_dev_list);
+	g_paired_dev_list = NULL;
 }
 
 void bt_test_start_discovery(char *data)
 {
-	rk_bt_start_discovery(10000); //10s
+	rk_bt_register_discovery_callback(bt_test_discovery_status_cb);
+	rk_bt_register_dev_found_callback(bt_test_dev_found_cb);
+	rk_bt_start_discovery(10000, SCAN_TYPE_AUTO);
+}
+
+void bt_test_start_discovery_bredr(char *data)
+{
+	rk_bt_register_discovery_callback(bt_test_discovery_status_cb);
+	rk_bt_register_dev_found_callback(bt_test_dev_found_cb);
+	rk_bt_start_discovery(10000, SCAN_TYPE_BREDR);
+}
+
+void bt_test_start_discovery_le(char *data)
+{
+	rk_bt_register_discovery_callback(bt_test_discovery_status_cb);
+	rk_bt_register_dev_found_callback(bt_test_dev_found_cb);
+	rk_bt_start_discovery(10000, SCAN_TYPE_LE);
 }
 
 void bt_test_cancel_discovery(char *data)
@@ -264,6 +324,28 @@ void bt_test_is_discovering(char *data)
 {
 	bool ret = rk_bt_is_discovering();
 	printf("the device discovery procedure is active? %s\n", (ret == true) ? "yes" : "no");
+}
+
+void bt_test_get_scaned_devices(char *data)
+{
+	int i, count;
+	RkBtScanedDevice *dev_tmp = NULL;
+	RkBtScanedDevice *scaned_dev_list = NULL;
+
+	rk_bt_get_scaned_devices(&scaned_dev_list, &count);
+
+	printf("%s: current scaned devices count: %d\n", __func__, count);
+	dev_tmp = scaned_dev_list;
+	for(i = 0; i < count; i++) {
+		printf("device %d\n", i);
+		printf("	remote_address: %s\n", dev_tmp->remote_address);
+		printf("	remote_name: %s\n", dev_tmp->remote_name);
+		printf("	is_connected: %d\n", dev_tmp->is_connected);
+		printf("	class_of_device: 0x%x\n", dev_tmp->cod);
+		dev_tmp = dev_tmp->next;
+	}
+
+	rk_bt_free_scaned_devices(scaned_dev_list);
 }
 
 void bt_test_display_devices(char *data)
@@ -374,32 +456,32 @@ void bt_test_sink_open(char *data)
 
 void bt_test_sink_visibility00(char *data)
 {
-	rk_bt_sink_set_visibility(0, 0);
+	rk_bt_set_visibility(0, 0);
 }
 
 void bt_test_sink_visibility01(char *data)
 {
-	rk_bt_sink_set_visibility(0, 1);
+	rk_bt_set_visibility(0, 1);
 }
 
 void bt_test_sink_visibility10(char *data)
 {
-	rk_bt_sink_set_visibility(1, 0);
+	rk_bt_set_visibility(1, 0);
 }
 
 void bt_test_sink_visibility11(char *data)
 {
-	rk_bt_sink_set_visibility(1, 1);
+	rk_bt_set_visibility(1, 1);
 }
 
 void bt_test_ble_visibility00(char *data)
 {
-	rk_bt_ble_set_visibility(0, 0);
+	rk_bt_set_visibility(0, 0);
 }
 
 void bt_test_ble_visibility11(char *data)
 {
-	rk_bt_ble_set_visibility(1, 1);
+	rk_bt_set_visibility(1, 1);
 }
 
 void bt_test_sink_status(char *data)
@@ -529,9 +611,23 @@ void bt_test_source_status_callback(void *userdata, const char *bd_addr,
 		case BT_SOURCE_EVENT_CONNECTED:
 			printf("+++++ BT_SOURCE_EVENT_CONNECTED: %s, %s +++++\n", name, bd_addr);
 			break;
+		case BT_SOURCE_EVENT_AUTO_RECONNECTING:
+			printf("+++++ BT_SOURCE_EVENT_AUTO_RECONNECTING: %s, %s +++++\n", name, bd_addr);
+			break;
+		case BT_SOURCE_EVENT_DISCONNECT_FAILED:
+			printf("+++++ BT_SOURCE_EVENT_DISCONNECT_FAILED: %s, %s +++++\n", name, bd_addr);
+			break;
 		case BT_SOURCE_EVENT_DISCONNECTED:
 			printf("+++++ BT_SOURCE_EVENT_DISCONNECTED: %s, %s +++++\n", name, bd_addr);
 			break;
+#if 0
+		case BT_SOURCE_EVENT_REMOVE_FAILED:
+			printf("+++++ BT_SOURCE_EVENT_REMOVE_FAILED +++++\n");
+			break;
+		case BT_SOURCE_EVENT_REMOVED:
+			printf("+++++ BT_SOURCE_EVENT_REMOVED +++++\n");
+			break;
+#endif
 		case BT_SOURCE_EVENT_RC_PLAY:
 			printf("+++++ BT_SOURCE_EVENT_RC_PLAY: %s, %s +++++\n", name, bd_addr);
 			break;
@@ -592,17 +688,22 @@ void bt_test_source_close(char *data)
 
 void bt_test_source_connect_by_addr(char *data)
 {
-	rk_bt_source_connect(data);
+	rk_bt_source_connect_by_addr(data);
 }
 
 void bt_test_source_disconnect_by_addr(char *data)
 {
-	rk_bt_source_disconnect(data);
+	rk_bt_source_disconnect_by_addr(data);
 }
 
 void bt_test_source_remove_by_addr(char *data)
 {
 	rk_bt_source_remove(data);
+}
+
+void bt_test_source_disconnect(char *data)
+{
+	rk_bt_source_disconnect();
 }
 
 /******************************************/

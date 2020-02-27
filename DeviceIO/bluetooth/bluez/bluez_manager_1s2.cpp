@@ -279,7 +279,7 @@ bool bt_manager_is_enabled(void)
 /*start discovery, will return immediately*/
 int bt_manager_start_discovery(unsigned int mseconds)
 {
-	return rk_bt_start_discovery(mseconds);
+	return rk_bt_start_discovery(mseconds, SCAN_TYPE_AUTO);
 }
 
 /*cancel discovery, will return immediately*/
@@ -300,13 +300,13 @@ int bt_manager_set_discovery_mode(btmg_discovery_mode_t mode)
 	int ret = -1;
 	switch (mode) {
 		case BTMG_SCAN_MODE_NONE:
-			ret = rk_bt_sink_set_visibility(0, 0);
+			ret = rk_bt_set_visibility(0, 0);
 			break;
 		case BTMG_SCAN_MODE_CONNECTABLE:
-			ret = rk_bt_sink_set_visibility(0, 1);
+			ret = rk_bt_set_visibility(0, 1);
 			break;
 		case BTMG_SCAN_MODE_CONNECTABLE_DISCOVERABLE:
-			ret = rk_bt_sink_set_visibility(1, 1);
+			ret = rk_bt_set_visibility(1, 1);
 			break;
 	}
 
@@ -396,16 +396,103 @@ int bt_manager_avrcp_command(char *addr, btmg_avrcp_command_t command)
 	return ret;
 }
 
+bt_paried_device *bt_create_one_paired_dev(RkBtScanedDevice *scan_dev)
+{
+	bt_paried_device *new_device = (bt_paried_device*)malloc(sizeof(bt_paried_device));
+	if(!new_device) {
+		printf("%s: malloc one paierded device failed\n", __func__);
+		return NULL;
+	}
+
+	new_device->remote_address = (char *)malloc(strlen(scan_dev->remote_address) + 1);
+	strncpy(new_device->remote_address, scan_dev->remote_address, strlen(scan_dev->remote_address));
+	new_device->remote_address[strlen(scan_dev->remote_address)] = '\0';
+
+	new_device->remote_name = (char *)malloc(strlen(scan_dev->remote_name) + 1);
+	strncpy(new_device->remote_name, scan_dev->remote_name, strlen(scan_dev->remote_name));
+	new_device->remote_name[strlen(scan_dev->remote_name)] = '\0';
+
+	new_device->is_connected = scan_dev->is_connected;
+	new_device->next = NULL;
+
+	return new_device;
+}
+
 /* Get the paired device,need to call <bt_manager_free_paired_devices> to free data*/
 int bt_manager_get_paired_devices(bt_paried_device **dev_list,int *count)
 {
-	return rk_bt_get_paired_devices(dev_list, count);
+	int i;
+	RkBtScanedDevice *dev_tmp = NULL;
+	RkBtScanedDevice *scan_dev_list;
+
+	if(dev_list == NULL) {
+		pr_info("%s: invalid dev_list\n", __func__);
+		return -1;
+	}
+
+	if(rk_bt_get_paired_devices(&scan_dev_list, count) < 0)
+		return -1;
+
+	//printf("%s: current paired devices count: %d\n", __func__, *count);
+	dev_tmp = scan_dev_list;
+	for(i = 0; i < *count; i++) {
+		//printf("device %d\n", i);
+		//printf("	remote_address: %s\n", dev_tmp->remote_address);
+		//printf("	remote_name: %s\n", dev_tmp->remote_name);
+		//printf("	is_connected: %d\n", dev_tmp->is_connected);
+		//printf("	cod: %d\n", dev_tmp->cod);
+
+		if(*dev_list == NULL) {
+			*dev_list = bt_create_one_paired_dev(dev_tmp);
+			if(*dev_list == NULL)
+				return -1;
+		} else {
+			bt_paried_device *cur_dev = *dev_list;
+			while(cur_dev->next != NULL)
+				cur_dev = cur_dev->next;
+
+			bt_paried_device *new_dev = bt_create_one_paired_dev(dev_tmp);
+			if(!new_dev)
+				return -1;
+
+			cur_dev->next = new_dev;
+		}
+
+		dev_tmp = dev_tmp->next;
+	}
+
+	rk_bt_free_paired_devices(scan_dev_list);
+	return 0;
 }
 
 /* free paird device data resource*/
 int bt_manager_free_paired_devices(bt_paried_device *dev_list)
 {
-	return rk_bt_free_paired_devices(dev_list);
+	bt_paried_device *dev_tmp = NULL;
+
+	if(dev_list == NULL) {
+		printf("%s: dev_list is nill, don't need to clear\n", __func__);
+		return -1;
+	}
+
+	while(dev_list->next != NULL) {
+		printf("%s: free dev: %s\n", __func__, dev_list->remote_address);
+		dev_tmp = dev_list->next;
+		free(dev_list->remote_address);
+		free(dev_list->remote_name);
+		free(dev_list);
+		dev_list = dev_tmp;
+	}
+
+	if(dev_list != NULL) {
+		printf("%s: last free dev: %s\n", __func__, dev_list->remote_address);
+		free(dev_list->remote_address);
+		free(dev_list->remote_name);
+		free(dev_list);
+		dev_list = NULL;
+	}
+
+	return 0;
 }
 
 int bt_manager_disconnect(char *addr)

@@ -41,7 +41,6 @@ int rk_bt_sink_register_track_callback(RK_BT_AVRCP_TRACK_CHANGE_CB cb);
 int rk_bt_sink_register_position_callback(RK_BT_AVRCP_PLAY_POSITION_CB cb);
 
 int rk_bt_sink_open();
-int rk_bt_sink_set_visibility(const int visiable, const int connectable);
 int rk_bt_sink_close(void);
 int rk_bt_sink_get_state(RK_BT_SINK_STATE *p_state);
 int rk_bt_sink_play(void);

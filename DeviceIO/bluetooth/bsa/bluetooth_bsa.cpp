@@ -324,7 +324,7 @@ void rk_bt_register_dev_found_callback(RK_BT_DEV_FOUND_CALLBACK cb)
     app_mgr_register_dev_found_cb(cb);
 }
 
-int rk_bt_start_discovery(unsigned int mseconds)
+int rk_bt_start_discovery(unsigned int mseconds, RK_BT_SCAN_TYPE scan_type)
 {
     if(!bt_is_open()) {
         APP_DEBUG0("bluetooth is not inited, please init");
@@ -357,6 +357,18 @@ bool rk_bt_is_discovering()
         return true;
     else
         return false;
+}
+
+int rk_bt_get_scaned_devices(RkBtScanedDevice **dev_list,int *count)
+{
+    APP_DEBUG1("bsa don't support %s", __func__);
+    return 0;
+}
+
+int rk_bt_free_scaned_devices(RkBtScanedDevice *dev_list)
+{
+    APP_DEBUG1("bsa don't support %s", __func__);
+    return 0;
 }
 
 void rk_bt_display_devices()
@@ -463,7 +475,7 @@ int rk_bt_get_device_addr(char *addr, int len)
     return 0;
 }
 
-int rk_bt_get_paired_devices(RkBtPraiedDevice **dev_list,int *count)
+int rk_bt_get_paired_devices(RkBtScanedDevice **dev_list,int *count)
 {
     if(!bt_is_open()) {
         APP_DEBUG0("bluetooth is not inited, please init");
@@ -473,7 +485,7 @@ int rk_bt_get_paired_devices(RkBtPraiedDevice **dev_list,int *count)
     return app_mgr_get_paired_devices(dev_list, count);
 }
 
-int rk_bt_free_paired_devices(RkBtPraiedDevice *dev_list)
+int rk_bt_free_paired_devices(RkBtScanedDevice *dev_list)
 {
     if(!bt_is_open()) {
         APP_DEBUG0("bluetooth is not inited, please init");
@@ -487,6 +499,15 @@ int rk_bt_get_playrole_by_addr(char *addr)
 {
     APP_DEBUG1("bsa don't support %s", __func__);
     return 0;
+}
+
+int rk_bt_set_visibility(const int visiable, const int connect)
+{
+    bool discoverable, connectable;
+
+    discoverable = visiable == 0 ? false : true;
+    connectable = connect == 0 ? false : true;
+    return app_dm_set_visibility(discoverable, connectable);
 }
 
 /******************************************/
@@ -554,7 +575,7 @@ int rk_bt_sink_open()
         return -1;
     }
 
-    //rk_bt_sink_set_visibility(1, 1);
+    //rk_bt_set_visibility(1, 1);
     g_bt_control.is_a2dp_sink_open = true;
     return 0 ;
 }
@@ -568,7 +589,7 @@ int rk_bt_sink_close()
 
     app_avk_stop();
 
-    //rk_bt_sink_set_visibility(0, 0);
+    //rk_bt_set_visibility(0, 0);
     g_bt_control.is_a2dp_sink_open = false;
     return 0;
 }
@@ -618,15 +639,6 @@ int rk_bt_sink_volume_down()
 int rk_bt_sink_set_volume(int volume)
 {
     return app_avk_set_volume(volume);
-}
-
-int rk_bt_sink_set_visibility(const int visiable, const int connect)
-{
-    bool discoverable, connectable;
-
-    discoverable = visiable == 0 ? false : true;
-    connectable = connect == 0 ? false : true;
-    return app_dm_set_visibility(discoverable, connectable);
 }
 
 int rk_bt_sink_get_state(RK_BT_SINK_STATE *pState)
@@ -995,7 +1007,7 @@ int rk_bt_source_close()
     return 0;
 }
 
-int rk_bt_source_scan(BtScanParam *data)
+int rk_bt_source_scan(BtScanParam *data, RK_BT_SCAN_TYPE scan_type)
 {
     if(!a2dp_source_is_open()) {
         APP_DEBUG0("a2dp source is not inited, please init");
@@ -1010,7 +1022,7 @@ int rk_bt_source_scan(BtScanParam *data)
     return 0;
 }
 
-int rk_bt_source_connect(char *address)
+int rk_bt_source_connect_by_addr(char *address)
 {
     if(!a2dp_source_is_open()) {
         APP_DEBUG0("a2dp source is not inited, please init");
@@ -1025,7 +1037,7 @@ int rk_bt_source_connect(char *address)
     return 0;
 }
 
-int rk_bt_source_disconnect(char *address)
+int rk_bt_source_disconnect_by_addr(char *address)
 {
     if(!a2dp_source_is_open()) {
         APP_DEBUG0("a2dp source has been closed.");
@@ -1038,6 +1050,12 @@ int rk_bt_source_disconnect(char *address)
     }
 
     return 0;
+}
+
+int rk_bt_source_disconnect()
+{
+    APP_ERROR1("bsa don't support %s", __func__);
+    return -1;
 }
 
 int rk_bt_source_remove(char *address)
@@ -1391,9 +1409,9 @@ int rk_bt_control(DeviceIOFramework::BtControl cmd, void *data, int len)
     case DeviceIOFramework::BtControl::BT_VISIBILITY:
         scan = (*(bool *)data);
         if(scan)
-            rk_bt_sink_set_visibility(1, 1);
+            rk_bt_set_visibility(1, 1);
         else
-            rk_bt_sink_set_visibility(0, 0);
+            rk_bt_set_visibility(0, 0);
         break;
 
     default:

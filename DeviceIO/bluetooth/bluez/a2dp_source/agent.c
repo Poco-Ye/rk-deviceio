@@ -36,6 +36,7 @@
 #include "shell.h"
 #include "../gdbus/gdbus.h"
 #include "agent.h"
+#include "a2dp_masterctrl.h"
 #include "slog.h"
 
 #define AGENT_PATH "/org/bluez/agent"
@@ -321,14 +322,16 @@ static void register_agent_reply(DBusMessage *message, void *user_data)
 
 	if (dbus_set_error_from_message(&error, message) == FALSE) {
 		agent_registered = TRUE;
-		bt_shell_printf("Agent registered\n");
+		bt_shell_printf("### Agent registered ###\n");
+		pr_info("%s thread tid = %u\n", __func__, pthread_self());
+		bt_state_send(RK_BT_STATE_ON);
 	} else {
-		bt_shell_printf("Failed to register agent: %s\n", error.name);
+		bt_shell_printf("### Failed to register agent: %s\n", error.name);
 		dbus_error_free(&error);
 
 		if (g_dbus_unregister_interface(conn, AGENT_PATH,
 						AGENT_INTERFACE) == FALSE)
-			bt_shell_printf("Failed to unregister agent object\n");
+			bt_shell_printf("### Failed to unregister agent object\n");
 	}
 }
 

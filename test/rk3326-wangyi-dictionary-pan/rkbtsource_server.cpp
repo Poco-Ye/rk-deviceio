@@ -320,15 +320,15 @@ int main(int argc, char *argv[])
 			break;
 
 		case RK_BT_SOURCE_CONNECT:
-			if (rk_bt_source_connect(msg->addr) < 0)
-				printf("%s: rk_bt_source_connect %s failed!\n", PRINT_FLAG_ERR, msg->addr);
+			if (rk_bt_source_connect_by_addr(msg->addr) < 0)
+				printf("%s: rk_bt_source_connect_by_addr %s failed!\n", PRINT_FLAG_ERR, msg->addr);
 			break;
 
 		case RK_BT_SOURCE_SCAN_ON:
 			memset(scan_devices_bak, 0, sizeof(scan_devices_t) * SCAN_DEVICES_SAVE_COUNT);
 			scan_devices_count = 0;
 			/* Scan bluetooth devices, 10s for default*/
-			if(rk_bt_start_discovery(10000) < 0)
+			if(rk_bt_start_discovery(10000, SCAN_TYPE_AUTO) < 0)
 				printf("%s: rk_bt_start_discovery failed\n", PRINT_FLAG_ERR);
 			break;
 
@@ -337,8 +337,8 @@ int main(int argc, char *argv[])
 			break;
 
 		case RK_BT_SOURCE_DISCONNECT:
-			if (rk_bt_source_disconnect(msg->addr) < 0)
-				printf("%s: rk_bt_source_disconnect failed!\n", PRINT_FLAG_ERR);
+			if (rk_bt_source_disconnect_by_addr(msg->addr) < 0)
+				printf("%s: rk_bt_source_disconnect_by_addr failed!\n", PRINT_FLAG_ERR);
 			break;
 
 		case RK_BT_SOURCE_REMOVE:

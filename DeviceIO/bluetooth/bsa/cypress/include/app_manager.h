@@ -424,8 +424,8 @@ UINT8 app_mgr_get_dev_platform(BD_ADDR bd_addr);
 int app_mgr_bd2str(BD_ADDR bd_addr, char *address, int addr_len);
 int app_mgr_str2bd(char *address, BD_ADDR bd_addr);
 int app_mgt_set_device_name(char *name);
-int app_mgr_get_paired_devices(RkBtPraiedDevice **dev_list,int *count);
-int app_mgr_free_paired_devices(RkBtPraiedDevice *dev_list);
+int app_mgr_get_paired_devices(RkBtScanedDevice **dev_list,int *count);
+int app_mgr_free_paired_devices(RkBtScanedDevice *dev_list);
 int app_mgr_xml_display_devices(void);
 
 #endif /* __APP_MANAGER_H__ */

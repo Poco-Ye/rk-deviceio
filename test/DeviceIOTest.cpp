@@ -92,9 +92,12 @@ static command_bt_t bt_command_table[] = {
 	{"bt_test_enable_reconnect", bt_test_enable_reconnect},
 	{"bt_test_disable_reconnect", bt_test_disable_reconnect},
 	{"bt_test_start_discovery", bt_test_start_discovery},
+	{"bt_test_start_discovery_le", bt_test_start_discovery_le},
+	{"bt_test_start_discovery_bredr", bt_test_start_discovery_bredr},
 	{"bt_test_cancel_discovery", bt_test_cancel_discovery},
 	{"bt_test_is_discovering", bt_test_is_discovering},
 	{"bt_test_display_devices", bt_test_display_devices},
+	{"bt_test_get_scaned_devices", bt_test_get_scaned_devices},
 	{"bt_test_display_paired_devices", bt_test_display_paired_devices},
 	{"bt_test_get_paired_devices", bt_test_get_paired_devices},
 	{"bt_test_free_paired_devices", bt_test_free_paired_devices},
@@ -106,6 +109,7 @@ static command_bt_t bt_command_table[] = {
 	{"bt_test_source_open", bt_test_source_open},
 	{"bt_test_source_close", bt_test_source_close},
 	{"bt_test_source_connect_by_addr", bt_test_source_connect_by_addr},
+	{"bt_test_source_disconnect", bt_test_source_disconnect},
 	{"bt_test_source_disconnect_by_addr", bt_test_source_disconnect_by_addr},
 	{"bt_test_source_remove_by_addr", bt_test_source_remove_by_addr},
 	{"bt_test_sink_open", bt_test_sink_open},
@@ -289,15 +293,19 @@ static void deviceio_test_bluetooth()
 			continue;
 		}
 
+		printf("%s: szBuf =  %s\n", __func__, szBuf);
 		input_start = strstr(szBuf, "input");
 		if(input_start == NULL) {
 			i = atoi(szBuf);
+			printf("%s: selset %d\n", __func__, i);
 			if ((i >= 1) && (i < item_cnt))
 				bt_command_table[i].action(NULL);
 		} else {
 			memset(cmdBuf, 0, sizeof(cmdBuf));
 			strncpy(cmdBuf, szBuf, strlen(szBuf) - strlen(input_start) - 1);
+			printf("%s: cmdBuf = %s\n", __func__, cmdBuf);
 			i = atoi(cmdBuf);
+			printf("%s: i = %d\n", __func__, i);
 			if ((i >= 1) && (i < item_cnt))
 				bt_command_table[i].action(input_start + strlen("input") + 1);
 		}

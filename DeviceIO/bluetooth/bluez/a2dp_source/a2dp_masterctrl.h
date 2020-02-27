@@ -40,8 +40,8 @@ void bt_state_send(RK_BT_STATE state);
 void ble_state_send(RK_BLE_STATE status);
 void ble_get_state(RK_BLE_STATE *p_state);
 int bt_open(RkBtContent *bt_content);
-int bt_close();
-int a2dp_master_scan(void *data, int len);
+void bt_close();
+int a2dp_master_scan(void *data, int len, RK_BT_SCAN_TYPE scan_type);
 int a2dp_master_connect(char *address);
 int a2dp_master_status(char *addr_buf, int addr_len, char *name_buf, int name_len);
 int remove_by_address(char *address);
@@ -62,10 +62,10 @@ int bt_get_device_addr(char *addr_buf, int addr_len);
 int bt_get_default_dev_addr(char *addr_buf, int addr_len);
 void bt_display_devices();
 void bt_display_paired_devices();
-int bt_get_paired_devices(RkBtPraiedDevice **dev_list, int *count);
-int bt_free_paired_devices(RkBtPraiedDevice *dev_list);
-int bt_start_discovery(unsigned int mseconds);
+int bt_start_discovery(unsigned int mseconds, RK_BT_SCAN_TYPE scan_type);
 int bt_cancel_discovery(RK_BT_DISCOVERY_STATE state);
+int bt_get_scaned_devices(RkBtScanedDevice **dev_list, int *count, bool paired);
+int bt_free_scaned_devices(RkBtScanedDevice *dev_list);
 bool bt_is_discovering();
 bool bt_is_connected();
 int ble_disconnect(void);
@@ -74,6 +74,8 @@ void dev_found_send(GDBusProxy *proxy, RK_BT_DEV_FOUND_CALLBACK cb);
 struct GDBusProxy *find_device_by_address(char *address);
 void set_default_attribute(GDBusProxy *proxy);
 char *bt_get_address_type(char *addr);
+void source_set_reconnect_tag(bool reconnect);
+void source_stop_connecting();
 
 #ifdef __cplusplus
 }

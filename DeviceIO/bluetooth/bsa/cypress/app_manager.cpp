@@ -2209,11 +2209,11 @@ int app_mgt_set_device_name(char *name)
     return 0;
 }
 
-static RkBtPraiedDevice *app_mgr_create_paired_dev(tAPP_XML_REM_DEVICE device)
+static RkBtScanedDevice *app_mgr_create_paired_dev(tAPP_XML_REM_DEVICE device)
 {
     char address[18];
 
-    RkBtPraiedDevice *new_device = (RkBtPraiedDevice*)malloc(sizeof(RkBtPraiedDevice));
+    RkBtScanedDevice *new_device = (RkBtScanedDevice*)malloc(sizeof(RkBtScanedDevice));
 
     if(app_mgr_bd2str(device.bd_addr, address, 18) < 0)
         strncpy(address, "<unknown>", strlen("<unknown>"));
@@ -2232,7 +2232,7 @@ static RkBtPraiedDevice *app_mgr_create_paired_dev(tAPP_XML_REM_DEVICE device)
     return new_device;
 }
 
-static int app_mgr_list_push_back(RkBtPraiedDevice **dev_list, tAPP_XML_REM_DEVICE device)
+static int app_mgr_list_push_back(RkBtScanedDevice **dev_list, tAPP_XML_REM_DEVICE device)
 {
     if(dev_list == NULL) {
         APP_ERROR0("invalid dev_list");
@@ -2242,18 +2242,18 @@ static int app_mgr_list_push_back(RkBtPraiedDevice **dev_list, tAPP_XML_REM_DEVI
     if(*dev_list == NULL) {
         *dev_list = app_mgr_create_paired_dev(device);
     } else {
-        RkBtPraiedDevice *cur_dev = *dev_list;
+        RkBtScanedDevice *cur_dev = *dev_list;
         while(cur_dev->next != NULL)
             cur_dev = cur_dev->next;
 
-        RkBtPraiedDevice *new_dev = app_mgr_create_paired_dev(device);
+        RkBtScanedDevice *new_dev = app_mgr_create_paired_dev(device);
         cur_dev->next = new_dev;
     }
 
     return 0;
 }
 
-int app_mgr_get_paired_devices(RkBtPraiedDevice **dev_list,int *count)
+int app_mgr_get_paired_devices(RkBtScanedDevice **dev_list,int *count)
 {
     int index;
 
@@ -2270,9 +2270,9 @@ int app_mgr_get_paired_devices(RkBtPraiedDevice **dev_list,int *count)
     return 0;
 }
 
-int app_mgr_free_paired_devices(RkBtPraiedDevice *dev_list)
+int app_mgr_free_paired_devices(RkBtScanedDevice *dev_list)
 {
-    RkBtPraiedDevice *dev_tmp = NULL;
+    RkBtScanedDevice *dev_tmp = NULL;
 
     if(dev_list == NULL) {
         APP_DEBUG0("dev_list is empty, don't need to clear");

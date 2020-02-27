@@ -833,12 +833,18 @@ int gatt_write_data(char *uuid, void *data, int len)
 	return 0;
 }
 
-void ble_enable_adv(void)
+int ble_enable_adv(void)
 {
 	system("hciconfig hci0 piscan");
 	system("hciconfig hci0 piscan");
-	gatt_set_on_adv();
+
+	if(gatt_set_on_adv() < 0) {
+		pr_err("%s: gatt_set_on_adv failed\n", __func__);
+		return -1;
+	}
+
 	execute(CMD_EN, ret_buff, 1024);
+	return 0;
 }
 
 void ble_disable_adv(void)
@@ -857,11 +863,15 @@ int gatt_set_on_adv(void)
 	char temp[32];
 	int i;
 
-	if (!ble_content_internal->advDataLen)
+	if(!ble_content_internal) {
+		pr_err("%s: ble_content_internal is NULL\n", __func__);
 		return -1;
+	}
 
-	if (!ble_content_internal->respDataLen)
+	if (ble_content_internal->advDataLen <= 0) {
+		pr_err("%s: invalid advDataLen = %d\n", __func__, ble_content_internal->advDataLen);
 		return -1;
+	}
 
 	//LE Set Random Address Command
 	execute(CMD_RA, ret_buff, 1024);
@@ -1088,7 +1098,12 @@ static int ble_adv_set(RkBtContent *bt_content, ble_content_t *ble_content)
 		advdata.flag_value = 0x1a;
 		advdata.service_uuid_length = 0x10 + 1;
 		advdata.service_uuid_flag = AD_COMPLETE_128_SERVICE_UUID;
-		bt_string_to_uuid128(&(advdata.service_uuid_value), bt_content->ble_content.server_uuid.uuid, 1);
+
+		if(bt_string_to_uuid128(&(advdata.service_uuid_value), bt_content->ble_content.server_uuid.uuid, 1) < 0) {
+			pr_err("%s: bt_string_to_uuid128 failed\n", __func__);
+			return -1;
+		}
+
 		ble_content->advDataLen = sizeof(struct AdvDataContent);
 		memcpy(ble_content->advData, (uint8_t *)(&advdata), sizeof(struct AdvDataContent));
 
@@ -1129,6 +1144,7 @@ static int ble_adv_set(RkBtContent *bt_content, ble_content_t *ble_content)
 	ble_content->char_cnt = bt_content->ble_content.chr_cnt;
 	ble_content->cb_ble_recv_fun = bt_content->ble_content.cb_ble_recv_fun;
 	ble_content->cb_ble_request_data = bt_content->ble_content.cb_ble_request_data;
+	return 0;
 }
 
 int gatt_init(RkBtContent *bt_content)
@@ -1142,6 +1158,12 @@ int gatt_init(RkBtContent *bt_content)
 	service_id = 1;
 	gid = 0;
 	gdesc_id = 0;
+
+	if(bt_content->ble_content.server_uuid.len <= 0) {
+		pr_info("%s: invalid server_uuid len = %d\n", __func__,
+			bt_content->ble_content.server_uuid.len);
+		return -1;
+	}
 
 	// random addr
 	srand(time(NULL) + getpid() + getpid() * 987654 + rand());
@@ -1158,11 +1180,16 @@ int gatt_init(RkBtContent *bt_content)
 
 	//save random addr
 	memcpy(bt_content->ble_content.le_random_addr, le_random_addr, sizeof(le_random_addr));
+
 	//adv data set
-	ble_adv_set(bt_content, &ble_content_internal_bak);
-	pr_info("gatt_init server_uuid: %s\n", ble_content_internal_bak.server_uuid);
+	if(ble_adv_set(bt_content, &ble_content_internal_bak) < 0) {
+		printf("%s: ble_adv_set failed\n", __func__);
+		return -1;
+	}
+
+	pr_info("%s server_uuid: %s\n", __func__, ble_content_internal_bak.server_uuid);
 	ble_content_internal = &ble_content_internal_bak;
 	gatt_create_services();
 
-	return 1;
+	return 0;
 }

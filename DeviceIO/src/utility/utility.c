@@ -151,20 +151,33 @@ int get_ps_pid(const char Name[])
 int kill_task(char *name)
 {
 	char cmd[128] = {0};
-	int retry_cnt = 6;
+	int exec_cnt = 3, retry_cnt = 10;
+
+	if (!get_ps_pid(name))
+		return 0;
 
 	memset(cmd, 0, 128);
 	sprintf(cmd, "killall %s", name);
 
-retry:
-	exec_command_system(cmd);
+	while(exec_cnt) {
+		if(!exec_command_system(cmd))
+			break;
+		exec_cnt--;
+	}
+
+	if(exec_cnt <= 0) {
+		pr_info("%s: kill %s failed\n", __func__, name);
+		return -1;
+	}
 	msleep(100);
 
+retry:
 	if (get_ps_pid(name) && (retry_cnt--)) {
 		msleep(100);
 		goto retry;
 	}
 
+	pr_info("%s: kill %s, retry_cnt = %d\n", __func__, name, retry_cnt);
 	if (get_ps_pid(name))
 		return -1;
 	else
@@ -173,12 +186,21 @@ retry:
 
 int run_task(char *name, char *cmd)
 {
-	int retry_cnt = 3;
+	int exec_cnt = 3, retry_cnt = 6;
 
-retry:
-	exec_command_system(cmd);
+	while(exec_cnt) {
+		if(!exec_command_system(cmd))
+			break;
+		exec_cnt--;
+	}
+
+	if(exec_cnt <= 0) {
+		pr_info("%s: run %s failed\n", __func__, name);
+		return -1;
+	}
 	msleep(100);
 
+retry:
 	if (!get_ps_pid(name) && (retry_cnt--)) {
 		msleep(100);
 		goto retry;

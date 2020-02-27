@@ -22,10 +22,13 @@ void bt_test_unpair_by_addr(char *data);
 void bt_test_get_paired_devices(char *data);
 void bt_test_free_paired_devices(char *data);
 void bt_test_start_discovery(char *data);
+void bt_test_start_discovery_bredr(char *data);
+void bt_test_start_discovery_le(char *data);
 void bt_test_cancel_discovery(char *data);
 void bt_test_is_discovering(char *data);
 void bt_test_display_devices(char *data);
 void bt_test_display_paired_devices(char *data);
+void bt_test_get_scaned_devices(char *data);
 
 /******************************************/
 /*               BLE Test                 */
@@ -86,6 +89,7 @@ void bt_test_source_close(char *data);
 void bt_test_source_connect_by_addr(char *data);
 void bt_test_source_disconnect_by_addr(char *data);
 void bt_test_source_remove_by_addr(char *data);
+void bt_test_source_disconnect(char *data);
 
 /******************************************/
 /*              SPP Test                  */

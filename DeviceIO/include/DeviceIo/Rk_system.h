@@ -6,6 +6,16 @@ extern "C" {
 #endif
 
 /*
+ *Version 1.3.3 Release 2020/02/27
+  1.bluez: support for setting up scan filtering(LE BR/EDR or both)
+  2.bluez: optimize the init/deinit execution time
+  3.bluez: add rk_bt_get_scaned_devices/rk_bt_free_scaned_devices api
+  4.bluez: source: add the first scan automatically reconnects
+  5.bluez: source: fix connection failed during scan
+  6.bluez: fix init crash in qt new thread(due to mainloop thread sync)
+  7.rk_bt_source_connect rename rk_bt_source_connect_by_addr
+  8.rk_bt_source_disconnect rename rk_bt_source_disconnect_by_addr
+  9.bluez: change rk_bt_source_disconnect api to disconnect current connection
  *Version 1.3.2 Release 2019/12/12
   bluez: support ble client
  *Version 1.3.1 Release 2019/11/16
@@ -94,7 +104,7 @@ extern "C" {
  *Version 1.0.0 Release 2018/12/22
  */
 
-#define DEVICEIO_VERSION "V1.3.2"
+#define DEVICEIO_VERSION "V1.3.3"
 
 int RK_read_chip_id(char *buffer, const int size);
 int RK_read_version(char *buffer, const int size);

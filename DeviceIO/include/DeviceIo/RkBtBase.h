@@ -1,7 +1,9 @@
 #ifndef __BT_BASE_H__
 #define __BT_BASE_H__
 
-#include <DeviceIo/bt_manager_1s2.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,6 +40,12 @@ typedef enum {
 	RK_BT_BOND_STATE_BONDED,
 } RK_BT_BOND_STATE;
 
+typedef enum {
+	SCAN_TYPE_AUTO, //LE, BR/EDR, or both
+	SCAN_TYPE_BREDR,
+	SCAN_TYPE_LE
+} RK_BT_SCAN_TYPE;
+
 /*BT discovery state*/
 typedef enum {
 	RK_BT_DISC_STARTED,
@@ -70,7 +78,13 @@ typedef struct {
 	const char *bt_addr;
 } RkBtContent;
 
-typedef struct paired_dev RkBtPraiedDevice;
+typedef struct scaned_dev {
+	char *remote_address;
+	char *remote_name;
+	unsigned int cod; //class of device
+	bool is_connected;
+	struct scaned_dev *next;
+} RkBtScanedDevice;
 
 typedef void (*RK_BT_STATE_CALLBACK)(RK_BT_STATE state);
 typedef void (*RK_BT_BOND_CALLBACK)(const char *bd_addr, const char *name, RK_BT_BOND_STATE state);
@@ -87,21 +101,25 @@ int rk_bt_is_connected(void);
 int rk_bt_set_class(int value);
 int rk_bt_set_sleep_mode(void);
 int rk_bt_enable_reconnect(int value);
-int rk_bt_start_discovery(unsigned int mseconds);
+int rk_bt_start_discovery(unsigned int mseconds, RK_BT_SCAN_TYPE scan_type);
 int rk_bt_cancel_discovery();
 bool rk_bt_is_discovering();
+int rk_bt_get_scaned_devices(RkBtScanedDevice **dev_list, int *count);
+int rk_bt_free_scaned_devices(RkBtScanedDevice *dev_list);
 void rk_bt_display_devices();
 int rk_bt_pair_by_addr(char *addr);
 int rk_bt_unpair_by_addr(char *addr);
 int rk_bt_set_device_name(char *name);
 int rk_bt_get_device_name(char *name, int len);
 int rk_bt_get_device_addr(char *addr, int len);
-int rk_bt_get_paired_devices(RkBtPraiedDevice **dev_list,int *count);
-int rk_bt_free_paired_devices(RkBtPraiedDevice *dev_list);
+int rk_bt_get_paired_devices(RkBtScanedDevice **dev_list, int *count);
+int rk_bt_free_paired_devices(RkBtScanedDevice *dev_list);
 void rk_bt_display_paired_devices();
+int rk_bt_set_visibility(const int visiable, const int connectable);
 
 /*INVALID = 0, SOURCE = 1, SINK = 2*/
 int rk_bt_get_playrole_by_addr(char *addr);
+
 
 #ifdef __cplusplus
 }

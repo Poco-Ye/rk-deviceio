@@ -32,9 +32,9 @@ bool bt_source_is_open(void);
 bool bt_sink_is_open(void);
 bool bt_hfp_is_open(void);
 int bt_interface(BtControl type, void *data);
-void bt_close_ble(void);
-int bt_close_sink(void);
-int bt_close_source(void);
+void bt_close_ble(bool disconnect);
+int bt_close_sink(bool disconnect);
+int bt_close_source(bool disconnect);
 int bt_control_cmd_send(enum BtControl bt_ctrl_cmd);
 int bt_gethostname(char *hostname_buf, const size_t size);
 
