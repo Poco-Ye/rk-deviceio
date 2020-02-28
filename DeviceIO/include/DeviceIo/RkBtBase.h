@@ -120,6 +120,8 @@ int rk_bt_set_visibility(const int visiable, const int connectable);
 /*INVALID = 0, SOURCE = 1, SINK = 2*/
 int rk_bt_get_playrole_by_addr(char *addr);
 
+//for bsa, default /usr/bin/bsa_server.sh
+void rk_bt_set_bsa_server_path(char *path);
 
 #ifdef __cplusplus
 }

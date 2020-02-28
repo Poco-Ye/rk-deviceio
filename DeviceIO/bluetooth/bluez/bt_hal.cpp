@@ -1469,6 +1469,11 @@ int rk_bt_set_visibility(const int visiable, const int connectable)
 	return 0;
 }
 
+void rk_bt_set_bsa_server_path(char *path)
+{
+	pr_info("bluez don't support %s\n", __func__);
+}
+
 /*****************************************************************
  *            Rockchip bluetooth hfp-hf api                      *
  *****************************************************************/

@@ -42,6 +42,8 @@ volatile bt_control_t g_bt_control = {
     false, false, false, false, false, false, NULL, NULL,
 };
 
+static char *g_bsa_server_path = NULL;
+
 static bool bt_is_open();
 static bool ble_is_open();
 static bool a2dp_sink_is_open();
@@ -118,9 +120,11 @@ static int rk_system(const char *cmd_line)
    return ret;
 }
 
-static void check_bsa_server_exist()
+static int check_bsa_server_exist()
 {
-    while(1) {
+    int cnt = 20;
+
+    while(cnt--) {
         if (get_ps_pid("bsa_server")) {
             APP_DEBUG0("bsa_server has been opened");
             break;
@@ -129,11 +133,20 @@ static void check_bsa_server_exist()
         usleep(500 * 1000);
         APP_DEBUG0("wait bsa_server open");
     }
+
+    if(cnt <= 0) {
+        APP_DEBUG0("bsa_server open failed");
+        return -1;
+    }
+
+    return 0;
 }
 
-static void check_bsa_server_exit()
+static int check_bsa_server_exit()
 {
-    while(1) {
+    int cnt = 20;
+
+    while(cnt--) {
         if (!get_ps_pid("bsa_server")) {
             APP_DEBUG0("bsa_server has been closed");
             break;
@@ -142,6 +155,11 @@ static void check_bsa_server_exit()
         usleep(500 * 1000);
         APP_DEBUG0("wait bsa_server close");
     }
+
+    if(cnt <= 0)
+        return -1;
+
+    return 0;
 }
 
 static bool bt_is_open()
@@ -151,7 +169,16 @@ static bool bt_is_open()
 
 static int bt_bsa_server_open()
 {
-    if(0 != rk_system("/usr/bin/bsa_server.sh start &")) {
+    char cmd[256];
+
+    memset(cmd, 0, 256);
+    if(g_bsa_server_path)
+        sprintf(cmd, "%s %s", g_bsa_server_path, "start &");
+    else
+        memcpy(cmd, "/usr/bin/bsa_server.sh start &", strlen("/usr/bin/bsa_server.sh start &"));
+
+    APP_DEBUG1("%s", cmd);
+    if(0 != rk_system(cmd)) {
         APP_DEBUG1("Start bsa_server failed: %s\n", strerror(errno));
         return -1;
     }
@@ -160,11 +187,46 @@ static int bt_bsa_server_open()
 
 static int bt_bsa_server_close()
 {
-    if(0 != rk_system("/usr/bin/bsa_server.sh stop &")) {
+    char cmd[256];
+
+    memset(cmd, 0, 256);
+    if(g_bsa_server_path)
+        sprintf(cmd, "%s %s", g_bsa_server_path, "stop &");
+    else
+        memcpy(cmd, "/usr/bin/bsa_server.sh stop &", strlen("/usr/bin/bsa_server.sh stop &"));
+
+    APP_DEBUG1("%s", cmd);
+    if(0 != rk_system(cmd)) {
         APP_DEBUG1("Stop bsa_server failed: %s", strerror(errno));
         return -1;
     }
     return 0;
+}
+
+void rk_bt_set_bsa_server_path(char *path)
+{
+	int len;
+
+	if(!path) {
+		APP_DEBUG0("Invalid bsa server path");
+		return;
+	}
+
+	if(g_bsa_server_path) {
+		free(g_bsa_server_path);
+		g_bsa_server_path = NULL;
+	}
+
+	len = strlen(path) + 1;
+	g_bsa_server_path = malloc(len);
+	if(!g_bsa_server_path) {
+		APP_DEBUG0("malloc bsa server path failed");
+		return;
+	}
+
+	memset(g_bsa_server_path, 0, len);
+	memcpy(g_bsa_server_path, path, len - 1);
+	APP_DEBUG1("%s", g_bsa_server_path);
 }
 
 int rk_bt_is_connected()
@@ -247,7 +309,8 @@ int rk_bt_init(RkBtContent *p_bt_content)
         return -1;
     }
 
-    check_bsa_server_exist();
+    if(check_bsa_server_exist() < 0)
+		return -1;
 
     APP_DEBUG1("p_bt_content->bt_name: %s", p_bt_content->bt_name);
 
@@ -287,10 +350,16 @@ int rk_bt_deinit()
     app_mgr_deregister_disc_cb();
     app_mgr_deregister_dev_found_cb();
     g_bt_control.bt_bond_cb = NULL;
-    g_bt_control.is_bt_open = false;
 
     bsa_bt_state_send(RK_BT_STATE_OFF);
     g_bt_control.bt_state_cb = NULL;
+
+    if(g_bsa_server_path) {
+        free(g_bsa_server_path);
+        g_bsa_server_path = NULL;
+    }
+
+    g_bt_control.is_bt_open = false;
     return 0;
 }
 
