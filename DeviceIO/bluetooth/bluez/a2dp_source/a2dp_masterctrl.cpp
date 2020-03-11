@@ -81,14 +81,13 @@ typedef struct {
 	char reconnect_address[18];
 } bt_source_info_t;
 
-struct adapter *default_ctrl;
-GDBusProxy *default_dev;
+struct adapter *default_ctrl = NULL;
+GDBusProxy *default_dev = NULL;
 GDBusProxy *ble_dev = NULL;
-GDBusProxy *default_attr;
+GDBusProxy *default_attr = NULL;
 GList *ctrl_list;
 
 GDBusClient *btsrc_client = NULL;
-static GMainLoop *btsrc_main_loop = NULL;
 /* For scan cmd */
 #define BTSRC_SCAN_PROFILE_INVALID 0
 #define BTSRC_SCAN_PROFILE_SOURCE  1
@@ -207,9 +206,17 @@ void bt_deregister_state_callback()
 
 void ble_state_send(RK_BLE_STATE status)
 {
-	if(g_bt_callback.ble_state_cb)
-		g_bt_callback.ble_state_cb(status);
+	char addr[18], name[256];
 
+	if(!g_bt_callback.ble_state_cb || !ble_is_open())
+		return;
+
+	memset(addr, 0, 18);
+	memset(name, 0, 256);
+	bt_get_device_addr_by_proxy(ble_dev, addr, 18);
+	bt_get_device_name_by_proxy(ble_dev, name, 256);
+
+	g_bt_callback.ble_state_cb(addr, name, status);
 	g_ble_state = status;
 }
 
@@ -909,6 +916,11 @@ static void le_proxy_added()
 {
 	enum BT_Device_Class bdc;
 
+	if(!ble_dev) {
+		pr_info("%s: ble_dev is null\n", __func__);
+		return;
+	}
+
 	bdc = dist_dev_class(ble_dev);
 	pr_info("%s: bdc = %d\n", __func__, bdc);
 	if(bdc == BT_Device_Class::BT_SINK_DEVICE || bdc == BT_Device_Class::BT_SOURCE_DEVICE) {
@@ -916,10 +928,9 @@ static void le_proxy_added()
 	}
 
 	pr_info("%s: ble_service_cnt = %d\n", __func__, ble_service_cnt);
-
 	if (ble_service_cnt == 0) {
 		if(ble_is_open()) {
-			ble_state_send(RK_BLE_STATE_CONNECT);
+			//ble_state_send(RK_BLE_STATE_CONNECT);
 			ble_wifi_clean();
 			pr_info("%s: ble conneced\n", __func__);
 		} else if (ble_client_is_open()) {
@@ -1072,7 +1083,6 @@ static void le_proxy_removed(GDBusProxy *proxy)
 	ble_service_cnt--;
 	pr_info("%s: ble_service_cnt = %d\n", __func__, ble_service_cnt);
 	if (ble_service_cnt == 0) {
-		ble_dev = NULL;
 		if(ble_is_open()) {
 			ble_state_send(RK_BLE_STATE_DISCONNECT);
 			pr_info("%s: ble disconneced\n", __func__);
@@ -1081,6 +1091,7 @@ static void le_proxy_removed(GDBusProxy *proxy)
 			gatt_client_state_send(RK_BLE_CLIENT_STATE_DISCONNECT);
 			pr_info("%s: ble client disconneced\n", __func__);
 		}
+		ble_dev = NULL;
 	}
 }
 
@@ -1263,6 +1274,13 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 
 			if(strcmp(name, "RSSI") == 0)
 				source_reconnect_handler(dev_addr);
+
+			if(strcmp(name, "Alias") == 0) {
+				enum BT_Device_Class bdc;
+				bdc = dist_dev_class(proxy);
+				if(bdc != BT_Device_Class::BT_SINK_DEVICE && bdc != BT_Device_Class::BT_SOURCE_DEVICE)
+					ble_state_send(RK_BLE_STATE_CONNECT);
+			}
 		}
 	} else if (!strcmp(interface, "org.bluez.Adapter1")) {
 		DBusMessageIter addr_iter;
@@ -3383,6 +3401,11 @@ int ble_disconnect()
 	return 0;
 }
 
+void ble_service_cnt_clean()
+{
+	ble_service_cnt = 0;
+}
+
 static int disconnect_by_proxy(GDBusProxy *proxy)
 {
 	if (!proxy) {
@@ -3478,12 +3501,13 @@ int remove_by_address(char *t_address)
 	return remove_device(proxy);
 }
 
-static int a2dp_master_save_status(char *address)
+int a2dp_master_save_status(char *address)
 {
 	char buff[100] = {0};
 	struct sockaddr_un serverAddr;
 	int snd_cnt = 3;
 	int sockfd;
+	int send_len = 0;
 
 	sockfd = socket(AF_UNIX, SOCK_DGRAM, 0);
 	if (sockfd < 0) {
@@ -3493,16 +3517,21 @@ static int a2dp_master_save_status(char *address)
 
 	serverAddr.sun_family = AF_UNIX;
 	strcpy(serverAddr.sun_path, "/tmp/a2dp_master_status");
-	memset(buff, 0, sizeof(buff));
 
+	memset(buff, 0, sizeof(buff));
 	if (address)
 		sprintf(buff, "status:connect;address:%s;", address);
 	else
 		sprintf(buff, "status:disconnect;");
 
 	while(snd_cnt--) {
-		sendto(sockfd, buff, strlen(buff), MSG_DONTWAIT, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
-		usleep(1000); //5ms
+		send_len = sendto(sockfd, buff, strlen(buff), MSG_DONTWAIT, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
+		if(send_len == strlen(buff)) {
+			pr_info("%s: send: %s(%d)\n", __func__, buff, send_len);
+			break;
+		}
+
+		usleep(1000);
 	}
 
 	close(sockfd);
@@ -4607,4 +4636,29 @@ void source_stop_connecting()
 		if(!disconnect_by_address(g_bt_source_info.connect_address))
 			sleep(3);
 	}
+}
+
+bool get_device_connected_properties(char *addr)
+{
+	GDBusProxy *proxy;
+	DBusMessageIter iter;
+	dbus_bool_t is_connected = FALSE;
+
+	if (!addr || (strlen(addr) < 17)) {
+		pr_err("%s: Invalid address\n", __func__);
+		return false;
+	}
+
+	proxy = find_device_by_address(addr);
+	if (!proxy) {
+		pr_info("%s: Invalid proxy\n", __func__);
+		return false;
+	}
+
+	if (g_dbus_proxy_get_property(proxy, "Connected", &iter))
+		dbus_message_iter_get_basic(&iter, &is_connected);
+	else
+		pr_info("%s: Can't get connected status\n", __func__);
+
+	return is_connected;
 }

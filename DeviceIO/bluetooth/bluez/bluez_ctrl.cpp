@@ -49,8 +49,6 @@ volatile bt_control_t bt_control = {
 	0,
 };
 
-RkBtContent GBt_Content;
-
 static int bt_close_a2dp_server();
 
 int bt_gethostname(char *hostname_buf, const size_t size)
@@ -107,7 +105,7 @@ static int _bt_close_server(void)
 	return 0;
 }
 
-static int _bt_open_server(const char *bt_name)
+static int _bt_open_server()
 {
 	char ret_buff[1024];
 	char bt_buff[1024];
@@ -607,28 +605,14 @@ int rk_bt_control(BtControl cmd, void *data, int len)
 			return -1;
 		}
 
-		if(data) {
-			GBt_Content = *((RkBtContent *)data);
+		if (_bt_open_server() < 0) {
+			RK_LOGD("_bt_open_server failed\n");
+			return -1;
+		}
 
-			if (_bt_open_server(GBt_Content.bt_name) < 0) {
-				RK_LOGD("_bt_open_server failed\n");
-				return -1;
-			}
-
-			if (bt_open(&GBt_Content) < 0) {
-				RK_LOGD("bt_open failed\n");
-				return -1;
-			}
-		} else {
-			if (_bt_open_server(NULL) < 0) {
-				RK_LOGD("_bt_open_server failed\n");
-				return -1;
-			}
-
-			if (bt_open(NULL) < 0) {
-				RK_LOGD("bt_open failed\n");
-				return -1;
-			}
+		if (bt_open((RkBtContent *)data) < 0) {
+			RK_LOGD("bt_open failed\n");
+			return -1;
 		}
 
 		bt_control.is_bt_open = true;

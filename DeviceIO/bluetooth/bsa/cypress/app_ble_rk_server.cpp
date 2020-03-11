@@ -55,9 +55,19 @@ static tBSA_DM_BLE_ADV_PARAM app_ble_adv_param = {
     0, 0
 };
 
-static void app_ble_rk_server_send_state(RK_BLE_STATE state) {
-    if(app_ble_state_cb)
-        app_ble_state_cb(state);
+static void app_ble_rk_server_send_state(const char bd_addr, RK_BLE_STATE state) {
+    char address[20];
+
+    app_ble_state = state;
+
+    if(!app_ble_state_cb)
+        return;
+
+    memset(address, 0, 20);
+    if(bd_addr)
+        app_mgr_bd2str(bd_addr, address, 20);
+
+    app_ble_state_cb(address, address, state);
 }
 
 /*
@@ -1103,9 +1113,7 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
 
             /* Stop advertising */
             app_dm_set_ble_visibility(FALSE, FALSE);
-
-            app_ble_state = RK_BLE_STATE_CONNECT;
-            app_ble_rk_server_send_state(RK_BLE_STATE_CONNECT);
+            app_ble_rk_server_send_state(p_data->ser_open.remote_bda, RK_BLE_STATE_CONNECT);
             APP_INFO0("Stopping Advertisements");
         }
         break;
@@ -1142,8 +1150,7 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
 
         /* Set visisble and connectable */
         app_dm_set_ble_visibility(TRUE, TRUE);
-        app_ble_state = RK_BLE_STATE_DISCONNECT;
-        app_ble_rk_server_send_state(RK_BLE_STATE_DISCONNECT);
+        app_ble_rk_server_send_state(p_data->ser_close.remote_bda, RK_BLE_STATE_DISCONNECT);
         break;
 
     case BSA_BLE_SE_CONFIRM_EVT:
@@ -1375,7 +1382,7 @@ int app_ble_rk_server_open(RkBleContent *ble_content)
 
     APP_DEBUG0("app_ble_rk_server_open");
 
-    app_ble_rk_server_send_state(RK_BLE_STATE_IDLE);
+    app_ble_rk_server_send_state("", RK_BLE_STATE_IDLE);
 
     /* Initialize BLE application */
     ret = app_ble_init();
@@ -1427,8 +1434,7 @@ void app_ble_rk_server_close()
     /* Exit BLE mode */
     app_ble_exit();
 
-    app_ble_state = RK_BLE_STATE_IDLE;
-    app_ble_rk_server_send_state(RK_BLE_STATE_IDLE);
+    app_ble_rk_server_send_state("", RK_BLE_STATE_IDLE);
     app_ble_rk_server_deregister_cb();
 
     app_dm_set_ble_local_privacy(FALSE);

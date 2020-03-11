@@ -103,6 +103,7 @@ static command_bt_t bt_command_table[] = {
 	{"bt_test_free_paired_devices", bt_test_free_paired_devices},
 	{"bt_test_pair_by_addr", bt_test_pair_by_addr},
 	{"bt_test_unpair_by_addr", bt_test_unpair_by_addr},
+	{"bt_test_get_connected_properties", bt_test_get_connected_properties},
 	{"bt_test_source_auto_start", bt_test_source_auto_start},
 	{"bt_test_source_connect_status", bt_test_source_connect_status},
 	{"bt_test_source_auto_stop", bt_test_source_auto_stop},

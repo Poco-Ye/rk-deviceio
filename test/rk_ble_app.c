@@ -78,7 +78,7 @@ typedef struct {
 	uint8_t data[16];
 } uuid128_t;
 
-void _rk_ble_status_cb(RK_BLE_STATE state)
+void _rk_ble_status_cb(const char *bd_addr, const char *name, RK_BLE_STATE state)
 {
 	switch (state) {
 		case RK_BLE_STATE_IDLE:

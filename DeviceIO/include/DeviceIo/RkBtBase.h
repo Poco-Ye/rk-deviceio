@@ -9,6 +9,9 @@
 extern "C" {
 #endif
 
+#define MXA_ADV_DATA_LEN 32
+#define DEVICE_ADDR_LEN  6
+
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
 
@@ -59,13 +62,12 @@ typedef struct {
 	Ble_Uuid_Type_t chr_uuid[12];
 	uint8_t chr_cnt;
 	const char *ble_name;
-	uint8_t advData[256];
+	uint8_t advData[MXA_ADV_DATA_LEN];
 	uint8_t advDataLen;
-	uint8_t respData[256];
+	uint8_t respData[MXA_ADV_DATA_LEN];
 	uint8_t respDataLen;
 	uint8_t advDataType;
-	//AdvDataKgContent adv_kg;
-	char le_random_addr[6];
+	char le_random_addr[DEVICE_ADDR_LEN];
 	/* recevice data */
 	void (*cb_ble_recv_fun)(const char *uuid, char *data, int len);
 	/* full data */
@@ -116,6 +118,7 @@ int rk_bt_get_paired_devices(RkBtScanedDevice **dev_list, int *count);
 int rk_bt_free_paired_devices(RkBtScanedDevice *dev_list);
 void rk_bt_display_paired_devices();
 int rk_bt_set_visibility(const int visiable, const int connectable);
+bool rk_bt_get_connected_properties(char *addr);
 
 /*INVALID = 0, SOURCE = 1, SINK = 2*/
 int rk_bt_get_playrole_by_addr(char *addr);

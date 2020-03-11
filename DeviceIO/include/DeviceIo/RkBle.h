@@ -19,7 +19,7 @@ typedef struct {
 	int len;
 } RkBleConfig;
 
-typedef void (*RK_BLE_STATE_CALLBACK)(RK_BLE_STATE state);
+typedef void (*RK_BLE_STATE_CALLBACK)(const char *bd_addr, const char *name, RK_BLE_STATE state);
 typedef void (*RK_BLE_RECV_CALLBACK)(const char *uuid, char *data, int len);
 
 int rk_ble_register_status_callback(RK_BLE_STATE_CALLBACK cb);

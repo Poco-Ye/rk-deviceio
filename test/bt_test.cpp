@@ -23,6 +23,7 @@
 #define BLE_UUID_PROXIMITY	"7B931104-1810-4CBC-94DA-875C8067F845"
 #define BLE_UUID_SEND		"dfd4416e-1810-47f7-8248-eb8be3dc47f9"
 #define BLE_UUID_RECV		"9884d812-1810-4a24-94d3-b2c11a851fac"
+#define SERVICE_UUID		"00001910-0000-1000-8000-00805f9b34fb"
 
 #define HFP_PCM_CHANNEL_NB	2
 #define CVSD_SAMPLE_RATE	8000
@@ -159,6 +160,7 @@ static void bt_test_dev_found_cb(const char *address,const char *name, unsigned 
  * The Bluetooth basic service is turned on and the function
  * must be called before using the Bluetooth function.
  */
+#if 1
 void *bt_test_bluetooth_init_thread(void *)
 {
 	printf("%s: BT BLUETOOTH INIT\n", __func__);
@@ -184,7 +186,101 @@ void *bt_test_bluetooth_init_thread(void *)
 	rk_bt_register_bond_callback(bt_test_bond_state_cb);
 	rk_bt_init(&bt_content);
 }
+#else
+//BLE_ADVDATA_TYPE_USER demo
+void *bt_test_bluetooth_init_thread(void *)
+{
+	printf("%s: BT BLUETOOTH INIT\n", __func__);
 
+	int len, ble_name_len, remain_len;
+
+	memset(&bt_content, 0, sizeof(RkBtContent));
+	bt_content.bt_name = "ROCKCHIP_AUDIO";
+	//bt_content.bt_addr = "11:22:33:44:55:66";
+
+	bt_content.ble_content.ble_name = "ROCKCHIP_AUDIO_BLE";
+	bt_content.ble_content.server_uuid.uuid = SERVICE_UUID;
+	bt_content.ble_content.server_uuid.len = UUID_128;
+	bt_content.ble_content.chr_uuid[0].uuid = BLE_UUID_SEND;
+	bt_content.ble_content.chr_uuid[0].len = UUID_128;
+	bt_content.ble_content.chr_uuid[1].uuid = BLE_UUID_RECV;
+	bt_content.ble_content.chr_uuid[1].len = UUID_128;
+	bt_content.ble_content.chr_cnt = 2;
+
+	bt_content.ble_content.advDataType = BLE_ADVDATA_TYPE_USER;
+
+	//标识设备 LE 物理连接的功能
+	bt_content.ble_content.advData[1] = 0x02;
+	bt_content.ble_content.advData[2] = 0x01;
+	bt_content.ble_content.advData[3] = 0x02;
+
+	//service uuid(SERVICE_UUID)
+	bt_content.ble_content.advData[4] = 0x03;
+	bt_content.ble_content.advData[5] = 0x03;
+	bt_content.ble_content.advData[6] = 0x10;
+	bt_content.ble_content.advData[7] = 0x19;
+
+	//ble name
+	printf("ble_name_len: %s(%d)\n", bt_content.ble_content.ble_name, strlen(bt_content.ble_content.ble_name));
+	ble_name_len = strlen(bt_content.ble_content.ble_name);
+	remain_len = 31 - (bt_content.ble_content.advData[1] + 1)
+					- (bt_content.ble_content.advData[4] + 1);
+	len = ble_name_len > remain_len ? remain_len : ble_name_len;
+	bt_content.ble_content.advData[8] = len + 1;
+	bt_content.ble_content.advData[9] = 0x09;
+	memcpy(&bt_content.ble_content.advData[10], bt_content.ble_content.ble_name, len);
+
+	bt_content.ble_content.advData[0] = bt_content.ble_content.advData[1] + 1
+										+ bt_content.ble_content.advData[4] + 1
+										+ bt_content.ble_content.advData[8] + 1;
+	bt_content.ble_content.advDataLen = bt_content.ble_content.advData[0] + 1;
+
+	//==========================rsp======================
+	bt_content.ble_content.respData[1] = 0x16;  //长度
+	bt_content.ble_content.respData[2] = 0xFF;  //字段类型
+
+	/*厂商编码*/
+	bt_content.ble_content.respData[3] = 0x46;
+	bt_content.ble_content.respData[4] = 0x00;
+
+	bt_content.ble_content.respData[5] = 0x02;  //项目代号长度
+
+	/*项目代号*/
+	bt_content.ble_content.respData[6] = 0x1c;
+	bt_content.ble_content.respData[7] = 0x02;
+
+	bt_content.ble_content.respData[8] = 0x04;  //版本号长度
+	bt_content.ble_content.respData[9] = 'T';   //版本号类型
+	/*版本号*/
+	bt_content.ble_content.respData[10] = 0x01;
+	bt_content.ble_content.respData[11] = 0x00;
+	bt_content.ble_content.respData[12] = 0x00;
+
+	bt_content.ble_content.respData[13] = 0x08;	// SN长度
+	/*SN号*/
+	bt_content.ble_content.respData[14] = 0x54;
+	bt_content.ble_content.respData[15] = 0x00;
+	bt_content.ble_content.respData[16] = 0x00;
+	bt_content.ble_content.respData[17] = 0x00;
+	bt_content.ble_content.respData[18] = 0x00;
+	bt_content.ble_content.respData[19] = 0x00;
+	bt_content.ble_content.respData[20] = 0x00;
+	bt_content.ble_content.respData[21] = 0x36;
+
+	bt_content.ble_content.respData[22] = 0x01;	//绑定信息长度
+	bt_content.ble_content.respData[23] = 0x00;	//绑定信息
+
+	bt_content.ble_content.respData[0] = bt_content.ble_content.respData[1] + 1;  //长度
+	bt_content.ble_content.respDataLen = bt_content.ble_content.respData[0] + 1;
+
+	bt_content.ble_content.cb_ble_recv_fun = bt_test_ble_recv_data_callback;
+	bt_content.ble_content.cb_ble_request_data = bt_test_ble_request_data_callback;
+	rk_bt_register_state_callback(bt_test_state_cb);
+	rk_bt_register_bond_callback(bt_test_bond_state_cb);
+	rk_bt_init(&bt_content);
+}
+
+#endif
 static pthread_t bt_init_thread = 0;
 void bt_test_bluetooth_init(char *data)
 {
@@ -356,6 +452,13 @@ void bt_test_display_devices(char *data)
 void bt_test_display_paired_devices(char *data)
 {
 	rk_bt_display_paired_devices();
+}
+
+void bt_test_get_connected_properties(char *data)
+{
+	bool is_connected = false;
+	is_connected = rk_bt_get_connected_properties(data);
+	printf("the device connected properties is %s\n", (is_connected == true) ? "yes" : "no");
 }
 
 /******************************************/
@@ -709,7 +812,7 @@ void bt_test_source_disconnect(char *data)
 /******************************************/
 /*                  BLE                   */
 /******************************************/
-static void ble_status_callback_test(RK_BLE_STATE state)
+static void ble_status_callback_test(const char *bd_addr, const char *name, RK_BLE_STATE state)
 {
 	printf("%s: status: %d.\n", __func__, state);
 
@@ -718,10 +821,10 @@ static void ble_status_callback_test(RK_BLE_STATE state)
 			printf("+++++ RK_BLE_STATE_IDLE +++++\n");
 			break;
 		case RK_BLE_STATE_CONNECT:
-			printf("+++++ RK_BLE_STATE_CONNECT +++++\n");
+			printf("+++++ RK_BLE_STATE_CONNECT: %s, %s +++++\n", name, bd_addr);
 			break;
 		case RK_BLE_STATE_DISCONNECT:
-			printf("+++++ RK_BLE_STATE_DISCONNECT +++++\n");
+			printf("+++++ RK_BLE_STATE_DISCONNECT: %s, %s +++++\n", name, bd_addr);
 			break;
 	}
 }

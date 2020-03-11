@@ -579,6 +579,12 @@ int rk_bt_set_visibility(const int visiable, const int connect)
     return app_dm_set_visibility(discoverable, connectable);
 }
 
+bool rk_bt_get_connected_properties(char *addr)
+{
+	APP_DEBUG1("bsa don't support %s", __func__);
+	return false;
+}
+
 /******************************************/
 /*               A2DP SINK                */
 /******************************************/

@@ -33,6 +33,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <assert.h>
+#include <arpa/inet.h>
 #include <sys/signalfd.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -90,17 +91,18 @@ struct AdvRespDataContent {
 };
 
 #define GATT_MAX_CHR 10
+#define MAX_UUID_LEN 38
 typedef struct BLE_CONTENT_T
 {
-	uint8_t advData[32];
+	uint8_t advData[MXA_ADV_DATA_LEN];
 	uint8_t advDataLen;
-	uint8_t respData[32];
+	uint8_t respData[MXA_ADV_DATA_LEN];
 	uint8_t respDataLen;
-	uint8_t server_uuid[38];
-	uint8_t char_uuid[GATT_MAX_CHR][38];
+	uint8_t server_uuid[MAX_UUID_LEN];
+	uint8_t char_uuid[GATT_MAX_CHR][MAX_UUID_LEN];
 	uint8_t char_cnt;
-	int (*cb_ble_recv_fun)(char *uuid, char *data, int len);
-	void (*cb_ble_request_data)(char *uuid);
+	void (*cb_ble_recv_fun)(const char *uuid, char *data, int len);
+	void (*cb_ble_request_data)(const char *uuid);
 } ble_content_t;
 
 ble_content_t *ble_content_internal = NULL;
@@ -110,8 +112,9 @@ static int gdesc_id = 0;
 static int characteristic_id = 1;
 static int service_id = 1;
 
-char le_random_addr[6];
-char CMD_RA[256] = "hcitool -i hci0 cmd 0x08 0x0005";
+char le_random_addr[DEVICE_ADDR_LEN];
+static char g_cmd_ra[256];
+#define CMD_RA "hcitool -i hci0 cmd 0x08 0x0005"
 #define CMD_PARA "hcitool -i hci0 cmd 0x08 0x0006 A0 00 A0 00 00 01 00 00 00 00 00 00 00 07 00"
 
 #define SERVICES_UUID            "23 20 56 7c 05 cf 6e b4 c3 41 77 28 51 82 7e 1b"
@@ -144,7 +147,7 @@ struct characteristic {
 
 struct characteristic *gchr[GATT_MAX_CHR];
 struct descriptor *gdesc[GATT_MAX_CHR];
-char *gservice_path;
+char *gservice_path = NULL;
 
 struct descriptor {
 	struct characteristic *chr;
@@ -484,7 +487,7 @@ static int parse_options(DBusMessageIter *iter, const char **device)
 static char ret_buff[1024];
 static void execute(const char cmdline[], char recv_buff[], int len)
 {
-	pr_info("[GATT_CONFIG] execute: %s\n", cmdline);
+	//pr_info("[GATT_CONFIG] execute: %s\n", cmdline);
 
 	FILE *stream = NULL;
 	char *tmp_buff = recv_buff;
@@ -499,7 +502,7 @@ static void execute(const char cmdline[], char recv_buff[], int len)
 			if (len <= 1)
 				break;
 		}
-		pr_info("[GATT_CONFIG] execute_r: %s \n", recv_buff);
+		//pr_info("[GATT_CONFIG] execute_r: %s \n", recv_buff);
 		pclose(stream);
 	}
 }
@@ -572,9 +575,7 @@ static DBusMessage *chr_write_value(DBusConnection *conn, DBusMessage *msg,
 	}
 
 	if (ble_content_internal->cb_ble_recv_fun) {
-		pr_info("cb_ble_recv_fun enter \n");
 		ble_content_internal->cb_ble_recv_fun(chr->uuid, (char *)chr->value, len);
-		pr_info("cb_ble_recv_fun exit \n");
 	} else {
 		pr_info("cb_ble_recv_fun is null !!! \n");
 	}
@@ -874,7 +875,7 @@ int gatt_set_on_adv(void)
 	}
 
 	//LE Set Random Address Command
-	execute(CMD_RA, ret_buff, 1024);
+	execute(g_cmd_ra, ret_buff, 1024);
 	pr_info("CMD_RA buff: %s", ret_buff);
 	sleep(1);
 	//LE SET PARAMETERS
@@ -891,25 +892,25 @@ int gatt_set_on_adv(void)
 	pr_info("CMD_ADV_DATA: %s\n", CMD_ADV_DATA);
 	execute(CMD_ADV_DATA, ret_buff, 1024);
 
-	memset(temp, 0, 32);
-	for (i = 0; i < ble_content_internal->respDataLen; i++) {
-		sprintf(temp, "%02x", ble_content_internal->respData[i]);
-		strcat(CMD_ADV_RESP_DATA, " ");
-		strcat(CMD_ADV_RESP_DATA, temp);
+	if(ble_content_internal->respDataLen > 0) {
+		memset(temp, 0, 32);
+		for (i = 0; i < ble_content_internal->respDataLen; i++) {
+			sprintf(temp, "%02x", ble_content_internal->respData[i]);
+			strcat(CMD_ADV_RESP_DATA, " ");
+			strcat(CMD_ADV_RESP_DATA, temp);
+		}
+		usleep(500000);
+		pr_info("CMD_ADV_RESP_DATA: %s\n", CMD_ADV_RESP_DATA);
+		execute(CMD_ADV_RESP_DATA, ret_buff, 1024);
 	}
-	usleep(500000);
-	pr_info("CMD_ADV_RESP_DATA: %s\n", CMD_ADV_RESP_DATA);
-	execute(CMD_ADV_RESP_DATA, ret_buff, 1024);
 
 	// LE Set Advertise Enable Command
 	execute(CMD_EN, ret_buff, 1024);
-
 	return 0;
 }
 
 static void register_app_reply(DBusMessage *reply, void *user_data)
 {
-	pr_info("register_app_reply\n");
 	DBusError derr;
 
 	dbus_error_init(&derr);
@@ -962,12 +963,10 @@ static void unregister_app_reply(DBusMessage *message, void *user_data)
 		pr_info("Failed to unregister application: %s\n",
 				error.name);
 		dbus_error_free(&error);
-		return bt_shell_noninteractive_quit(EXIT_FAILURE);
+		return;
 	}
 
 	pr_info("Application unregistered\n");
-
-	//return bt_shell_noninteractive_quit(EXIT_SUCCESS);
 }
 
 static void unregister_app_setup(DBusMessageIter *iter, void *user_data)
@@ -984,7 +983,7 @@ void unregister_app(GDBusProxy *proxy)
 						unregister_app_reply, NULL,
 						NULL) == FALSE) {
 		pr_info("Failed unregister profile\n");
-		return bt_shell_noninteractive_quit(EXIT_FAILURE);
+		return;
 	}
 }
 
@@ -1000,9 +999,13 @@ int gatt_setup(void)
 void gatt_cleanup(void)
 {
 	if(ble_content_internal) {
-		pr_info("gatt_cleanup\n");
 		unregister_ble();
 		ble_content_internal = NULL;
+	}
+
+	if(gservice_path) {
+		g_free(gservice_path);
+		gservice_path = NULL;
 	}
 }
 
@@ -1063,10 +1066,8 @@ static int bt_string_to_uuid128(uuid128_t *uuid, const char *string, int rever)
 		pr_info("\n");
 	}
 
-	//bt_uuid128_create(uuid, u128);
 	memset(uuid, 0, sizeof(uuid128_t));
 	memcpy(uuid, &u128, sizeof(uuid128_t));
-
 	return 0;
 }
 
@@ -1079,16 +1080,16 @@ static int ble_adv_set(RkBtContent *bt_content, ble_content_t *ble_content)
 	uuid128_t uuid;
 
 	if (bt_content->ble_content.advDataType == BLE_ADVDATA_TYPE_USER) {
-		if (bt_content->ble_content.advDataLen == 0) {
+		if (bt_content->ble_content.advDataLen <= 0) {
 			pr_info("ERROR:Under the premise that advDataType is BLE_ADVDATA_TYPE_USER,"
 				"the user must set the correct advData");
 			return -1;
 		}
 
-		memcpy(ble_content->advData, bt_content->ble_content.advData, bt_content->ble_content.advDataLen);
+		memcpy(ble_content->advData, bt_content->ble_content.advData, MXA_ADV_DATA_LEN);
 		ble_content->advDataLen = bt_content->ble_content.advDataLen;
-		if (bt_content->ble_content.respDataLen) {
-			memcpy(ble_content->respData, bt_content->ble_content.respData, bt_content->ble_content.respDataLen);
+		if (bt_content->ble_content.respDataLen > 0) {
+			memcpy(ble_content->respData, bt_content->ble_content.respData, MXA_ADV_DATA_LEN);
 			ble_content->respDataLen = bt_content->ble_content.respDataLen;
 		}
 	} else {
@@ -1112,34 +1113,31 @@ static int ble_adv_set(RkBtContent *bt_content, ble_content_t *ble_content)
 			name_len = strlen(bt_content->ble_content.ble_name);
 			if (name_len > sizeof(advdataresp.local_name_value))
 				name_len = sizeof(advdataresp.local_name_value);
+			memcpy(advdataresp.local_name_value, bt_content->ble_content.ble_name, name_len);
 			advdataresp.local_name_length = name_len + 1;
 		} else {
 			bt_gethostname(hostname);
 			name_len = strlen(hostname);
 			if (name_len > sizeof(advdataresp.local_name_value))
 				name_len = sizeof(advdataresp.local_name_value);
+			memcpy(advdataresp.local_name_value, hostname, name_len);
 			advdataresp.local_name_length = name_len + 1;
 		}
 		advdataresp.local_name_flag = AD_COMPLETE_LOCAL_NAME;
 		advdataresp.adv_resp_length = advdataresp.local_name_length + 1;
 
-		for (i = 0; i < name_len; i++) {
-			if (bt_content->ble_content.ble_name)
-				advdataresp.local_name_value[i] = bt_content->ble_content.ble_name[i];
-			else
-				advdataresp.local_name_value[i] = hostname[i];
-		}
-
 		ble_content->respDataLen = advdataresp.adv_resp_length + 1;
 		memcpy(ble_content->respData, (uint8_t *)(&advdataresp), ble_content->respDataLen);
 	}
 
-	uuid_len = strlen(bt_content->ble_content.server_uuid.uuid);
+	uuid_len = MAX_UUID_LEN > strlen(bt_content->ble_content.server_uuid.uuid) ? strlen(bt_content->ble_content.server_uuid.uuid) : MAX_UUID_LEN;
 	memcpy(ble_content->server_uuid, bt_content->ble_content.server_uuid.uuid, uuid_len);
 
 	/* set chr uuid */
-	for (i = 0; i < bt_content->ble_content.chr_cnt; i++)
-		strcpy(ble_content->char_uuid[i], bt_content->ble_content.chr_uuid[i].uuid);
+	for (i = 0; i < bt_content->ble_content.chr_cnt; i++) {
+		uuid_len = MAX_UUID_LEN > strlen(bt_content->ble_content.chr_uuid[i].uuid) ? strlen(bt_content->ble_content.chr_uuid[i].uuid) : MAX_UUID_LEN;
+		memcpy(ble_content->char_uuid[i], bt_content->ble_content.chr_uuid[i].uuid, uuid_len);
+	}
 
 	ble_content->char_cnt = bt_content->ble_content.chr_cnt;
 	ble_content->cb_ble_recv_fun = bt_content->ble_content.cb_ble_recv_fun;
@@ -1149,11 +1147,9 @@ static int ble_adv_set(RkBtContent *bt_content, ble_content_t *ble_content)
 
 int gatt_init(RkBtContent *bt_content)
 {
-	//creat random address
-	char temp_addr[256];
+	char temp_addr[10];
 	int i;
 
-	default_ctrl = NULL;
 	characteristic_id = 1;
 	service_id = 1;
 	gid = 0;
@@ -1167,29 +1163,33 @@ int gatt_init(RkBtContent *bt_content)
 
 	// random addr
 	srand(time(NULL) + getpid() + getpid() * 987654 + rand());
-	for(i = 0; i < 6;i++)
+	for(i = 0; i < DEVICE_ADDR_LEN;i++)
 		 le_random_addr[i] = rand() & 0xFF;
-
 	le_random_addr[5] &= 0x3f;		/* Clear two most significant bits */
 	le_random_addr[5] |= 0xc0;		/* Set second most significant bit */
-	for (i = 0; i < 6;i++) {
+
+	memset(g_cmd_ra, 0, 256);
+	strcat(g_cmd_ra, CMD_RA);
+	for (i = 0; i < DEVICE_ADDR_LEN; i++) {
+		memset(temp_addr, 0, 10);
 		sprintf(temp_addr, "%02x", le_random_addr[i]);
-		strcat(CMD_RA, " ");
-		strcat(CMD_RA, temp_addr);
+		strcat(g_cmd_ra, " ");
+		strcat(g_cmd_ra, temp_addr);
 	}
 
+	printf("CMD_RA: %d, %s(%p)\n", strlen(g_cmd_ra), g_cmd_ra, g_cmd_ra);
+
 	//save random addr
-	memcpy(bt_content->ble_content.le_random_addr, le_random_addr, sizeof(le_random_addr));
+	memcpy(bt_content->ble_content.le_random_addr, le_random_addr, DEVICE_ADDR_LEN);
 
 	//adv data set
+	memset(&ble_content_internal_bak, 0, sizeof(ble_content_t));
 	if(ble_adv_set(bt_content, &ble_content_internal_bak) < 0) {
 		printf("%s: ble_adv_set failed\n", __func__);
 		return -1;
 	}
 
-	pr_info("%s server_uuid: %s\n", __func__, ble_content_internal_bak.server_uuid);
 	ble_content_internal = &ble_content_internal_bak;
 	gatt_create_services();
-
 	return 0;
 }

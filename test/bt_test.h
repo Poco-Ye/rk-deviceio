@@ -29,6 +29,7 @@ void bt_test_is_discovering(char *data);
 void bt_test_display_devices(char *data);
 void bt_test_display_paired_devices(char *data);
 void bt_test_get_scaned_devices(char *data);
+void bt_test_get_connected_properties(char *data);
 
 /******************************************/
 /*               BLE Test                 */

@@ -69,6 +69,7 @@ int bt_free_scaned_devices(RkBtScanedDevice *dev_list);
 bool bt_is_discovering();
 bool bt_is_connected();
 int ble_disconnect(void);
+void ble_service_cnt_clean(void);
 int bt_get_playrole_by_addr(char *addr);
 void dev_found_send(GDBusProxy *proxy, RK_BT_DEV_FOUND_CALLBACK cb);
 struct GDBusProxy *find_device_by_address(char *address);
@@ -76,6 +77,8 @@ void set_default_attribute(GDBusProxy *proxy);
 char *bt_get_address_type(char *addr);
 void source_set_reconnect_tag(bool reconnect);
 void source_stop_connecting();
+bool get_device_connected_properties(char *addr);
+int a2dp_master_save_status(char *address);
 
 #ifdef __cplusplus
 }

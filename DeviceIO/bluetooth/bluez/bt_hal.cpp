@@ -31,7 +31,6 @@
 #include "utility.h"
 #include "slog.h"
 
-extern RkBtContent GBt_Content;
 extern volatile bt_control_t bt_control;
 
 using DeviceIOFramework::DeviceIo;
@@ -94,6 +93,7 @@ int rk_ble_start(RkBleContent *ble_content)
 		rk_ble_client_close();
 	}
 
+	ble_service_cnt_clean();
 	if(rk_bt_control(BtControl::BT_BLE_OPEN, NULL, 0) < 0)
 		return -1;
 
@@ -532,6 +532,7 @@ static int bt_hal_source_close(bool disconnect)
 		return -1;
 	}
 
+	a2dp_master_save_status(NULL);
 	source_set_reconnect_tag(false);
 	bt_close_source(disconnect);
 	a2dp_master_deregister_cb();
@@ -1203,8 +1204,6 @@ int rk_bt_deinit()
 	pr_info("enter %s\n", __func__);
 	bt_state_send(RK_BT_STATE_TURNING_OFF);
 
-	main_loop_deinit();
-
 	bt_hal_hfp_close(false);
 	bt_hal_sink_close(false);
 	bt_hal_source_close(false);
@@ -1221,6 +1220,8 @@ int rk_bt_deinit()
 	kill_task("bluetoothd");
 	exec_command_system("hciconfig hci0 down");
 	kill_task("rtk_hciattach");
+
+	main_loop_deinit();
 
 	bt_deregister_bond_callback();
 	bt_deregister_discovery_callback();
@@ -1472,6 +1473,16 @@ int rk_bt_set_visibility(const int visiable, const int connectable)
 void rk_bt_set_bsa_server_path(char *path)
 {
 	pr_info("bluez don't support %s\n", __func__);
+}
+
+bool rk_bt_get_connected_properties(char *addr)
+{
+	if (!bt_is_open()) {
+		pr_info("%s: Please open bt!!!\n", __func__);
+		return false;
+	}
+
+	return get_device_connected_properties(addr);
 }
 
 /*****************************************************************
