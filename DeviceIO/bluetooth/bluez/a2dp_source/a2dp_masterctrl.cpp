@@ -64,6 +64,7 @@ typedef struct {
 	RK_BT_DEV_FOUND_CALLBACK bt_dev_found_cb;
 	RK_BT_SOURCE_CALLBACK bt_source_event_cb;
 	RK_BLE_STATE_CALLBACK ble_state_cb;
+	RK_BT_NAME_CHANGE_CALLBACK bt_name_change_cb;
 } bt_callback_t;
 
 typedef struct {
@@ -108,7 +109,7 @@ static bt_source_info_t g_bt_source_info = {
 };
 
 static bt_callback_t g_bt_callback = {
-	NULL, NULL, NULL, NULL, NULL, NULL,
+	NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 };
 
 static bt_scan_info_t g_bt_scan_info = {
@@ -208,6 +209,8 @@ void ble_state_send(RK_BLE_STATE status)
 {
 	char addr[18], name[256];
 
+	g_ble_state = status;
+
 	if(!g_bt_callback.ble_state_cb || !ble_is_open())
 		return;
 
@@ -217,7 +220,6 @@ void ble_state_send(RK_BLE_STATE status)
 	bt_get_device_name_by_proxy(ble_dev, name, 256);
 
 	g_bt_callback.ble_state_cb(addr, name, status);
-	g_ble_state = status;
 }
 
 void ble_get_state(RK_BLE_STATE *p_state)
@@ -303,6 +305,39 @@ void bt_register_dev_found_callback(RK_BT_DEV_FOUND_CALLBACK cb)
 void bt_deregister_dev_found_callback()
 {
 	g_bt_callback.bt_dev_found_cb = NULL;
+}
+
+static void bt_name_change_send(GDBusProxy *proxy)
+{
+	const char *address, *name;
+	DBusMessageIter iter;
+
+	if(!g_bt_callback.bt_name_change_cb)
+		return;
+
+	if (g_dbus_proxy_get_property(proxy, "Address", &iter) == FALSE) {
+		pr_info("%s: get Address failed\n", __func__);
+		return;
+	}
+
+	dbus_message_iter_get_basic(&iter, &address);
+
+	if (g_dbus_proxy_get_property(proxy, "Alias", &iter))
+		dbus_message_iter_get_basic(&iter, &name);
+	else
+		name = address;
+
+	g_bt_callback.bt_name_change_cb(address, name);
+}
+
+void bt_register_name_change_callback(RK_BT_NAME_CHANGE_CALLBACK cb)
+{
+	g_bt_callback.bt_name_change_cb = cb;
+}
+
+void bt_deregister_name_change_callback()
+{
+	g_bt_callback.bt_name_change_cb = NULL;
 }
 
 static void proxy_leak(gpointer data)
@@ -651,11 +686,15 @@ static gboolean service_is_child(GDBusProxy *service)
 	if (!default_ctrl)
 		return FALSE;
 
+#if 0
 	ble_dev = g_dbus_proxy_lookup(default_ctrl->devices, NULL, device,
 					"org.bluez.Device1");
 
 	return ble_dev != NULL;
-
+#else
+	return g_dbus_proxy_lookup(default_ctrl->devices, NULL, device,
+					"org.bluez.Device1") != NULL;
+#endif
 }
 
 static struct adapter *find_parent(GDBusProxy *device)
@@ -811,6 +850,20 @@ done:
 	g_free(desc);
 }
 
+static void ble_connect_state_send(GDBusProxy *proxy)
+{
+	if(!ble_is_open())
+		return;
+
+	if(ble_dev) {
+		pr_info("%s: ble connection already exists\n", __func__);
+		return;
+	}
+
+	ble_dev = proxy;
+	ble_state_send(RK_BLE_STATE_CONNECT);
+}
+
 static void device_added(GDBusProxy *proxy)
 {
 	DBusMessageIter iter;
@@ -818,6 +871,7 @@ static void device_added(GDBusProxy *proxy)
 	char dev_addr[18], dev_name[256];
 	dbus_bool_t paired = FALSE;
 	dbus_bool_t connected = FALSE;
+	enum BT_Device_Class bdc;
 
 	if (!adapter) {
 		/* TODO: Error */
@@ -834,13 +888,19 @@ static void device_added(GDBusProxy *proxy)
 	if (g_dbus_proxy_get_property(proxy, "Connected", &iter))
 		dbus_message_iter_get_basic(&iter, &connected);
 
-	if (g_dbus_proxy_get_property(proxy, "Paired", &iter) == TRUE) {
-		dbus_message_iter_get_basic(&iter, &paired);
-		if (!paired && connected) {
-			bt_get_device_addr_by_proxy(proxy, dev_addr, 18);
-			bt_get_device_name_by_proxy(proxy, dev_name, 256);
-			bt_bond_state_send(dev_addr, dev_name, RK_BT_BOND_STATE_BONDING);
+	bdc = dist_dev_class(proxy);
+	if(bdc == BT_Device_Class::BT_SINK_DEVICE || bdc == BT_Device_Class::BT_SOURCE_DEVICE) {
+		if (g_dbus_proxy_get_property(proxy, "Paired", &iter) == TRUE) {
+			dbus_message_iter_get_basic(&iter, &paired);
+			if (!paired && connected) {
+				bt_get_device_addr_by_proxy(proxy, dev_addr, 18);
+				bt_get_device_name_by_proxy(proxy, dev_name, 256);
+				bt_bond_state_send(dev_addr, dev_name, RK_BT_BOND_STATE_BONDING);
+			}
 		}
+	} else {
+		if(connected)
+			ble_connect_state_send(proxy);
 	}
 
 	if (default_dev)
@@ -932,7 +992,7 @@ static void le_proxy_added()
 		if(ble_is_open()) {
 			//ble_state_send(RK_BLE_STATE_CONNECT);
 			ble_wifi_clean();
-			pr_info("%s: ble conneced\n", __func__);
+			//pr_info("%s: ble conneced\n", __func__);
 		} else if (ble_client_is_open()) {
 			gatt_client_state_send(RK_BLE_CLIENT_STATE_CONNECT);
 			pr_info("%s: ble client conneced\n", __func__);
@@ -1191,7 +1251,7 @@ static void source_connected_handler(GDBusProxy *proxy, enum BT_Device_Class bdc
 	else
 		pr_info("%s: can't get remote device address\n", __func__);
 
-	pr_info("%s thread tid = %u\n", __func__, pthread_self());
+	pr_info("%s thread tid = %lu\n", __func__, pthread_self());
 	if(connected) {
 		if (g_bt_callback.bt_source_event_cb) {
 			a2dp_master_event_send(BT_SOURCE_EVENT_CONNECTED, address, name);
@@ -1275,12 +1335,8 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 			if(strcmp(name, "RSSI") == 0)
 				source_reconnect_handler(dev_addr);
 
-			if(strcmp(name, "Alias") == 0) {
-				enum BT_Device_Class bdc;
-				bdc = dist_dev_class(proxy);
-				if(bdc != BT_Device_Class::BT_SINK_DEVICE && bdc != BT_Device_Class::BT_SOURCE_DEVICE)
-					ble_state_send(RK_BLE_STATE_CONNECT);
-			}
+			if(strcmp(name, "Alias") == 0)
+				bt_name_change_send(proxy);
 		}
 	} else if (!strcmp(interface, "org.bluez.Adapter1")) {
 		DBusMessageIter addr_iter;
@@ -1724,7 +1780,7 @@ static void discovery_reply(DBusMessage *message, void *user_data)
 	if(enable)
 		bt_discovery_state_send(RK_BT_DISC_STARTED);
 
-	pr_info("%s thread tid = %u\n", __func__, pthread_self());
+	pr_info("%s thread tid = %lu\n", __func__, pthread_self());
 
 	pr_info("%s: Discovery %s\n", __func__, enable ? "started" : "stopped");
 	/* Leave the discovery running even on noninteractive mode */
@@ -3104,7 +3160,7 @@ static void a2dp_source_clean(void)
 
 static void bluetooth_open(RkBtContent *bt_content)
 {
-	pr_info("%s thread tid = %u\n", __func__, pthread_self());
+	pr_info("%s thread tid = %lu\n", __func__, pthread_self());
 	a2dp_source_clean();
 
 	if (agent_option)
@@ -3298,7 +3354,7 @@ static void *a2dp_master_connect_thread(void *arg)
 	GDBusProxy *proxy;
 	char *address = (char *)arg;
 
-	pr_info("%s thread tid = %u\n", __func__, pthread_self());
+	pr_info("%s thread tid = %lu\n", __func__, pthread_self());
 
 	proxy = find_proxy_by_address(default_ctrl->devices, address);
 	if (!proxy) {
@@ -4410,7 +4466,7 @@ static void *bt_scan_devices(void *arg)
 {
 	unsigned int scan_time = 0;
 
-	pr_info("%s thread tid = %u\n", __func__, pthread_self());
+	pr_info("%s thread tid = %lu\n", __func__, pthread_self());
 
 	pr_info("=== scan on ===\n");
 	if(cmd_scan("on") < 0) {
@@ -4508,7 +4564,7 @@ int bt_cancel_discovery(RK_BT_DISCOVERY_STATE state)
 		return -1;
 	}
 
-	pr_info("%s thread tid = %u\n", __func__, pthread_self());
+	pr_info("%s thread tid = %lu\n", __func__, pthread_self());
 
 	g_bt_scan_info.is_scaning = false;
 	source_set_reconnect_tag(false);

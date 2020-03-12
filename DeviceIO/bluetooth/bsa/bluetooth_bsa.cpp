@@ -393,6 +393,12 @@ void rk_bt_register_dev_found_callback(RK_BT_DEV_FOUND_CALLBACK cb)
     app_mgr_register_dev_found_cb(cb);
 }
 
+
+void rk_bt_register_name_change_callback(RK_BT_NAME_CHANGE_CALLBACK cb)
+{
+    APP_DEBUG1("bsa don't support %s", __func__);
+}
+
 int rk_bt_start_discovery(unsigned int mseconds, RK_BT_SCAN_TYPE scan_type)
 {
     if(!bt_is_open()) {

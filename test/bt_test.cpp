@@ -156,6 +156,13 @@ static void bt_test_dev_found_cb(const char *address,const char *name, unsigned 
 #endif
 }
 
+static void bt_test_name_change_cb(const char *bd_addr, const char *name)
+{
+	if(bd_addr)
+		printf("+++++ Device Name Change(%s, %s) +++++\n", bd_addr, name);
+}
+
+
 /*
  * The Bluetooth basic service is turned on and the function
  * must be called before using the Bluetooth function.
@@ -184,6 +191,7 @@ void *bt_test_bluetooth_init_thread(void *)
 
 	rk_bt_register_state_callback(bt_test_state_cb);
 	rk_bt_register_bond_callback(bt_test_bond_state_cb);
+	rk_bt_register_name_change_callback(bt_test_name_change_cb);
 	rk_bt_init(&bt_content);
 }
 #else

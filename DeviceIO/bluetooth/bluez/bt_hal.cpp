@@ -566,7 +566,7 @@ int rk_bt_source_connect_by_addr(char *address)
 		return -1;
 	}
 
-	pr_info("%s thread tid = %u\n", __func__, pthread_self());
+	pr_info("%s thread tid = %lu\n", __func__, pthread_self());
 	return a2dp_master_connect(address);
 }
 
@@ -577,7 +577,7 @@ int rk_bt_source_disconnect_by_addr(char *address)
 		return -1;
 	}
 
-	pr_info("%s thread tid = %u\n", __func__, pthread_self());
+	pr_info("%s thread tid = %lu\n", __func__, pthread_self());
 	return disconnect_by_address(address);
 }
 
@@ -1177,7 +1177,7 @@ int rk_bt_init(RkBtContent *p_bt_content)
 		return -1;
 	}
 
-	pr_info("enter %s\n", __func__);
+	pr_info("enter %s, tid(%lu)\n", __func__, pthread_self());
 	bt_state_send(RK_BT_STATE_TURNING_ON);
 
 	main_loop_init();
@@ -1199,9 +1199,7 @@ int rk_bt_deinit()
 		return -1;
 	}
 
-	pr_info("%s thread tid = %u\n", __func__, pthread_self());
-
-	pr_info("enter %s\n", __func__);
+	pr_info("enter %s, tid(%lu)\n", __func__, pthread_self());
 	bt_state_send(RK_BT_STATE_TURNING_OFF);
 
 	bt_hal_hfp_close(false);
@@ -1226,6 +1224,7 @@ int rk_bt_deinit()
 	bt_deregister_bond_callback();
 	bt_deregister_discovery_callback();
 	bt_deregister_dev_found_callback();
+	bt_deregister_name_change_callback();
 	bt_control.is_bt_open = false;
 
 	bt_state_send(RK_BT_STATE_OFF);
@@ -1252,6 +1251,11 @@ void rk_bt_register_discovery_callback(RK_BT_DISCOVERY_CALLBACK cb)
 void rk_bt_register_dev_found_callback(RK_BT_DEV_FOUND_CALLBACK cb)
 {
 	bt_register_dev_found_callback(cb);
+}
+
+void rk_bt_register_name_change_callback(RK_BT_NAME_CHANGE_CALLBACK cb)
+{
+	bt_register_name_change_callback(cb);
 }
 
 /*

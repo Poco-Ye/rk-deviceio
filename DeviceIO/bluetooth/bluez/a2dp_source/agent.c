@@ -323,7 +323,7 @@ static void register_agent_reply(DBusMessage *message, void *user_data)
 	if (dbus_set_error_from_message(&error, message) == FALSE) {
 		agent_registered = TRUE;
 		bt_shell_printf("### Agent registered ###\n");
-		pr_info("%s thread tid = %u\n", __func__, pthread_self());
+		pr_info("%s thread tid = %lu\n", __func__, pthread_self());
 		bt_state_send(RK_BT_STATE_ON);
 	} else {
 		bt_shell_printf("### Failed to register agent: %s\n", error.name);

@@ -330,12 +330,12 @@ bool bt_sink_is_open(void)
 		if (get_ps_pid("bluetoothd")) {
 			if(!get_ps_pid("bluealsa")) {
 				RK_LOGE("bt sink has been opened, but bluealsa exit\n");
-				return false;
+				//return false;
 			}
 
 			if(!get_ps_pid("bluealsa-aplay")) {
 				RK_LOGE("bt sink has been opened, but bluealsa-aplay exit\n");
-				return false;
+				//return false;
 			}
 
 			return true;
@@ -353,7 +353,7 @@ bool bt_hfp_is_open(void)
 		if (get_ps_pid("bluetoothd")) {
 			if(!get_ps_pid("bluealsa")) {
 				RK_LOGE("bt hfp has been opened, but bluealsa exit\n");
-				return false;
+				//return false;
 			}
 
 			return true;
@@ -371,7 +371,7 @@ bool bt_source_is_open(void)
 		if (get_ps_pid("bluetoothd")) {
 			if(!get_ps_pid("bluealsa")) {
 				RK_LOGE("bt source has been opened, but bluealsa exit\n");
-				return false;
+				//return false;
 			}
 
 			return true;
