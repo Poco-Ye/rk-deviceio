@@ -686,15 +686,15 @@ static gboolean service_is_child(GDBusProxy *service)
 	if (!default_ctrl)
 		return FALSE;
 
-#if 0
-	ble_dev = g_dbus_proxy_lookup(default_ctrl->devices, NULL, device,
-					"org.bluez.Device1");
+	if(ble_client_is_open()) {
+		ble_dev = g_dbus_proxy_lookup(default_ctrl->devices, NULL, device,
+						"org.bluez.Device1");
 
-	return ble_dev != NULL;
-#else
-	return g_dbus_proxy_lookup(default_ctrl->devices, NULL, device,
-					"org.bluez.Device1") != NULL;
-#endif
+		return ble_dev != NULL;
+	} else {
+		return g_dbus_proxy_lookup(default_ctrl->devices, NULL, device,
+						"org.bluez.Device1") != NULL;
+	}
 }
 
 static struct adapter *find_parent(GDBusProxy *device)

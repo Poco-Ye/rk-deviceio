@@ -434,9 +434,10 @@ bool rk_bt_is_discovering()
         return false;
 }
 
-int rk_bt_get_scaned_devices(RkBtScanedDevice **dev_list,int *count)
+int rk_bt_get_scaned_devices(RkBtScanedDevice **dev_list, int *count)
 {
     APP_DEBUG1("bsa don't support %s", __func__);
+    *count = 0;
     return 0;
 }
 
@@ -550,8 +551,9 @@ int rk_bt_get_device_addr(char *addr, int len)
     return 0;
 }
 
-int rk_bt_get_paired_devices(RkBtScanedDevice **dev_list,int *count)
+int rk_bt_get_paired_devices(RkBtScanedDevice **dev_list, int *count)
 {
+    *count = 0;
     if(!bt_is_open()) {
         APP_DEBUG0("bluetooth is not inited, please init");
         return -1;

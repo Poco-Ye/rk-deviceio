@@ -2241,8 +2241,9 @@ int app_mgr_get_paired_devices(RkBtScanedDevice **dev_list,int *count)
 
     for (index = 0; index < APP_NUM_ELEMENTS(app_xml_remote_devices_db); index++) {
         if(app_xml_remote_devices_db[index].in_use) {
-            if(!app_mgr_list_push_back(dev_list, app_xml_remote_devices_db[index]))
+            if(!app_mgr_list_push_back(dev_list, app_xml_remote_devices_db[index])) {
                 (*count)++;
+            }
         }
     }
 

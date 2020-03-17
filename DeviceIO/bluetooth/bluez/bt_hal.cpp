@@ -1134,7 +1134,9 @@ static void *main_loop_init_thread(void *data)
 
 	g_main_loop_unref(bt_main_loop);
 	bt_main_loop = NULL;
+
 	pr_info("%s: bt mainloop exit\n", __func__);
+	return NULL;
 }
 
 static int main_loop_init()
@@ -1148,6 +1150,7 @@ static int main_loop_init()
 	}
 
 	pthread_setname_np(main_loop_thread, "main_loop_thread");
+	return 0;
 }
 
 static int main_loop_deinit()
@@ -1337,8 +1340,9 @@ bool rk_bt_is_discovering()
 	return bt_is_discovering();
 }
 
-int rk_bt_get_scaned_devices(RkBtScanedDevice **dev_list,int *count)
+int rk_bt_get_scaned_devices(RkBtScanedDevice **dev_list, int *count)
 {
+	*count = 0;
 	if (!bt_is_open()) {
 		pr_info("%s: Please open bt!!!\n", __func__);
 		return -1;
@@ -1429,6 +1433,7 @@ int rk_bt_get_device_addr(char *addr, int len)
 
 int rk_bt_get_paired_devices(RkBtScanedDevice **dev_list, int *count)
 {
+	*count = 0;
 	if (!bt_is_open()) {
 		pr_info("%s: Please open bt!!!\n", __func__);
 		return -1;

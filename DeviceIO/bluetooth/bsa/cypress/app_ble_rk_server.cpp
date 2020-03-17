@@ -55,7 +55,7 @@ static tBSA_DM_BLE_ADV_PARAM app_ble_adv_param = {
     0, 0
 };
 
-static void app_ble_rk_server_send_state(const char bd_addr, RK_BLE_STATE state) {
+static void app_ble_rk_server_send_state(BD_ADDR bd_addr, RK_BLE_STATE state) {
     char address[20];
 
     app_ble_state = state;
@@ -1382,7 +1382,7 @@ int app_ble_rk_server_open(RkBleContent *ble_content)
 
     APP_DEBUG0("app_ble_rk_server_open");
 
-    app_ble_rk_server_send_state("", RK_BLE_STATE_IDLE);
+    app_ble_rk_server_send_state(NULL, RK_BLE_STATE_IDLE);
 
     /* Initialize BLE application */
     ret = app_ble_init();
@@ -1434,7 +1434,7 @@ void app_ble_rk_server_close()
     /* Exit BLE mode */
     app_ble_exit();
 
-    app_ble_rk_server_send_state("", RK_BLE_STATE_IDLE);
+    app_ble_rk_server_send_state(NULL, RK_BLE_STATE_IDLE);
     app_ble_rk_server_deregister_cb();
 
     app_dm_set_ble_local_privacy(FALSE);

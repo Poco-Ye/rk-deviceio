@@ -41,6 +41,7 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 | 2019-10-30 | V1.6 | V1.3.0 | ctf | Bluez：实现蓝牙反初始化<br/>Bluez：修正获取本机设备名、本机蓝牙Mac地址接口<br/>Bluez：添加pbap profile 支持<br />Bluez：支持hfp 8K和16K采样率自适应<br/>Bluez：添加sink 播放underrun上报<br/>Bsa：添加设置sink 播放设备节点接口<br/>Bsa：添加ble可见性设置接口<br/>Bsa：添加ble主动断开连接接口<br/>Bsa：支持在蓝牙初始化时，设置蓝牙地址<br/>添加蓝牙启动状态上报<br />添加蓝牙配对状态上报<br/>添加启动蓝牙扫描、停止蓝牙扫描接口<br/>添加获取蓝牙是否处于扫描状态接口<br/>添加打印当前扫描到的设备列表接口<br />添加主动和指定设备配对、取消和指定设备配对接口<br/>添加获取当前已配对设备列表、释放获取的配对设备列表接口<br/>添加打印当前配对设备列表接口<br />添加设置本机设备名接口<br />添加歌曲信息上报<br/>添加歌曲播放进度上报<br />添加avdtp(a2dp sink)状态上报<br />sink添加主动和指定设备连接、主动断开指定设备连接接口<br/>添加获取当前播放状态接口<br/>添加获取当前连接的远程设备是否支持主动上报播放进度接口<br/>支持打印日志到syslog |
 | 2019-11-16 | v1.7 | V1.3.1 | ctf | source 回调增加连接设备的address和name参数 |
 | 2019-12-12 | V1.8 | V1.3.2 | ctf | bluez：实现ble client 功能<br/>bluez：实现obex文件传输功能 |
+| 2020-03-18 | V1.9 | V1.3.4 | ctf | bluez : 扫描接口添加类型过滤（LE or BR/EDR or both）<br/>bluez : 添加获取扫描设备列表接口<br/>bluez : 添加启动bt source 后，第一次扫描自动回连最后一个连接的sink设备<br/>bluez : 修正扫描期间连接设备失败BUG<br/>bluez : 优化init、deinit执行时间<br/>bluez : 修正在qt 非主mianloop线程启动蓝牙，线程同步BUG<br/>bluez : 添加source 断开连接失败、自动回连事件上报<br/>bluez : 添加source 断开当前连接接口<br/>bluez : 添加获取指定设备连接状态<br/>bluez : 修正ble 初始化内存越界问题<br/><br/><br/><br/><br/>bsa : 添加设置bsa_server.sh 路径接口<br/>ble 状态回调带远程设备地址和名称 |
 
 <div STYLE="page-break-after: always;"></div>
 
@@ -87,16 +88,16 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
       	const char *bt_addr;      //蓝牙地址（Bsa only，默认使用芯片内部固化的bt mac地址）
       } RkBtContent;
 
-- `RkBtPraiedDevice`结构
+- `RkBtScanedDevice`结构
 
   ```
-  struct paired_dev {
-  	 char *remote_address;      //远程设备地址
-  	 char *remote_name;         //远程设备名
-  	 bool is_connected;         //该远程设备当前是否处于连接状态(sink, source, hfp)
-  	 struct paired_dev *next;   //指向下一个已配对设备
-  };
-  typedef struct paired_dev RkBtPraiedDevice;
+  typedef struct scaned_dev {
+  	 char *remote_address;		//远程设备地址
+  	 char *remote_name;			//远程设备名
+  	 unsigned int cod;			//class of device
+  	 bool is_connected;			//该远程设备当前是否处于连接状态(sink, source, hfp)
+  	 struct paired_dev *next;	//指向下一个设备
+  } RkBtScanedDevice;
   ```
 
 - `RK_BT_STATE`说明
@@ -118,6 +119,16 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
   	RK_BT_BOND_STATE_BONDING, //正在配对
   	RK_BT_BOND_STATE_BONDED,  //配对成功
   } RK_BT_BOND_STATE;
+  ```
+
+- `RK_BT_SCAN_TYPE`说明
+
+  ```
+  typedef enum {
+  	SCAN_TYPE_AUTO,			//LE and BR/EDR, 扫描所有类型设备
+  	SCAN_TYPE_BREDR,		//只扫描BR/EDR类型设备
+  	SCAN_TYPE_LE			//只扫描LE类型设备
+  } RK_BT_SCAN_TYPE;
   ```
 
 - `RK_BT_DISCOVERY_STATE`说明
@@ -147,6 +158,10 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
   蓝牙设备扫描回调，如果使用rk_bt_start_discovery 扫描周围蓝牙设备，则需要注册该回调。bluez每扫描到一个设备，触发一次该回调；bsa扫描结束后，才会根据扫描到的设备数依次触发该回调。
 
+- `typedef void (*RK_BT_NAME_CHANGE_CALLBACK)(const char *bd_addr, const char *name)`
+
+  远程设备名更新回调，ble设备刚开始连接成功时，设备名是地址，一段时间后才会更新为真正的设备名（BLUEZ only）
+
 - `void rk_bt_register_state_callback(RK_BT_STATE_CALLBACK cb)`
 
   注册获取蓝牙启动状态的回调函数
@@ -162,6 +177,10 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 - `void rk_bt_register_dev_found_callback(RK_BT_DEV_FOUND_CALLBACK cb)`
 
   注册发现设备的回调函数
+
+- `void rk_bt_register_name_change_callback(RK_BT_NAME_CHANGE_CALLBACK cb)`
+
+  注册设备名更新回调函数
 
 - `int rk_bt_init(RkBtContent *p_bt_content)`
 
@@ -189,9 +208,9 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
   启动/关闭HFP/A2DP SINK的自动重连功能。value：0表示关闭自动重连功能，1表示开启自动重连功能。
 
 
-- `void rk_bt_start_discovery(unsigned int mseconds)`
+- `void rk_bt_start_discovery(unsigned int mseconds, RK_BT_SCAN_TYPE scan_type)`
 
-  启动蓝牙扫描，mseconds：扫描时长，单位毫秒
+  启动蓝牙扫描，mseconds：扫描时长，单位毫秒；scan_type：扫描类型，详情参见RK_BT_SCAN_TYPE说明，仅bluez支持扫描类型过滤，bsa仅支持全类型扫描。
 
 - `void rk_bt_cancel_discovery()`
 
@@ -229,13 +248,29 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
   打印当前已配对的设备列表
 
-- `int rk_bt_get_paired_devices(RkBtPraiedDevice **dev_list,int *count)`
+- `int rk_bt_get_paired_devices(RkBtScanedDevice**dev_list,int *count)`
 
   获取当前已配对的设备列表，dev_list：用于存储已配对的设备列表，count：已配对的设备数
 
-- `int rk_bt_free_paired_devices(RkBtPraiedDevice *dev_list)`
+- `int rk_bt_free_paired_devices(RkBtScanedDevice*dev_list)`
 
   释放rk_bt_get_paired_devices 分配的用于存储设备列表的内存
+
+- `int rk_bt_get_scaned_devices(RkBtScanedDevice**dev_list,int *count)`
+
+  获取当前已扫描到的设备列表，dev_list：用于存储已扫描的设备列表，count：已扫描到的设备数（BLUEZ only）
+
+- `int rk_bt_free_scaned_devices(RkBtScanedDevice*dev_list)`
+
+  释放rk_bt_get_scaned_devices分配的用于存储设备列表的内存（BLUEZ only）
+
+- `void rk_bt_set_bsa_server_path(char *path)`
+
+  设置bsa_server.sh路径，未设置则默认为/usr/bin/bsa_server.sh（BSA only）
+
+- `bool rk_bt_get_connected_properties(char *addr)`
+
+  获取addr指定设备的连接状态，addr: 设备地址，处于连接状态 则返回true，反之返回false（BLUEZ only）
 
 ## 2、BLE接口介绍（RkBle.h） ##
 
@@ -249,9 +284,9 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
   } RK_BLE_STATE;
   ```
 
-- `typedef void (*RK_BLE_STATE_CALLBACK)(RK_BLE_STATE state)`
+- `typedef void (*RK_BLE_STATE_CALLBACK)(const char *bd_addr, const char *name, RK_BLE_STATE state)`
 
-  BLE状态回调函数。
+  BLE状态回调函数, bd_addr：远程设备地址，name：远程设备名称。
 
 - `typedef void (*RK_BLE_RECV_CALLBACK)(const char *uuid, char *data, int len)`
 
@@ -646,17 +681,19 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 - `RK_BT_SOURCE_EVENT`介绍
 
       typedef enum {
-      	BT_SOURCE_EVENT_CONNECT_FAILED, //连接A2DP Sink设备失败
-      	BT_SOURCE_EVENT_CONNECTED,      //连接A2DP Sink设备成功
-      	BT_SOURCE_EVENT_DISCONNECTED,   //断开连接
+      	BT_SOURCE_EVENT_CONNECT_FAILED, 	//连接A2DP Sink设备失败
+      	BT_SOURCE_EVENT_CONNECTED,      	//连接A2DP Sink设备成功
+      	BT_SOURCE_EVENT_DISCONNECT_FAILED,	//断开连接失败（BLUEZ only）
+      	BT_SOURCE_EVENT_DISCONNECTED,   	//断开连接
       	/* Sink端反向控制事件 */
-      	BT_SOURCE_EVENT_RC_PLAY,        //播放
-      	BT_SOURCE_EVENT_RC_STOP,        //停止
-      	BT_SOURCE_EVENT_RC_PAUSE,       //暂停
-      	BT_SOURCE_EVENT_RC_FORWARD,     //上一首
-      	BT_SOURCE_EVENT_RC_BACKWARD,    //下一首
-      	BT_SOURCE_EVENT_RC_VOL_UP,      //音量+
-      	BT_SOURCE_EVENT_RC_VOL_DOWN,    //音量-
+      	BT_SOURCE_EVENT_RC_PLAY,        	//播放
+      	BT_SOURCE_EVENT_RC_STOP,        	//停止
+      	BT_SOURCE_EVENT_RC_PAUSE,       	//暂停
+      	BT_SOURCE_EVENT_RC_FORWARD,     	//上一首
+      	BT_SOURCE_EVENT_RC_BACKWARD,    	//下一首
+      	BT_SOURCE_EVENT_RC_VOL_UP,      	//音量+
+      	BT_SOURCE_EVENT_RC_VOL_DOWN,    	//音量-
+      	BT_SOURCE_EVENT_AUTO_RECONNECTING,	//正在回连（BLUEZ only）
       } RK_BT_SOURCE_EVENT;
 
 - `RK_BT_SOURCE_STATUS`介绍
@@ -700,17 +737,21 @@ BLUEZ DEVICEIO：基于BlueZ协议栈实现的DeviceIo库，对应libDeviceIo_bl
 
   获取A2DP Source连接状态。pstatus：保存当前状态值的指针。若当前处于连接状态，name保存对端设备（A2DP Sink）的名称，name_len为name长度，addr保存对端设备（A2DP Sink）的地址，addr_len为addr长度。参数name和addr均可置空。
 
-- `int rk_bt_source_scan(BtScanParam *data)`
+- `int rk_bt_source_scan(BtScanParam *data, RK_BT_SCAN_TYPE scan_type)`
 
-  扫描设备。扫描参数通过data指定，扫描到的结果也保存在data中。具体参见BtScanParam说明。
+  扫描设备。扫描参数通过data指定，扫描到的结果也保存在data中。具体参见BtScanParam说明。scan_type：扫描类型，详情参见RK_BT_SCAN_TYPE说明，仅bluez支持扫描类型过滤，bsa仅支持全类型扫描。
 
-- `int rk_bt_source_connect(char *address)`
+- `int rk_bt_source_connect_by_addr(char *address)`
 
   主动连接address指定的设备。
 
-- `int rk_bt_source_disconnect(char *address)`
+- `int rk_bt_source_disconnect_by_addr(char *address)`
 
-  断开连接。
+   断开与address指定设备的连接
+
+- `int rk_bt_source_disconnect()`
+
+  断开当前连接（BLUEZ only）。
 
 - `int rk_bt_source_remove(char *address)`
 

@@ -6,6 +6,14 @@ extern "C" {
 #endif
 
 /*
+ *Version 1.3.4 Release 2020/03/17
+  1.bsa: add rk_bt_set_bsa_server_path api
+  2.bluez: add rk_bt_get_connected_properties api
+  3.bluez: change bt source and and eq communication
+  4.bluez: ble event callback takes the remotr device name and address
+  5.bluez: fixed gatt init memory overbounds
+  6.bluez: add remote device name change callback
+  7.bluez: change ble connect event report
  *Version 1.3.3 Release 2020/02/27
   1.bluez: support for setting up scan filtering(LE BR/EDR or both)
   2.bluez: optimize the init/deinit execution time
@@ -104,7 +112,7 @@ extern "C" {
  *Version 1.0.0 Release 2018/12/22
  */
 
-#define DEVICEIO_VERSION "V1.3.3"
+#define DEVICEIO_VERSION "V1.3.4"
 
 int RK_read_chip_id(char *buffer, const int size);
 int RK_read_version(char *buffer, const int size);

@@ -1,5 +1,5 @@
-#ifndef __BLUETOOTH_BLE__CLIENT_H__
-#define __BLUETOOTH_BLE__CLIENT_H__
+#ifndef __BLUETOOTH_BLE_CLIENT_H__
+#define __BLUETOOTH_BLE_CLIENT_H__
 
 #include <DeviceIo/RkBtBase.h>
 
@@ -118,4 +118,4 @@ int rk_ble_client_notify(const char *uuid, bool enable);
 }
 #endif
 
-#endif /* __BLUETOOTH_BLE_H__ */
+#endif /* __BLUETOOTH_BLE_CLIENT_H__ */

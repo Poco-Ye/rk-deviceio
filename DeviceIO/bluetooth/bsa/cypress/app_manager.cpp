@@ -2148,7 +2148,7 @@ UINT8 app_mgr_get_dev_platform(BD_ADDR bd_addr)
 
 int app_mgr_bd2str(BD_ADDR bd_addr, char *address, int addr_len)
 {
-    if(addr_len < 17) {
+    if(!address || addr_len < 17) {
         APP_ERROR1("address buffer length is too small: %d", addr_len);
         return -1;
     }
@@ -2253,7 +2253,7 @@ static int app_mgr_list_push_back(RkBtScanedDevice **dev_list, tAPP_XML_REM_DEVI
     return 0;
 }
 
-int app_mgr_get_paired_devices(RkBtScanedDevice **dev_list,int *count)
+int app_mgr_get_paired_devices(RkBtScanedDevice **dev_list, int *count)
 {
     int index;
 
@@ -2262,8 +2262,9 @@ int app_mgr_get_paired_devices(RkBtScanedDevice **dev_list,int *count)
 
     for (index = 0; index < APP_NUM_ELEMENTS(app_xml_remote_devices_db); index++) {
         if(app_xml_remote_devices_db[index].in_use) {
-            if(!app_mgr_list_push_back(dev_list, app_xml_remote_devices_db[index]))
+            if(!app_mgr_list_push_back(dev_list, app_xml_remote_devices_db[index])) {
                 (*count)++;
+            }
         }
     }
 
