@@ -489,8 +489,6 @@ int bt_close_sink(bool disconnect)
 
 int bt_close_source(bool disconnect)
 {
-	a2dp_master_avrcp_close();
-
 	if (!bt_source_is_open())
 		return -1;
 

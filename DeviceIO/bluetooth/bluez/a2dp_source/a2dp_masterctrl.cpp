@@ -36,6 +36,15 @@ using DeviceIOFramework::DeviceIo;
 using DeviceIOFramework::DeviceInput;
 using DeviceIOFramework::BT_Device_Class;
 
+/* operands in passthrough commands */
+#define AVC_VOLUME_UP        0x41
+#define AVC_VOLUME_DOWN      0x42
+#define AVC_PLAY             0x44
+#define AVC_STOP             0x45
+#define AVC_PAUSE            0x46
+#define AVC_FORWARD          0x4b
+#define AVC_BACKWARD         0x4c
+
 /* String display constants */
 #define COLORED_NEW COLOR_GREEN "NEW" COLOR_OFF
 #define COLORED_CHG COLOR_YELLOW "CHG" COLOR_OFF
@@ -75,7 +84,6 @@ typedef struct {
 } bt_scan_info_t;
 
 typedef struct {
-	int listen_fd;
 	bool is_connecting;
 	bool is_reconnected;
 	char connect_address[18];
@@ -105,7 +113,7 @@ static void *g_btmaster_userdata = NULL;
 static RK_BLE_STATE g_ble_state;
 
 static bt_source_info_t g_bt_source_info = {
-	-1, false, false,
+	false, false,
 };
 
 static bt_callback_t g_bt_callback = {
@@ -211,14 +219,21 @@ void ble_state_send(RK_BLE_STATE status)
 
 	g_ble_state = status;
 
-	if(!g_bt_callback.ble_state_cb || !ble_is_open())
+	if(!g_bt_callback.ble_state_cb) {
+		pr_info("%s: ble_state_cb are not registered\n", __func__);
 		return;
+	}
+
+	if(!ble_is_open()) {
+		pr_info("%s: ble is close\n", __func__);
+		return;
+	}
 
 	memset(addr, 0, 18);
 	memset(name, 0, 256);
 	bt_get_device_addr_by_proxy(ble_dev, addr, 18);
 	bt_get_device_name_by_proxy(ble_dev, name, 256);
-
+	pr_info("%s: status = %d\n", __func__, status);
 	g_bt_callback.ble_state_cb(addr, name, status);
 }
 
@@ -1253,15 +1268,10 @@ static void source_connected_handler(GDBusProxy *proxy, enum BT_Device_Class bdc
 
 	pr_info("%s thread tid = %lu\n", __func__, pthread_self());
 	if(connected) {
-		if (g_bt_callback.bt_source_event_cb) {
-			a2dp_master_event_send(BT_SOURCE_EVENT_CONNECTED, address, name);
-			a2dp_master_avrcp_open();
-		}
-
+		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECTED, address, name);
 		a2dp_master_save_status(address);
 	} else {
 		a2dp_master_save_status(NULL);
-		a2dp_master_avrcp_close();
 		a2dp_master_event_send(BT_SOURCE_EVENT_DISCONNECTED, address, name);
 	}
 }
@@ -1298,6 +1308,38 @@ static void source_reconnect_handler(char *dev_addr)
 		pr_info("%s: device = %s\n", __func__, dev_addr);
 		a2dp_master_event_send(BT_SOURCE_EVENT_AUTO_RECONNECTING, dev_addr, dev_addr);
 		a2dp_master_connect(dev_addr);
+	}
+}
+
+static void source_avrcp_keycode_handler(GDBusProxy *proxy, DBusMessageIter *iter)
+{
+	dbus_uint32_t keycode;
+
+	dbus_message_iter_get_basic(iter, &keycode);
+	switch(keycode) {
+		case AVC_PLAY:
+			a2dp_master_event_send(BT_SOURCE_EVENT_RC_PLAY, NULL, NULL);
+			break;
+		case AVC_PAUSE:
+			a2dp_master_event_send(BT_SOURCE_EVENT_RC_PAUSE, NULL, NULL);
+			break;
+		case AVC_STOP:
+			a2dp_master_event_send(BT_SOURCE_EVENT_RC_STOP, NULL, NULL);
+			break;
+		case AVC_VOLUME_UP:
+			a2dp_master_event_send(BT_SOURCE_EVENT_RC_VOL_UP, NULL, NULL);
+			break;
+		case AVC_VOLUME_DOWN:
+			a2dp_master_event_send(BT_SOURCE_EVENT_RC_VOL_DOWN, NULL, NULL);
+			break;
+		case AVC_FORWARD:
+			a2dp_master_event_send(BT_SOURCE_EVENT_RC_FORWARD, NULL, NULL);
+			break;
+		case AVC_BACKWARD:
+			a2dp_master_event_send(BT_SOURCE_EVENT_RC_BACKWARD, NULL, NULL);
+			break;
+		default:
+			break;
 	}
 }
 
@@ -1390,6 +1432,9 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 
 		if(!strcmp(name, "Value"))
 			gatt_client_recv_data_send(proxy, iter);
+	} else if (!strcmp(interface, "org.bluez.MediaPlayer1")) {
+		if (!strcmp(name, "KeyCode"))
+			source_avrcp_keycode_handler(proxy, iter);
 	}
 
 	if (bt_sink_is_open())
@@ -3630,203 +3675,6 @@ void a2dp_master_deregister_cb()
 /**********************************************
  *      bt source avrcp
  **********************************************/
-static int g_bt_source_avrcp_thread_runing;
-static pthread_t g_bt_source_avrcp_thread = 0;
-
-static int is_bluealsa_event(char *node)
-{
-	char sys_path[100] = {0};
-	char node_info[100] = {0};
-	int fd = 0;
-
-	if (strncmp(node, "event", 5))
-		return 0;
-
-	sprintf(sys_path, "sys/class/input/%s/device/name", node);
-	fd = open(sys_path, O_RDONLY);
-	if (fd < 0)
-		return 0;
-
-	if (read(fd, node_info, sizeof(node_info)) < 0) {
-		close(fd);
-		return 0;
-	}
-
-	/* BlueAlsa addr like XX:XX:XX:XX:XX:XX */
-	if ((strlen(node_info) == 18) &&
-		(node_info[2] == ':') && (node_info[5] == ':') &&
-		(node_info[8] == ':') && (node_info[11] == ':') &&
-		(node_info[14] == ':')) {
-		close(fd);
-		return 1;
-	}
-
-	close(fd);
-	return 0;
-}
-
-
-static int get_input_event_id()
-{
-	DIR *dir;
-	struct dirent *ptr;
-	char node_name[7]; //eventXX
-	int id = -1;
-
-	if ((dir = opendir("/dev/input")) == NULL) {
-		pr_info("ERROR: %s Open dir \"/dev/input\" error\n", __func__);
-		return -1;
-	}
-
-	while ((ptr = readdir(dir)) != NULL) {
-		if ((strcmp(ptr->d_name, ".") == 0) || (strcmp(ptr->d_name, "..") == 0) || //current dir OR parrent dir
-			(ptr->d_type == 10) || (ptr->d_type == 4)) { //link file or dir
-			continue;
-		} else if ((ptr->d_type == 8) || (ptr->d_type == 2)) { //file
-			if (strncmp(ptr->d_name, "event", 5) != 0)
-				continue;
-
-			if (is_bluealsa_event(ptr->d_name)) {
-				memset(node_name, 0, sizeof(node_name));
-				memcpy(node_name, ptr->d_name, strlen(ptr->d_name));
-				if ((node_name[5] >= '0') && (node_name[5] <= '9'))
-					id = node_name[5] - '0';
-				else if ((node_name[6] >= '0') && (node_name[6] <= '9'))
-					id = id * 10 + (node_name[6] - '0');
-				break;
-			}
-		}
-	}
-	closedir(dir);
-
-	return id;
-}
-
-static void *bt_source_listen_avrcp_event(void *arg)
-{
-	fd_set rfds;
-	int ret, id;
-	struct input_event ev_key;
-	struct timeval tv;
-	char path[100] = {0};
-	int try_cnt = 30;
-
-	pr_info("### %s start...\n", __func__);
-	while ((try_cnt--) && g_bt_source_avrcp_thread_runing) {
-		id = get_input_event_id();
-		if (id >= 0) {
-			sprintf(path, "/dev/input/event%d", id);
-			g_bt_source_info.listen_fd = open(path, O_RDONLY);
-			if(g_bt_source_info.listen_fd < 0) {
-				pr_err("%s: open %s failed!\n", __func__, path);
-				return NULL;
-			}
-
-			g_bt_source_avrcp_thread_runing = 1;
-			break;
-		}
-
-		usleep(200000); /* 100ms */
-		pr_info("%s: wait for avrcp event node, 200ms, %d\n", __func__, try_cnt);
-	}
-
-	if(try_cnt < 0) {
-		pr_err("%s: wait for avrcp event failed!\n", __func__);
-		return NULL;
-	}
-
-	tv.tv_sec = 0;
-	tv.tv_usec = 100000;/* 100ms */
-	while (g_bt_source_avrcp_thread_runing) {
-		FD_ZERO(&rfds);
-		FD_SET(g_bt_source_info.listen_fd, &rfds);
-
-		if (select(g_bt_source_info.listen_fd + 1, &rfds, NULL, NULL, &tv) < 0) {
-			pr_err("%s: select failed, ERROR: %s\n", __func__, strerror(errno));
-			break;
-		}
-
-		if (FD_ISSET(g_bt_source_info.listen_fd, &rfds) == 0)
-			continue;
-
-		ret = read(g_bt_source_info.listen_fd, &ev_key, sizeof(ev_key));
-		if (ret == -1) {
-			pr_err("%s: read failed, ERROR: %s\n", __func__, strerror(errno));
-			break;
-		}
-
-		/* ignore illegal key code and only key down is captured */
-		if ((ev_key.code == 0) || (ev_key.value != 1))
-			continue;
-
-		switch(ev_key.code) {
-			case KEY_PLAYCD:
-				a2dp_master_event_send(BT_SOURCE_EVENT_RC_PLAY, NULL, NULL);
-				break;
-			case KEY_PAUSECD:
-				a2dp_master_event_send(BT_SOURCE_EVENT_RC_PAUSE, NULL, NULL);
-				break;
-			case KEY_VOLUMEUP:
-				a2dp_master_event_send(BT_SOURCE_EVENT_RC_VOL_UP, NULL, NULL);
-				break;
-			case KEY_VOLUMEDOWN:
-				a2dp_master_event_send(BT_SOURCE_EVENT_RC_VOL_DOWN, NULL, NULL);
-				break;
-			case KEY_NEXTSONG:
-				a2dp_master_event_send(BT_SOURCE_EVENT_RC_BACKWARD, NULL, NULL);
-				break;
-			case KEY_PREVIOUSSONG:
-				a2dp_master_event_send(BT_SOURCE_EVENT_RC_FORWARD, NULL, NULL);
-				break;
-			default:
-				break;
-		}
-	}
-
-	if (g_bt_source_info.listen_fd >= 0) {
-		shutdown(g_bt_source_info.listen_fd, SHUT_RDWR);
-		g_bt_source_info.listen_fd = -1;
-	}
-
-	pr_info("%s: Exit source avrcp event listen thread\n", __func__);
-	return NULL;
-}
-
-int a2dp_master_avrcp_open()
-{
-	if(g_bt_source_avrcp_thread)
-		return 0;
-
-	g_bt_source_avrcp_thread_runing = 1;
-	if(pthread_create(&g_bt_source_avrcp_thread, NULL, bt_source_listen_avrcp_event, NULL)){
-		pr_err("Create source avrcp event listen pthread failed\n");
-		return -1;
-	}
-
-	pthread_setname_np(g_bt_source_avrcp_thread, "source_listen_avrcp_event");
-
-	return 0;
-}
-
-int a2dp_master_avrcp_close()
-{
-	pr_info("### %s start...\n", __func__);
-	g_bt_source_avrcp_thread_runing = 0;
-
-	if (g_bt_source_info.listen_fd >= 0) {
-		shutdown(g_bt_source_info.listen_fd, SHUT_RDWR);
-		g_bt_source_info.listen_fd = -1;
-	}
-
-	if (g_bt_source_avrcp_thread) {
-		pthread_join(g_bt_source_avrcp_thread, NULL);
-		g_bt_source_avrcp_thread = 0;
-	}
-
-	pr_info("### %s end...\n", __func__);
-	return 0;
-}
-
 static void save_last_device(GDBusProxy *proxy)
 {
 	int fd;
