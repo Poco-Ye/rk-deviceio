@@ -920,7 +920,7 @@ static void ble_client_test_dev_found_cb(const char *address,const char *name, u
 	printf("+++++++++++++++++++++++++++++++++++++++++\n");
 }
 
-void ble_client_test_state_callback(const RK_BLE_CLIENT_STATE state)
+void ble_client_test_state_callback(const char *bd_addr, const char *name, RK_BLE_CLIENT_STATE state)
 {
 	switch(state)
 	{
@@ -928,10 +928,10 @@ void ble_client_test_state_callback(const RK_BLE_CLIENT_STATE state)
 			printf("+++++ RK_BLE_CLIENT_STATE_IDLE +++++\n");
 			break;
 		case RK_BLE_CLIENT_STATE_CONNECT:
-			printf("+++++ RK_BLE_CLIENT_STATE_CONNECT +++++\n");
+			printf("+++++ RK_BLE_CLIENT_STATE_CONNECT(%s, %s) +++++\n", bd_addr, name);
 			break;
 		case RK_BLE_CLIENT_STATE_DISCONNECT:
-			printf("+++++ RK_BLE_CLIENT_STATE_DISCONNECT +++++\n");
+			printf("+++++ RK_BLE_CLIENT_STATE_DISCONNECT(%s, %s) +++++\n", bd_addr, name);
 			break;
 	}
 }
@@ -950,7 +950,6 @@ static void bt_test_ble_client_recv_data_callback(const char *uuid, char *data, 
 
 void bt_test_ble_client_open(char *data)
 {
-	rk_ble_client_register_dev_found_callback(ble_client_test_dev_found_cb);
 	rk_ble_client_register_state_callback(ble_client_test_state_callback);
 	rk_ble_client_register_recv_callback(bt_test_ble_client_recv_data_callback);
 	rk_ble_client_open();

@@ -12,10 +12,8 @@ extern "C" {
 
 void gatt_client_register_state_callback(RK_BLE_CLIENT_STATE_CALLBACK cb);
 void gatt_client_register_recv_callback(RK_BLE_CLIENT_RECV_CALLBACK cb);
-void gatt_client_register_dev_found_callback(RK_BT_DEV_FOUND_CALLBACK cb);
 void gatt_client_state_send(RK_BLE_CLIENT_STATE state);
 void gatt_client_recv_data_send(GDBusProxy *proxy, DBusMessageIter *iter);
-void gatt_client_dev_found_send(GDBusProxy *proxy);
 RK_BLE_CLIENT_STATE gatt_client_get_state();
 void gatt_client_open();
 void gatt_client_close();

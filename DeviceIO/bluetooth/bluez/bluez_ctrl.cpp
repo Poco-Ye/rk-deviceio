@@ -449,13 +449,18 @@ void bt_close_ble(bool disconnect)
 {
 	RK_LOGD("ble server close\n");
 
+	gatt_set_stopping(true);
 	if(disconnect) {
 		if(!ble_disconnect())
 			sleep(3);
+	} else {
+		if(!remove_ble_device())
+			sleep(2);
 	}
 
 	ble_disable_adv();
 	ble_deregister_state_callback();
+	gatt_set_stopping(false);
 	bt_control.is_ble_open = false;
 }
 
@@ -558,6 +563,7 @@ int bt_interface(BtControl type, void *data)
 			return -1;
 	} else if (type == BtControl::BT_BLE_OPEN) {
 		RK_LOGD("Open ble.");
+		ble_clean();
 		if(ble_enable_adv() < 0)
 			return -1;
 	} else if (type == BtControl::BT_HFP_OPEN) {

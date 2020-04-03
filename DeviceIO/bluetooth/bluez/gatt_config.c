@@ -111,8 +111,8 @@ static int gid = 0;
 static int gdesc_id = 0;
 static int characteristic_id = 1;
 static int service_id = 1;
+static bool gatt_is_stopping = false;
 
-char le_random_addr[DEVICE_ADDR_LEN];
 static char g_cmd_ra[256];
 #define CMD_RA "hcitool -i hci0 cmd 0x08 0x0005"
 #define CMD_PARA "hcitool -i hci0 cmd 0x08 0x0006 A0 00 A0 00 00 01 00 00 00 00 00 00 00 07 00"
@@ -131,7 +131,6 @@ struct adapter {
 	GList *devices;
 };
 
-extern GDBusProxy *default_dev;
 extern GDBusProxy *ble_dev;
 extern struct adapter *default_ctrl;
 extern DBusConnection *dbus_conn;
@@ -533,7 +532,8 @@ static DBusMessage *chr_read_value(DBusConnection *conn, DBusMessage *msg,
 
 	dbus_message_iter_init_append(reply, &iter);
 
-	ble_content_internal->cb_ble_request_data(chr->uuid);
+	if(ble_content_internal->cb_ble_request_data)
+		ble_content_internal->cb_ble_request_data(chr->uuid);
 
 	chr_read(chr, &iter);
 	memcpy(str, chr->value, chr->vlen);
@@ -836,9 +836,6 @@ int gatt_write_data(char *uuid, void *data, int len)
 
 int ble_enable_adv(void)
 {
-	system("hciconfig hci0 piscan");
-	system("hciconfig hci0 piscan");
-
 	if(gatt_set_on_adv() < 0) {
 		pr_err("%s: gatt_set_on_adv failed\n", __func__);
 		return -1;
@@ -863,6 +860,11 @@ int gatt_set_on_adv(void)
 	char CMD_ADV_RESP_DATA[128] = "hcitool -i hci0 cmd 0x08 0x0009";
 	char temp[32];
 	int i;
+
+	if(gatt_is_stopping) {
+		pr_info("%s: ble is stopping\n", __func__);
+		return -1;
+	}
 
 	if(!ble_content_internal) {
 		pr_err("%s: ble_content_internal is NULL\n", __func__);
@@ -966,7 +968,7 @@ static void unregister_app_reply(DBusMessage *message, void *user_data)
 		return;
 	}
 
-	pr_info("Application unregistered\n");
+	pr_info("%s: Application unregistered\n", __func__);
 }
 
 static void unregister_app_setup(DBusMessageIter *iter, void *user_data)
@@ -1147,13 +1149,15 @@ static int ble_adv_set(RkBtContent *bt_content, ble_content_t *ble_content)
 
 int gatt_init(RkBtContent *bt_content)
 {
-	char temp_addr[10];
 	int i;
+	char temp_addr[10];
+	char le_random_addr[DEVICE_ADDR_LEN];
 
 	characteristic_id = 1;
 	service_id = 1;
 	gid = 0;
 	gdesc_id = 0;
+	gatt_is_stopping = false;
 
 	if(bt_content->ble_content.server_uuid.len <= 0) {
 		pr_info("%s: invalid server_uuid len = %d\n", __func__,
@@ -1164,9 +1168,10 @@ int gatt_init(RkBtContent *bt_content)
 	// random addr
 	srand(time(NULL) + getpid() + getpid() * 987654 + rand());
 	for(i = 0; i < DEVICE_ADDR_LEN;i++)
-		 le_random_addr[i] = rand() & 0xFF;
+		le_random_addr[i] = rand() & 0xFF;
 	le_random_addr[5] &= 0x3f;		/* Clear two most significant bits */
-	le_random_addr[5] |= 0xc0;		/* Set second most significant bit */
+	//le_random_addr[5] |= 0xc0;	/* Set second most significant bit */
+	le_random_addr[5] |= 0x40;		/* Set second most significant bit, Private resolvable */
 
 	memset(g_cmd_ra, 0, 256);
 	strcat(g_cmd_ra, CMD_RA);
@@ -1177,7 +1182,7 @@ int gatt_init(RkBtContent *bt_content)
 		strcat(g_cmd_ra, temp_addr);
 	}
 
-	printf("CMD_RA: %d, %s(%p)\n", strlen(g_cmd_ra), g_cmd_ra, g_cmd_ra);
+	pr_info("CMD_RA: %d, %s(%p)\n", strlen(g_cmd_ra), g_cmd_ra, g_cmd_ra);
 
 	//save random addr
 	memcpy(bt_content->ble_content.le_random_addr, le_random_addr, DEVICE_ADDR_LEN);
@@ -1192,4 +1197,9 @@ int gatt_init(RkBtContent *bt_content)
 	ble_content_internal = &ble_content_internal_bak;
 	gatt_create_services();
 	return 0;
+}
+
+void gatt_set_stopping(bool stopping)
+{
+	gatt_is_stopping = stopping;
 }

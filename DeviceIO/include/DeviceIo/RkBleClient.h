@@ -97,11 +97,10 @@ typedef struct {
 	RK_BLE_CLIENT_SERVICE service[SERVICE_COUNT_MAX];
 } RK_BLE_CLIENT_SERVICE_INFO;
 
-typedef void (*RK_BLE_CLIENT_STATE_CALLBACK)(RK_BLE_CLIENT_STATE state);
+typedef void (*RK_BLE_CLIENT_STATE_CALLBACK)(const char *bd_addr, const char *name, RK_BLE_CLIENT_STATE state);
 typedef void (*RK_BLE_CLIENT_RECV_CALLBACK)(const char *uuid, char *data, int len);
 
 void rk_ble_client_register_state_callback(RK_BLE_CLIENT_STATE_CALLBACK cb);
-void rk_ble_client_register_dev_found_callback(RK_BT_DEV_FOUND_CALLBACK cb);
 int rk_ble_client_register_recv_callback(RK_BLE_CLIENT_RECV_CALLBACK cb);
 int rk_ble_client_open(void);
 void rk_ble_client_close(void);

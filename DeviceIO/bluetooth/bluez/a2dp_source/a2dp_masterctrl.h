@@ -67,18 +67,21 @@ int bt_cancel_discovery(RK_BT_DISCOVERY_STATE state);
 int bt_get_scaned_devices(RkBtScanedDevice **dev_list, int *count, bool paired);
 int bt_free_scaned_devices(RkBtScanedDevice *dev_list);
 bool bt_is_discovering();
+bool bt_is_scaning();
 bool bt_is_connected();
 int ble_disconnect(void);
-void ble_service_cnt_clean(void);
+void ble_clean(void);
+int remove_ble_device();
 int bt_get_playrole_by_addr(char *addr);
 void dev_found_send(GDBusProxy *proxy, RK_BT_DEV_FOUND_CALLBACK cb);
 struct GDBusProxy *find_device_by_address(char *address);
 void set_default_attribute(GDBusProxy *proxy);
-char *bt_get_address_type(char *addr);
 void source_set_reconnect_tag(bool reconnect);
 void source_stop_connecting();
 bool get_device_connected_properties(char *addr);
 int a2dp_master_save_status(char *address);
+int bt_get_device_name_by_proxy(GDBusProxy *proxy, char *name_buf, int name_len);
+int bt_get_device_addr_by_proxy(GDBusProxy *proxy, char *addr_buf, int addr_len);
 
 #ifdef __cplusplus
 }

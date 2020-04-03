@@ -84,16 +84,16 @@ int rk_ble_start(RkBleContent *ble_content)
 	}
 
 	if(ble_is_open()) {
-		pr_info("ble has been opened\n");
+		pr_info("%s: ble has been opened\n", __func__);
 		return -1;
 	}
 
+	pr_info("%s, tid(%lu)\n", __func__, pthread_self());
 	if(ble_client_is_open()) {
 		pr_info("ble client has been opened, close ble client\n");
 		rk_ble_client_close();
 	}
 
-	ble_service_cnt_clean();
 	if(rk_bt_control(BtControl::BT_BLE_OPEN, NULL, 0) < 0)
 		return -1;
 
@@ -104,10 +104,11 @@ int rk_ble_start(RkBleContent *ble_content)
 static int bt_hal_ble_stop(bool disconnect)
 {
 	if (!ble_is_open()) {
-		pr_info("ble has been closed\n");
+		pr_info("%s: ble has been closed\n", __func__);
 		return -1;
 	}
 
+	pr_info("%s, tid(%lu)\n", __func__, pthread_self());
 	bt_close_ble(disconnect);
 	return 0;
 }
@@ -185,7 +186,7 @@ int rk_ble_register_recv_callback(RK_BLE_RECV_CALLBACK cb)
 {
 	if (cb) {
 		pr_info("BlueZ does not support this interface."
-			"Please set the callback function when initializing BT.\n");
+			"Please set the callback function when init BT.\n");
 	}
 
 	return 0;
@@ -194,10 +195,11 @@ int rk_ble_register_recv_callback(RK_BLE_RECV_CALLBACK cb)
 int rk_ble_disconnect()
 {
 	if (!ble_is_open()) {
-		pr_info("ble isn't open, please open\n");
+		pr_info("%s: ble isn't open, please open\n", __func__);
 		return -1;
 	}
 
+	pr_info("%s, tid(%lu)\n", __func__, pthread_self());
 	return ble_disconnect();
 }
 
@@ -215,11 +217,6 @@ int rk_ble_set_adv_interval(unsigned short adv_int_min, unsigned short adv_int_m
 /*****************************************************************
  *            Rockchip bluetooth LE Client api                      *
  *****************************************************************/
-void rk_ble_client_register_dev_found_callback(RK_BT_DEV_FOUND_CALLBACK cb)
-{
-	gatt_client_register_dev_found_callback(cb);
-}
-
 void rk_ble_client_register_state_callback(RK_BLE_CLIENT_STATE_CALLBACK cb)
 {
 	gatt_client_register_state_callback(cb);
@@ -238,26 +235,25 @@ int rk_ble_client_open()
 	}
 
 	if(ble_client_is_open()) {
-		pr_info("ble client has been opened\n");
+		pr_info("%s: ble client has been opened\n", __func__);
 		return -1;
 	}
 
 	if(ble_is_open()) {
-		pr_info("ble has been opened, close ble\n");
+		pr_info("%s: ble has been opened, close ble\n", __func__);
 		rk_ble_stop();
 	}
 
 	gatt_client_open();
 	bt_control.is_ble_client_open = true;
 	gatt_client_state_send(RK_BLE_CLIENT_STATE_IDLE);
-
 	return 0;
 }
 
 static void bt_hal_ble_client_close(bool disconnect)
 {
 	if(!ble_client_is_open()) {
-		pr_info("ble client has been closed\n");
+		pr_info("%s: ble client has been closed\n", __func__);
 		return;
 	}
 
@@ -278,7 +274,7 @@ void rk_ble_client_close()
 RK_BLE_CLIENT_STATE rk_ble_client_get_state()
 {
 	if(!ble_client_is_open()) {
-		pr_info("ble client isn't open, please open\n");
+		pr_info("%s: ble client isn't open, please open\n", __func__);
 		return -1;
 	}
 
@@ -288,7 +284,7 @@ RK_BLE_CLIENT_STATE rk_ble_client_get_state()
 int rk_ble_client_connect(char *address)
 {
 	if(!ble_client_is_open()) {
-		pr_info("ble client isn't open, please open\n");
+		pr_info("%s: ble client isn't open, please open\n", __func__);
 		return -1;
 	}
 
@@ -297,29 +293,18 @@ int rk_ble_client_connect(char *address)
 
 int rk_ble_client_disconnect(char *address)
 {
-	int ret;
-	char *address_type;
-
 	if(!ble_client_is_open()) {
-		pr_info("ble client isn't open, please open\n");
+		pr_info("%s: ble client isn't open, please open\n", __func__);
 		return -1;
 	}
 
-	address_type = bt_get_address_type(address);
-
-	ret = disconnect_by_address(address);
-	if(!ret && (address_type && !strcmp(address_type, "public"))) {
-		sleep(2);
-		return remove_by_address(address);
-	}
-
-	return ret;
+	return ble_disconnect();
 }
 
 int rk_ble_client_get_service_info(char *address, RK_BLE_CLIENT_SERVICE_INFO *info)
 {
 	if(!ble_client_is_open()) {
-		pr_info("ble client isn't open, please open\n");
+		pr_info("%s: ble client isn't open, please open\n", __func__);
 		return -1;
 	}
 
@@ -329,7 +314,7 @@ int rk_ble_client_get_service_info(char *address, RK_BLE_CLIENT_SERVICE_INFO *in
 int rk_ble_client_read(const char *uuid)
 {
 	if(!ble_client_is_open()) {
-		pr_info("ble client isn't open, please open\n");
+		pr_info("%s: ble client isn't open, please open\n", __func__);
 		return -1;
 	}
 
@@ -339,7 +324,7 @@ int rk_ble_client_read(const char *uuid)
 int rk_ble_client_write(const char *uuid, char *data)
 {
 	if(!ble_client_is_open()) {
-		pr_info("ble client isn't open, please open\n");
+		pr_info("%s: ble client isn't open, please open\n", __func__);
 		return -1;
 	}
 
@@ -349,7 +334,7 @@ int rk_ble_client_write(const char *uuid, char *data)
 bool rk_ble_client_is_notifying(const char *uuid)
 {
 	if(!ble_client_is_open()) {
-		pr_info("ble client isn't open, please open\n");
+		pr_info("%s: ble client isn't open, please open\n", __func__);
 		return -1;
 	}
 
@@ -359,7 +344,7 @@ bool rk_ble_client_is_notifying(const char *uuid)
 int rk_ble_client_notify(const char *uuid, bool enable)
 {
 	if(!ble_client_is_open()) {
-		pr_info("ble client isn't open, please open\n");
+		pr_info("%s: ble client isn't open, please open\n", __func__);
 		return -1;
 	}
 
@@ -395,7 +380,7 @@ scan_retry:
 		sleep(1);
 		goto scan_retry;
 	} else if (ret) {
-		pr_info("ERROR: Scan error!\n");
+		pr_info("%s: ERROR: Scan error!\n", __func__);
 		a2dp_master_event_send(BT_SOURCE_EVENT_CONNECT_FAILED, "", "");
 		return NULL;
 	}
@@ -461,7 +446,7 @@ int rk_bt_source_auto_connect_start(void *userdata, RK_BT_SOURCE_CALLBACK cb)
 	}
 
 	if (g_btmaster_thread) {
-		pr_info("The last operation is still in progress, please stop then start\n");
+		pr_info("%s: The last operation is still in progress, please stop then start\n", __func__);
 		return -1;
 	}
 
@@ -476,7 +461,7 @@ int rk_bt_source_auto_connect_start(void *userdata, RK_BT_SOURCE_CALLBACK cb)
 	ret = pthread_create(&g_btmaster_thread, NULL,
 						 _btmaster_autoscan_and_connect, NULL);
 	if (ret) {
-		pr_info("_btmaster_autoscan_and_connect thread create failed!\n");
+		pr_info("%s: _btmaster_autoscan_and_connect thread create failed!\n", __func__);
 		return -1;
 	}
 
@@ -495,23 +480,24 @@ int rk_bt_source_auto_connect_stop(void)
 
 int rk_bt_source_open()
 {
+	pr_info("%s, tid(%lu)\n", __func__, pthread_self());
 	if (!bt_is_open()) {
 		pr_err("%s: Please open bt!!!\n", __func__);
 		return -1;
 	}
 
 	if (g_btmaster_thread) {
-		pr_err("The last operation is still in progress\n");
+		pr_err("%s: The last operation is still in progress\n", __func__);
 		return -1;
 	}
 
 	if (bt_source_is_open()) {
-		pr_info("bt source has been opened\n");
+		pr_info("%s: bt source has been opened\n", __func__);
 		return -1;
 	}
 
 	if (bt_sink_is_open()){
-		pr_info("bt sink has been opened, close bt sink");
+		pr_info("%s: bt sink has been opened, close bt sink", __func__);
 		rk_bt_sink_close();
 	}
 
@@ -522,13 +508,18 @@ int rk_bt_source_open()
 
 	reconn_last_devices(BT_DEVICES_A2DP_SINK);
 	bt_control.is_a2dp_source_open = true;
+
 	return 0;
 }
 
 static int bt_hal_source_close(bool disconnect)
 {
+	pr_info("%s, tid(%lu)\n", __func__, pthread_self());
+	if(rk_bt_is_discovering())
+		rk_bt_cancel_discovery();
+
 	if (!bt_source_is_open()) {
-		pr_info("bt source has been closed\n");
+		pr_info("%s: bt source has been closed\n", __func__);
 		return -1;
 	}
 
@@ -549,7 +540,7 @@ int rk_bt_source_close()
 int rk_bt_source_scan(BtScanParam *data, RK_BT_SCAN_TYPE scan_type)
 {
 	if (!bt_source_is_open()) {
-		pr_info("bt source isn't open, please open\n");
+		pr_info("%s: bt source isn't open, please open\n", __func__);
 		return -1;
 	}
 
@@ -562,7 +553,7 @@ int rk_bt_source_connect_by_addr(char *address)
 	memset(bd_addr, 0, 18);
 
 	if (!bt_source_is_open()) {
-		pr_info("bt source isn't open, please open\n");
+		pr_info("%s: bt source isn't open, please open\n", __func__);
 		return -1;
 	}
 
@@ -573,7 +564,7 @@ int rk_bt_source_connect_by_addr(char *address)
 int rk_bt_source_disconnect_by_addr(char *address)
 {
 	if (!bt_source_is_open()) {
-		pr_info("bt source isn't open, please open\n");
+		pr_info("%s: bt source isn't open, please open\n", __func__);
 		return -1;
 	}
 
@@ -584,7 +575,7 @@ int rk_bt_source_disconnect_by_addr(char *address)
 int rk_bt_source_disconnect()
 {
 	if (!bt_source_is_open()) {
-		pr_info("bt source isn't open, please open\n");
+		pr_info("%s: bt source isn't open, please open\n", __func__);
 		return -1;
 	}
 
@@ -594,7 +585,7 @@ int rk_bt_source_disconnect()
 int rk_bt_source_remove(char *address)
 {
 	if (!bt_source_is_open()) {
-		pr_info("bt source isn't open, please open\n");
+		pr_info("%s: bt source isn't open, please open\n", __func__);
 		return -1;
 	}
 
@@ -719,14 +710,14 @@ void *sink_underrun_listen(void *arg)
 
 static int underrun_listen_thread_create(RK_BT_SINK_UNDERRUN_CB cb)
 {
-	pr_info("underrun_listen_thread_create\n");
+	pr_info("%s: underrun_listen_thread_create\n", __func__);
 
 	g_underrun_handler.cb = cb;
 
 	/* Create a thread to listen for bluez-alsa sink underrun. */
 	if (!g_underrun_handler.tid) {
 		if (pthread_create(&g_underrun_handler.tid, NULL, sink_underrun_listen, NULL)) {
-			pr_err("Create underrun listen pthread failed\n");
+			pr_err("%s: Create underrun listen pthread failed\n", __func__);
 			return -1;
 		}
 
@@ -794,12 +785,12 @@ int rk_bt_sink_open()
 	}
 
 	if (bt_sink_is_open()) {
-		pr_info("bt sink has been opened\n");
+		pr_info("%s: bt sink has been opened\n", __func__);
 		return -1;
 	}
 
 	if(bt_source_is_open()) {
-		pr_info("bt source has been opened, close bt source");
+		pr_info("%s: bt source has been opened, close bt source", __func__);
 		rk_bt_source_close();
 	}
 
@@ -818,7 +809,7 @@ int rk_bt_sink_open()
 static int bt_hal_sink_close(bool disconnect)
 {
 	if (!bt_sink_is_open()) {
-		pr_info("bt sink has been closed\n");
+		pr_info("%s: bt sink has been closed\n", __func__);
 		return -1;
 	}
 
@@ -881,7 +872,7 @@ int rk_bt_sink_stop(void)
 int rk_bt_sink_get_play_status()
 {
 	if (!bt_sink_is_open()) {
-		pr_info("bt sink isn't open, please open\n");
+		pr_info("%s: bt sink isn't open, please open\n", __func__);
 		return -1;
 	}
 
@@ -891,7 +882,7 @@ int rk_bt_sink_get_play_status()
 bool rk_bt_sink_get_poschange()
 {
 	if (!bt_sink_is_open()) {
-		pr_info("bt sink isn't open, please open\n");
+		pr_info("%s: bt sink isn't open, please open\n", __func__);
 		return false;
 	}
 
@@ -901,7 +892,7 @@ bool rk_bt_sink_get_poschange()
 int rk_bt_sink_disconnect()
 {
 	if (!bt_sink_is_open()) {
-		pr_info("bt sink isn't open, please open\n");
+		pr_info("%s: bt sink isn't open, please open\n", __func__);
 		return -1;
 	}
 
@@ -911,7 +902,7 @@ int rk_bt_sink_disconnect()
 int rk_bt_sink_connect_by_addr(char *addr)
 {
 	if (!bt_sink_is_open()) {
-		pr_info("bt sink isn't open, please open\n");
+		pr_info("%s: bt sink isn't open, please open\n", __func__);
 		return -1;
 	}
 
@@ -921,7 +912,6 @@ int rk_bt_sink_connect_by_addr(char *addr)
 int rk_bt_sink_disconnect_by_addr(char *addr)
 {
 	if(bt_sink_is_open()) {
-		//bt_sink_state_send(RK_BT_SINK_STATE_DISCONNECTING);
 		return disconnect_by_address(addr);
 	}
 
@@ -1007,7 +997,7 @@ int rk_bt_sink_volume_up(void)
 	int ret = 0;
 
 	if (!bt_sink_is_open()) {
-		pr_info("bt sink isn't open, please open\n");
+		pr_info("%s: bt sink isn't open, please open\n", __func__);
 		return -1;
 	}
 
@@ -1026,7 +1016,7 @@ int rk_bt_sink_volume_down(void)
 	int ret = 0;
 
 	if (!bt_sink_is_open()) {
-		pr_info("bt sink isn't open, please open\n");
+		pr_info("%s: bt sink isn't open, please open\n", __func__);
 		return -1;
 	}
 
@@ -1050,7 +1040,7 @@ int rk_bt_sink_set_volume(int volume)
 	int ret = 0;
 
 	if (!bt_sink_is_open()) {
-		pr_info("bt sink isn't open, please open\n");
+		pr_info("%s: bt sink isn't open, please open\n", __func__);
 		return -1;
 	}
 
@@ -1176,7 +1166,7 @@ static int main_loop_deinit()
 int rk_bt_init(RkBtContent *p_bt_content)
 {
 	if (bt_is_open()) {
-		pr_info("bluetooth has been opened!\n");
+		pr_info("%s: bluetooth has been opened!\n", __func__);
 		return -1;
 	}
 
@@ -1198,7 +1188,7 @@ int rk_bt_init(RkBtContent *p_bt_content)
 int rk_bt_deinit()
 {
 	if (!bt_is_open()) {
-		pr_info("bluetooth has been closed!\n");
+		pr_info("%s: bluetooth has been closed!\n", __func__);
 		return -1;
 	}
 
@@ -1233,6 +1223,7 @@ int rk_bt_deinit()
 	bt_state_send(RK_BT_STATE_OFF);
 	bt_deregister_state_callback();
 	pr_info("exit %s\n", __func__);
+
 	return 0;
 }
 
@@ -1317,6 +1308,7 @@ int rk_bt_start_discovery(unsigned int mseconds, RK_BT_SCAN_TYPE scan_type)
 		return -1;
 	}
 
+	pr_info("%s, tid(%lu)\n", __func__, pthread_self());
 	return bt_start_discovery(mseconds, scan_type);
 }
 
@@ -1327,6 +1319,7 @@ int rk_bt_cancel_discovery()
 		return -1;
 	}
 
+	pr_info("%s, tid(%lu)\n", __func__, pthread_self());
 	return bt_cancel_discovery(RK_BT_DISC_STOPPED_BY_USER);
 }
 
@@ -1337,7 +1330,7 @@ bool rk_bt_is_discovering()
 		return false;
 	}
 
-	return bt_is_discovering();
+	return bt_is_scaning();
 }
 
 int rk_bt_get_scaned_devices(RkBtScanedDevice **dev_list, int *count)
@@ -1512,12 +1505,12 @@ int rk_bt_hfp_open()
 	}
 
 	if (bt_hfp_is_open()) {
-		RK_LOGI("bt hfp has already been opened!!!\n");
+		RK_LOGI("%s: bt hfp has already been opened!!!\n", __func__);
 		return -1;
 	}
 
 	if(bt_source_is_open()) {
-		pr_info("bt source has been opened, close bt source");
+		pr_info("%s: bt source has been opened, close bt source", __func__);
 		rk_bt_source_close();
 	}
 
@@ -1528,7 +1521,7 @@ int rk_bt_hfp_open()
 
 	g_ba_hfp_client = bluealsa_open("hci0");
 	if (g_ba_hfp_client < 0) {
-		RK_LOGE("bt hfp connect to bluealsa server failed!");
+		RK_LOGE("%s: bt hfp connect to bluealsa server failed!", __func__);
 		return -1;
 	}
 
@@ -1555,7 +1548,7 @@ int rk_bt_hfp_sink_open(void)
 	}
 
 	if(bt_source_is_open()) {
-		pr_info("bt source has been opened, close bt source");
+		pr_info("%s: bt source has been opened, close bt source", __func__);
 		rk_bt_source_close();
 	}
 
@@ -1567,7 +1560,7 @@ int rk_bt_hfp_sink_open(void)
 
 	g_ba_hfp_client = bluealsa_open("hci0");
 	if (g_ba_hfp_client < 0) {
-		RK_LOGE("bt hfp connect to bluealsa server failed!");
+		RK_LOGE("%s: bt hfp connect to bluealsa server failed!", __func__);
 		return -1;
 	}
 
@@ -1697,7 +1690,7 @@ int rk_bt_hfp_report_battery(int value)
 	static int done = 0;
 
 	if ((value < 0) || (value > 9)) {
-		pr_info("ERROR: Invalid value, should within [0, 9]\n");
+		pr_info("%s: ERROR: Invalid value, should within [0, 9]\n", __func__);
 		return -1;
 	}
 
@@ -1793,13 +1786,13 @@ int rk_bt_obex_pbap_init()
 	}
 
 	if(g_obex_thread) {
-		pr_info("g_obex_thread has been initialized\n");
+		pr_info("%s: g_obex_thread has been initialized\n", __func__);
 		return -1;
 	}
 
 	/* Create thread to do connect task. */
 	if (pthread_create(&g_obex_thread, NULL, obex_main_thread, NULL)) {
-		pr_info("obex_main_thread thread create failed!\n");
+		pr_info("%s: obex_main_thread thread create failed!\n", __func__);
 		return -1;
 	}
 
@@ -1810,7 +1803,7 @@ int rk_bt_obex_pbap_init()
 int rk_bt_obex_pbap_connect(char *btaddr)
 {
 	if(!g_obex_thread) {
-		pr_err("obex don't inited, please init\n");
+		pr_err("%s: obex don't inited, please init\n", __func__);
 		return -1;
 	}
 
@@ -1828,7 +1821,7 @@ int rk_bt_obex_pbap_connect(char *btaddr)
 int rk_bt_obex_pbap_get_vcf(char *dir_name, char *dir_file)
 {
 	if(!g_obex_thread) {
-		pr_err("obex don't inited, please init\n");
+		pr_err("%s: obex don't inited, please init\n", __func__);
 		return -1;
 	}
 
@@ -1846,7 +1839,7 @@ int rk_bt_obex_pbap_get_vcf(char *dir_name, char *dir_file)
 int rk_bt_obex_pbap_disconnect(char *btaddr)
 {
 	if(!g_obex_thread) {
-		pr_err("obex don't inited, please init\n");
+		pr_err("%s: obex don't inited, please init\n", __func__);
 		return -1;
 	}
 
@@ -1858,7 +1851,7 @@ int rk_bt_obex_pbap_disconnect(char *btaddr)
 int rk_bt_obex_pbap_deinit()
 {
 	if(!g_obex_thread) {
-		pr_info("obex has been closed\n");
+		pr_info("%s: obex has been closed\n", __func__);
 		return -1;
 	}
 

@@ -13,6 +13,7 @@ void ble_disable_adv(void);
 int gatt_write_data(char *uuid, void *data, int len);
 int gatt_setup(void);
 void gatt_cleanup(void);
+void gatt_set_stopping(bool stopping);
 
 #ifdef __cplusplus
 }

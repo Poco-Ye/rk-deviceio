@@ -262,13 +262,6 @@ int rk_bt_is_connected()
             return 1;
     }
 
-    if(ble_is_open()) {
-        RK_BLE_STATE ble_state;
-        rk_ble_get_state(&ble_state);
-        if(ble_state == RK_BLE_STATE_CONNECT)
-            return 1;
-    }
-
     if(spp_is_open()) {
         RK_BT_SPP_STATE spp_state;
         rk_bt_spp_get_state(&spp_state);
@@ -902,11 +895,6 @@ int rk_ble_set_adv_interval(unsigned short adv_int_min, unsigned short adv_int_m
 /*****************************************************
  *                   BLE CLIENT                      *
  *****************************************************/
-void rk_ble_client_register_dev_found_callback(RK_BT_DEV_FOUND_CALLBACK cb)
-{
-    APP_DEBUG1("bsa don't support %s", __func__);
-}
-
 void rk_ble_client_register_state_callback(RK_BLE_CLIENT_STATE_CALLBACK cb)
 {
     APP_DEBUG1("bsa don't support %s", __func__);

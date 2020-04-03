@@ -16,23 +16,17 @@ extern GDBusProxy *default_attr;
 
 typedef struct {
 	RK_BLE_CLIENT_STATE_CALLBACK state_cb;
-	RK_BT_DEV_FOUND_CALLBACK ble_dev_found_cb;
 	RK_BLE_CLIENT_RECV_CALLBACK recv_cb;
 	RK_BLE_CLIENT_STATE state;
 } gatt_client_control_t;
 
 static gatt_client_control_t g_gatt_client_ctl = {
-	NULL, NULL, NULL, RK_BLE_CLIENT_STATE_IDLE,
+	NULL, NULL, RK_BLE_CLIENT_STATE_IDLE,
 };
 
 void gatt_client_register_state_callback(RK_BLE_CLIENT_STATE_CALLBACK cb)
 {
 	g_gatt_client_ctl.state_cb = cb;
-}
-
-void gatt_client_register_dev_found_callback(RK_BT_DEV_FOUND_CALLBACK cb)
-{
-	g_gatt_client_ctl.ble_dev_found_cb = cb;
 }
 
 void gatt_client_register_recv_callback(RK_BLE_CLIENT_RECV_CALLBACK cb)
@@ -42,10 +36,20 @@ void gatt_client_register_recv_callback(RK_BLE_CLIENT_RECV_CALLBACK cb)
 
 void gatt_client_state_send(RK_BLE_CLIENT_STATE state)
 {
-	if(g_gatt_client_ctl.state_cb)
-		g_gatt_client_ctl.state_cb(state);
+	char addr[18], name[256];
 
 	g_gatt_client_ctl.state = state;
+
+	if(!g_gatt_client_ctl.state_cb) {
+		pr_info("%s: ble_client_state_cb are not registered\n", __func__);
+		return;
+	}
+
+	memset(addr, 0, 18);
+	memset(name, 0, 256);
+	bt_get_device_addr_by_proxy(ble_dev, addr, 18);
+	bt_get_device_name_by_proxy(ble_dev, name, 256);
+	g_gatt_client_ctl.state_cb(addr, name, state);
 }
 
 void gatt_client_recv_data_send(GDBusProxy *proxy, DBusMessageIter *iter)
@@ -82,35 +86,15 @@ RK_BLE_CLIENT_STATE gatt_client_get_state()
 	return g_gatt_client_ctl.state;
 }
 
-void gatt_client_dev_found_send(GDBusProxy *proxy)
-{
-	DBusMessageIter iter;
-	const char *addressType;
-
-	if(!bt_is_discovering() || !g_gatt_client_ctl.ble_dev_found_cb)
-		return;
-
-	if (g_dbus_proxy_get_property(proxy, "AddressType", &iter) == FALSE)
-		return;
-
-	dbus_message_iter_get_basic(&iter, &addressType);
-	if (strcmp(addressType, "random") != 0) {
-		pr_info("%s The device isn't ble\n", __func__);
-		return;
-	}
-
-	dev_found_send(proxy, g_gatt_client_ctl.ble_dev_found_cb);
-}
-
 void gatt_client_open()
 {
+	ble_clean();
 }
 
 void gatt_client_close()
 {
 	pr_info("%s\n", __func__);
 	g_gatt_client_ctl.state = RK_BLE_CLIENT_STATE_IDLE;
-	g_gatt_client_ctl.ble_dev_found_cb = NULL;
 	g_gatt_client_ctl.recv_cb = NULL;
 	g_gatt_client_ctl.state_cb = NULL;
 }
