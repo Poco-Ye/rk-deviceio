@@ -4440,29 +4440,35 @@ static void reomve_unpaired_device ()
 	GDBusProxy *proxy;
 	DBusMessageIter iter;
 	GList *list;
-	dbus_bool_t paired = FALSE;
 
 	if (check_default_ctrl() == FALSE)
 		return;
 
-	pr_info("%s\n", __func__);
 	for (list = default_ctrl->devices; list;
 					list = g_list_next(list)) {
+		dbus_bool_t paired = FALSE;
+		dbus_bool_t connected = FALSE;
+
 		GDBusProxy *proxy = (GDBusProxy *)list->data;
 
-		if (g_dbus_proxy_get_property(proxy, "Paired", &iter) == TRUE) {
+		if (g_dbus_proxy_get_property(proxy, "Paired", &iter))
 			dbus_message_iter_get_basic(&iter, &paired);
-			if (paired) {
-				const char *address;
-				if (g_dbus_proxy_get_property(proxy, "Address", &iter) == TRUE) {
-					dbus_message_iter_get_basic(&iter, &address);
-					pr_info("%s: address(%s) is paired\n", __func__, address);
-				}
-				continue;
+
+		if (g_dbus_proxy_get_property(proxy, "Connected", &iter))
+			dbus_message_iter_get_basic(&iter, &connected);
+
+		if (paired || connected) {
+			const char *address;
+			if (g_dbus_proxy_get_property(proxy, "Address", &iter)) {
+				dbus_message_iter_get_basic(&iter, &address);
+				pr_info("%s: address(%s) is paired(%d) or connected(%d)\n", __func__, address, paired, connected);
 			}
+			continue;
 		}
+
 		remove_device(proxy);
 	}
+
 	return;
 }
 
