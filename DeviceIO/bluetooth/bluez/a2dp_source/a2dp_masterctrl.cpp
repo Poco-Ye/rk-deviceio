@@ -3567,6 +3567,11 @@ int ble_disconnect()
 		return -1;
 	}
 
+	if(ble_is_open()) {
+		if(!remove_ble_device())
+			return;
+	}
+
 	if (g_dbus_proxy_method_call(ble_dev, "Disconnect", NULL, ble_disconn_reply,
 							ble_dev, NULL) == FALSE) {
 		pr_info("%s: Failed to disconnect\n", __func__);

@@ -400,23 +400,62 @@ void bt_test_free_paired_devices(char *data)
 
 void bt_test_start_discovery(char *data)
 {
+	int time;
+
+	if(data == NULL) {
+		printf("Please enter the scan time\n");
+		return;
+	}
+
+	time = atoi(data);
+	if(time < 10000) {
+		printf("Scan time is too short(%d), reset to 10000ms\n", time);
+		time = 10000;
+	}
+
 	rk_bt_register_discovery_callback(bt_test_discovery_status_cb);
 	rk_bt_register_dev_found_callback(bt_test_dev_found_cb);
-	rk_bt_start_discovery(10000, SCAN_TYPE_AUTO);
+	rk_bt_start_discovery(time, SCAN_TYPE_AUTO);
 }
 
 void bt_test_start_discovery_bredr(char *data)
 {
+	int time;
+
+	if(data == NULL) {
+		printf("Please enter the scan time\n");
+		return;
+	}
+
+	time = atoi(data);
+	if(time < 10000) {
+		printf("Scan time is too short(%d), reset to 10000ms\n", time);
+		time = 10000;
+	}
+
 	rk_bt_register_discovery_callback(bt_test_discovery_status_cb);
 	rk_bt_register_dev_found_callback(bt_test_dev_found_cb);
-	rk_bt_start_discovery(10000, SCAN_TYPE_BREDR);
+	rk_bt_start_discovery(time, SCAN_TYPE_BREDR);
 }
 
 void bt_test_start_discovery_le(char *data)
 {
+	int time;
+
+	if(data == NULL) {
+		printf("Please enter the scan time\n");
+		return;
+	}
+
+	time = atoi(data);
+	if(time < 10000) {
+		printf("Scan time is too short(%d), reset to 10000ms\n", time);
+		time = 10000;
+	}
+
 	rk_bt_register_discovery_callback(bt_test_discovery_status_cb);
 	rk_bt_register_dev_found_callback(bt_test_dev_found_cb);
-	rk_bt_start_discovery(10000, SCAN_TYPE_LE);
+	rk_bt_start_discovery(time, SCAN_TYPE_LE);
 }
 
 void bt_test_cancel_discovery(char *data)

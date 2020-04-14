@@ -2031,7 +2031,14 @@ int app_mgr_get_latest_device()
     for(index = 0; index < APP_MAX_NB_REMOTE_STORED_DEVICES; index++) {
         if((app_xml_remote_devices_db[index].in_use != FALSE)
             && (app_xml_remote_devices_db[index].latest_connect != FALSE)) {
-            APP_DEBUG1("Device%d %s is latest connected", index, app_xml_remote_devices_db[index].name);
+            APP_DEBUG1("Device%d %s(%02x:%02x:%02x:%02x:%02x:%02x) is latest connected", index,
+                app_xml_remote_devices_db[index].name,
+                app_xml_remote_devices_db[index].bd_addr[0],
+                app_xml_remote_devices_db[index].bd_addr[1],
+                app_xml_remote_devices_db[index].bd_addr[2],
+                app_xml_remote_devices_db[index].bd_addr[3],
+                app_xml_remote_devices_db[index].bd_addr[4],
+                app_xml_remote_devices_db[index].bd_addr[5]);
             return index;
         }
     }

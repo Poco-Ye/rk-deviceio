@@ -544,6 +544,7 @@ int rk_bt_source_scan(BtScanParam *data, RK_BT_SCAN_TYPE scan_type)
 		return -1;
 	}
 
+	source_set_reconnect_tag(false);
 	return a2dp_master_scan(data, sizeof(BtScanParam), scan_type);
 }
 

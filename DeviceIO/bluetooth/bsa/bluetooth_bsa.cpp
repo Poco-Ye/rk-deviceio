@@ -12,6 +12,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include "bsa_api.h"
+#include "bsa_disc_api.h"
 #include "app_xml_utils.h"
 #include "app_dm.h"
 #include "app_mgt.h"
@@ -50,6 +51,7 @@ static bool a2dp_sink_is_open();
 static bool a2dp_source_is_open();
 static bool spp_is_open();
 static bool hfp_is_open();
+static int bt_source_reconnect();
 
 static void bsa_bt_state_send(RK_BT_STATE state)
 {
@@ -329,12 +331,13 @@ int rk_bt_deinit()
 
     rk_bt_sink_close();
     rk_ble_stop();
-    rk_bt_source_auto_connect_stop();
+    rk_bt_source_close();
     rk_bt_spp_close();
     rk_bt_hfp_close();
 
     /* Close BSA before exiting (to release resources) */
     app_manager_deinit();
+    app_disc_clean();
 
     /* stop bsa_server */
     bt_bsa_server_close();
@@ -392,17 +395,40 @@ void rk_bt_register_name_change_callback(RK_BT_NAME_CHANGE_CALLBACK cb)
     APP_DEBUG1("bsa don't support %s", __func__);
 }
 
+static void bt_disc_cback(tBSA_DISC_EVT event, tBSA_DISC_MSG *p_data)
+{
+    if(event == BSA_DISC_CMPL_EVT) {
+        bt_source_reconnect();
+        app_av_set_reconnect_tag(false);
+    }
+}
+
 int rk_bt_start_discovery(unsigned int mseconds, RK_BT_SCAN_TYPE scan_type)
 {
+    int duration;
+
     if(!bt_is_open()) {
         APP_DEBUG0("bluetooth is not inited, please init");
         return -1;
     }
 
-    if(app_disc_complete() != APP_DISCOVERYING)
-        return app_disc_start_regular(NULL, mseconds/1000 + mseconds%1000);
-    else
+    if(app_disc_complete() != APP_DISCOVERYING) {
+        duration = mseconds/1000 + mseconds%1000;
+        switch(scan_type) {
+            case SCAN_TYPE_AUTO:
+                return app_disc_start_regular(bt_disc_cback, duration);
+            case SCAN_TYPE_BREDR:
+                return app_disc_start_bredr_regular(bt_disc_cback, duration);
+            case SCAN_TYPE_LE:
+                return app_disc_start_ble_regular(NULL, duration);
+            default:
+                APP_DEBUG1("invalid scan_type(%d)", scan_type);
+                return -1;
+        }
+    } else {
+        APP_DEBUG0("devices scanning\n");
         return -1;
+    }
 }
 
 int rk_bt_cancel_discovery()
@@ -412,6 +438,7 @@ int rk_bt_cancel_discovery()
         return -1;
     }
 
+    app_av_set_reconnect_tag(false);
     if(app_disc_complete() == APP_DISCOVERYING)
         return app_disc_abort();
     else
@@ -638,7 +665,7 @@ int rk_bt_sink_open()
 
     if (a2dp_source_is_open()) {
         APP_DEBUG0("a2dp source has been opened, close a2dp source");
-        rk_bt_source_auto_connect_stop();
+        rk_bt_source_close();
     }
 
     if (a2dp_sink_is_open()) {
@@ -1061,17 +1088,23 @@ int rk_bt_source_open()
         return -1;
     }
 
+    if(app_mgr_is_reconnect())
+        app_av_set_reconnect_tag(true);
+
     g_bt_control.is_a2dp_source_open = true;
     return 0;
 }
 
 int rk_bt_source_close()
 {
+    rk_bt_cancel_discovery();
+
     if(!a2dp_source_is_open()) {
         APP_DEBUG0("a2dp source has been closed.");
         return 0;
     }
 
+    app_av_set_reconnect_tag(false);
     app_av_deinitialize();
 
     g_bt_control.is_a2dp_source_open = false;
@@ -1085,6 +1118,7 @@ int rk_bt_source_scan(BtScanParam *data, RK_BT_SCAN_TYPE scan_type)
         return -1;
     }
 
+    app_av_set_reconnect_tag(false);
     if(app_av_scan(data) < 0) {
         APP_DEBUG0("app_av_scan failed");
         return -1;
@@ -1115,18 +1149,25 @@ int rk_bt_source_disconnect_by_addr(char *address)
         return 0;
     }
 
-    if (app_av_disconnect(address) < 0) {
-        APP_ERROR1("app_av_disconnect failed, address: %s", address);
-        return -1;
-    }
+    return app_av_disconnect(address);
+}
 
-    return 0;
+static int bt_source_reconnect()
+{
+    if(!a2dp_source_is_open())
+        return -1;
+
+    return app_av_reconnect();
 }
 
 int rk_bt_source_disconnect()
 {
-    APP_ERROR1("bsa don't support %s", __func__);
-    return -1;
+    if(!a2dp_source_is_open()) {
+        APP_DEBUG0("a2dp source has been closed.");
+        return 0;
+    }
+
+    return app_av_disconnect_all();
 }
 
 int rk_bt_source_remove(char *address)
@@ -1441,11 +1482,11 @@ int rk_bt_control(DeviceIOFramework::BtControl cmd, void *data, int len)
         break;
 
     case DeviceIOFramework::BtControl::BT_SOURCE_OPEN:
-        ret = rk_bt_source_auto_connect_start(data, NULL);
+        ret = rk_bt_source_open();
         break;
 
     case DeviceIOFramework::BtControl::BT_SOURCE_CLOSE:
-        rk_bt_source_auto_connect_stop();
+        rk_bt_source_close();
         break;
 
     case DeviceIOFramework::BtControl::BT_SOURCE_IS_OPENED:

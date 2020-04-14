@@ -139,6 +139,7 @@ void app_disc_display_devices(void)
                         app_discovery_cb.devs[index].device.eir_vid_pid[0].product,
                         app_discovery_cb.devs[index].device.eir_vid_pid[0].version);
             }
+            APP_INFO1("\tPlayrole: %s", app_discovery_cb.devs[index].device.playrole);
         }
     }
 }
@@ -755,8 +756,7 @@ void app_generic_disc_cback(tBSA_DISC_EVT event, tBSA_DISC_MSG *p_data)
     int index;
 
     /* If User provided a callback, let's call it */
-    if (app_disc_cb.p_disc_cback)
-    {
+    if (app_disc_cb.p_disc_cback) {
         app_disc_cb.p_disc_cback(event, p_data);
     }
 
@@ -958,6 +958,55 @@ int app_disc_start_regular(tBSA_DISC_CBACK *p_custom_disc_cback, int duration)
     status = BSA_DiscStart(&disc_start_param);
     if (status != BSA_SUCCESS) {
         APP_ERROR1("BSA_DiscStart failed status:%d", status);
+        app_discovery_complete = APP_DISCOVERY_IDEL;
+        app_mgr_disc_state_send(RK_BT_DISC_START_FAILED);
+        return -1;
+    }
+
+    app_mgr_disc_state_send(RK_BT_DISC_STARTED);
+    return 0;
+}
+
+/*******************************************************************************
+ **
+ ** Function         app_disc_start_bredr_regular
+ **
+ ** Description      Start ER/EDR Device discovery
+ **
+ ** Returns          int
+ **
+ *******************************************************************************/
+int app_disc_start_bredr_regular(tBSA_DISC_CBACK *p_custom_disc_cback, int duration)
+{
+    int status;
+    tBSA_DISC_START disc_start_param;
+
+    APP_INFO0("Start Regular BR/EDR Discovery");
+
+    app_discovery_complete = APP_DISCOVERYING;
+
+    BSA_DiscStartInit(&disc_start_param);
+
+    disc_start_param.cback = app_generic_disc_cback;
+    disc_start_param.nb_devices = app_disc_cb.nb_devices;
+    disc_start_param.mode = BSA_DM_GENERAL_INQUIRY;
+    disc_start_param.skip_name_request = TRUE;
+
+    //duration * 1.28s
+    if(duration > 0)
+        disc_start_param.duration = duration;
+    else
+        disc_start_param.duration = 8;
+
+    /* Save the provided custom callback */
+    app_disc_cb.p_disc_cback = p_custom_disc_cback;
+
+    memset(app_discovery_cb.devs, 0, sizeof(app_discovery_cb.devs));
+
+    status = BSA_DiscStart(&disc_start_param);
+    if (status != BSA_SUCCESS) {
+        APP_ERROR1("BSA_DiscStart failed status:%d", status);
+        app_discovery_complete = APP_DISCOVERY_IDEL;
         app_mgr_disc_state_send(RK_BT_DISC_START_FAILED);
         return -1;
     }
@@ -976,18 +1025,26 @@ int app_disc_start_regular(tBSA_DISC_CBACK *p_custom_disc_cback, int duration)
  ** Returns          int
  **
  *******************************************************************************/
-int app_disc_start_ble_regular(tBSA_DISC_CBACK *p_custom_disc_cback)
+int app_disc_start_ble_regular(tBSA_DISC_CBACK *p_custom_disc_cback, int duration)
 {
     int status;
     tBSA_DISC_START disc_start_param;
 
     APP_INFO0("Start Regular BLE Discovery");
 
+    app_discovery_complete = APP_DISCOVERYING;
+
     BSA_DiscStartInit(&disc_start_param);
 
     disc_start_param.cback = app_generic_disc_cback;
     disc_start_param.nb_devices = app_disc_cb.nb_devices;
-    disc_start_param.duration = 4;
+
+    // duration * 1.28s
+    if(duration > 0)
+        disc_start_param.duration = duration;
+    else
+        disc_start_param.duration = 8;
+
     disc_start_param.mode = BSA_BLE_GENERAL_INQUIRY;
 
     /* Save the provided custom callback */
@@ -996,12 +1053,14 @@ int app_disc_start_ble_regular(tBSA_DISC_CBACK *p_custom_disc_cback)
     memset(app_discovery_cb.devs, 0, sizeof(app_discovery_cb.devs));
 
     status = BSA_DiscStart(&disc_start_param);
-    if (status != BSA_SUCCESS)
-    {
+    if (status != BSA_SUCCESS) {
         APP_ERROR1("BSA_DiscStart failed status:%d", status);
+        app_discovery_complete = APP_DISCOVERY_IDEL;
+        app_mgr_disc_state_send(RK_BT_DISC_START_FAILED);
         return -1;
     }
 
+    app_mgr_disc_state_send(RK_BT_DISC_STARTED);
     return 0;
 }
 #endif
@@ -1568,4 +1627,9 @@ static UINT8 app_get_dev_platform(UINT16 vendor, UINT16 vendor_id_source)
         return -1;
     }
     return 0;
+}
+
+void app_disc_clean()
+{
+    app_discovery_complete = APP_DISCOVERY_IDEL;
 }

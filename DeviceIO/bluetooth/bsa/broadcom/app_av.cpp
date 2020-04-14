@@ -196,7 +196,6 @@ typedef struct {
     UINT8   play_status;
 } tBSA_AV_META_PLAYSTAT;
 
-
 typedef struct {
     UINT8   event_id;
     UINT32  playback_interval;
@@ -309,6 +308,7 @@ tBSA_AV_META_PLAYSTAT playst =
 static tAPP_AV_CONNECT_STATUS app_av_status;
 static void *app_av_user_data = NULL;
 static RK_BT_SOURCE_CALLBACK app_av_send_cb = NULL;
+static bool app_av_reconnected_tag = false;
 
 static void get_deivce_name_by_addr(BD_ADDR bd_addr, BD_NAME name)
 {
@@ -1411,11 +1411,12 @@ int app_av_close(int index)
     close_param.handle = p_con->handle;
     status = BSA_AvClose(&close_param);
 
-    if (status != BSA_SUCCESS)
-    {
+    if (status != BSA_SUCCESS) {
         APP_ERROR1("BSA_AvClose failed status = %d", status);
+        return -1;
     }
-    return status;
+
+    return 0;
 }
 
 /*******************************************************************************
@@ -5353,6 +5354,7 @@ int app_av_initialize()
     }
 
     //app_dm_set_visibility(TRUE, TRUE);
+
     return 0;
 }
 
@@ -5361,9 +5363,6 @@ void app_av_deinitialize()
     int index;
 
     app_uipc_pcm_tx_done = 0;
-
-    if(app_disc_complete() == APP_DISCOVERYING)
-        app_disc_abort();
 
     for (index = 0; index < APP_AV_MAX_CONNECTIONS; index++)
         app_av_close(index);
@@ -5478,7 +5477,18 @@ int app_av_disconnect(char *address)
         return -1;
     }
 
-    app_av_close(index);
+    return app_av_close(index);
+}
+
+int app_av_disconnect_all()
+{
+    int index;
+
+    for(index = 0; index < APP_AV_MAX_CONNECTIONS; index++) {
+        if(app_av_close(index) < 0)
+            return -1;
+    }
+
     return 0;
 }
 
@@ -5553,4 +5563,59 @@ static int app_av_send_status(const RK_BT_SOURCE_EVENT event)
     }
 
     return 0;
+}
+
+int app_av_reconnect()
+{
+    int i, index;
+
+    if(!app_av_reconnected_tag)
+        return -1;
+
+    index = app_mgr_get_latest_device();
+    if(index < 0 || index >= APP_MAX_NB_REMOTE_STORED_DEVICES) {
+        APP_DEBUG0("can't find latest connected device");
+        return -1;
+    }
+
+    for (i = 0; i < APP_DISC_NB_DEVICES; i++) {
+        if (!app_discovery_cb.devs[i].in_use)
+            continue;
+
+#if 0
+        APP_DEBUG1("Device%d:", i);
+        APP_DEBUG1("\tBdaddr:%02x:%02x:%02x:%02x:%02x:%02x",
+                app_discovery_cb.devs[i].device.bd_addr[0],
+                app_discovery_cb.devs[i].device.bd_addr[1],
+                app_discovery_cb.devs[i].device.bd_addr[2],
+                app_discovery_cb.devs[i].device.bd_addr[3],
+                app_discovery_cb.devs[i].device.bd_addr[4],
+                app_discovery_cb.devs[i].device.bd_addr[5]);
+        APP_DEBUG1("\tName:%s", app_discovery_cb.devs[i].device.name);
+        APP_DEBUG1("\tplayrole: %s", app_discovery_cb.devs[i].device.playrole);
+#endif
+
+        if(!strstr((char *)app_discovery_cb.devs[i].device.playrole, "Audio Sink"))
+            continue;
+
+        if(!bdcmp(app_discovery_cb.devs[i].device.bd_addr,
+            app_xml_remote_devices_db[index].bd_addr)) {
+            APP_INFO1("reconnect device = %02x:%02x:%02x:%02x:%02x:%02x",
+                app_discovery_cb.devs[i].device.bd_addr[0],
+                app_discovery_cb.devs[i].device.bd_addr[1],
+                app_discovery_cb.devs[i].device.bd_addr[2],
+                app_discovery_cb.devs[i].device.bd_addr[3],
+                app_discovery_cb.devs[i].device.bd_addr[4],
+                app_discovery_cb.devs[i].device.bd_addr[5]);
+
+            return app_av_open(&app_discovery_cb.devs[i].device.bd_addr);
+        }
+    }
+
+    return -1;
+}
+
+void app_av_set_reconnect_tag(bool reconnect)
+{
+    app_av_reconnected_tag = reconnect;
 }
