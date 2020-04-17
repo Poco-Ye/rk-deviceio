@@ -637,7 +637,7 @@ static int write_attribute(GDBusProxy *proxy, char *val_str, uint16_t offset)
 	unsigned int i;
 
 	iov.iov_base = val_str;
-	iov.iov_len = strlen(val_str);
+	iov.iov_len = strlen(val_str) > BT_ATT_MAX_VALUE_LEN ? BT_ATT_MAX_VALUE_LEN : strlen(val_str);
 
 	wd.iov = &iov;
 	wd.offset = offset;

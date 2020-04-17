@@ -460,6 +460,7 @@ void bt_close_ble(bool disconnect)
 
 	ble_disable_adv();
 	ble_deregister_state_callback();
+	ble_deregister_mtu_callback();
 	gatt_set_stopping(false);
 	bt_control.is_ble_open = false;
 }

@@ -124,10 +124,8 @@ int rk_ble_get_state(RK_BLE_STATE *p_state)
 	return 0;
 }
 
-#define BLE_SEND_MAX_LEN (134) //(20) //(512)
 int rk_ble_write(const char *uuid, char *data, int len)
 {
-#if 1
 	RkBleConfig ble_cfg;
 
 	if (!ble_is_open()) {
@@ -135,51 +133,23 @@ int rk_ble_write(const char *uuid, char *data, int len)
 		return -1;
 	}
 
-	ble_cfg.len = (len > BLE_SEND_MAX_LEN) ? BLE_SEND_MAX_LEN : len;
+	ble_cfg.len = len > BT_ATT_MAX_VALUE_LEN ? BT_ATT_MAX_VALUE_LEN : len;
 	memcpy(ble_cfg.data, data, ble_cfg.len);
 	strcpy(ble_cfg.uuid, uuid);
 	rk_bt_control(BtControl::BT_BLE_WRITE, &ble_cfg, sizeof(RkBleConfig));
 
 	return 0;
-#else
-	/*
-	 * The following code is pseudo code, which is used to illustrate
-	 * another implementation of the interface.
-	 */
-	RkBleConfig ble_cfg;
-	int tmp = 0;
-	int mtu = 0;
-	int ret = 0;
-
-	mtu = RK_ble_get_mtu(uuid);
-	if (mtu == 0) {
-		/* Use recommended values, which are compatible with higher values */
-		mtu = BLE_SEND_MAX_LEN;
-	}
-
-	while (len) {
-		if (len > mtu) {
-			tmp = mtu;
-			len -= mtu;
-		} else {
-			tmp = len;
-			len = 0;
-		}
-		ret = rk_bt_control(BtControl::BT_BLE_WRITE, &ble_cfg, sizeof(RkBleConfig));
-		if (ret < 0) {
-			pr_info("rk_ble_write failed!\n");
-			return ret;
-		}
-	}
-
-	return ret;
-#endif
 }
 
 int rk_ble_register_status_callback(RK_BLE_STATE_CALLBACK cb)
 {
 	ble_register_state_callback(cb);
 	return 0;
+}
+
+void rk_ble_register_mtu_callback(RK_BT_MTU_CALLBACK cb)
+{
+	ble_register_mtu_callback(cb);
 }
 
 int rk_ble_register_recv_callback(RK_BLE_RECV_CALLBACK cb)
@@ -225,6 +195,11 @@ void rk_ble_client_register_state_callback(RK_BLE_CLIENT_STATE_CALLBACK cb)
 int rk_ble_client_register_recv_callback(RK_BLE_CLIENT_RECV_CALLBACK cb)
 {
 	gatt_client_register_recv_callback(cb);
+}
+
+void rk_ble_client_register_mtu_callback(RK_BT_MTU_CALLBACK cb)
+{
+	ble_register_mtu_callback(cb);
 }
 
 int rk_ble_client_open()

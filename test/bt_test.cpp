@@ -68,6 +68,7 @@ static duplex_info_t g_duplex_control = {
 };
 
 static RkBtScanedDevice *g_paired_dev_list;
+static unsigned int g_mtu = 0;
 
 static void bt_test_ble_recv_data_callback(const char *uuid, char *data, int len);
 static void bt_test_ble_request_data_callback(const char *uuid);
@@ -872,6 +873,7 @@ static void ble_status_callback_test(const char *bd_addr, const char *name, RK_B
 			break;
 		case RK_BLE_STATE_DISCONNECT:
 			printf("+++++ RK_BLE_STATE_DISCONNECT: %s, %s +++++\n", name, bd_addr);
+			g_mtu = 0;
 			break;
 	}
 }
@@ -901,21 +903,37 @@ static void bt_test_ble_request_data_callback(const char *uuid)
 	printf("=== %s uuid: %s===\n", __func__, uuid);
 }
 
+static void bt_test_mtu_callback(const char *bd_addr, unsigned int mtu)
+{
+	printf("=== %s: bd_addr: %s, mtu: %d ===\n", __func__, bd_addr, mtu);
+	g_mtu = mtu;
+}
+
 void bt_test_ble_start(char *data) {
 	rk_ble_register_status_callback(ble_status_callback_test);
 	rk_ble_register_recv_callback(bt_test_ble_recv_data_callback);
+	rk_ble_register_mtu_callback(bt_test_mtu_callback);
 	rk_ble_start(&bt_content.ble_content);
 }
 
-void bt_test_ble_write(char *data) {
-	char write_buf[134];
-	int i = 0;
+void bt_test_ble_write(char *data)
+{
+	int i = 0, write_len = BT_ATT_DEFAULT_LE_MTU;
+	char *write_buf;
 
-	/* Construct the content of the sent data */
-	for (i = 0; i < 134; i++)
+	if(g_mtu > BT_ATT_HEADER_LEN)
+		write_len = g_mtu;
+
+	write_len -= BT_ATT_HEADER_LEN;
+	if(write_len > BT_ATT_MAX_VALUE_LEN)
+		write_len = BT_ATT_MAX_VALUE_LEN;
+
+	write_buf = (char *)malloc(write_len);
+	for (i = 0; i < write_len; i++)
 		write_buf[i] = '0' + i % 10;
 
-	rk_ble_write(BLE_UUID_SEND, write_buf, 134);
+	rk_ble_write(BLE_UUID_SEND, write_buf, write_len);
+	free(write_buf);
 }
 
 void bt_test_ble_get_status(char *data)
@@ -938,6 +956,7 @@ void bt_test_ble_get_status(char *data)
 }
 
 void bt_test_ble_stop(char *data) {
+	g_mtu = 0;
 	rk_ble_stop();
 }
 
@@ -971,6 +990,7 @@ void ble_client_test_state_callback(const char *bd_addr, const char *name, RK_BL
 			break;
 		case RK_BLE_CLIENT_STATE_DISCONNECT:
 			printf("+++++ RK_BLE_CLIENT_STATE_DISCONNECT(%s, %s) +++++\n", bd_addr, name);
+			g_mtu = 0;
 			break;
 	}
 }
@@ -991,11 +1011,13 @@ void bt_test_ble_client_open(char *data)
 {
 	rk_ble_client_register_state_callback(ble_client_test_state_callback);
 	rk_ble_client_register_recv_callback(bt_test_ble_client_recv_data_callback);
+	rk_ble_client_register_mtu_callback(bt_test_mtu_callback);
 	rk_ble_client_open();
 }
 
 void bt_test_ble_client_close(char *data)
 {
+	g_mtu = 0;
 	rk_ble_client_close();
 }
 
@@ -1069,7 +1091,27 @@ void bt_test_ble_client_read(char *data)
 
 void bt_test_ble_client_write(char *data)
 {
+#if 0
+	//write data len no more than (g_mtu - BT_ATT_HEADER_LEN)
 	rk_ble_client_write(data, "rockchip ble client write test");
+#else
+	int i = 0, write_len = BT_ATT_DEFAULT_LE_MTU;
+	char *write_buf;
+
+	if(g_mtu > BT_ATT_HEADER_LEN)
+		write_len = g_mtu;
+
+	write_len -= BT_ATT_HEADER_LEN;
+	if(write_len > BT_ATT_MAX_VALUE_LEN)
+		write_len = BT_ATT_MAX_VALUE_LEN;
+
+	write_buf = (char *)malloc(write_len);
+	for (i = 0; i < write_len; i++)
+		write_buf[i] = '0' + i % 10;
+
+	rk_ble_client_write(data, write_buf);
+	free(write_buf);
+#endif
 }
 
 void bt_test_ble_client_is_notify(char *data)

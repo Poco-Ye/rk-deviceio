@@ -840,6 +840,11 @@ int rk_ble_register_recv_callback(RK_BLE_RECV_CALLBACK cb)
     return 0;
 }
 
+void rk_ble_register_mtu_callback(RK_BT_MTU_CALLBACK cb)
+{
+    app_ble_register_mtu_callback(cb);
+}
+
 int rk_ble_get_state(RK_BLE_STATE *p_state)
 {
     app_ble_rk_server_get_state(p_state);
@@ -934,6 +939,12 @@ int rk_ble_client_register_recv_callback(RK_BLE_CLIENT_RECV_CALLBACK cb)
 }
 
 int rk_ble_client_open()
+{
+    APP_DEBUG1("bsa don't support %s", __func__);
+    return 0;
+}
+
+void rk_ble_client_register_mtu_callback(RK_BT_MTU_CALLBACK cb)
 {
     APP_DEBUG1("bsa don't support %s", __func__);
     return 0;

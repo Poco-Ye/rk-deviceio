@@ -34,9 +34,17 @@
 #define BSA_BLE_CONNECT_EVT                 BTA_BLE_CONNECT_EVT
 #define BTM_BLE_ADVERT_TYPE_NAME_COMPLETE   0x09
 
-/*
- * Global Variables
- */
+#define BT_DEVICE_ADDRESS_LEN 18
+
+typedef struct {
+    RK_BLE_RECV_CALLBACK recv_data_cb;
+    RK_BLE_STATE_CALLBACK state_cb;
+    RK_BT_MTU_CALLBACK mtu_cb;
+    RK_BLE_STATE state;
+    BOOLEAN local_privacy;
+    BD_NAME ble_device_name;
+    char bd_addr[BT_DEVICE_ADDRESS_LEN];
+} tAPP_BLE_INFO;
 
 /*
  * Local Variables
@@ -44,30 +52,32 @@
 #define APP_BLE_RK_SERVER_DESCRIPTOR_UUID     0x2902
 #define APP_BLE_RK_SERVER_DESCRIPTOR_STRING_UUID     "2902"
 
-static BD_NAME app_ble_device_name;
 static tAPP_BLE_RK_SERVER_CB app_ble_rk_server_cb;
-static RK_BLE_RECV_CALLBACK app_ble_recv_data_cb = NULL;
-static RK_BLE_STATE app_ble_state = RK_BLE_STATE_IDLE;
-static RK_BLE_STATE_CALLBACK app_ble_state_cb = NULL;
-static BOOLEAN app_ble_local_privacy = TRUE;
+
+static tAPP_BLE_INFO app_ble_info = {
+    NULL, NULL, NULL, RK_BLE_STATE_IDLE, TRUE,
+};
 
 static tBSA_DM_BLE_ADV_PARAM app_ble_adv_param = {
     0, 0
 };
 
 static void app_ble_rk_server_send_state(BD_ADDR bd_addr, RK_BLE_STATE state) {
-    char address[20];
+    char address[BT_DEVICE_ADDRESS_LEN];
 
-    app_ble_state = state;
+    app_ble_info.state = state;
 
-    if(!app_ble_state_cb)
+    if(!app_ble_info.state_cb)
         return;
 
     memset(address, 0, 20);
     if(bd_addr)
-        app_mgr_bd2str(bd_addr, address, 20);
+        app_mgr_bd2str(bd_addr, address, BT_DEVICE_ADDRESS_LEN);
 
-    app_ble_state_cb(address, address, state);
+    if(state == RK_BLE_STATE_CONNECT)
+        memcpy(app_ble_info.bd_addr, address, BT_DEVICE_ADDRESS_LEN);
+
+    app_ble_info.state_cb(address, address, state);
 }
 
 /*
@@ -100,7 +110,7 @@ static void app_ble_rk_server_recv_data(int attr_index, unsigned char *data, int
 *******************************************************************************/
 void app_ble_rk_server_register_cb(RK_BLE_STATE_CALLBACK cb)
 {
-	app_ble_state_cb = cb;
+	app_ble_info.state_cb = cb;
 }
 
 /*******************************************************************************
@@ -116,7 +126,7 @@ void app_ble_rk_server_register_cb(RK_BLE_STATE_CALLBACK cb)
 *******************************************************************************/
 void app_ble_rk_server_deregister_cb()
 {
-    app_ble_state_cb = NULL;
+    app_ble_info.state_cb = NULL;
 }
 
 /*
@@ -168,15 +178,15 @@ static int app_ble_rk_server_string_to_uuid128(UINT8 *uuid, const char *string, 
 
 static void app_ble_rk_server_set_device_name(const char *ble_name)
 {
-    memset((char *)app_ble_device_name, 0, BD_NAME_LEN + 1);
+    memset((char *)app_ble_info.ble_device_name, 0, BD_NAME_LEN + 1);
     if(ble_name) {
-        sprintf((char *)app_ble_device_name, "%s", ble_name);
+        sprintf((char *)app_ble_info.ble_device_name, "%s", ble_name);
     } else {
-        strcpy((char *)app_ble_device_name, (char *)app_xml_config.name);
+        strcpy((char *)app_ble_info.ble_device_name, (char *)app_xml_config.name);
     }
 
-    app_ble_device_name[sizeof(app_ble_device_name) - 1] = '\0';
-    APP_DEBUG1("app_ble_device_name: %s", app_ble_device_name);
+    app_ble_info.ble_device_name[sizeof(app_ble_info.ble_device_name) - 1] = '\0';
+    APP_DEBUG1("ble_device_name: %s", app_ble_info.ble_device_name);
 }
 
 /*******************************************************************************
@@ -1161,6 +1171,9 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
     case BSA_BLE_SE_MTU_EVT:
         APP_INFO1("BSA_BLE_SE_MTU_EVT conn_id:0x%x, mtu:%d",
                     p_data->ser_mtu.conn_id, p_data->ser_mtu.mtu);
+
+        if(app_ble_info.mtu_cb)
+            app_ble_info.mtu_cb(app_ble_info.bd_addr ,p_data->ser_mtu.mtu);
         break;
 
     default:
@@ -1231,7 +1244,7 @@ int app_ble_rk_server_gatt_server_init(RkBleContent *ble_content)
     if(ble_content->advDataType == BLE_ADVDATA_TYPE_USER)
         ret = app_ble_rk_server_set_user_adv_data(ble_content);
     else
-        ret = app_ble_rk_server_set_advertisement_data((char *)app_ble_device_name);
+        ret = app_ble_rk_server_set_advertisement_data((char *)app_ble_info.ble_device_name);
     if(ret < 0) {
         APP_ERROR0("Set the advertising parameters failed");
         return -1;
@@ -1362,7 +1375,7 @@ static int app_ble_rk_server_send_notification(const char *uuid, char *data, UIN
     ble_sendind_param.attr_id = app_ble_rk_server_cb.attr[attr_index_notify].attr_id;
     if (len > BSA_BLE_SE_WRITE_MAX) {
         APP_ERROR1("Wrong Notification Value Length %d", len);
-        return -1;
+        len = BSA_BLE_SE_WRITE_MAX;
     }
 
     ble_sendind_param.data_len = len;
@@ -1380,6 +1393,11 @@ static int app_ble_rk_server_send_notification(const char *uuid, char *data, UIN
     return 0;
 }
 
+void app_ble_register_mtu_callback(RK_BT_MTU_CALLBACK cb)
+{
+    app_ble_info.mtu_cb = cb;
+}
+
 int app_ble_rk_server_open(RkBleContent *ble_content)
 {
     int ret;
@@ -1387,6 +1405,7 @@ int app_ble_rk_server_open(RkBleContent *ble_content)
     APP_DEBUG0("app_ble_rk_server_open");
 
     app_ble_rk_server_send_state(NULL, RK_BLE_STATE_IDLE);
+    memset(app_ble_info.bd_addr, 0, BT_DEVICE_ADDRESS_LEN);
 
     /* Initialize BLE application */
     ret = app_ble_init();
@@ -1412,7 +1431,7 @@ int app_ble_rk_server_open(RkBleContent *ble_content)
         return -1;
     }
 
-    if(app_ble_local_privacy)
+    if(app_ble_info.local_privacy)
         app_dm_set_ble_local_privacy(TRUE);
 
     app_dm_set_ble_visibility(TRUE, TRUE);
@@ -1424,7 +1443,8 @@ void app_ble_rk_server_close()
 {
     int index;
 
-    app_ble_recv_data_cb = NULL;
+    app_ble_info.recv_data_cb = NULL;
+    app_ble_info.mtu_cb = NULL;
     memset(&app_ble_adv_param, 0, sizeof(tBSA_DM_BLE_ADV_PARAM));
 
     /* stop service */
@@ -1441,6 +1461,7 @@ void app_ble_rk_server_close()
     app_ble_rk_server_send_state(NULL, RK_BLE_STATE_IDLE);
     app_ble_rk_server_deregister_cb();
 
+    app_ble_info.local_privacy = TRUE;
     app_dm_set_ble_local_privacy(FALSE);
     app_dm_set_ble_visibility(FALSE, FALSE);
 }
@@ -1458,9 +1479,9 @@ void app_ble_rk_server_close()
  *******************************************************************************/
 static void app_ble_rk_server_recv_data(int attr_index, unsigned char *data, int len)
 {
-    if(app_ble_recv_data_cb) {
+    if(app_ble_info.recv_data_cb) {
         APP_DEBUG1("uuid_string: %s", (char *)app_ble_rk_server_cb.attr[attr_index].uuid_string);
-        app_ble_recv_data_cb((char *)app_ble_rk_server_cb.attr[attr_index].uuid_string, (char *)data, len);
+        app_ble_info.recv_data_cb((char *)app_ble_rk_server_cb.attr[attr_index].uuid_string, (char *)data, len);
     }
 }
 
@@ -1477,7 +1498,7 @@ static void app_ble_rk_server_recv_data(int attr_index, unsigned char *data, int
  *******************************************************************************/
 void app_ble_rk_server_recv_data_callback(RK_BLE_RECV_CALLBACK cb)
 {
-    app_ble_recv_data_cb = cb;
+    app_ble_info.recv_data_cb = cb;
 }
 
 void app_ble_rk_server_get_state(RK_BLE_STATE *p_state)
@@ -1485,7 +1506,7 @@ void app_ble_rk_server_get_state(RK_BLE_STATE *p_state)
     if (!p_state)
         return;
 
-    *p_state = app_ble_state;
+    *p_state = app_ble_info.state;
 }
 
 /*******************************************************************************
@@ -1527,7 +1548,7 @@ int app_ble_rk_server_disconnect(void)
 
 void app_ble_rk_server_set_local_privacy(BOOLEAN local_privacy)
 {
-    app_ble_local_privacy = local_privacy;
+    app_ble_info.local_privacy = local_privacy;
 }
 
 int app_ble_rk_server_set_adv_interval(UINT16 adv_int_min, UINT16 adv_int_max)

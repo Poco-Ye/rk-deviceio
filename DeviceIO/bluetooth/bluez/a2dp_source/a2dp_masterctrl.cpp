@@ -74,6 +74,7 @@ typedef struct {
 	RK_BT_SOURCE_CALLBACK bt_source_event_cb;
 	RK_BLE_STATE_CALLBACK ble_state_cb;
 	RK_BT_NAME_CHANGE_CALLBACK bt_name_change_cb;
+	RK_BT_MTU_CALLBACK ble_mtu_cb;
 } bt_callback_t;
 
 typedef struct {
@@ -118,7 +119,7 @@ static bt_source_info_t g_bt_source_info = {
 };
 
 static bt_callback_t g_bt_callback = {
-	NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 };
 
 static bt_scan_info_t g_bt_scan_info = {
@@ -345,6 +346,36 @@ static void bt_name_change_send(GDBusProxy *proxy)
 	g_bt_callback.bt_name_change_cb(address, name);
 }
 
+static void ble_mtu_exchange_send(GDBusProxy *proxy)
+{
+	const char *address;
+	dbus_uint16_t mtu;
+	DBusMessageIter iter;
+
+	if(!ble_is_open() && !ble_client_is_open())
+		return;
+
+	if(!g_bt_callback.ble_mtu_cb)
+		return;
+
+	if (!g_dbus_proxy_get_property(proxy, "Address", &iter)) {
+		pr_info("%s: get Address failed\n", __func__);
+		return;
+	}
+	dbus_message_iter_get_basic(&iter, &address);
+
+	if (!g_dbus_proxy_get_property(proxy, "MTU", &iter)) {
+		pr_info("%s: get MTU failed\n", __func__);
+		return;
+	}
+	dbus_message_iter_get_basic(&iter, &mtu);
+
+	if(mtu > BT_ATT_MAX_LE_MTU || mtu < BT_ATT_DEFAULT_LE_MTU)
+		pr_err("%s: MTU exchange error(%d)\n", __func__, mtu);
+
+	g_bt_callback.ble_mtu_cb(address, mtu);
+}
+
 void bt_register_name_change_callback(RK_BT_NAME_CHANGE_CALLBACK cb)
 {
 	g_bt_callback.bt_name_change_cb = cb;
@@ -353,6 +384,16 @@ void bt_register_name_change_callback(RK_BT_NAME_CHANGE_CALLBACK cb)
 void bt_deregister_name_change_callback()
 {
 	g_bt_callback.bt_name_change_cb = NULL;
+}
+
+void ble_register_mtu_callback(RK_BT_MTU_CALLBACK cb)
+{
+	g_bt_callback.ble_mtu_cb = cb;
+}
+
+void ble_deregister_mtu_callback()
+{
+	g_bt_callback.ble_mtu_cb = NULL;
 }
 
 static void proxy_leak(gpointer data)
@@ -1453,6 +1494,9 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 
 			if(strcmp(name, "Alias") == 0)
 				bt_name_change_send(proxy);
+
+			if(strcmp(name, "MTU") == 0)
+				ble_mtu_exchange_send(proxy);
 		}
 	} else if (!strcmp(interface, "org.bluez.Adapter1")) {
 		DBusMessageIter addr_iter;

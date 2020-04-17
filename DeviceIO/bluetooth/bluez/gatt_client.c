@@ -94,6 +94,7 @@ void gatt_client_open()
 void gatt_client_close()
 {
 	pr_info("%s\n", __func__);
+	ble_deregister_mtu_callback();
 	g_gatt_client_ctl.state = RK_BLE_CLIENT_STATE_IDLE;
 	g_gatt_client_ctl.recv_cb = NULL;
 	g_gatt_client_ctl.state_cb = NULL;

@@ -15,7 +15,7 @@ typedef enum {
 
 typedef struct {
 	char uuid[38];
-	char data[134];
+	char data[BT_ATT_MAX_VALUE_LEN];
 	int len;
 } RkBleConfig;
 
@@ -24,6 +24,7 @@ typedef void (*RK_BLE_RECV_CALLBACK)(const char *uuid, char *data, int len);
 
 int rk_ble_register_status_callback(RK_BLE_STATE_CALLBACK cb);
 int rk_ble_register_recv_callback(RK_BLE_RECV_CALLBACK cb);
+void rk_ble_register_mtu_callback(RK_BT_MTU_CALLBACK cb);
 int rk_ble_start(RkBleContent *ble_content);
 int rk_ble_stop(void);
 int rk_ble_get_state(RK_BLE_STATE *p_state);

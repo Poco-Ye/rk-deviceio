@@ -12,6 +12,11 @@ extern "C" {
 #define MXA_ADV_DATA_LEN 32
 #define DEVICE_ADDR_LEN  6
 
+#define BT_ATT_DEFAULT_LE_MTU    23
+#define BT_ATT_MAX_LE_MTU        517
+#define BT_ATT_MAX_VALUE_LEN     512
+#define BT_ATT_HEADER_LEN        3
+
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
 
@@ -93,6 +98,7 @@ typedef void (*RK_BT_BOND_CALLBACK)(const char *bd_addr, const char *name, RK_BT
 typedef void (*RK_BT_DISCOVERY_CALLBACK)(RK_BT_DISCOVERY_STATE state);
 typedef void (*RK_BT_DEV_FOUND_CALLBACK)(const char *address, const char *name, unsigned int bt_class, int rssi);
 typedef void (*RK_BT_NAME_CHANGE_CALLBACK)(const char *bd_addr, const char *name);
+typedef void (*RK_BT_MTU_CALLBACK)(const char *bd_addr, unsigned int mtu);
 
 void rk_bt_register_state_callback(RK_BT_STATE_CALLBACK cb);
 void rk_bt_register_bond_callback(RK_BT_BOND_CALLBACK cb);

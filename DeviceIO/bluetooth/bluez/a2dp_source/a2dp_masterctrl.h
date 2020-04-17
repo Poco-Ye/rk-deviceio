@@ -37,6 +37,8 @@ void a2dp_master_register_cb(void *userdata, RK_BT_SOURCE_CALLBACK cb);
 void a2dp_master_deregister_cb();
 void bt_register_name_change_callback(RK_BT_NAME_CHANGE_CALLBACK cb);
 void bt_deregister_name_change_callback();
+void ble_register_mtu_callback(RK_BT_MTU_CALLBACK cb);
+void ble_deregister_mtu_callback();
 
 void bt_state_send(RK_BT_STATE state);
 void ble_state_send(RK_BLE_STATE status);

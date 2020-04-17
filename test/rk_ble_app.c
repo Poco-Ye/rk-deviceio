@@ -20,7 +20,6 @@
 #define BLE_UUID_WIFI_CHAR	"00009999-0000-1000-8000-00805F9B34FB"
 #define BLE_UUID_PROXIMITY	"7B931104-1810-4CBC-94DA-875C8067F845"
 
-#define BLE_SEND_MAX_LEN (134)
 #define UUID_MAX_LEN 36
 
 typedef enum {
@@ -42,6 +41,8 @@ static pthread_t wificonfig_scan_tid = 0;
 
 static char wifi_ssid[256];
 static char wifi_password[256];
+
+static unsigned int ble_mtu = 0;
 
 struct wifi_config {
 	char ssid[512];
@@ -89,8 +90,15 @@ void _rk_ble_status_cb(const char *bd_addr, const char *name, RK_BLE_STATE state
 			break;
 		case RK_BLE_STATE_DISCONNECT:
 			printf("[RK] ble status: RK_BLE_STATE_DISCONNECT\n");
+			ble_mtu = 0;
 			break;
 	}
+}
+
+static void _rk_ble_mtu_callback(const char *bd_addr, unsigned int mtu)
+{
+	printf("=== %s: bd_addr: %s, mtu: %d ===\n", __func__, bd_addr, mtu);
+	ble_mtu = mtu;
 }
 
 static int rk_blewifi_state_callback(RK_WIFI_RUNNING_State_e state, RK_WIFI_INFO_Connection_s *info)
@@ -129,7 +137,7 @@ static void *rk_config_wifi_thread(void)
 
 static void rk_ble_send_data(void)
 {
-	int len;
+	int len, send_max_len = BT_ATT_DEFAULT_LE_MTU;
 	uint8_t *data;
 
 	if (scanr_len == 0) {
@@ -140,9 +148,16 @@ static void rk_ble_send_data(void)
 
 	prctl(PR_SET_NAME,"rk_ble_send_data");
 
+	if(g_mtu > BT_ATT_HEADER_LEN)
+		send_max_len = g_mtu;
+
+	send_max_len -= BT_ATT_HEADER_LEN;
+	if(send_max_len > BT_ATT_MAX_VALUE_LEN)
+		send_max_len = BT_ATT_MAX_VALUE_LEN;
+
 	while (scanr_len) {
 		printf("[RK] %s: wifi use: %d, remain len: %d\n", __func__, scanr_len_use, scanr_len);
-		len = (scanr_len > BLE_SEND_MAX_LEN) ? BLE_SEND_MAX_LEN : scanr_len;
+		len = (scanr_len > send_max_len) ? send_max_len : scanr_len;
 		data = rk_wifi_list_buf + scanr_len_use;
 		usleep(100000);
 		rk_ble_write(BLE_UUID_WIFI_CHAR, data, len);
@@ -256,11 +271,13 @@ void rk_ble_wifi_init(void *data)
 
 	sleep(3);
 	printf(">>>>> Start ble ....\n");
+	rk_ble_register_mtu_callback(_rk_ble_mtu_callback);
 	rk_ble_start(&bt_content.ble_content);
 }
 
 void rk_ble_wifi_deinit(void *data)
 {
+	ble_mtu = 0;
 	rk_ble_stop();
 	sleep(3);
 	rk_bt_deinit();

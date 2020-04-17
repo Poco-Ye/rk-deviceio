@@ -506,7 +506,6 @@ static void execute(const char cmdline[], char recv_buff[], int len)
 	}
 }
 
-#define BLE_SEND_MAX_LEN (134)
 static DBusMessage *chr_read_value(DBusConnection *conn, DBusMessage *msg,
 							void *user_data)
 {
@@ -809,10 +808,6 @@ int gatt_write_data(char *uuid, void *data, int len)
 	}
 
 	pr_info("gatt_write uuid: %s, len: [%d], data[%p]: %s\n", uuid, len, data, (char *)data);
-	pr_info("	dump 8 byte: ");
-	for (i = 0; i < min(len, 8); i++)
-		pr_info("0x%02x ", ((char *)data)[i]);
-	pr_info("\n");
 
 	if (!gchr[0])
 		while(1);
