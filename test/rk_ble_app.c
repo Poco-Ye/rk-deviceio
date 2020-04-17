@@ -148,8 +148,8 @@ static void rk_ble_send_data(void)
 
 	prctl(PR_SET_NAME,"rk_ble_send_data");
 
-	if(g_mtu > BT_ATT_HEADER_LEN)
-		send_max_len = g_mtu;
+	if(ble_mtu > BT_ATT_HEADER_LEN)
+		send_max_len = ble_mtu;
 
 	send_max_len -= BT_ATT_HEADER_LEN;
 	if(send_max_len > BT_ATT_MAX_VALUE_LEN)
