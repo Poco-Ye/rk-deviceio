@@ -22,7 +22,7 @@ typedef enum {
     RK_BT_HFP_BCS_EVT,                  /* Codec selection from AG */
 } RK_BT_HFP_EVENT;
 
-typedef int (*RK_BT_HFP_CALLBACK)(RK_BT_HFP_EVENT event, void *data);
+typedef int (*RK_BT_HFP_CALLBACK)(const char *bd_addr, RK_BT_HFP_EVENT event, void *data);
 
 void rk_bt_hfp_register_callback(RK_BT_HFP_CALLBACK cb);
 int rk_bt_hfp_sink_open(void);
@@ -31,6 +31,7 @@ int rk_bt_hfp_close(void);
 int rk_bt_hfp_pickup(void);
 int rk_bt_hfp_hangup(void);
 int rk_bt_hfp_redial(void);
+int rk_bt_hfp_dial_number(char *number);
 int rk_bt_hfp_report_battery(int value);
 int rk_bt_hfp_set_volume(int volume);
 void rk_bt_hfp_enable_cvsd(void);

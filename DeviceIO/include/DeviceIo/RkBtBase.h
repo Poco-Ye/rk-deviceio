@@ -67,12 +67,12 @@ typedef struct {
 	Ble_Uuid_Type_t chr_uuid[12];
 	uint8_t chr_cnt;
 	const char *ble_name;
+	uint8_t ble_addr[DEVICE_ADDR_LEN];
 	uint8_t advData[MXA_ADV_DATA_LEN];
 	uint8_t advDataLen;
 	uint8_t respData[MXA_ADV_DATA_LEN];
 	uint8_t respDataLen;
 	uint8_t advDataType;
-	char le_random_addr[DEVICE_ADDR_LEN];
 	/* recevice data */
 	void (*cb_ble_recv_fun)(const char *uuid, char *data, int len);
 	/* full data */

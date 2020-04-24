@@ -34,8 +34,6 @@
 #define BSA_BLE_CONNECT_EVT                 BTA_BLE_CONNECT_EVT
 #define BTM_BLE_ADVERT_TYPE_NAME_COMPLETE   0x09
 
-#define BT_DEVICE_ADDRESS_LEN 18
-
 typedef struct {
     RK_BLE_RECV_CALLBACK recv_data_cb;
     RK_BLE_STATE_CALLBACK state_cb;
@@ -70,7 +68,7 @@ static void app_ble_rk_server_send_state(BD_ADDR bd_addr, RK_BLE_STATE state) {
     if(!app_ble_info.state_cb)
         return;
 
-    memset(address, 0, 20);
+    memset(address, 0, BT_DEVICE_ADDRESS_LEN);
     if(bd_addr)
         app_mgr_bd2str(bd_addr, address, BT_DEVICE_ADDRESS_LEN);
 

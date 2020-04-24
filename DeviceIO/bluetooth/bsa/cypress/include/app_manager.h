@@ -13,6 +13,8 @@
 
 #include "DeviceIo/RkBtBase.h"
 
+#define BT_DEVICE_ADDRESS_LEN 18
+
 typedef struct
 {
     tBSA_DM_DUAL_STACK_MODE dual_stack_mode; /* Dual Stack Mode */

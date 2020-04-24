@@ -588,7 +588,6 @@ int app_hs_initialize(void);
 void app_hs_deinitialize(void);
 int app_hs_pick_up(void);
 int app_hs_hang_up(void);
-int app_hs_redial(void);
 int app_hs_report_battery(int value);
 int app_hs_set_vol(int volume);
 void app_hs_set_cvsd(BOOLEAN enable);

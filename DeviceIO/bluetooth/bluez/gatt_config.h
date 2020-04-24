@@ -14,6 +14,8 @@ int gatt_write_data(char *uuid, void *data, int len);
 int gatt_setup(void);
 void gatt_cleanup(void);
 void gatt_set_stopping(bool stopping);
+int ble_set_address(char *address);
+int ble_set_adv_interval(unsigned short adv_int_min, unsigned short adv_int_max);
 
 #ifdef __cplusplus
 }

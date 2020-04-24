@@ -114,14 +114,17 @@ static int service_id = 1;
 static bool gatt_is_stopping = false;
 
 static char g_cmd_ra[256];
-#define CMD_RA "hcitool -i hci0 cmd 0x08 0x0005"
-#define CMD_PARA "hcitool -i hci0 cmd 0x08 0x0006 A0 00 A0 00 00 01 00 00 00 00 00 00 00 07 00"
+static char g_cmd_para[256];
 
-#define SERVICES_UUID            "23 20 56 7c 05 cf 6e b4 c3 41 77 28 51 82 7e 1b"
-//#define CMD_PARA                 "hcitool -i hci0 cmd 0x08 0x0006 A0 00 A0 00 00 02 00 00 00 00 00 00 00 07 00"
-//#define CMD_PARA                 "hcitool -i hci0 cmd 0x08 0x0006 A0 00 A0 00 00 01 00 00 00 00 00 00 00 07 00"
-#define CMD_EN                   "hcitool -i hci0 cmd 0x08 0x000a 1"
-#define CMD_DISEN                "hcitool -i hci0 cmd 0x08 0x000a 0"
+#define CMD_RA           "hcitool -i hci0 cmd 0x08 0x0005"
+
+//first A0 00(0xA0): min interval, 0xA0 * 0.625ms, second A0 00(0xA0): max interval, 0xA0 * 0.625ms
+#define CMD_PARA         "hcitool -i hci0 cmd 0x08 0x0006 A0 00 A0 00 00 01 00 00 00 00 00 00 00 07 00"
+//#define CMD_PARA         "hcitool -i hci0 cmd 0x08 0x0006 A0 00 A0 00 00 02 00 00 00 00 00 00 00 07 00"
+
+#define SERVICES_UUID    "23 20 56 7c 05 cf 6e b4 c3 41 77 28 51 82 7e 1b"
+#define CMD_EN           "hcitool -i hci0 cmd 0x08 0x000a 1"
+#define CMD_DISEN        "hcitool -i hci0 cmd 0x08 0x000a 0"
 
 static GDBusProxy *ble_proxy = NULL;
 
@@ -483,7 +486,6 @@ static int parse_options(DBusMessageIter *iter, const char **device)
 	return 0;
 }
 
-static char ret_buff[1024];
 static void execute(const char cmdline[], char recv_buff[], int len)
 {
 	//pr_info("[GATT_CONFIG] execute: %s\n", cmdline);
@@ -831,6 +833,8 @@ int gatt_write_data(char *uuid, void *data, int len)
 
 int ble_enable_adv(void)
 {
+	char ret_buff[1024];
+
 	if(gatt_set_on_adv() < 0) {
 		pr_err("%s: gatt_set_on_adv failed\n", __func__);
 		return -1;
@@ -842,6 +846,8 @@ int ble_enable_adv(void)
 
 void ble_disable_adv(void)
 {
+	char ret_buff[1024];
+
 	pr_info("=== ble_disable_adv ===\n");
 	//g_dis_adv_close_ble = true;
 	execute(CMD_DISEN, ret_buff, 1024);
@@ -850,7 +856,7 @@ void ble_disable_adv(void)
 
 int gatt_set_on_adv(void)
 {
-	char buff[1024] = {0};
+	char ret_buff[1024];
 	char CMD_ADV_DATA[128] = "hcitool -i hci0 cmd 0x08 0x0008";
 	char CMD_ADV_RESP_DATA[128] = "hcitool -i hci0 cmd 0x08 0x0009";
 	char temp[32];
@@ -876,7 +882,7 @@ int gatt_set_on_adv(void)
 	pr_info("CMD_RA buff: %s", ret_buff);
 	sleep(1);
 	//LE SET PARAMETERS
-	execute(CMD_PARA, ret_buff, 1024);
+	execute(g_cmd_para, ret_buff, 1024);
 	pr_info("CMD_PARA buff: %s", ret_buff);
 
 	// LE Set Advertising Data Command
@@ -1145,8 +1151,9 @@ static int ble_adv_set(RkBtContent *bt_content, ble_content_t *ble_content)
 int gatt_init(RkBtContent *bt_content)
 {
 	int i;
-	char temp_addr[10];
-	char le_random_addr[DEVICE_ADDR_LEN];
+	bool is_random_addr = true;
+	uint8_t *ble_addr;
+	uint8_t le_random_addr[DEVICE_ADDR_LEN];
 
 	characteristic_id = 1;
 	service_id = 1;
@@ -1160,27 +1167,45 @@ int gatt_init(RkBtContent *bt_content)
 		return -1;
 	}
 
-	// random addr
-	srand(time(NULL) + getpid() + getpid() * 987654 + rand());
-	for(i = 0; i < DEVICE_ADDR_LEN;i++)
-		le_random_addr[i] = rand() & 0xFF;
-	le_random_addr[5] &= 0x3f;		/* Clear two most significant bits */
-	//le_random_addr[5] |= 0xc0;	/* Set second most significant bit */
-	le_random_addr[5] |= 0x40;		/* Set second most significant bit, Private resolvable */
-
-	memset(g_cmd_ra, 0, 256);
-	strcat(g_cmd_ra, CMD_RA);
-	for (i = 0; i < DEVICE_ADDR_LEN; i++) {
-		memset(temp_addr, 0, 10);
-		sprintf(temp_addr, "%02x", le_random_addr[i]);
-		strcat(g_cmd_ra, " ");
-		strcat(g_cmd_ra, temp_addr);
+	for(i = 0; i < DEVICE_ADDR_LEN; i++) {
+		if(bt_content->ble_content.ble_addr[i] != 0) {
+			is_random_addr = false;
+			break;
+		}
 	}
 
-	pr_info("CMD_RA: %d, %s(%p)\n", strlen(g_cmd_ra), g_cmd_ra, g_cmd_ra);
+	if(is_random_addr) {
+		//random addr
+		srand(time(NULL) + getpid() + getpid() * 987654 + rand());
+		for(i = 0; i < DEVICE_ADDR_LEN;i++)
+			le_random_addr[i] = rand() & 0xFF;
 
-	//save random addr
-	memcpy(bt_content->ble_content.le_random_addr, le_random_addr, DEVICE_ADDR_LEN);
+		//Clear two most significant bits
+		le_random_addr[5] &= 0x3f;
+
+		//Set second most significant bit, Private resolvable
+		//le_random_addr[5] |= 0xc0;
+		le_random_addr[5] |= 0x40;
+
+		//Save random addr
+		memcpy(bt_content->ble_content.ble_addr, le_random_addr, DEVICE_ADDR_LEN);
+		ble_addr = le_random_addr;
+	} else {
+		ble_addr = bt_content->ble_content.ble_addr;
+	}
+
+	memset(g_cmd_ra, 0, 256);
+	if(sprintf(g_cmd_ra, "%s %02hhx %02hhx %02hhx %02hhx %02hhx %02hhx", CMD_RA,
+			ble_addr[0], ble_addr[1], ble_addr[2],
+			ble_addr[3], ble_addr[4], ble_addr[5]) < 0) {
+		pr_err("%s: set ble address failed\n", __func__);
+		return -1;
+	}
+	pr_info("CMD_RA: %d, %s\n", strlen(g_cmd_ra), g_cmd_ra);
+
+	memset(g_cmd_para, 0, 256);
+	memcpy(g_cmd_para, CMD_PARA, strlen(CMD_PARA));
+	pr_info("CMD_PARA: %d, %s\n", strlen(g_cmd_para), g_cmd_para);
 
 	//adv data set
 	memset(&ble_content_internal_bak, 0, sizeof(ble_content_t));
@@ -1197,4 +1222,64 @@ int gatt_init(RkBtContent *bt_content)
 void gatt_set_stopping(bool stopping)
 {
 	gatt_is_stopping = stopping;
+}
+
+int ble_set_address(char *address)
+{
+	char ret_buff[1024];
+
+	if(!address)
+		return -1;
+
+	if(strlen(address) != DEVICE_ADDR_LEN) {
+		pr_err("%s: address len(%d) != DEVICE_ADDR_LEN(%d)\n", __func__, strlen(address), DEVICE_ADDR_LEN);
+		return -1;
+	}
+
+	memset(g_cmd_ra, 0, 256);
+	if(sprintf(g_cmd_ra, "%s %02hhx %02hhx %02hhx %02hhx %02hhx %02hhx", CMD_RA,
+			address[0], address[1], address[2],
+			address[3], address[4], address[5]) < 0) {
+		pr_err("%s: set ble address failed\n", __func__);
+		return -1;
+	}
+	pr_info("CMD_RA: %d, %s\n", strlen(g_cmd_ra), g_cmd_ra);
+
+	execute(g_cmd_ra, ret_buff, 1024);
+	pr_info("CMD_RA buff: %s", ret_buff);
+
+	return 0;
+}
+
+int ble_set_adv_interval(unsigned short adv_int_min, unsigned short adv_int_max)
+{
+	char ret_buff[1024];
+	char adv_min_low, adv_min_high;
+	char adv_max_low, adv_max_high;
+
+	if(adv_int_min < 32) {
+		pr_err("%s: the minimum is 32(20ms), adv_int_min = %d", __func__, adv_int_min);
+		adv_int_min = 32;
+	}
+
+	if(adv_int_max < adv_int_min)
+		adv_int_max = adv_int_min;
+
+	adv_min_low = adv_int_min & 0xFF;
+	adv_min_high = (adv_int_min & 0xFF00) >> 8;
+	adv_max_low = adv_int_max & 0xFF;
+	adv_max_high = (adv_int_max & 0xFF00) >> 8;
+
+	memset(g_cmd_para, 0, 256);
+	if(sprintf(g_cmd_para, "%s %02hhx %02hhx %02hhx %02hhx %s",
+			"hcitool -i hci0 cmd 0x08 0x0006",
+			adv_min_low, adv_min_high, adv_max_low, adv_max_high,
+			"00 01 00 00 00 00 00 00 00 07 00") < 0) {
+		pr_err("%s: set ble adv interval failed\n", __func__);
+		return -1;
+	}
+	pr_info("CMD_PARA: %d, %s\n", strlen(g_cmd_para), g_cmd_para);
+
+	execute(g_cmd_para, ret_buff, 1024);
+	pr_info("CMD_PARA buff: %s", ret_buff);
 }

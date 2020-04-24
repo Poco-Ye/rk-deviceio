@@ -34,8 +34,6 @@
 #define BSA_BLE_CONNECT_EVT                 BTA_BLE_CONNECT_EVT
 #define BTM_BLE_ADVERT_TYPE_NAME_COMPLETE   0x09
 
-#define BT_DEVICE_ADDRESS_LEN 18
-
 typedef struct {
     RK_BLE_RECV_CALLBACK recv_data_cb;
     RK_BLE_STATE_CALLBACK state_cb;

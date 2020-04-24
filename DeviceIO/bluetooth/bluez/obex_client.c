@@ -39,6 +39,8 @@
 
 #include "gdbus/gdbus.h"
 #include "a2dp_source/shell.h"
+#include "a2dp_source/a2dp_masterctrl.h"
+#include "obex_client.h"
 #include "slog.h"
 
 #undef bt_shell_printf
@@ -72,14 +74,31 @@ static GList *msgs = NULL;
 static GList *transfers = NULL;
 static GDBusProxy *client = NULL;
 static GMainLoop *obex_main_loop;
+static RK_BT_OBEX_STATE_CALLBACK g_obex_pbap_event_cb = NULL;
 
 struct transfer_data {
 	uint64_t transferred;
 	uint64_t size;
 };
 
+struct connect_args {
+	char *dev;
+	char *target;
+};
+
 static void cmd_cp_pbap_vcf(void);
 static char pbap_save_filename[64];
+
+void obex_pbap_register_status_cb(RK_BT_OBEX_STATE_CALLBACK cb)
+{
+	g_obex_pbap_event_cb = cb;
+}
+
+static void obex_pbap_send_state(char *address, RK_BT_OBEX_STATE state)
+{
+	if(g_obex_pbap_event_cb)
+		g_obex_pbap_event_cb(address, state);
+}
 
 static void connect_handler(DBusConnection *connection, void *user_data)
 {
@@ -117,24 +136,22 @@ static char *transfer_generator(const char *text, int state)
 static void connect_reply(DBusMessage *message, void *user_data)
 {
 	DBusError error;
+	struct connect_args *args = user_data;
 
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		bt_shell_printf("Failed to connect: %s\n", error.name);
+		bt_shell_printf("%s: obex failed to connect: %s\n", __func__, error.name);
+		obex_pbap_send_state(args->dev, RK_BT_OBEX_CONNECT_FAILED);
 		dbus_error_free(&error);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
-	bt_shell_printf("Connection successful\n");
+	bt_shell_printf("%s: Obex connection successful\n", __func__);
+	obex_pbap_send_state(args->dev, RK_BT_OBEX_CONNECTED);
 
 	return bt_shell_noninteractive_quit(EXIT_SUCCESS);
 }
-
-struct connect_args {
-	char *dev;
-	char *target;
-};
 
 static void connect_args_free(void *data)
 {
@@ -169,14 +186,14 @@ done:
 	dbus_message_iter_close_container(iter, &dict);
 }
 
-void obex_connect_pbap(char *dev_addr)
+int obex_connect_pbap(char *dev_addr)
 {
 	struct connect_args *args;
 	const char *target = "pbap";
 
 	if (!client) {
-		bt_shell_printf("Client proxy not available\n");
-		return bt_shell_noninteractive_quit(EXIT_FAILURE);
+		bt_shell_printf("%s: Client proxy not available\n", __func__);
+		return -1;
 	}
 
 	args = g_new0(struct connect_args, 1);
@@ -185,11 +202,12 @@ void obex_connect_pbap(char *dev_addr)
 
 	if (g_dbus_proxy_method_call(client, "CreateSession", connect_setup,
 			connect_reply, args, connect_args_free) == FALSE) {
-		bt_shell_printf("Failed to connect\n");
-		return bt_shell_noninteractive_quit(EXIT_FAILURE);
+		bt_shell_printf("%s: Failed to connect\n", __func__);
+		return -1;
 	}
 
-	bt_shell_printf("Attempting to connect to phone");
+	bt_shell_printf("%s: Attempting to connect to phone", __func__);
+	return 0;
 }
 
 static void cmd_connect(int argc, char *argv[])
@@ -218,6 +236,34 @@ static void cmd_connect(int argc, char *argv[])
 	bt_shell_printf("Attempting to connect to %s\n", argv[1]);
 }
 
+static int obex_get_device_address(GDBusProxy *proxy,
+			char *addr_buf, int addr_len)
+{
+	DBusMessageIter iter;
+	const char *address;
+
+	if (!proxy) {
+		pr_info("%s: Invalid proxy\n", __func__);
+		return -1;
+	}
+
+	if (!addr_buf || addr_len <= 0) {
+		pr_info("%s: Invalid name buffer, name_len: %d\n", __func__, addr_len);
+		return -1;
+	}
+
+	memset(addr_buf, 0, addr_len);
+	if (!g_dbus_proxy_get_property(proxy, "Destination", &iter)) {
+		pr_info("can't get device address!\n");
+		return -1;
+	}
+
+	dbus_message_iter_get_basic(&iter, &address);
+	memcpy(addr_buf, address, (strlen(address) > addr_len) ? addr_len : strlen(address));
+
+	return 0;
+}
+
 static void disconnect_reply(DBusMessage *message, void *user_data)
 {
 	DBusError error;
@@ -225,13 +271,18 @@ static void disconnect_reply(DBusMessage *message, void *user_data)
 	dbus_error_init(&error);
 
 	if (dbus_set_error_from_message(&error, message) == TRUE) {
-		bt_shell_printf("Failed to disconnect: %s\n", error.name);
+		GDBusProxy *proxy = user_data;
+		char address[18];
+
+		obex_get_device_address(proxy, address, 18);
+		obex_pbap_send_state(address, RK_BT_OBEX_DISCONNECT_FAILED);
+
+		bt_shell_printf("%s: Obex failed to disconnect: %s\n", __func__, error.name);
 		dbus_error_free(&error);
 		return bt_shell_noninteractive_quit(EXIT_FAILURE);
 	}
 
-	bt_shell_printf("Disconnection successful\n");
-
+	bt_shell_printf("%s: Obex disconnection successful\n", __func__);
 	return bt_shell_noninteractive_quit(EXIT_SUCCESS);
 }
 
@@ -245,7 +296,7 @@ static void disconnect_setup(DBusMessageIter *iter, void *user_data)
 	dbus_message_iter_append_basic(iter, DBUS_TYPE_OBJECT_PATH, &path);
 }
 
-void obex_disconnect(int argc, char *btaddr)
+int obex_disconnect(int argc, char *btaddr)
 {
 	GDBusProxy *proxy;
 
@@ -256,18 +307,19 @@ void obex_disconnect(int argc, char *btaddr)
 		proxy = default_session;
 
 	if (proxy == NULL) {
-		bt_shell_printf("Session not available\n");
-		return bt_shell_noninteractive_quit(EXIT_FAILURE);
+		bt_shell_printf("%s: Session not available\n", __func__);
+		return -1;
 	}
 
 	if (g_dbus_proxy_method_call(client, "RemoveSession", disconnect_setup,
 				disconnect_reply, proxy, NULL) == FALSE) {
-		bt_shell_printf("Failed to disconnect\n");
-		return bt_shell_noninteractive_quit(EXIT_FAILURE);
+		bt_shell_printf("%s: Failed to disconnect\n", __func__);
+		return -1;
 	}
 
 	bt_shell_printf("Attempting to disconnect to %s\n",
 						g_dbus_proxy_get_path(proxy));
+	return 0;
 }
 
 static void cmd_disconnect(int argc, char *argv[])
@@ -454,6 +506,8 @@ static void set_default_session(GDBusProxy *proxy)
 {
 	char *desc;
 	DBusMessageIter iter;
+
+	pr_info("%s: proxy is %s\n", __func__, proxy ? "non-null" : "null");
 
 	default_session = proxy;
 
@@ -970,7 +1024,7 @@ static void map_cd(GDBusProxy *proxy, int argc, char *argv[])
 	bt_shell_printf("Attempting to SetFolder to %s\n", argv[1]);
 }
 
-void obex_get_pbap_pb(char *dir_name, char *dir_file)
+int obex_get_pbap_pb(char *dir_name, char *dir_file)
 {
 	const char *path = g_dbus_proxy_get_path(default_session);
 	GDBusProxy *proxy;
@@ -979,24 +1033,23 @@ void obex_get_pbap_pb(char *dir_name, char *dir_file)
 	strcpy(pbap_save_filename, dir_file);
 
 	if (!check_default_session())
-		return bt_shell_noninteractive_quit(EXIT_FAILURE);
+		return -1;
 
 	proxy = g_dbus_proxy_lookup(pbaps, NULL, path, OBEX_PBAP_INTERFACE);
 	if (proxy) {
 		if (g_dbus_proxy_method_call(proxy, "Select", select_setup,
 						select_reply, g_strdup(dir_name),
 						g_free) == FALSE) {
-			bt_shell_printf("Failed to Select\n");
-			return bt_shell_noninteractive_quit(EXIT_FAILURE);
+			bt_shell_printf("%s: Failed to Select\n", __func__);
+			return -1;
 		}
 
-		bt_shell_printf("Attempting to Select to pb\n");
-		return;
+		bt_shell_printf("%s: Attempting to Select to pb\n", __func__);
+		return 0;
 	}
 
-	bt_shell_printf("Command not supported\n");
-
-	return bt_shell_noninteractive_quit(EXIT_FAILURE);
+	bt_shell_printf("%s: Command not supported\n", __func__);
+	return -1;
 }
 
 
@@ -2047,6 +2100,21 @@ static void print_transferred(struct transfer_data *data, const char *str,
 			minutes, seconds);
 }
 
+static void transfer_status_handler(GDBusProxy *proxy, DBusMessageIter *iter)
+{
+	char address[18];
+	const char *status;
+
+	obex_get_device_address(default_session, address, 18);
+
+	dbus_message_iter_get_basic(iter, &status);
+
+	if(strcmp(status, "active") == 0)
+		obex_pbap_send_state(address, RK_BT_OBEX_TRANSFER_ACTIVE);
+	if(strcmp(status, "complete") == 0)
+		obex_pbap_send_state(address, RK_BT_OBEX_TRANSFER_COMPLETE);
+}
+
 static void transfer_property_changed(GDBusProxy *proxy, const char *name,
 					DBusMessageIter *iter, void *user_data)
 {
@@ -2062,6 +2130,9 @@ static void transfer_property_changed(GDBusProxy *proxy, const char *name,
 		print_transferred(data, str, iter);
 		goto done;
 	}
+
+	if(strcmp(name, "Status") == 0)
+		transfer_status_handler(proxy, iter);
 
 	if (strcmp(name, "Size") == 0)
 		dbus_message_iter_get_basic(iter, &data->size);
@@ -2171,8 +2242,12 @@ static void session_removed(GDBusProxy *proxy)
 {
 	print_proxy(proxy, "Session", COLORED_DEL);
 
-	if (default_session == proxy)
+	if (default_session == proxy) {
+		char address[18];
+		obex_get_device_address(proxy, address, 18);
+		obex_pbap_send_state(address, RK_BT_OBEX_DISCONNECTED);
 		set_default_session(NULL);
+	}
 
 	sessions = g_list_remove(sessions, proxy);
 }
@@ -2267,11 +2342,7 @@ static void property_changed(GDBusProxy *proxy, const char *name,
 void *obex_main_thread(void *arg)
 {
 	GDBusClient *client;
-	//int status = 0;
 
-	//bt_shell_init(argc, argv, NULL);
-	//bt_shell_set_menu(&main_menu);
-	//bt_shell_set_prompt(PROMPT_OFF);
 	setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/var/run/dbus/system_bus_socket", 1);
 
 	dbus_conn = g_dbus_setup_bus(DBUS_BUS_SESSION, NULL, NULL);
@@ -2288,7 +2359,6 @@ void *obex_main_thread(void *arg)
 							property_changed, NULL);
 
 	g_main_loop_run(obex_main_loop);
-	//status = bt_shell_run();
 
 	g_dbus_client_unref(client);
 
@@ -2296,6 +2366,7 @@ void *obex_main_thread(void *arg)
 
 	g_main_loop_unref(obex_main_loop);
 
+	pr_info("Exit obex_main_thread\n");
 	return NULL;
 }
 

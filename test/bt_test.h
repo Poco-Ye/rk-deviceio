@@ -36,6 +36,8 @@ void bt_test_get_connected_properties(char *data);
 /******************************************/
 void bt_test_ble_start(char *data);
 void bt_test_ble_write(char *data);
+void bt_test_ble_set_address(char *data);
+void bt_test_ble_set_adv_interval(char *data);
 void bt_test_ble_get_status(char *data);
 void bt_test_ble_stop(char *data);
 void bt_test_ble_disconnect(char *data);
@@ -108,6 +110,7 @@ void bt_test_hfp_hp_open(char *data);
 void bt_test_hfp_hp_accept(char *data);
 void bt_test_hfp_hp_hungup(char *data);
 void bt_test_hfp_hp_redial(char *data);
+void bt_test_hfp_hp_dial_number(char *data);
 void bt_test_hfp_hp_report_battery(char *data);
 void bt_test_hfp_hp_set_volume(char *data);
 void bt_test_hfp_hp_close(char *data);

@@ -48,8 +48,15 @@ static rfcomm_handler_t g_rfcomm_handler = {
 };
 
 static void rfcomm_hfp_send_event(RK_BT_HFP_EVENT event, void *data) {
-	if(g_rfcomm_handler.cb)
-		g_rfcomm_handler.cb(event, data);
+	char address[18];
+
+	if(!g_rfcomm_handler.cb)
+		return;
+
+	memset(address, 0, 18);
+	bt_get_default_dev_addr(address, 18);
+
+	g_rfcomm_handler.cb(address, event, data);
 }
 
 static void send_audio_open_evt(int time_ms)

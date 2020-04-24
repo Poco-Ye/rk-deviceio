@@ -924,6 +924,11 @@ int rk_ble_set_adv_interval(unsigned short adv_int_min, unsigned short adv_int_m
     return app_ble_rk_server_set_adv_interval(adv_int_min, adv_int_max);
 }
 
+int rk_ble_set_address(char *address)
+{
+    APP_DEBUG1("bsa don't support %s", __func__);
+    return 0;
+}
 /*****************************************************
  *                   BLE CLIENT                      *
  *****************************************************/
@@ -947,7 +952,6 @@ int rk_ble_client_open()
 void rk_ble_client_register_mtu_callback(RK_BT_MTU_CALLBACK cb)
 {
     APP_DEBUG1("bsa don't support %s", __func__);
-    return 0;
 }
 
 void rk_ble_client_close()
@@ -1367,7 +1371,12 @@ int rk_bt_hfp_set_volume(int volume)
 
 int rk_bt_hfp_redial(void)
 {
-    return app_hs_redial();
+    return app_hs_last_num_dial();
+}
+
+int rk_bt_hfp_dial_number(char *number)
+{
+    return app_hs_dial_num(number);
 }
 
 int rk_bt_hfp_report_battery(int value)
@@ -1399,6 +1408,11 @@ int rk_bt_hfp_disconnect()
 /*****************************************************************
  *            Rockchip bluetooth obex api                        *
  *****************************************************************/
+void rk_bt_obex_register_status_cb(RK_BT_OBEX_STATE_CALLBACK cb)
+{
+    APP_DEBUG1("bsa don't support %s", __func__);
+}
+
 int rk_bt_obex_init(char *path)
 {
     APP_DEBUG1("bsa don't support %s", __func__);

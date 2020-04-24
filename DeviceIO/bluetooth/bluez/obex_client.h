@@ -2,10 +2,13 @@
 extern "C" {
 #endif
 
+#include <DeviceIo/RkBtObex.h>
+
+void obex_pbap_register_status_cb(RK_BT_OBEX_STATE_CALLBACK cb);
 void *obex_main_thread(void *arg);
-void obex_connect_pbap(char *dev_addr);
-void obex_get_pbap_pb(char *dir_name, char *dir_file);
-void obex_disconnect(int argc, char *btaddr);
+int obex_connect_pbap(char *dev_addr);
+int obex_get_pbap_pb(char *dir_name, char *dir_file);
+int obex_disconnect(int argc, char *btaddr);
 void obex_quit(void);
 
 #ifdef __cplusplus

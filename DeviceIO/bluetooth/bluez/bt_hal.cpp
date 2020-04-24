@@ -124,6 +124,11 @@ int rk_ble_get_state(RK_BLE_STATE *p_state)
 	return 0;
 }
 
+int rk_ble_set_address(char *address)
+{
+	return ble_set_address(address);
+}
+
 int rk_ble_write(const char *uuid, char *data, int len)
 {
 	RkBleConfig ble_cfg;
@@ -180,8 +185,7 @@ void rk_ble_set_local_privacy(bool local_privacy)
 
 int rk_ble_set_adv_interval(unsigned short adv_int_min, unsigned short adv_int_max)
 {
-    pr_info("bluez don't support %s\n", __func__);
-    return 0;
+	return ble_set_adv_interval(adv_int_min, adv_int_max);
 }
 
 /*****************************************************************
@@ -1654,6 +1658,26 @@ int rk_bt_hfp_hangup(void)
 	return 0;
 }
 
+int rk_bt_hfp_dial_number(char *number)
+{
+	char buf[256];
+
+	if(number == NULL || (strlen(number) == 0)) {
+		pr_err("%s: empty number string\n", __func__);
+		return -1;
+	}
+
+	if(strlen(number) > 250) {
+		pr_err("%s: Invalid phone number(%s)\n", __func__, number);
+		return -1;
+	}
+
+	memset(buf, 0, 256);
+	sprintf(buf, "%s%s%s", "ATD", number, ";");
+
+	return rk_bt_hfp_hp_send_cmd(buf);
+}
+
 int rk_bt_hfp_redial(void)
 {
 	return rk_bt_hfp_hp_send_cmd("AT+BLDN");
@@ -1776,6 +1800,11 @@ int rk_bt_obex_pbap_init()
 	return 0;
 }
 
+void rk_bt_obex_register_status_cb(RK_BT_OBEX_STATE_CALLBACK cb)
+{
+	obex_pbap_register_status_cb(cb);
+}
+
 int rk_bt_obex_pbap_connect(char *btaddr)
 {
 	if(!g_obex_thread) {
@@ -1789,9 +1818,7 @@ int rk_bt_obex_pbap_connect(char *btaddr)
 	}
 
 	pr_info("[enter %s]\n", __func__);
-	obex_connect_pbap(btaddr);
-
-	return 0;
+	return obex_connect_pbap(btaddr);
 }
 
 int rk_bt_obex_pbap_get_vcf(char *dir_name, char *dir_file)
@@ -1807,9 +1834,7 @@ int rk_bt_obex_pbap_get_vcf(char *dir_name, char *dir_file)
 	}
 
 	pr_info("[enter %s]\n", __func__);
-	obex_get_pbap_pb(dir_name, dir_file);
-
-	return 0;
+	return obex_get_pbap_pb(dir_name, dir_file);
 }
 
 int rk_bt_obex_pbap_disconnect(char *btaddr)
@@ -1820,8 +1845,7 @@ int rk_bt_obex_pbap_disconnect(char *btaddr)
 	}
 
 	pr_info("[enter %s]\n", __func__);
-	obex_disconnect(1, NULL);
-	return 0;
+	return obex_disconnect(1, NULL);
 }
 
 int rk_bt_obex_pbap_deinit()

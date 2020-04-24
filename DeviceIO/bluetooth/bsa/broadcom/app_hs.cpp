@@ -162,9 +162,17 @@ static int app_hs_close_alsa_duplex(void);
 
 static RK_BT_HFP_EVENT app_hs_state = RK_BT_HFP_DISCONNECT_EVT;
 static RK_BT_HFP_CALLBACK app_hs_send_cb = NULL;
-static void app_hs_send_event(RK_BT_HFP_EVENT event, void *data) {
-    if(app_hs_send_cb)
-        app_hs_send_cb(event, data);
+static void app_hs_send_event(BD_ADDR bd_addr, RK_BT_HFP_EVENT event, void *data) {
+    char address[BT_DEVICE_ADDRESS_LEN];
+
+    if(!app_hs_send_cb)
+        return;
+
+    memset(address, 0, BT_DEVICE_ADDRESS_LEN);
+    if(bd_addr)
+        app_mgr_bd2str(bd_addr, address, BT_DEVICE_ADDRESS_LEN);
+
+    app_hs_send_cb(address, event, data);
 }
 
 /*
@@ -1114,29 +1122,29 @@ int app_hs_play_file(char * filename)
     return 0;
 }
 
-static void app_hs_process_ciev_msg(char *msg, UINT8 dev_platform)
+static void app_hs_process_ciev_msg(BD_ADDR bd_addr, char *msg, UINT8 dev_platform)
 {
     if(dev_platform == BSA_DEV_PLATFORM_IOS) {
         if(strstr(msg, "2,1")) {
             app_hs_cb.is_pick_up = TRUE;
-            app_hs_send_event(RK_BT_HFP_PICKUP_EVT, NULL);
+            app_hs_send_event(bd_addr, RK_BT_HFP_PICKUP_EVT, NULL);
         } else if(strstr(msg, "2,0")) {
-            app_hs_send_event(RK_BT_HFP_HANGUP_EVT, NULL);
+            app_hs_send_event(bd_addr, RK_BT_HFP_HANGUP_EVT, NULL);
         } else if(strstr(msg, "3,0")) {
             if(!app_hs_cb.is_pick_up)
-                app_hs_send_event(RK_BT_HFP_HANGUP_EVT, NULL);
+                app_hs_send_event(bd_addr, RK_BT_HFP_HANGUP_EVT, NULL);
             else
                 app_hs_cb.is_pick_up = FALSE;
         }
     } else {
         if(strstr(msg, "1,1")) {
             app_hs_cb.is_pick_up = TRUE;
-            app_hs_send_event(RK_BT_HFP_PICKUP_EVT, NULL);
+            app_hs_send_event(bd_addr, RK_BT_HFP_PICKUP_EVT, NULL);
         } else if(strstr(msg, "1,0")) {
-            app_hs_send_event(RK_BT_HFP_HANGUP_EVT, NULL);
+            app_hs_send_event(bd_addr, RK_BT_HFP_HANGUP_EVT, NULL);
         } else if(strstr(msg, "2,0")) {
             if(!app_hs_cb.is_pick_up)
-                app_hs_send_event(RK_BT_HFP_HANGUP_EVT, NULL);
+                app_hs_send_event(bd_addr, RK_BT_HFP_HANGUP_EVT, NULL);
             else
                 app_hs_cb.is_pick_up = FALSE;
         }
@@ -1228,7 +1236,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
 
         app_dm_set_visibility(TRUE, FALSE);
         app_hs_state = RK_BT_HFP_CONNECT_EVT;
-        app_hs_send_event(RK_BT_HFP_CONNECT_EVT, NULL);
+        app_hs_send_event(p_data->conn.bd_addr, RK_BT_HFP_CONNECT_EVT, NULL);
         break;
 
     case BSA_HS_CLOSE_EVT:      /* Connection Closed (for info)*/
@@ -1256,7 +1264,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
 
         app_dm_set_visibility(TRUE, TRUE);
         app_hs_state = RK_BT_HFP_DISCONNECT_EVT;
-        app_hs_send_event(RK_BT_HFP_DISCONNECT_EVT, NULL);
+        app_hs_send_event(p_conn->connected_bd_addr, RK_BT_HFP_DISCONNECT_EVT, NULL);
         break;
 
     case BSA_HS_AUDIO_OPEN_EVT:     /* Audio Open Event */
@@ -1288,7 +1296,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
 #endif /* PCM_ALSA */
         p_conn->call_state = BSA_HS_CALL_CONN;
         BSA_HS_SETSTATUS(p_conn, BSA_HS_ST_SCOOPEN);
-        app_hs_send_event(RK_BT_HFP_AUDIO_OPEN_EVT, NULL);
+        app_hs_send_event(p_conn->connected_bd_addr, RK_BT_HFP_AUDIO_OPEN_EVT, NULL);
         break;
 
     case BSA_HS_AUDIO_CLOSE_EVT:         /* Audio Close event */
@@ -1320,7 +1328,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
             p_conn->uipc_connected = FALSE;
         }
 
-        app_hs_send_event(RK_BT_HFP_AUDIO_CLOSE_EVT, NULL);
+        app_hs_send_event(p_conn->connected_bd_addr, RK_BT_HFP_AUDIO_CLOSE_EVT, NULL);
         break;
 
     case BSA_HS_CIEV_EVT:                /* CIEV event */
@@ -1328,7 +1336,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         strncpy(buf, p_data->val.str, 4);
         buf[5] ='\0';
         APP_INFO1("Call Ind Status %s",buf);
-        app_hs_process_ciev_msg(buf, p_conn->dev_platform);
+        app_hs_process_ciev_msg(p_conn->connected_bd_addr, buf, p_conn->dev_platform);
         break;
 
     case BSA_HS_CIND_EVT:                /* CIND event */
@@ -1349,7 +1357,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
 
     case BSA_HS_RING_EVT:
         APP_INFO0("BSA_HS_RING_EVT");
-        app_hs_send_event(RK_BT_HFP_RING_EVT, NULL);
+        app_hs_send_event(p_conn->connected_bd_addr, RK_BT_HFP_RING_EVT, NULL);
         break;
 
     case BSA_HS_CLIP_EVT:
@@ -1378,7 +1386,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
 
     case BSA_HS_VGS_EVT:
         APP_DEBUG1("BSA_HS_VGS_EVT Speaker volume: %d", p_data->val.num);
-        app_hs_send_event(RK_BT_HFP_VOLUME_EVT, &p_data->val.num);
+        app_hs_send_event(p_conn->connected_bd_addr, RK_BT_HFP_VOLUME_EVT, &p_data->val.num);
         break;
 
     case BSA_HS_BINP_EVT:
@@ -1415,12 +1423,12 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         switch(p_data->val.num) {
             case BSA_HS_A_CMD:
                 APP_DEBUG0("Call has been picked up");
-                app_hs_send_event(RK_BT_HFP_PICKUP_EVT, NULL);
+                app_hs_send_event(p_conn->connected_bd_addr, RK_BT_HFP_PICKUP_EVT, NULL);
                 break;
 
             case BSA_HS_CHUP_CMD:
                 APP_DEBUG0("Call has been hanged up");
-                app_hs_send_event(RK_BT_HFP_HANGUP_EVT, NULL);
+                app_hs_send_event(p_conn->connected_bd_addr, RK_BT_HFP_HANGUP_EVT, NULL);
                 break;
         }
 #endif
@@ -1439,7 +1447,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         else
             codec_type = BT_SCO_CODEC_CVSD;
 
-        app_hs_send_event(RK_BT_HFP_BCS_EVT, &codec_type);
+        app_hs_send_event(p_conn->connected_bd_addr, RK_BT_HFP_BCS_EVT, &codec_type);
         break;
 
     case BSA_HS_OPEN_EVT:
@@ -1657,8 +1665,7 @@ int app_hs_last_num_dial(void)
     APP_DEBUG0("");
 
     /* If no connection exist, error */
-    if ((p_conn = app_hs_get_default_conn()) == NULL)
-    {
+    if ((p_conn = app_hs_get_default_conn()) == NULL) {
         APP_DEBUG0("no connection available");
         return -1;
     }
@@ -1689,15 +1696,13 @@ int app_hs_dial_num(const char *num)
 
     APP_DEBUG0("");
 
-    if((num == NULL) || (strlen(num) == 0))
-    {
+    if((num == NULL) || (strlen(num) == 0)) {
         APP_DEBUG0("empty number string");
         return -1;
     }
 
     /* If no connection exist, error */
-    if ((p_conn = app_hs_get_default_conn()) == NULL)
-    {
+    if ((p_conn = app_hs_get_default_conn()) == NULL) {
         APP_DEBUG0("no connection available");
         return -1;
     }
@@ -2298,16 +2303,6 @@ int app_hs_hang_up()
 {
     if(app_hs_hangup() < 0) {
         APP_ERROR0("app_hs_hangup failed");
-        return -1;
-    }
-
-    return 0;
-}
-
-int app_hs_redial()
-{
-    if(app_hs_last_num_dial() < 0) {
-        APP_ERROR0("app_hs_last_num_dial failed");
         return -1;
     }
 

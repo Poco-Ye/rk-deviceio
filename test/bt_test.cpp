@@ -177,6 +177,25 @@ void *bt_test_bluetooth_init_thread(void *)
 	//bt_content.bt_addr = "11:22:33:44:55:66";
 
 	bt_content.ble_content.ble_name = "ROCKCHIP_AUDIO BLE";
+
+#if 0
+	//user-defined ble address test, if not set, the default random address
+	bt_content.ble_content.ble_addr[0] = 0x11;
+	bt_content.ble_content.ble_addr[1] = 0x22;
+	bt_content.ble_content.ble_addr[2] = 0x33;
+	bt_content.ble_content.ble_addr[3] = 0x44;
+	bt_content.ble_content.ble_addr[4] = 0x55;
+	bt_content.ble_content.ble_addr[5] = 0x66;
+	//Clear two most significant bits
+	bt_content.ble_content.ble_addr[5] &= 0x3f;
+	//Set second most significant bit, Private resolvable
+	bt_content.ble_content.ble_addr[5] |= 0x40;
+	printf("ble_addr: %02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx\n",
+			bt_content.ble_content.ble_addr[5], bt_content.ble_content.ble_addr[4],
+			bt_content.ble_content.ble_addr[3], bt_content.ble_content.ble_addr[2],
+			bt_content.ble_content.ble_addr[1], bt_content.ble_content.ble_addr[0]);
+#endif
+
 	bt_content.ble_content.server_uuid.uuid = BLE_UUID_SERVICE;
 	bt_content.ble_content.server_uuid.len = UUID_128;
 	bt_content.ble_content.chr_uuid[0].uuid = BLE_UUID_WIFI_CHAR;
@@ -909,11 +928,45 @@ static void bt_test_mtu_callback(const char *bd_addr, unsigned int mtu)
 	g_mtu = mtu;
 }
 
-void bt_test_ble_start(char *data) {
+void bt_test_ble_start(char *data)
+{
 	rk_ble_register_status_callback(ble_status_callback_test);
 	rk_ble_register_recv_callback(bt_test_ble_recv_data_callback);
 	rk_ble_register_mtu_callback(bt_test_mtu_callback);
 	rk_ble_start(&bt_content.ble_content);
+}
+
+void bt_test_ble_set_address(char *data)
+{
+	//user-defined ble address test, if not set, the default random address
+	uint8_t ble_addr[DEVICE_ADDR_LEN];
+
+	if(!data || strlen(data) < 17)
+		return;
+
+	printf("ble address: %s\n", data);
+	if (sscanf(data, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+			&ble_addr[5], &ble_addr[4], &ble_addr[3],
+			&ble_addr[2], &ble_addr[1], &ble_addr[0]) != 6) {
+		return;
+	}
+
+	//Clear two most significant bits
+	ble_addr[5] &= 0x3f;
+	//Set second most significant bit, Private resolvable
+	ble_addr[5] |= 0x40;
+
+	printf("ble_addr: %02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx\n",
+			ble_addr[5], ble_addr[4], ble_addr[3],
+			ble_addr[2], ble_addr[1], ble_addr[0]);
+
+	rk_ble_set_address(ble_addr);
+}
+
+void bt_test_ble_set_adv_interval(char *data)
+{
+	//default 100ms, test: 20ms(32 * 0.625) ~ 100ms(160 * 0.625)
+	rk_ble_set_adv_interval(32, 160);
 }
 
 void bt_test_ble_write(char *data)
@@ -1704,31 +1757,31 @@ static void hfp_close_audio_duplex()
 	hfp_close_bt_duplex();
 }
 
-int bt_test_hfp_hp_cb(RK_BT_HFP_EVENT event, void *data)
+int bt_test_hfp_hp_cb(const char *bd_addr, RK_BT_HFP_EVENT event, void *data)
 {
 	switch(event) {
 		case  RK_BT_HFP_CONNECT_EVT:
-			printf("+++++ BT HFP HP CONNECT +++++\n");
+			printf("+++++ BT HFP HP CONNECT(%s) +++++\n", bd_addr);
 			break;
 		case RK_BT_HFP_DISCONNECT_EVT:
-			printf("+++++ BT HFP HP DISCONNECT +++++\n");
+			printf("+++++ BT HFP HP DISCONNECT(%s) +++++\n", bd_addr);
 			break;
 		case RK_BT_HFP_RING_EVT:
-			printf("+++++ BT HFP HP RING +++++\n");
+			printf("+++++ BT HFP HP RING(%s) +++++\n", bd_addr);
 			break;
 		case RK_BT_HFP_AUDIO_OPEN_EVT:
-			printf("+++++ BT HFP AUDIO OPEN +++++\n");
+			printf("+++++ BT HFP AUDIO OPEN(%s) +++++\n", bd_addr);
 			hfp_open_audio_duplex();
 			break;
 		case RK_BT_HFP_AUDIO_CLOSE_EVT:
-			printf("+++++ BT HFP AUDIO CLOSE +++++\n");
+			printf("+++++ BT HFP AUDIO CLOSE(%s) +++++\n", bd_addr);
 			hfp_close_audio_duplex();
 			break;
 		case RK_BT_HFP_PICKUP_EVT:
-			printf("+++++ BT HFP PICKUP +++++\n");
+			printf("+++++ BT HFP PICKUP(%s) +++++\n", bd_addr);
 			break;
 		case RK_BT_HFP_HANGUP_EVT:
-			printf("+++++ BT HFP HANGUP +++++\n");
+			printf("+++++ BT HFP HANGUP(%s) +++++\n", bd_addr);
 			break;
 		case RK_BT_HFP_VOLUME_EVT:
 		{
@@ -1792,6 +1845,12 @@ void bt_test_hfp_hp_redial(char *data)
 		printf("%s hfp redial failed!\n", __func__);
 }
 
+void bt_test_hfp_hp_dial_number(char *data)
+{
+	rk_bt_hfp_dial_number(data);
+}
+
+
 void bt_test_hfp_hp_report_battery(char *data)
 {
 	int ret = 0;
@@ -1845,8 +1904,38 @@ void bt_test_hfp_sink_open(char *data)
 /******************************************/
 /*                 OBEX                   */
 /******************************************/
+static void  obex_pbap_event_cb(const char *bd_addr, RK_BT_OBEX_STATE state)
+{
+	switch(state) {
+		case RK_BT_OBEX_CONNECT_FAILED:
+			printf("----- RK_BT_OBEX_CONNECT_FAILED(%s) -----\n", bd_addr);
+			break;
+
+		case RK_BT_OBEX_CONNECTED:
+			printf("----- RK_BT_OBEX_CONNECTED(%s) -----\n", bd_addr);
+			break;
+
+		case RK_BT_OBEX_DISCONNECT_FAILED:
+			printf("----- RK_BT_OBEX_DISCONNECT_FAILED(%s) -----\n", bd_addr);
+			break;
+
+		case RK_BT_OBEX_DISCONNECTED:
+			printf("----- RK_BT_OBEX_DISCONNECTED(%s) -----\n", bd_addr);
+			break;
+
+		case RK_BT_OBEX_TRANSFER_ACTIVE:
+			printf("----- RK_BT_OBEX_TRANSFER_ACTIVE(%s) -----\n", bd_addr);
+			break;
+
+		case RK_BT_OBEX_TRANSFER_COMPLETE:
+			printf("----- RK_BT_OBEX_TRANSFER_COMPLETE(%s) -----\n", bd_addr);
+			break;
+	}
+}
+
 void bt_test_obex_init(char *data)
 {
+	rk_bt_obex_register_status_cb(obex_pbap_event_cb);
 	rk_bt_obex_init(data);
 }
 
