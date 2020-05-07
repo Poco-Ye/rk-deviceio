@@ -939,7 +939,7 @@ void bt_test_ble_start(char *data)
 void bt_test_ble_set_address(char *data)
 {
 	//user-defined ble address test, if not set, the default random address
-	uint8_t ble_addr[DEVICE_ADDR_LEN];
+	char ble_addr[DEVICE_ADDR_LEN];
 
 	if(!data || strlen(data) < 17)
 		return;
