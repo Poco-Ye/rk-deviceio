@@ -24,7 +24,6 @@ typedef struct
     BOOLEAN        wait_flag;
 } tAPP_BLE_ATTRIBUTE;
 
-/*
 typedef struct
 {
     tBT_UUID        service_UUID;
@@ -36,7 +35,6 @@ typedef struct
     BOOLEAN         read_pending;
     BOOLEAN         congested;
 } tAPP_BLE_CLIENT;
-*/
 
 typedef struct 
 {
@@ -48,7 +46,7 @@ typedef struct
 
 typedef struct
 {
-    //tAPP_BLE_CLIENT ble_client[BSA_BLE_CLIENT_MAX];
+    tAPP_BLE_CLIENT ble_client[BSA_BLE_CLIENT_MAX];
     tAPP_BLE_SERVER ble_server[BSA_BLE_SERVER_MAX];
 } tAPP_BLE_CB;
 
@@ -158,5 +156,9 @@ int app_ble_apcf_disable(void);
  **
  *******************************************************************************/
 int app_ble_apcf_cfg(void);
+
+int app_ble_string_to_uuid16(UINT16 *uuid, const char *string);
+int app_ble_string_to_uuid32(UINT32 *uuid, const char *string);
+int app_ble_string_to_uuid128(UINT8 *uuid, const char *string, BOOLEAN endian_flag);
 
 #endif

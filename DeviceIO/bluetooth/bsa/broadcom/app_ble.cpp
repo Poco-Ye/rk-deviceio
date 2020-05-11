@@ -9,14 +9,15 @@
 **
 *****************************************************************************/
 
+#include <arpa/inet.h>
 #include "app_ble.h"
 #include "app_xml_utils.h"
 #include "app_utils.h"
 #include "app_mgt.h"
 #include "app_disc.h"
 #include "app_dm.h"
-//#include "app_ble_client_db.h"
-//#include "app_ble_client.h"
+#include "app_ble_client_db.h"
+#include "app_ble_client.h"
 //#include "app_ble_server.h"
 
 /*
@@ -123,13 +124,13 @@ int app_ble_init(void)
     int index;
 
     memset(&app_ble_cb, 0, sizeof(app_ble_cb));
-/*
+
     for (index = 0;index < BSA_BLE_CLIENT_MAX;index++)
     {
         app_ble_cb.ble_client[index].client_if = BSA_BLE_INVALID_IF;
         app_ble_cb.ble_client[index].conn_id = BSA_BLE_INVALID_CONN;
     }
-*/
+
     for (index = 0;index < BSA_BLE_SERVER_MAX;index++)
     {
         app_ble_cb.ble_server[index].server_if = BSA_BLE_INVALID_IF;
@@ -138,7 +139,7 @@ int app_ble_init(void)
 
     app_xml_init();
 
-    //app_ble_client_db_init();
+    app_ble_client_db_init();
 
     return 0;
 }
@@ -163,7 +164,7 @@ int app_ble_exit(void)
     app_dm_set_ble_visibility(FALSE, FALSE);
 
     /* Deregister all applications */
-    //app_ble_client_deregister_all();
+    app_ble_client_deregister_all();
 
     BSA_BleDisableInit(&param);
 
@@ -401,6 +402,58 @@ static int app_ble_config_bdaddr_for_wakeup(BD_ADDR tgt_addr)
     {
         APP_ERROR1("BSA_BleWakeCfg failed status:%d", bsa_status);
         return(-1);
+    }
+
+    return 0;
+}
+
+int app_ble_string_to_uuid16(UINT16 *uuid, const char *string)
+{
+    if (sscanf(string, "%04hx", uuid) != 1)
+        return -1;
+
+    return 0;
+}
+
+int app_ble_string_to_uuid32(UINT32 *uuid, const char *string)
+{
+    if (sscanf(string, "%08x", uuid) != 1)
+        return -1;
+
+    return 0;
+}
+
+int app_ble_string_to_uuid128(UINT8 *uuid, const char *string, BOOLEAN endian_flag)
+{
+    UINT32 data0, data4;
+    UINT16 data1, data2, data3, data5;
+    UINT8 u128[MAX_UUID_SIZE];
+
+    if (sscanf(string, "%08x-%04hx-%04hx-%04hx-%08x%04hx",
+                &data0, &data1, &data2,
+                &data3, &data4, &data5) != 6)
+        return -1;
+
+    memset(uuid, 0, MAX_UUID_SIZE);
+
+    data0 = htonl(data0);
+    data1 = htons(data1);
+    data2 = htons(data2);
+    data3 = htons(data3);
+    data4 = htonl(data4);
+    data5 = htons(data5);
+
+    memcpy(&uuid[0], &data0, 4);
+    memcpy(&uuid[4], &data1, 2);
+    memcpy(&uuid[6], &data2, 2);
+    memcpy(&uuid[8], &data3, 2);
+    memcpy(&uuid[10], &data4, 4);
+    memcpy(&uuid[14], &data5, 2);
+
+    if(!endian_flag) {
+        memcpy(u128, uuid, MAX_UUID_SIZE);
+        for (int i = 0; i < MAX_UUID_SIZE; i++)
+            uuid[15 - i] = u128[i];
     }
 
     return 0;

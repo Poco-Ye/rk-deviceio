@@ -1521,7 +1521,7 @@ int app_mgr_config(const char *bt_name, const char *bt_addr, app_mgr_callback cb
     status = app_mgr_read_config();
     if (status < 0)
     {
-        APP_ERROR0("Creating default XML config file");
+        APP_DEBUG0("Creating default XML config file");
         app_xml_config.enable = TRUE;
         app_xml_config.discoverable = TRUE;
         app_xml_config.connectable = TRUE;

@@ -24,6 +24,7 @@
 #include "app_dg.h"
 #include "app_ble_rk_server.h"
 #include "app_hs.h"
+#include "app_ble_client.h"
 #include "../bluetooth.h"
 #include "bluetooth_bsa.h"
 #include "utility.h"
@@ -31,6 +32,7 @@
 typedef struct {
     bool is_bt_open;
     bool is_ble_open;
+    bool is_ble_client_open;
     bool is_a2dp_sink_open;
     bool is_a2dp_source_open;
     bool is_spp_open;
@@ -40,13 +42,14 @@ typedef struct {
 } bt_control_t;
 
 volatile bt_control_t g_bt_control = {
-    false, false, false, false, false, false, NULL, NULL,
+    false, false, false, false, false, false, false, NULL, NULL,
 };
 
 static char *g_bsa_server_path = NULL;
 
 static bool bt_is_open();
 static bool ble_is_open();
+static bool ble_client_is_open();
 static bool a2dp_sink_is_open();
 static bool a2dp_source_is_open();
 static bool spp_is_open();
@@ -331,6 +334,7 @@ int rk_bt_deinit()
 
     rk_bt_sink_close();
     rk_ble_stop();
+    rk_ble_client_close();
     rk_bt_source_close();
     rk_bt_spp_close();
     rk_bt_hfp_close();
@@ -872,6 +876,11 @@ int rk_ble_start(RkBleContent *ble_content)
         return 0;
     }
 
+    if(ble_client_is_open()) {
+        APP_DEBUG0("ble client has been opened, close ble client");
+        rk_ble_client_close();
+    }
+
     if(app_ble_rk_server_open(ble_content) < 0) {
         APP_DEBUG0("ble open failed");
         return -1;
@@ -932,67 +941,172 @@ int rk_ble_set_address(char *address)
 /*****************************************************
  *                   BLE CLIENT                      *
  *****************************************************/
+static bool ble_client_is_open()
+{
+    return g_bt_control.is_ble_client_open;
+}
+
 void rk_ble_client_register_state_callback(RK_BLE_CLIENT_STATE_CALLBACK cb)
 {
-    APP_DEBUG1("bsa don't support %s", __func__);
+    app_ble_client_register_state_callback(cb);
 }
 
-int rk_ble_client_register_recv_callback(RK_BLE_CLIENT_RECV_CALLBACK cb)
+void rk_ble_client_register_recv_callback(RK_BLE_CLIENT_RECV_CALLBACK cb)
 {
-    APP_DEBUG1("bsa don't support %s", __func__);
-    return 0;
-}
-
-int rk_ble_client_open()
-{
-    APP_DEBUG1("bsa don't support %s", __func__);
-    return 0;
+    app_ble_client_register_recv_callback(cb);
 }
 
 void rk_ble_client_register_mtu_callback(RK_BT_MTU_CALLBACK cb)
 {
-    APP_DEBUG1("bsa don't support %s", __func__);
+    app_ble_client_register_mtu_callback(cb);
+}
+
+int rk_ble_client_open()
+{
+    if(!bt_is_open()) {
+        APP_DEBUG0("bluetooth is not inited, please init");
+        return -1;
+    }
+
+    if(ble_client_is_open()) {
+        APP_DEBUG0("ble client has been opened.");
+        return 0;
+    }
+
+    if(ble_is_open()) {
+        APP_DEBUG0("ble server has been opened, close ble server");
+        rk_ble_stop();
+    }
+
+    if(app_ble_client_start() < 0) {
+        APP_ERROR0("ble client failed");
+        return -1;
+    }
+
+    g_bt_control.is_ble_client_open = true;
+    return 0;
 }
 
 void rk_ble_client_close()
 {
-    APP_DEBUG1("bsa don't support %s", __func__);
+    if(!ble_client_is_open()) {
+        APP_DEBUG0("ble client has been closed.");
+        return;
+    }
+
+    app_ble_client_stop();
+    g_bt_control.is_ble_client_open = false;
 }
 
 RK_BLE_CLIENT_STATE rk_ble_client_get_state()
 {
-    APP_DEBUG1("bsa don't support %s", __func__);
-    return 0;
+    if(!ble_client_is_open()) {
+        APP_DEBUG0("ble client don't open, please open");
+        return -1;
+    }
+
+    return app_ble_client_get_state();
 }
 
-int rk_ble_client_connect(char *address)
+int rk_ble_client_connect(char *addr)
 {
-    APP_DEBUG1("bsa don't support %s", __func__);
-    return 0;
+    BD_ADDR bd_addr;
+
+    if(!addr || (strlen(addr) < 17)) {
+        APP_ERROR0("invalid address");
+        return -1;
+    }
+
+    if(!ble_client_is_open()) {
+        APP_ERROR0("ble client don't open, please open");
+        return -1;
+    }
+
+    if(app_mgr_str2bd(addr, bd_addr) < 0) {
+        APP_ERROR1("address string to BD_ADDR(%s)failed", addr);
+        return -1;
+    }
+
+    return app_ble_client_open(bd_addr);
 }
 
-int rk_ble_client_disconnect(char *address)
+int rk_ble_client_disconnect(char *addr)
 {
-    APP_DEBUG1("bsa don't support %s", __func__);
-    return 0;
+    BD_ADDR bd_addr;
+
+    if(!addr || (strlen(addr) < 17)) {
+        APP_ERROR0("invalid address");
+        return -1;
+    }
+
+    if(!ble_client_is_open()) {
+        APP_ERROR0("ble client don't open, please open");
+        return -1;
+    }
+
+    if(app_mgr_str2bd(addr, bd_addr) < 0) {
+        APP_ERROR1("address string to BD_ADDR(%s)failed", addr);
+        return -1;
+    }
+
+    return app_ble_client_close(bd_addr);
 }
 
-int rk_ble_client_get_service_info(char *address, RK_BLE_CLIENT_SERVICE_INFO *info)
+int rk_ble_client_get_service_info(char *addr, RK_BLE_CLIENT_SERVICE_INFO *info)
 {
-    APP_DEBUG1("bsa don't support %s", __func__);
-    return 0;
+    BD_ADDR bd_addr;
+
+    if(!addr || (strlen(addr) < 17)) {
+        APP_ERROR0("invalid address");
+        return -1;
+    }
+
+    if(!ble_client_is_open()) {
+        APP_ERROR0("ble client isn't open, please open\n");
+        return -1;
+    }
+
+    if(!info) {
+        APP_ERROR0("Invaild info");
+        return -1;
+    }
+
+    if(app_mgr_str2bd(addr, bd_addr) < 0) {
+        APP_ERROR1("address string to BD_ADDR(%s)failed", addr);
+        return -1;
+    }
+
+    return app_ble_client_db_get_service_info(bd_addr, info);
 }
 
 int rk_ble_client_read(const char *uuid)
 {
-    APP_DEBUG1("bsa don't support %s", __func__);
-    return 0;
+    if(!ble_client_is_open()) {
+        APP_DEBUG0("ble client don't open, please open");
+        return -1;
+    }
+
+    if(!uuid) {
+        APP_DEBUG0("Invalid uuid");
+        return -1;
+    }
+
+    return app_ble_client_read(uuid);
 }
 
 int rk_ble_client_write(const char *uuid, char *data)
 {
-    APP_DEBUG1("bsa don't support %s", __func__);
-    return 0;
+    if(!ble_client_is_open()) {
+        APP_DEBUG0("ble client don't open, please open");
+        return -1;
+    }
+
+    if(!uuid) {
+        APP_DEBUG0("Invalid uuid");
+        return -1;
+    }
+
+    return app_ble_client_write(uuid, data, false);
 }
 
 bool rk_ble_client_is_notifying(const char *uuid)
@@ -1003,8 +1117,30 @@ bool rk_ble_client_is_notifying(const char *uuid)
 
 int rk_ble_client_notify(const char *uuid, bool enable)
 {
-    APP_DEBUG1("bsa don't support %s", __func__);
-    return 0;
+    char value[2];
+
+    if(!ble_client_is_open()) {
+        APP_DEBUG0("ble client don't open, please open");
+        return -1;
+    }
+
+    if(!uuid) {
+        APP_DEBUG0("Invalid uuid");
+        return -1;
+    }
+
+    memset(value, 0, 2);
+    if(enable) {
+        if(app_ble_client_register_notification(uuid) < 0)
+            return -1;
+
+        value[0] = 1;
+    } else {
+        if(app_ble_client_deregister_notification(uuid) < 0)
+            return -1;
+    }
+
+    return app_ble_client_write(uuid, value, true);
 }
 
 /******************************************/

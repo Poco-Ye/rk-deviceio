@@ -196,7 +196,7 @@ void rk_ble_client_register_state_callback(RK_BLE_CLIENT_STATE_CALLBACK cb)
 	gatt_client_register_state_callback(cb);
 }
 
-int rk_ble_client_register_recv_callback(RK_BLE_CLIENT_RECV_CALLBACK cb)
+void rk_ble_client_register_recv_callback(RK_BLE_CLIENT_RECV_CALLBACK cb)
 {
 	gatt_client_register_recv_callback(cb);
 }

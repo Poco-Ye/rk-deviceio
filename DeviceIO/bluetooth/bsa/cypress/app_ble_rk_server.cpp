@@ -28,7 +28,7 @@
 /*
 * Defines
 */
-#define APP_BLE_RK_SERVER_UUID              0xFEAA
+#define APP_BLE_SERVER_UUID              0xFEAA
 #define APP_BLE_ADV_INT_MIN                 32 //20ms
 #define BSA_BLE_GAP_ADV_SLOW_INT            48 //30ms
 #define BSA_BLE_CONNECT_EVT                 BTA_BLE_CONNECT_EVT
@@ -130,50 +130,6 @@ void app_ble_rk_server_deregister_cb()
 /*
  * BLE common functions
  */
-static int app_ble_rk_server_string_to_uuid16(UINT16 *uuid, const char *string)
-{
-	if (sscanf(string, "%04hx", uuid) != 6)
-		return -EINVAL;
-    return 0;
-}
-
-static int app_ble_rk_server_string_to_uuid128(UINT8 *uuid, const char *string, BOOLEAN kg_manufacture_data)
-{
-	UINT32 data0, data4;
-	UINT16 data1, data2, data3, data5;
-	UINT8 u128[MAX_UUID_SIZE];
-
-	if (sscanf(string, "%08x-%04hx-%04hx-%04hx-%08x%04hx",
-				&data0, &data1, &data2,
-				&data3, &data4, &data5) != 6)
-		return -EINVAL;
-
-	memset(uuid, 0, MAX_UUID_SIZE);
-
-	data0 = htonl(data0);
-	data1 = htons(data1);
-	data2 = htons(data2);
-	data3 = htons(data3);
-	data4 = htonl(data4);
-	data5 = htons(data5);
-
-	memcpy(&uuid[0], &data0, 4);
-	memcpy(&uuid[4], &data1, 2);
-	memcpy(&uuid[6], &data2, 2);
-	memcpy(&uuid[8], &data3, 2);
-	memcpy(&uuid[10], &data4, 4);
-	memcpy(&uuid[14], &data5, 2);
-
-	memcpy(u128, uuid, MAX_UUID_SIZE);
-
-    if(!kg_manufacture_data) {
-        for (int i = 0; i < MAX_UUID_SIZE; i++)
-        uuid[15 - i] = u128[i];
-    }
-
-	return 0;
-}
-
 static void app_ble_rk_server_set_device_name(const char *ble_name)
 {
     memset((char *)app_ble_info.ble_device_name, 0, BD_NAME_LEN + 1);
@@ -211,7 +167,7 @@ static int app_ble_rk_server_register()
     }
 
     ble_register_param.uuid.len = LEN_UUID_16;
-    ble_register_param.uuid.uu.uuid16 = APP_BLE_RK_SERVER_UUID;
+    ble_register_param.uuid.uu.uuid16 = APP_BLE_SERVER_UUID;
     ble_register_param.p_cback = app_ble_rk_server_profile_cback;
 
     status = BSA_BleSeAppRegister(&ble_register_param);
@@ -595,11 +551,11 @@ static int app_ble_rk_server_set_uuid(tBT_UUID *app_ble_uuid, Ble_Uuid_Type_t uu
     app_ble_uuid->len = uu.len;
     if(uu.len == LEN_UUID_16) {
         //"1111"
-        app_ble_rk_server_string_to_uuid16(&app_ble_uuid->uu.uuid16, uu.uuid);
+        app_ble_string_to_uuid16(&app_ble_uuid->uu.uuid16, uu.uuid);
         APP_DEBUG1("uu.uuid16: 0x%x", app_ble_uuid->uu.uuid16);
     } else if (uu.len == LEN_UUID_128) {
         //"0000180A-0000-1000-8000-00805F9B34FB"
-        app_ble_rk_server_string_to_uuid128(app_ble_uuid->uu.uuid128, uu.uuid, FALSE);
+        app_ble_string_to_uuid128(app_ble_uuid->uu.uuid128, uu.uuid, FALSE);
 
         printf("uu.uuid128: ");
         for (int i = 0; i < MAX_UUID_SIZE; i++)

@@ -502,14 +502,14 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
             app_dm_set_visibility(TRUE, FALSE);
             app_avk_state = RK_BT_SINK_STATE_CONNECT;
             app_avk_send_state(RK_BT_SINK_STATE_CONNECT);
+
+            APP_DEBUG1("AVK connected to device %02X:%02X:%02X:%02X:%02X:%02X\n",
+                p_data->sig_chnl_open.bd_addr[0], p_data->sig_chnl_open.bd_addr[1],p_data->sig_chnl_open.bd_addr[2],
+                p_data->sig_chnl_open.bd_addr[3], p_data->sig_chnl_open.bd_addr[4],p_data->sig_chnl_open.bd_addr[5]);
         }
 
         app_avk_cb.open_pending = FALSE;
         memset(app_avk_cb.open_pending_bda, 0, sizeof(BD_ADDR));
-
-        APP_DEBUG1("AVK connected to device %02X:%02X:%02X:%02X:%02X:%02X\n",
-            p_data->sig_chnl_open.bd_addr[0], p_data->sig_chnl_open.bd_addr[1],p_data->sig_chnl_open.bd_addr[2],
-            p_data->sig_chnl_open.bd_addr[3], p_data->sig_chnl_open.bd_addr[4],p_data->sig_chnl_open.bd_addr[5]);
         break;
 
     case BSA_AVK_CLOSE_EVT:
