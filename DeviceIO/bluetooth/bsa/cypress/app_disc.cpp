@@ -17,6 +17,8 @@
 #include "app_services.h"
 #include "app_utils.h"
 #include "app_xml_utils.h"
+#include "app_manager.h"
+
 #include "DeviceIo/RkBtBase.h"
 
 #define HCI_EIR_DEVICE_ID_TYPE  0x10    /* Device Id EIR Tag (not yet official) */
@@ -890,13 +892,14 @@ void app_generic_disc_cback(tBSA_DISC_EVT event, tBSA_DISC_MSG *p_data)
         break;
     case BSA_DISC_REMOTE_NAME_EVT:
         APP_INFO1("BSA_DISC_REMOTE_NAME_EVT (status=%d)", p_data->remote_name.status);
-        if (p_data->dev_info.status == BSA_SUCCESS)
-        {
+        if (p_data->dev_info.status == BSA_SUCCESS) {
             APP_INFO1("Read device name for %02x:%02x:%02x:%02x:%02x:%02x",
                 p_data->remote_name.bd_addr[0], p_data->remote_name.bd_addr[1],
                 p_data->remote_name.bd_addr[2], p_data->remote_name.bd_addr[3],
                 p_data->remote_name.bd_addr[4], p_data->remote_name.bd_addr[5]);
             APP_INFO1("Name:%s", p_data->remote_name.remote_bd_name);
+
+            app_mgr_name_change_send(p_data->remote_name.bd_addr, p_data->remote_name.remote_bd_name);
         }
         break;
 

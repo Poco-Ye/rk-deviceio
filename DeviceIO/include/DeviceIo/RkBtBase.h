@@ -17,6 +17,10 @@ extern "C" {
 #define BT_ATT_MAX_VALUE_LEN     512
 #define BT_ATT_HEADER_LEN        3
 
+#define RK_BT_TRANSPORT_UNKNOWN   0
+#define RK_BT_TRANSPORT_BR_EDR    1
+#define RK_BT_TRANSPORT_LE        2
+
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
 
@@ -133,6 +137,10 @@ int rk_bt_get_playrole_by_addr(char *addr);
 
 //for bsa, default /usr/bin/bsa_server.sh
 void rk_bt_set_bsa_server_path(char *path);
+
+//for bsa, bluez don't support
+//0: TRANSPORT_UNKNOWN, 1: TRANSPORT_BR_EDR, 2: TRANSPORT_LE
+int rk_bt_read_remote_device_name(char *addr, int transport);
 
 #ifdef __cplusplus
 }

@@ -439,5 +439,8 @@ int app_mgt_set_device_name(char *name);
 int app_mgr_get_paired_devices(RkBtScanedDevice **dev_list,int *count);
 int app_mgr_free_paired_devices(RkBtScanedDevice *dev_list);
 int app_mgr_xml_display_devices(void);
+void app_mgr_register_name_callback(RK_BT_NAME_CHANGE_CALLBACK cb);
+void app_mgr_deregister_name_callback();
+int app_mgr_name_change_send(BD_ADDR bd_addr, BD_NAME bd_name);
 
 #endif /* __APP_MANAGER_H__ */

@@ -93,6 +93,8 @@ static tAPP_MGR_CALLBACK app_mgr_cb_control = {
 	NULL, NULL, NULL,
 };
 
+static RK_BT_NAME_CHANGE_CALLBACK app_mgr_name_change_cb = NULL;
+
 static void app_mgr_notify_status(BD_ADDR bd_addr, char *name, tBSA_MGR_EVT evt) {
     if(app_mgr_cb_control.bt_notify_cb)
         app_mgr_cb_control.bt_notify_cb(bd_addr, name, evt);
@@ -2318,4 +2320,28 @@ int app_mgr_xml_display_devices()
             APP_MAX_NB_REMOTE_STORED_DEVICES);
 
     return 0;
+}
+
+void app_mgr_register_name_callback(RK_BT_NAME_CHANGE_CALLBACK cb)
+{
+	app_mgr_name_change_cb = cb;
+}
+
+void app_mgr_deregister_name_callback()
+{
+	app_mgr_name_change_cb = NULL;
+}
+
+int app_mgr_name_change_send(BD_ADDR bd_addr, BD_NAME bd_name)
+{
+	char address[BT_DEVICE_ADDRESS_LEN];
+
+	if(!app_mgr_name_change_cb)
+		return -1;
+
+	if(app_mgr_bd2str(bd_addr, address, BT_DEVICE_ADDRESS_LEN) < 0)
+		return -1;
+
+	app_mgr_name_change_cb(address, (char *)bd_name);
+	return 0;
 }

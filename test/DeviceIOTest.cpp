@@ -97,6 +97,7 @@ static command_bt_t bt_command_table[] = {
 	{"bt_test_cancel_discovery", bt_test_cancel_discovery},
 	{"bt_test_is_discovering", bt_test_is_discovering},
 	{"bt_test_display_devices", bt_test_display_devices},
+	{"bt_test_read_remote_device_name", bt_test_read_remote_device_name},
 	{"bt_test_get_scaned_devices", bt_test_get_scaned_devices},
 	{"bt_test_display_paired_devices", bt_test_display_paired_devices},
 	{"bt_test_get_paired_devices", bt_test_get_paired_devices},

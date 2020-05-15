@@ -1467,6 +1467,12 @@ bool rk_bt_get_connected_properties(char *addr)
 	return get_device_connected_properties(addr);
 }
 
+int rk_bt_read_remote_device_name(char *addr, int transport)
+{
+	pr_info("bluez don't support %s\n", __func__);
+	return -1;
+}
+
 /*****************************************************************
  *            Rockchip bluetooth hfp-hf api                      *
  *****************************************************************/

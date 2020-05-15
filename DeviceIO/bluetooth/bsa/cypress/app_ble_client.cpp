@@ -1820,13 +1820,16 @@ void app_ble_client_profile_cback(tBSA_BLE_EVT event,  tBSA_BLE_MSG *p_data)
             app_ble_client_state_send(p_data->cli_close.remote_bda, NULL, RK_BLE_CLIENT_STATE_DISCONNECT);
             break;
 
-
         case BSA_BLE_CL_WRITE_EVT:
             APP_INFO1("BSA_BLE_CL_WRITE_EVT status:%d", p_data->cli_write.status);
             client_num = app_ble_client_find_index_by_conn_id(p_data->cli_write.conn_id);
-            if (client_num >= 0)
-            {
+            if (client_num >= 0) {
                 app_ble_cb.ble_client[client_num].write_pending = FALSE;
+
+                if(p_data->cli_write.status == BSA_SUCCESS)
+                    app_ble_client_state_send(app_ble_cb.ble_client[client_num].server_addr, NULL, RK_BLE_CLIENT_WRITE_SUCCESS);
+                else
+                    app_ble_client_state_send(app_ble_cb.ble_client[client_num].server_addr, NULL, RK_BLE_CLIENT_WRITE_ERROR);
             }
             break;
 

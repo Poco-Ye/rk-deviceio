@@ -528,6 +528,11 @@ void bt_test_get_connected_properties(char *data)
 	printf("the device connected properties is %s\n", (is_connected == true) ? "yes" : "no");
 }
 
+void bt_test_read_remote_device_name(char *data)
+{
+	rk_bt_read_remote_device_name(data, RK_BT_TRANSPORT_UNKNOWN);
+}
+
 /******************************************/
 /*               A2DP SINK                */
 /******************************************/
@@ -982,8 +987,9 @@ void bt_test_ble_write(char *data)
 		write_len = BT_ATT_MAX_VALUE_LEN;
 
 	write_buf = (char *)malloc(write_len);
-	for (i = 0; i < write_len; i++)
+	for (i = 0; i < (write_len - 1); i++)
 		write_buf[i] = '0' + i % 10;
+	write_buf[write_len - 1] = '\0';
 
 	rk_ble_write(BLE_UUID_SEND, write_buf, write_len);
 	free(write_buf);
@@ -1044,6 +1050,12 @@ void ble_client_test_state_callback(const char *bd_addr, const char *name, RK_BL
 		case RK_BLE_CLIENT_STATE_DISCONNECT:
 			printf("+++++ RK_BLE_CLIENT_STATE_DISCONNECT(%s, %s) +++++\n", bd_addr, name);
 			g_mtu = 0;
+			break;
+		case RK_BLE_CLIENT_WRITE_SUCCESS:
+			printf("+++++ RK_BLE_CLIENT_WRITE_SUCCESS(%s, %s) +++++\n", bd_addr, name);
+			break;
+		case RK_BLE_CLIENT_WRITE_ERROR:
+			printf("+++++ RK_BLE_CLIENT_WRITE_ERROR(%s, %s) +++++\n", bd_addr, name);
 			break;
 	}
 }
@@ -1159,8 +1171,9 @@ void bt_test_ble_client_write(char *data)
 		write_len = BT_ATT_MAX_VALUE_LEN;
 
 	write_buf = (char *)malloc(write_len);
-	for (i = 0; i < write_len; i++)
+	for (i = 0; i < (write_len - 1); i++)
 		write_buf[i] = '0' + i % 10;
+	write_buf[write_len - 1] = '\0';
 
 	rk_ble_client_write(data, write_buf);
 	free(write_buf);

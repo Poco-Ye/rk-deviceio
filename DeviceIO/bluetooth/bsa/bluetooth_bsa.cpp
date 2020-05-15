@@ -349,6 +349,7 @@ int rk_bt_deinit()
 
     app_mgr_deregister_disc_cb();
     app_mgr_deregister_dev_found_cb();
+    app_mgr_deregister_name_callback();
     g_bt_control.bt_bond_cb = NULL;
 
     bsa_bt_state_send(RK_BT_STATE_OFF);
@@ -396,7 +397,7 @@ void rk_bt_register_dev_found_callback(RK_BT_DEV_FOUND_CALLBACK cb)
 
 void rk_bt_register_name_change_callback(RK_BT_NAME_CHANGE_CALLBACK cb)
 {
-    APP_DEBUG1("bsa don't support %s", __func__);
+    app_mgr_register_name_callback(cb);
 }
 
 static void bt_disc_cback(tBSA_DISC_EVT event, tBSA_DISC_MSG *p_data)
@@ -615,6 +616,28 @@ bool rk_bt_get_connected_properties(char *addr)
 {
 	APP_DEBUG1("bsa don't support %s", __func__);
 	return false;
+}
+
+int rk_bt_read_remote_device_name(char *addr, int transport)
+{
+    BD_ADDR bd_addr;
+
+    if(!bt_is_open()) {
+        APP_DEBUG0("bluetooth is not inited, please init");
+        return -1;
+    }
+
+    if(app_mgr_str2bd(addr, bd_addr) < 0) {
+        APP_ERROR1("read remote device(%s) name failed", addr);
+        return -1;
+    }
+
+    if(transport < RK_BT_TRANSPORT_UNKNOWN || transport > RK_BT_TRANSPORT_LE) {
+        APP_ERROR1("invaild transport(%d)", transport);
+        return -1;
+    }
+
+    return app_disc_read_remote_device_name(bd_addr, tBSA_TRANSPORT(transport));
 }
 
 /******************************************/
