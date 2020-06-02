@@ -685,7 +685,7 @@ int app_ble_client_read(char *uuid)
  ** Returns         status: 0 if success / -1 otherwise
  **
  *******************************************************************************/
-int app_ble_client_write(char *char_uuid, char *data, BOOLEAN is_descript)
+int app_ble_client_write(char *char_uuid, char *data, int data_len, BOOLEAN is_descript)
 {
     tBSA_STATUS status;
     tBSA_BLE_CL_WRITE ble_write_param;
@@ -694,7 +694,7 @@ int app_ble_client_write(char *char_uuid, char *data, BOOLEAN is_descript)
     UINT8 desc_value;
     UINT8 write_type=0;
 
-    if(!is_descript && (!data || strlen(data) == 0)) {
+    if(!data || data_len <= 0) {
         APP_ERROR0("Invalid write data");
         return -1;
     }
@@ -738,7 +738,7 @@ int app_ble_client_write(char *char_uuid, char *data, BOOLEAN is_descript)
         ble_write_param.descr_id.descr_id.uuid.uu.uuid16 = 0x2902;
 
         ble_write_param.descr = TRUE;
-        ble_write_param.len = 2;
+        ble_write_param.len = data_len;
     } else {
         ble_write_param.char_id.srvc_id.id.inst_id= 0x00;
         memcpy(&ble_write_param.char_id.srvc_id.id.uuid, &char_id.service_uuid, sizeof(tBT_UUID));
@@ -748,7 +748,7 @@ int app_ble_client_write(char *char_uuid, char *data, BOOLEAN is_descript)
         memcpy(&ble_write_param.char_id.char_id.uuid, &char_id.char_uuid, sizeof(tBT_UUID));
 
         ble_write_param.descr = FALSE;
-        ble_write_param.len = strlen(data) > BSA_BLE_CL_WRITE_MAX ? BSA_BLE_CL_WRITE_MAX : strlen(data);
+        ble_write_param.len = data_len > BSA_BLE_CL_WRITE_MAX ? BSA_BLE_CL_WRITE_MAX : data_len;
     }
 
     memcpy(ble_write_param.value, data, ble_write_param.len);
@@ -3173,4 +3173,27 @@ void app_ble_client_stop()
     app_ble_exit();
 
     memset(&app_ble_client_ctl, 0, sizeof(tAPP_BLE_CLIENT_CONTROL));
+}
+
+int app_ble_client_get_eir_data(BD_ADDR bd_addr, char *eir_data, int len)
+{
+    int index, eir_data_len;
+
+    eir_data_len = len > BSA_EIR_DATA_LENGTH ? BSA_EIR_DATA_LENGTH : len;
+    for (index = 0; index < APP_DISC_NB_DEVICES; index++) {
+        if (!bdcmp(app_discovery_cb.devs[index].device.bd_addr, bd_addr))
+            break;
+    }
+
+    if(index >= APP_DISC_NB_DEVICES) {
+        APP_ERROR1("not find device(%02x:%02x:%02x:%02x:%02x:%02x)",
+                bd_addr[0], bd_addr[1], bd_addr[2],
+                bd_addr[3], bd_addr[4], bd_addr[5]);
+        return -1;
+    }
+
+    memset(eir_data, 0, len);
+    memcpy(eir_data, app_discovery_cb.devs[index].device.eir_data, eir_data_len);
+    APP_DUMP("Extended Information:", eir_data, eir_data_len);
+    return 0;
 }

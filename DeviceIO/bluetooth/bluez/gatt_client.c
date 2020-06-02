@@ -153,7 +153,7 @@ int gatt_client_read(char *uuid, int offset)
 	return gatt_read_attribute(default_attr, offset);
 }
 
-int gatt_client_write(char *uuid, char *data, int offset)
+int gatt_client_write(char *uuid, char *data, int data_len, int offset)
 {
 	if(!uuid || !data) {
 		pr_err("%s: Invalid uuid or data\n", __func__);
@@ -165,7 +165,7 @@ int gatt_client_write(char *uuid, char *data, int offset)
 		return -1;
 	}
 
-	return gatt_write_attribute(default_attr, data, offset);
+	return gatt_write_attribute(default_attr, data, data_len, offset);
 }
 
 bool gatt_client_is_notifying(const char *uuid)

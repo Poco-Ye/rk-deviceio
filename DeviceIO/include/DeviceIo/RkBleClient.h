@@ -109,12 +109,17 @@ int rk_ble_client_open(void);
 void rk_ble_client_close(void);
 RK_BLE_CLIENT_STATE rk_ble_client_get_state();
 int rk_ble_client_get_service_info(char *address, RK_BLE_CLIENT_SERVICE_INFO *info);
-int rk_ble_client_write(const char *uuid, char *data);
+int rk_ble_client_write(const char *uuid, char *data, int data_len);
 int rk_ble_client_read(const char *uuid);
 int rk_ble_client_connect(char *address);
 int rk_ble_client_disconnect(char *address);
 bool rk_ble_client_is_notifying(const char *uuid);
-int rk_ble_client_notify(const char *uuid, bool enable);
+
+//is_indicate: only for bsa
+int rk_ble_client_notify(const char *uuid, bool is_indicate, bool enable);
+
+//only for bsa, get broadcast of the remote device
+int rk_ble_client_get_eir_data(char *address, char *eir_data, int len);
 
 #ifdef __cplusplus
 }

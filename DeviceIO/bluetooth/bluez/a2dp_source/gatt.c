@@ -628,7 +628,7 @@ static void write_setup(DBusMessageIter *iter, void *user_data)
 	dbus_message_iter_close_container(iter, &dict);
 }
 
-static int write_attribute(GDBusProxy *proxy, char *val_str, uint16_t offset)
+static int write_attribute(GDBusProxy *proxy, char *val_str, int str_len, uint16_t offset)
 {
 	struct iovec iov;
 	struct write_attribute_data wd;
@@ -637,7 +637,7 @@ static int write_attribute(GDBusProxy *proxy, char *val_str, uint16_t offset)
 	unsigned int i;
 
 	iov.iov_base = val_str;
-	iov.iov_len = strlen(val_str) > BT_ATT_MAX_VALUE_LEN ? BT_ATT_MAX_VALUE_LEN : strlen(val_str);
+	iov.iov_len = str_len > BT_ATT_MAX_VALUE_LEN ? BT_ATT_MAX_VALUE_LEN : str_len;
 
 	wd.iov = &iov;
 	wd.offset = offset;
@@ -653,7 +653,7 @@ static int write_attribute(GDBusProxy *proxy, char *val_str, uint16_t offset)
 	return 0;
 }
 
-int gatt_write_attribute(GDBusProxy *proxy, char *data, int offset)
+int gatt_write_attribute(GDBusProxy *proxy, char *data, int data_len, int offset)
 {
 	const char *iface;
 
@@ -661,7 +661,7 @@ int gatt_write_attribute(GDBusProxy *proxy, char *data, int offset)
 	if (!strcmp(iface, "org.bluez.GattCharacteristic1") ||
 				!strcmp(iface, "org.bluez.GattDescriptor1")) {
 
-		return write_attribute(proxy, data, offset);
+		return write_attribute(proxy, data, data_len, offset);
 	}
 
 	pr_info("Unable to write attribute %s\n",

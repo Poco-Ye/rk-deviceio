@@ -189,7 +189,7 @@ int app_ble_client_read(char *uuid);
  ** Returns         status: 0 if success / -1 otherwise
  **
  *******************************************************************************/
-int app_ble_client_write(char *char_uuid, char *data, BOOLEAN is_descript);
+int app_ble_client_write(char *char_uuid, char *data, int data_len, BOOLEAN is_descript);
 
 /*******************************************************************************
  **
@@ -522,5 +522,7 @@ int app_ble_client_start(void);
 void app_ble_client_stop(void);
 
 int app_ble_client_close_all(void);
+
+int app_ble_client_get_eir_data(BD_ADDR bd_addr, char *eir_data, int len);
 
 #endif

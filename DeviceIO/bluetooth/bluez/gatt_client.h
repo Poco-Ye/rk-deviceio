@@ -19,7 +19,7 @@ void gatt_client_open();
 void gatt_client_close();
 int gatt_client_get_service_info(char *address, RK_BLE_CLIENT_SERVICE_INFO *info);
 int gatt_client_read(char *uuid, int offset);
-int gatt_client_write(char *uuid, char *data, int offset);
+int gatt_client_write(char *uuid, char *data, int data_len, int offset);
 bool gatt_client_is_notifying(const char *uuid);
 int gatt_client_notify(const char *uuid, bool enable);
 

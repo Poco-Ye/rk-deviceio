@@ -1117,7 +1117,7 @@ int rk_ble_client_read(const char *uuid)
     return app_ble_client_read(uuid);
 }
 
-int rk_ble_client_write(const char *uuid, char *data)
+int rk_ble_client_write(const char *uuid, char *data, int data_len)
 {
     if(!ble_client_is_open()) {
         APP_DEBUG0("ble client don't open, please open");
@@ -1129,7 +1129,7 @@ int rk_ble_client_write(const char *uuid, char *data)
         return -1;
     }
 
-    return app_ble_client_write(uuid, data, false);
+    return app_ble_client_write(uuid, data, data_len, false);
 }
 
 bool rk_ble_client_is_notifying(const char *uuid)
@@ -1138,7 +1138,7 @@ bool rk_ble_client_is_notifying(const char *uuid)
     return false;
 }
 
-int rk_ble_client_notify(const char *uuid, bool enable)
+int rk_ble_client_notify(const char *uuid, bool is_indicate, bool enable)
 {
     char value[2];
 
@@ -1157,13 +1157,43 @@ int rk_ble_client_notify(const char *uuid, bool enable)
         if(app_ble_client_register_notification(uuid) < 0)
             return -1;
 
-        value[0] = 1;
+        if(is_indicate)
+            value[0] = 2;
+        else
+            value[0] = 1;
     } else {
         if(app_ble_client_deregister_notification(uuid) < 0)
             return -1;
     }
 
-    return app_ble_client_write(uuid, value, true);
+    return app_ble_client_write(uuid, value, 2, true);
+}
+
+int rk_ble_client_get_eir_data(char *addr, char *eir_data, int len)
+{
+    BD_ADDR bd_addr;
+
+    if(!addr || (strlen(addr) < 17)) {
+        APP_ERROR0("invalid address");
+        return -1;
+    }
+
+    if(!eir_data || len <= 0) {
+        APP_ERROR1("invalid eir_data buf, len = %d", len);
+        return -1;
+    }
+
+    if(!ble_client_is_open()) {
+        APP_ERROR0("ble client isn't open, please open\n");
+        return -1;
+    }
+
+    if(app_mgr_str2bd(addr, bd_addr) < 0) {
+        APP_ERROR1("address string to BD_ADDR(%s)failed", addr);
+        return -1;
+    }
+
+    return app_ble_client_get_eir_data(bd_addr, eir_data, len);
 }
 
 /******************************************/

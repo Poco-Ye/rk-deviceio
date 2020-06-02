@@ -1158,7 +1158,7 @@ void bt_test_ble_client_write(char *data)
 {
 #if 0
 	//write data len no more than (g_mtu - BT_ATT_HEADER_LEN)
-	rk_ble_client_write(data, "rockchip ble client write test");
+	rk_ble_client_write(data, "rockchip ble client write test", strlen("rockchip ble client write test"));
 #else
 	int i = 0, write_len = BT_ATT_DEFAULT_LE_MTU;
 	char *write_buf;
@@ -1175,7 +1175,7 @@ void bt_test_ble_client_write(char *data)
 		write_buf[i] = '0' + i % 10;
 	write_buf[write_len - 1] = '\0';
 
-	rk_ble_client_write(data, write_buf);
+	rk_ble_client_write(data, write_buf, strlen(write_buf));
 	free(write_buf);
 #endif
 }
@@ -1190,14 +1190,19 @@ void bt_test_ble_client_is_notify(char *data)
 
 void bt_test_ble_client_notify_on(char *data)
 {
-	rk_ble_client_notify(data, true);
+	rk_ble_client_notify(data, true, true);
 }
 
 void bt_test_ble_client_notify_off(char *data)
 {
-	rk_ble_client_notify(data, false);
+	rk_ble_client_notify(data, true, false);
 }
 
+void bt_test_ble_client_get_eir_data(char *data)
+{
+	char eir_data[300];
+	rk_ble_client_get_eir_data(data, eir_data, 300);
+}
 /******************************************/
 /*                  SPP                   */
 /******************************************/

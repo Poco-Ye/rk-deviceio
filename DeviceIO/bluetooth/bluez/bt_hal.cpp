@@ -300,14 +300,14 @@ int rk_ble_client_read(const char *uuid)
 	return gatt_client_read(uuid, 0);
 }
 
-int rk_ble_client_write(const char *uuid, char *data)
+int rk_ble_client_write(const char *uuid, char *data, int data_len)
 {
 	if(!ble_client_is_open()) {
 		pr_info("%s: ble client isn't open, please open\n", __func__);
 		return -1;
 	}
 
-	return gatt_client_write(uuid, data, 0);
+	return gatt_client_write(uuid, data, data_len, 0);
 }
 
 bool rk_ble_client_is_notifying(const char *uuid)
@@ -320,7 +320,7 @@ bool rk_ble_client_is_notifying(const char *uuid)
 	return gatt_client_is_notifying(uuid);
 }
 
-int rk_ble_client_notify(const char *uuid, bool enable)
+int rk_ble_client_notify(const char *uuid, bool is_indicate, bool enable)
 {
 	if(!ble_client_is_open()) {
 		pr_info("%s: ble client isn't open, please open\n", __func__);
@@ -328,6 +328,12 @@ int rk_ble_client_notify(const char *uuid, bool enable)
 	}
 
 	return gatt_client_notify(uuid, enable);
+}
+
+int rk_ble_client_get_eir_data(char *address, char *eir_data, int len)
+{
+	pr_info("bluez don't support %s\n", __func__);
+	return -1;
 }
 
 /*****************************************************************
