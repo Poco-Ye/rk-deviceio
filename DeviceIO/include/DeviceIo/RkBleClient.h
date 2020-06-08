@@ -121,6 +121,9 @@ int rk_ble_client_notify(const char *uuid, bool is_indicate, bool enable);
 //only for bsa, get broadcast of the remote device
 int rk_ble_client_get_eir_data(char *address, char *eir_data, int len);
 
+//only for bsa, hci le write suggested default data length(27 byte)
+int rk_ble_client_default_data_length();
+
 #ifdef __cplusplus
 }
 #endif

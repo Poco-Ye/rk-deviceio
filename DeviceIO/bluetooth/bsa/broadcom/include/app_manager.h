@@ -413,15 +413,17 @@ void app_mgr_set_link_policy(BD_ADDR bd_addr, tBSA_DM_LP_MASK policy_mask, BOOLE
 
 /*******************************************************************************
  **
- ** Function         app_mgt_set_cod
+ ** Function         app_mgr_send_hci_cmd
  **
- ** Description      Configure local class of device
+ ** Description      This function is used to send a HCI Command
  **
- ** Parameters       None
+ ** Parameters
  **
- ** Returns          Status of the operation
+ ** Returns          int
  **
  *******************************************************************************/
+extern int app_mgr_send_hci_cmd(char *cmd);
+
 void app_mgr_register_disc_cb(RK_BT_DISCOVERY_CALLBACK cb);
 void app_mgr_deregister_disc_cb();
 void app_mgr_register_dev_found_cb(RK_BT_DEV_FOUND_CALLBACK cb);

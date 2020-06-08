@@ -2020,6 +2020,12 @@ BOOLEAN app_mgt_callback(tBSA_MGT_EVT event, tBSA_MGT_MSG *p_data)
     return FALSE;
 }
 
+int app_mgr_send_hci_cmd(char *cmd)
+{
+    APP_DEBUG0("cypress bsa not support the api");
+    return -1;
+}
+
 int app_mgr_get_latest_device()
 {
     int index;

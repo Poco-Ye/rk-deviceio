@@ -1999,6 +1999,197 @@ BOOLEAN app_mgt_callback(tBSA_MGT_EVT event, tBSA_MGT_MSG *p_data)
     return FALSE;
 }
 
+/*
+ * simple_app_read_hex_nibble
+ */
+static int app_mgr_read_hex_nibble(char c)
+{
+    if ((c >='0') && (c <= '9'))
+    {
+        return c - '0';
+    }
+    else if ((c >='A') && (c <= 'F'))
+    {
+        return c - 'A' + 10;
+    }
+    else if ((c >='a') && (c <= 'f'))
+    {
+        return c - 'a' + 10;
+    }
+
+    APP_ERROR0("read_hex_nibble: Error char not in supported range");
+    return -1;
+}
+
+/*
+ * simple_app_read_hex_byte
+ */
+static int app_mgr_read_hex_byte(char *p_buf)
+{
+    int rv;
+    int value;
+
+    /* Read First nibble (4 MSB) */
+    rv = app_mgr_read_hex_nibble(p_buf[0]);
+    if (rv < 0)
+    {
+        return -1;
+    }
+    value = rv << 4;
+
+    /* Read Second nibble (4 LSB) */
+    rv = app_mgr_read_hex_nibble(p_buf[1]);
+    if (rv < 0)
+    {
+        return -1;
+    }
+    value += rv;
+
+    return value;
+}
+
+/*******************************************************************************
+ **
+ ** Function         parse_hci
+ **
+ ** Description      This function parses HCI command
+ **
+ ** Parameters       Pointer to the start of option argument
+ ** Returns          int
+ **
+ *******************************************************************************/
+int app_mgr_parse_hci(char *optarg, tBSA_TM_HCI_CMD *bsa_hci)
+{
+    int index, rv;
+    char *p;
+
+    p = optarg;
+
+    bsa_hci->opcode = 0;
+
+    /* Read Opcode LSB */
+    rv = app_mgr_read_hex_byte(p);
+    if (rv < 0) {
+        APP_ERROR0("Read Opcode LSB failed");
+        return -1;
+    }
+    p += 2;
+    bsa_hci->opcode = (UINT16)(rv << 8);
+
+    /* Read Opcode MSB */
+    rv = app_mgr_read_hex_byte(p);
+    if (rv < 0) {
+        APP_ERROR0("Read Opcode MSB failed");
+        return -1;
+    }
+    p += 2;
+    bsa_hci->opcode |= (UINT16)rv;
+
+    /* Read Parameter's length */
+    rv = app_mgr_read_hex_byte(p);
+    if (rv < 0) {
+        APP_ERROR0("Read Parameter's length failed");
+        return -1;
+    }
+    p += 2;
+    bsa_hci->length = (UINT16)rv;
+
+    /* Read Parameters */
+    for(index = 0 ; index < bsa_hci->length ; index++) {
+        /* Read Parameters, byte by byte */
+        rv = app_mgr_read_hex_byte(p);
+        if (rv < 0) {
+            APP_ERROR0("Read Parameters, byte by byte failed");
+            return -1;
+        }
+        p += 2;
+        bsa_hci->data[index] = (UINT8)rv;
+    }
+
+    APP_DEBUG1("HCI opcode:0x%04X", bsa_hci->opcode);
+    APP_DEBUG1("HCI length:0x%04X", bsa_hci->length);
+    if (bsa_hci->length > 0) {
+        printf("HCI Data:");
+        for (index = 0 ; index < bsa_hci->length ; index++) {
+            printf ("%02X ", bsa_hci->data[index]);
+        }
+        printf("\n");
+    }
+
+    return 0;
+}
+
+/*******************************************************************************
+ **
+ ** Function         hci_send
+ **
+ ** Description      This function is used to send a Vendor Specific Command
+ **
+ ** Parameters       Pointer to structure containing API parameters
+ **
+ ** Returns          int
+ **
+ *******************************************************************************/
+static int app_mgr_hci_send(tBSA_TM_HCI_CMD bsa_hci)
+{
+    UINT8 i;
+    tBSA_STATUS status;
+    tBSA_TM_HCI_CMD hci_param;
+
+    status = BSA_TmHciInit(&hci_param);
+    if (status != BSA_SUCCESS) {
+        APP_ERROR1("BSA_TmHciInit failed status = %d", status);
+        return -1;
+    }
+
+    hci_param.opcode = bsa_hci.opcode;
+    hci_param.length = bsa_hci.length;
+    memcpy(hci_param.data, bsa_hci.data, bsa_hci.length);
+
+    printf("HCI opcode:0x%04X\n", ((UINT8)hci_param.opcode << 8) | (UINT8)(hci_param.opcode >> 8));
+    printf("HCI length:%d\n", hci_param.length);
+    printf("HCI Data:");
+    for (i = 0 ; i < hci_param.length ; i++) {
+        printf ("%02X ", hci_param.data[i]);
+    }
+    printf("\n");
+
+    status = BSA_TmHciCmd(&hci_param);
+    if (status != BSA_SUCCESS) {
+        fprintf(stderr, "hci_send: Unable to Send HCI (status:%d)\n", status);
+        return -1;
+    }
+
+    printf("opcode: 0x%04X\n", hci_param.opcode);
+    printf("length: %02X\n", hci_param.length & 0xff);
+    printf("status: %02X\n", hci_param.status);
+    printf("Data: \n");
+    for(i=0; i<hci_param.length; i++) {
+        printf("%02X ",hci_param.data[i]);
+        if(i!=0 && (i%15) == 0)
+            printf("\n");
+    }
+    printf("\n");
+    return 0;
+}
+
+int app_mgr_send_hci_cmd(char *cmd)
+{
+    tBSA_TM_HCI_CMD bsa_hci;
+
+    if(!cmd) {
+        APP_ERROR0("invalid cmd");
+        return -1;
+    }
+
+    if(app_mgr_parse_hci(cmd, &bsa_hci) < 0) {
+        APP_ERROR1("app_mgr_parse_hci failed, cmd = %s", cmd);
+        return -1;
+    }
+
+    return app_mgr_hci_send(bsa_hci);
+}
+
 int app_mgr_get_latest_device()
 {
     int index;

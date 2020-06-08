@@ -346,6 +346,12 @@ int rk_ble_client_get_eir_data(char *address, char *eir_data, int len)
 	return -1;
 }
 
+int rk_ble_client_default_data_length()
+{
+	pr_info("bluez don't support %s\n", __func__);
+	return -1;
+}
+
 /*****************************************************************
  *            Rockchip bluetooth master api                      *
  *****************************************************************/
