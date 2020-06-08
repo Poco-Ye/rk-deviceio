@@ -25,5 +25,6 @@
 #include "DeviceIo/RkBtHfp.h"
 #include <DeviceIo/RkBtObex.h>
 #include <DeviceIo/Rk_socket_app.h>
+#include "utility.h"
 
 #endif

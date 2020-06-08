@@ -167,4 +167,6 @@ void app_ble_rk_server_set_local_privacy(BOOLEAN local_privacy);
 int app_ble_rk_server_set_adv_interval(UINT16 adv_int_min, UINT16 adv_int_max);
 
 void app_ble_register_mtu_callback(RK_BT_MTU_CALLBACK cb);
+
+void app_ble_rk_server_request_data_callback(RK_BLE_REQUEST_DATA cb);
 #endif

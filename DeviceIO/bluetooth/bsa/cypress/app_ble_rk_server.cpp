@@ -36,6 +36,7 @@
 
 typedef struct {
     RK_BLE_RECV_CALLBACK recv_data_cb;
+    RK_BLE_REQUEST_DATA request_data_cb;
     RK_BLE_STATE_CALLBACK state_cb;
     RK_BT_MTU_CALLBACK mtu_cb;
     RK_BLE_STATE state;
@@ -53,7 +54,7 @@ typedef struct {
 static tAPP_BLE_RK_SERVER_CB app_ble_rk_server_cb;
 
 static tAPP_BLE_INFO app_ble_info = {
-    NULL, NULL, NULL, RK_BLE_STATE_IDLE, TRUE,
+    NULL, NULL, NULL, NULL, RK_BLE_STATE_IDLE, TRUE,
 };
 
 static tBSA_DM_BLE_ADV_PARAM app_ble_adv_param = {
@@ -987,19 +988,33 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
 
     case BSA_BLE_SE_READ_EVT:
         APP_INFO1("BSA_BLE_SE_READ_EVT status:%d, handle:%d", p_data->ser_read.status, p_data->ser_read.handle);
+
+        attr_index = app_ble_rk_server_find_attr_index_by_attr_id(p_data->ser_read.handle);
+        APP_INFO1("BSA_BLE_SE_READ_EVT attr_index:%d", attr_index);
+        if (attr_index < 0) {
+            APP_ERROR0("Cannot find matched attr_id");
+            break;
+        }
+
         BSA_BleSeSendRspInit(&send_server_resp);
         send_server_resp.conn_id = p_data->ser_read.conn_id;
         send_server_resp.trans_id = p_data->ser_read.trans_id;
         send_server_resp.status = p_data->ser_read.status;
         send_server_resp.handle = p_data->ser_read.handle;
         send_server_resp.offset = p_data->ser_read.offset;
-        send_server_resp.len = 4;
+        send_server_resp.len = 0;
         send_server_resp.auth_req = GATT_AUTH_REQ_NONE;
-        memcpy(send_server_resp.value, attribute_value, BSA_BLE_MAX_ATTR_LEN);
+        //memcpy(send_server_resp.value, attribute_value, BSA_BLE_MAX_ATTR_LEN);
         //APP_INFO1("BSA_BLE_SE_READ_EVT: send_server_resp.conn_id:%d, send_server_resp.trans_id:%d, send_server_resp.status:%d", send_server_resp.conn_id, send_server_resp.trans_id, send_server_resp.status);
         //APP_INFO1("BSA_BLE_SE_READ_EVT: send_server_resp.status:%d,send_server_resp.auth_req:%d", send_server_resp.status,send_server_resp.auth_req);
         //APP_INFO1("BSA_BLE_SE_READ_EVT: send_server_resp.handle:%d, send_server_resp.offset:%d, send_server_resp.len:%d", send_server_resp.handle,send_server_resp.offset,send_server_resp.len );
         BSA_BleSeSendRsp(&send_server_resp);
+
+        if(app_ble_info.request_data_cb) {
+            msleep(20);
+            app_ble_info.request_data_cb((char *)app_ble_rk_server_cb.attr[attr_index].uuid_string);
+        }
+
         break;
 
     case BSA_BLE_SE_WRITE_EVT:
@@ -1009,7 +1024,7 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
         APP_INFO1("BSA_BLE_SE_WRITE_EVT trans_id:%d, conn_id:%d, handle:%d",
             p_data->ser_write.trans_id, p_data->ser_write.conn_id, p_data->ser_write.handle);
 
-        attr_index = app_ble_rk_server_find_attr_index_by_attr_id(p_data->ser_read.handle);
+        attr_index = app_ble_rk_server_find_attr_index_by_attr_id(p_data->ser_write.handle);
         APP_INFO1("BSA_BLE_SE_WRITE_EVT attr_index:%d", attr_index);
         if (attr_index < 0)
         {
@@ -1351,6 +1366,8 @@ int app_ble_rk_server_open(RkBleContent *ble_content)
 
     APP_DEBUG0("app_ble_rk_server_open");
 
+    memset(&app_ble_rk_server_cb, 0, sizeof(tAPP_BLE_RK_SERVER_CB));
+
     app_ble_rk_server_send_state(NULL, RK_BLE_STATE_IDLE);
     memset(app_ble_info.bd_addr, 0, BT_DEVICE_ADDRESS_LEN);
 
@@ -1392,6 +1409,7 @@ void app_ble_rk_server_close()
 
     app_ble_info.recv_data_cb = NULL;
     app_ble_info.mtu_cb = NULL;
+    app_ble_info.request_data_cb = NULL;
     memset(&app_ble_adv_param, 0, sizeof(tBSA_DM_BLE_ADV_PARAM));
 
     /* stop service */
@@ -1446,6 +1464,11 @@ static void app_ble_rk_server_recv_data(int attr_index, unsigned char *data, int
 void app_ble_rk_server_recv_data_callback(RK_BLE_RECV_CALLBACK cb)
 {
     app_ble_info.recv_data_cb = cb;
+}
+
+void app_ble_rk_server_request_data_callback(RK_BLE_REQUEST_DATA cb)
+{
+    app_ble_info.request_data_cb = cb;
 }
 
 void app_ble_rk_server_get_state(RK_BLE_STATE *p_state)

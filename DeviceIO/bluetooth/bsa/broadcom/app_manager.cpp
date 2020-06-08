@@ -2197,30 +2197,36 @@ int app_mgt_set_device_name(char *name)
     return 0;
 }
 
-static RkBtScanedDevice *app_mgr_create_paired_dev(tAPP_XML_REM_DEVICE device)
+static RkBtScanedDevice *app_mgr_create_paired_dev(BD_ADDR bd_addr, BD_NAME name, bool is_connected, DEV_CLASS class_of_device)
 {
     char address[18];
+    int cod;
 
     RkBtScanedDevice *new_device = (RkBtScanedDevice*)malloc(sizeof(RkBtScanedDevice));
 
-    if(app_mgr_bd2str(device.bd_addr, address, 18) < 0)
+    if(app_mgr_bd2str(bd_addr, address, 18) < 0)
         strncpy(address, "<unknown>", strlen("<unknown>"));
 
     new_device->remote_address = (char *)malloc(strlen(address) + 1);
     strncpy(new_device->remote_address, address, strlen(address));
     new_device->remote_address[strlen(address)] = '\0';
 
-    new_device->remote_name = (char *)malloc(strlen(device.name) + 1);
-    strncpy(new_device->remote_name, device.name, strlen(device.name));
-    new_device->remote_name[strlen(device.name)] = '\0';
+    new_device->remote_name = (char *)malloc(strlen(name) + 1);
+    strncpy(new_device->remote_name, name, strlen(name));
+    new_device->remote_name[strlen(name)] = '\0';
 
-    new_device->is_connected = device.is_connected;
+    //APP_INFO1("ClassOfDevice: %02x:%02x:%02x",
+    //        class_of_device[0], class_of_device[1], class_of_device[2]);
+    cod = (class_of_device[0] << 16) | (class_of_device[1] << 8) | (class_of_device[2]);
+    new_device->cod = cod;
+
+    new_device->is_connected = is_connected;
     new_device->next = NULL;
 
     return new_device;
 }
 
-static int app_mgr_list_push_back(RkBtScanedDevice **dev_list, tAPP_XML_REM_DEVICE device)
+static int app_mgr_list_push_back(RkBtScanedDevice **dev_list, BD_ADDR bd_addr, BD_NAME name, bool is_connected, DEV_CLASS class_of_device)
 {
     if(dev_list == NULL) {
         APP_ERROR0("invalid dev_list");
@@ -2228,30 +2234,53 @@ static int app_mgr_list_push_back(RkBtScanedDevice **dev_list, tAPP_XML_REM_DEVI
     }
 
     if(*dev_list == NULL) {
-        *dev_list = app_mgr_create_paired_dev(device);
+        *dev_list = app_mgr_create_paired_dev(bd_addr, name, is_connected, class_of_device);
     } else {
         RkBtScanedDevice *cur_dev = *dev_list;
         while(cur_dev->next != NULL)
             cur_dev = cur_dev->next;
 
-        RkBtScanedDevice *new_dev = app_mgr_create_paired_dev(device);
+        RkBtScanedDevice *new_dev = app_mgr_create_paired_dev(bd_addr, name, is_connected, class_of_device);
         cur_dev->next = new_dev;
     }
 
     return 0;
 }
 
-int app_mgr_get_paired_devices(RkBtScanedDevice **dev_list,int *count)
+int app_mgr_get_scaned_devices(RkBtScanedDevice **dev_list,int *count, bool paired)
 {
-    int index;
+    int i, index;
+    bool is_connected;
 
     if(app_mgr_read_remote_devices() < 0)
         return -1;
 
-    for (index = 0; index < APP_NUM_ELEMENTS(app_xml_remote_devices_db); index++) {
-        if(app_xml_remote_devices_db[index].in_use) {
-            if(!app_mgr_list_push_back(dev_list, app_xml_remote_devices_db[index])) {
-                (*count)++;
+    if(paired) {
+        for (index = 0; index < APP_NUM_ELEMENTS(app_xml_remote_devices_db); index++) {
+            if(app_xml_remote_devices_db[index].in_use) {
+                if(!app_mgr_list_push_back(dev_list, app_xml_remote_devices_db[index].bd_addr,
+                        app_xml_remote_devices_db[index].name,
+                        app_xml_remote_devices_db[index].is_connected,
+                        app_xml_remote_devices_db[index].class_of_device))
+                    (*count)++;
+            }
+        }
+    } else {
+        for (index = 0; index < APP_DISC_NB_DEVICES; index++) {
+            if (app_discovery_cb.devs[index].in_use != FALSE) {
+                is_connected = false;
+                for(i = 0; i < APP_NUM_ELEMENTS(app_xml_remote_devices_db); i++) {
+                    if(app_xml_remote_devices_db[i].in_use
+                        && !bdcmp(app_xml_remote_devices_db[i].bd_addr, app_discovery_cb.devs[index].device.bd_addr)) {
+                            is_connected = true;
+                            break;
+                        }
+                }
+
+                if(!app_mgr_list_push_back(dev_list, app_discovery_cb.devs[index].device.bd_addr,
+                        app_discovery_cb.devs[index].device.name, is_connected,
+                        app_discovery_cb.devs[index].device.class_of_device))
+                    (*count)++;
             }
         }
     }
@@ -2259,7 +2288,7 @@ int app_mgr_get_paired_devices(RkBtScanedDevice **dev_list,int *count)
     return 0;
 }
 
-int app_mgr_free_paired_devices(RkBtScanedDevice *dev_list)
+int app_mgr_free_scaned_devices(RkBtScanedDevice *dev_list)
 {
     RkBtScanedDevice *dev_tmp = NULL;
 

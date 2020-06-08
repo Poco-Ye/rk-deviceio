@@ -167,6 +167,16 @@ int rk_ble_register_recv_callback(RK_BLE_RECV_CALLBACK cb)
 	return 0;
 }
 
+void rk_ble_register_request_data_callback(RK_BLE_REQUEST_DATA cb)
+{
+	if (cb) {
+		pr_info("BlueZ does not support this interface."
+			"Please set the callback function when init BT.\n");
+	}
+
+	return 0;
+}
+
 int rk_ble_disconnect()
 {
 	if (!ble_is_open()) {

@@ -461,15 +461,23 @@ bool rk_bt_is_discovering()
 
 int rk_bt_get_scaned_devices(RkBtScanedDevice **dev_list, int *count)
 {
-    APP_DEBUG1("bsa don't support %s", __func__);
     *count = 0;
-    return 0;
+    if(!bt_is_open()) {
+        APP_DEBUG0("bluetooth is not inited, please init");
+        return -1;
+    }
+
+    return app_mgr_get_scaned_devices(dev_list, count, false);
 }
 
 int rk_bt_free_scaned_devices(RkBtScanedDevice *dev_list)
 {
-    APP_DEBUG1("bsa don't support %s", __func__);
-    return 0;
+    if(!bt_is_open()) {
+        APP_DEBUG0("bluetooth is not inited, please init");
+        return -1;
+    }
+
+    return app_mgr_free_scaned_devices(dev_list);
 }
 
 void rk_bt_display_devices()
@@ -584,7 +592,7 @@ int rk_bt_get_paired_devices(RkBtScanedDevice **dev_list, int *count)
         return -1;
     }
 
-    return app_mgr_get_paired_devices(dev_list, count);
+    return app_mgr_get_scaned_devices(dev_list, count, true);
 }
 
 int rk_bt_free_paired_devices(RkBtScanedDevice *dev_list)
@@ -594,7 +602,7 @@ int rk_bt_free_paired_devices(RkBtScanedDevice *dev_list)
         return -1;
     }
 
-    return app_mgr_free_paired_devices(dev_list);
+    return app_mgr_free_scaned_devices(dev_list);
 }
 
 int rk_bt_get_playrole_by_addr(char *addr)
@@ -865,6 +873,11 @@ int rk_ble_register_recv_callback(RK_BLE_RECV_CALLBACK cb)
 {
     app_ble_rk_server_recv_data_callback(cb);
     return 0;
+}
+
+void rk_ble_register_request_data_callback(RK_BLE_REQUEST_DATA cb)
+{
+	app_ble_rk_server_request_data_callback(cb);
 }
 
 void rk_ble_register_mtu_callback(RK_BT_MTU_CALLBACK cb)

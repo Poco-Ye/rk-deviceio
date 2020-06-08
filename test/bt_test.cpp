@@ -925,6 +925,7 @@ static void bt_test_ble_recv_data_callback(const char *uuid, char *data, int len
 static void bt_test_ble_request_data_callback(const char *uuid)
 {
 	printf("=== %s uuid: %s===\n", __func__, uuid);
+	rk_ble_write(uuid, "Hello Rockchip", strlen("Hello Rockchip"));
 }
 
 static void bt_test_mtu_callback(const char *bd_addr, unsigned int mtu)
@@ -937,6 +938,7 @@ void bt_test_ble_start(char *data)
 {
 	rk_ble_register_status_callback(ble_status_callback_test);
 	rk_ble_register_recv_callback(bt_test_ble_recv_data_callback);
+	rk_ble_register_request_data_callback(bt_test_ble_request_data_callback);
 	rk_ble_register_mtu_callback(bt_test_mtu_callback);
 	rk_ble_start(&bt_content.ble_content);
 }

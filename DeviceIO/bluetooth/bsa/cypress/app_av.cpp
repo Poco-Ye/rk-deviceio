@@ -347,7 +347,9 @@ static void app_av_save_status(BD_ADDR bd_addr, BD_NAME name)
     if(!bd_addr)
         return;
 
-    memset(&app_av_status, 0, sizeof(tAPP_AV_CONNECT_STATUS));
+    memset(app_av_status.bd_addr, 0, BD_ADDR_LEN);
+    memset(app_av_status.device_name, 0, BD_NAME_LEN + 1);
+
     bdcpy(app_av_status.bd_addr, bd_addr);
 
     if(name) {
@@ -781,6 +783,11 @@ void app_av_cback(tBSA_AV_EVT event, tBSA_AV_MSG *p_data)
         app_av_status.status = BT_SOURCE_STATUS_DISCONNECTED;
         send_event(connection, BT_SOURCE_EVENT_DISCONNECTED);
         app_av_send_status(BT_SOURCE_EVENT_DISCONNECTED);
+
+        /* Unlock !start if ever we were on !start */
+        status = app_unlock_mutex(&app_av_cb.app_stream_tx_mutex);
+        if (status < 0)
+            APP_ERROR1("app_unlock_mutex failed:%d", status);
         break;
 
     case BSA_AV_DELAY_RPT_EVT:
@@ -3900,6 +3907,11 @@ static void app_uipc_pcm_tx_thread(void)
     int status, nb_bytes = 0;
     UINT16 uipc_error = 0;
     struct rk_socket_app socket_app;
+    fd_set rfds;
+    struct timeval tv;
+
+    tv.tv_sec = 0;
+    tv.tv_usec = 100000;/* 100ms */
 
     memset(&socket_app, 0, sizeof(struct rk_socket_app));
     strcpy(socket_app.sock_path, app_av_sock_path);
@@ -3907,15 +3919,36 @@ static void app_uipc_pcm_tx_thread(void)
     if ((RK_socket_server_setup(&socket_app)) < 0)
         goto exit;
 
-    if (RK_socke_server_accpet(&socket_app) < 0)
-        goto exit;
+wait_conn:
+    while(app_uipc_pcm_tx_done) {
+        FD_ZERO(&rfds);
+        FD_SET(socket_app.server_sockfd, &rfds);
 
-    APP_DEBUG0("Socket server connected");
+        if (select(socket_app.server_sockfd + 1, &rfds, NULL, NULL, &tv) < 0) {
+            APP_ERROR0("select server socket failed");
+            goto exit;
+        }
+
+        if (FD_ISSET(socket_app.server_sockfd, &rfds) == 0)
+            continue;
+
+        if (RK_socke_server_accpet(&socket_app) < 0)
+            goto exit;
+
+        APP_DEBUG0("Socket server connected");
+        break;
+    }
 
     while(app_uipc_pcm_tx_done) {
         //APP_DEBUG0("Waiting for play start");
         /* Check if we should lock on the mutex */
         while (app_av_cb.play_state != APP_AV_PLAY_STARTED) {
+            if(app_av_status.status == BT_SOURCE_STATUS_DISCONNECTED) {
+                APP_DEBUG0("===== socket client disconnect, start the next connection =====");
+                RK_socket_client_teardown(socket_app.client_sockfd);
+                goto wait_conn;
+            }
+
             /* coverity[LOCK] False-positive: MUTEX used to wait for AV_START event */
             status = app_lock_mutex(&app_av_cb.app_stream_tx_mutex);
             if (status < 0) {
@@ -5415,8 +5448,8 @@ void app_av_deinitialize()
     app_uipc_pcm_tx_done = 0;
 
     for (index = 0; index < APP_AV_MAX_CONNECTIONS; index++)
-        app_av_close(index);
-    GKI_delay(1000);
+        if(!app_av_close(index))
+            GKI_delay(1000);
 
     app_av_end();
     app_av_deregister_cb();
