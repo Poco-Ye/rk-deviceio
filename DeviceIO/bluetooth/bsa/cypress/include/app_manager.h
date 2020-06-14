@@ -4,8 +4,8 @@
 **
 **  Description:    Bluetooth Manager application
 **
-**  Copyright (c) 2010-2014, Broadcom Corp., All Rights Reserved.
-**  Broadcom Bluetooth Core. Proprietary and confidential.
+**  Copyright (c) 2019, Cypress Semiconductor., All Rights Reserved.
+**  Cypress Bluetooth Core. Proprietary and confidential.
 **
 *****************************************************************************/
 #ifndef __APP_MANAGER_H__
@@ -161,6 +161,19 @@ int app_mgr_sec_unpair(BD_ADDR bd_addr);
 
 /*******************************************************************************
  **
+ ** Function         app_mgr_use_128bits_uuid
+ **
+ ** Description      Add or Remove 128bits UUID in EIR
+ **
+ ** Parameters
+ **
+ ** Returns          void
+ **
+ *******************************************************************************/
+void app_mgr_use_128bits_uuid(int isAdd,UINT8 uuid[LEN_UUID_128]);
+
+/*******************************************************************************
+ **
  ** Function         app_mgr_set_discoverable
  **
  ** Description      Set the device discoverable for a specific time
@@ -223,6 +236,19 @@ void app_mgr_set_non_connectable(void);
  **
  *******************************************************************************/
 int app_mgr_di_discovery(void);
+
+/*******************************************************************************
+**
+** Function         app_mgr_set_local_name
+**
+** Description      Set local device Name
+**
+** Parameters       name, name_len
+**
+** Returns          int
+**
+*******************************************************************************/
+int app_mgr_set_local_name(char *name, unsigned int name_len);
 
 /*******************************************************************************
 **

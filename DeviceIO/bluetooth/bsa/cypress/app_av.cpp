@@ -400,6 +400,7 @@ static int app_av_build_notification_response(UINT8 event_id,
 static void app_av_init_meta_data();
 static int app_av_check_uid(tBSA_UID uid);
 static int app_av_check_empty_folder(tBSA_UID uid);
+static int app_av_rc_send_register_volume_change_notify_vd_command(UINT8 rc_handle);
 static int app_av_send_status(const RK_BT_SOURCE_EVENT event);
 
 /*******************************************************************************
@@ -1205,8 +1206,57 @@ void app_av_cback(tBSA_AV_EVT event, tBSA_AV_MSG *p_data)
         }
         break;
 
+    case BSA_AV_META_RSP_EVT:
+        APP_DEBUG1("BSA_AV_META_RSP_EVT handle:%d", p_data->meta_rsp.rc_handle);
+
+        APP_DEBUG1("    label=%d, pdu=%d",
+            p_data->meta_rsp.label, p_data->meta_rsp.pdu);
+
+        app_av_cb.label = p_data->meta_rsp.label;
+
+
+        switch(p_data->meta_rsp.pdu)
+        {
+            case BSA_AVRC_PDU_REGISTER_NOTIFICATION:
+                APP_DEBUG1("BSA_AVRC_PDU_REGISTER_NOTIFICATION event_id:0x%x, code:0x%x\n",
+                    p_data->meta_rsp.param.notify_status.event_id,
+                    p_data->meta_rsp.param.notify_status.code);
+
+                if (p_data->meta_rsp.param.notify_status.event_id == AVRC_EVT_VOLUME_CHANGE &&
+                    p_data->meta_rsp.param.notify_status.code == AVRC_RSP_CHANGED)
+                {
+                    APP_DEBUG1("Volume changed :0x%x", p_data->meta_rsp.param.notify_status.param.volume);
+                }
+
+                if (p_data->meta_rsp.param.notify_status.event_id == AVRC_EVT_PLAY_STATUS_CHANGE)
+                {
+                    switch(p_data->meta_rsp.param.notify_status.param.play_status)
+                    {
+                        case AVRC_PLAYSTATE_PLAYING:
+                             APP_DEBUG0("Play Status Playing");
+                             break;
+                        case AVRC_PLAYSTATE_STOPPED:
+                        case AVRC_PLAYSTATE_PAUSED:
+                             APP_DEBUG0("Play Status Stopped");
+                             break;
+                        default:
+                             APP_DEBUG1("Play Status Playing : %02x",
+                                 p_data->meta_rsp.param.notify_status.param.play_status);
+                             break;
+                    }
+                }
+                break;
+        }
+        break;
+
     case BSA_AV_FEAT_EVT:
         APP_DEBUG1("BSA_AV_FEAT_EVT Peer feature:%x", p_data->rc_feat.peer_features);
+        if(p_data->rc_feat.peer_features & BTA_AV_FEAT_ADV_CTRL &&
+           p_data->rc_feat.peer_features & BTA_AV_FEAT_RCTG)
+        {
+            int x = app_av_rc_send_register_volume_change_notify_vd_command(p_data->rc_feat.rc_handle);
+            APP_DEBUG1("app_av_rc_send_register_volume_change_notify_vd_command:%x", x);
+        }
         break;
 
     default:
@@ -2223,6 +2273,35 @@ int app_av_rc_send_command(int index, int command, tBSA_AV_STATE key_state)
     if (status != BSA_SUCCESS)
     {
         APP_ERROR1("BSA_AvRemoteCmd failed: %d", status);
+        return status;
+    }
+    return 0;
+}
+
+static int app_av_rc_send_register_volume_change_notify_vd_command(UINT8 rc_handle)
+{
+    int status;
+    tBSA_AV_VEN_CMD bsa_av_vd_cmd;
+
+    /* Send remote control command */
+    status = BSA_AvVendorCmdInit(&bsa_av_vd_cmd);
+    bsa_av_vd_cmd.rc_handle = rc_handle;
+    bsa_av_vd_cmd.ctype = BSA_AV_CMD_NOTIF;
+    bsa_av_vd_cmd.data[0] = BSA_AV_RC_VD_REGISTER_NOTIFICATION;
+    bsa_av_vd_cmd.data[1] = 0; /* reserved & packet type */
+    bsa_av_vd_cmd.data[2] = 0; /* length high*/
+    bsa_av_vd_cmd.data[3] = 5; /* length low*/
+    bsa_av_vd_cmd.data[4] = 0x0D; /* event volume changed */
+    bsa_av_vd_cmd.data[5] = 0;
+    bsa_av_vd_cmd.data[6] = 0;
+    bsa_av_vd_cmd.data[7] = 0;
+    bsa_av_vd_cmd.data[8] = 0;
+    bsa_av_vd_cmd.length = 9;
+    bsa_av_vd_cmd.label = app_av_get_label(); /* Just used to distinguish commands */
+    status = BSA_AvVendorCmd(&bsa_av_vd_cmd);
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_AvVendorCmd failed: %d", status);
         return status;
     }
     return 0;

@@ -4,8 +4,8 @@
 **
 **  Description:    Bluetooth BLE include file
 **
-**  Copyright (c) 2015, Broadcom Corp., All Rights Reserved.
-**  Broadcom Bluetooth Core. Proprietary and confidential.
+**  Copyright (c) 2018, Cypress Semiconductor., All Rights Reserved.
+**  Proprietary and confidential.
 **
 *****************************************************************************/
 #ifndef APP_BLE_CLIENT_H
@@ -167,6 +167,58 @@ int app_ble_client_service_search(void);
 
 /*******************************************************************************
  **
+ ** Function        app_ble_client_get_first_char
+ **
+ ** Description     This is the ble get first characteristic from ble server
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+int app_ble_client_get_first_char(void);
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_client_get_next_char
+ **
+ ** Description     This is the ble get next characteristic from ble server
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+int app_ble_client_get_next_char(void);
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_client_get_first_char_descr
+ **
+ ** Description     This is the ble get first characteristic descriptor from ble server
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+int app_ble_client_get_first_char_descr(void);
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_client_get_next_char_descr
+ **
+ ** Description     This is the ble get next characteristic descriptor from ble server
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+int app_ble_client_get_next_char_descr(void);
+
+/*******************************************************************************
+ **
  ** Function        app_ble_client_read
  **
  ** Description     This is the read function to read a characteristec or characteristic descriptor from BLE server
@@ -190,6 +242,34 @@ int app_ble_client_read(char *uuid);
  **
  *******************************************************************************/
 int app_ble_client_write(char *char_uuid, char *data, int data_len, BOOLEAN is_descript);
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_client_prepare_write
+ **
+ ** Description     This is the write function to write a characteristic or
+ **                 characteristic descriptor to BLE server.
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+int app_ble_client_prepare_write(void);
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_client_execute_write
+ **
+ ** Description     This is the write function to write a characteristic or
+ **                 characteristic descriptor to BLE server.
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+int app_ble_client_execute_write(void);
 
 /*******************************************************************************
  **

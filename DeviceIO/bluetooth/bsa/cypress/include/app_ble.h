@@ -41,6 +41,7 @@ typedef struct
     BOOLEAN             enabled;
     tBSA_BLE_IF         server_if;
     UINT16              conn_id;
+    UINT16              att_mtu;
     tAPP_BLE_ATTRIBUTE  attr[BSA_BLE_ATTRIBUTE_MAX];
 } tAPP_BLE_SERVER;
 
@@ -156,6 +157,34 @@ int app_ble_apcf_disable(void);
  **
  *******************************************************************************/
 int app_ble_apcf_cfg(void);
+
+#if (defined APP_BLE_2M_PHY_INCLUDED) && (APP_BLE_2M_PHY_INCLUDED == TRUE)
+/*******************************************************************************
+ **
+ ** Function        app_ble_read_phy
+ **
+ ** Description     read current phy status for active connection
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+int app_ble_read_phy(void);
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_set_phy
+ **
+ ** Description     set current phy status for active connection/preference
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+int app_ble_set_phy(void);
+#endif
 
 int app_ble_string_to_uuid16(UINT16 *uuid, const char *string);
 int app_ble_string_to_uuid32(UINT32 *uuid, const char *string);

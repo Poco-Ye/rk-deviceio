@@ -2035,6 +2035,7 @@ int app_xml_display_devices(const tAPP_XML_REM_DEVICE *p_stored_device_db,
                     p_stored_device_db[index].bd_addr[3],
                     p_stored_device_db[index].bd_addr[4],
                     p_stored_device_db[index].bd_addr[5]);
+#if (defined(BLE_INCLUDED) && BLE_INCLUDED == TRUE)
             APP_INFO1("\tLatest Connect:%d", p_stored_device_db[index].latest_connect);
             APP_INFO1("\tConnected:%d", p_stored_device_db[index].is_connected);
             APP_INFO1("\tIdentity Bdaddr:%02x:%02x:%02x:%02x:%02x:%02x",
@@ -2044,6 +2045,7 @@ int app_xml_display_devices(const tAPP_XML_REM_DEVICE *p_stored_device_db,
                     p_stored_device_db[index].pid_static_addr[3],
                     p_stored_device_db[index].pid_static_addr[4],
                     p_stored_device_db[index].pid_static_addr[5]);
+#endif
             APP_INFO1("\tName:%s", p_stored_device_db[index].name);
             APP_INFO1("\tClassOfDevice:%02x:%02x:%02x => %s",
                     p_stored_device_db[index].class_of_device[0],

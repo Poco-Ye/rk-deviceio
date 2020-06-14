@@ -1053,7 +1053,6 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
         break;
 
     case BSA_BLE_SE_EXEC_WRITE_EVT:
-        APP_INFO1("BSA_BLE_SE_EXEC_WRITE_EVT status:%d", p_data->ser_exec_write.status);
         APP_INFO1("BSA_BLE_SE_EXEC_WRITE_EVT trans_id:%d, conn_id:%d, flag:%d",
             p_data->ser_exec_write.trans_id, p_data->ser_exec_write.conn_id,
             p_data->ser_exec_write.flag);
@@ -1095,6 +1094,14 @@ static void app_ble_rk_server_profile_cback(tBSA_BLE_EVT event,
             app_ble_rk_server_send_state(p_data->ser_open.remote_bda, RK_BLE_STATE_CONNECT);
             APP_INFO0("Stopping Advertisements");
         }
+        break;
+
+    case BSA_BLE_SE_MTU_EVT:
+        APP_INFO1("BSA_BLE_SE_MTU_EVT  :conn_id:0x%x, mtu:%d",
+            p_data->ser_mtu.conn_id, p_data->ser_mtu.att_mtu);
+
+        if(app_ble_info.mtu_cb)
+            app_ble_info.mtu_cb(app_ble_info.bd_addr ,p_data->ser_mtu.att_mtu);
         break;
 
     case BSA_BLE_SE_CONGEST_EVT:

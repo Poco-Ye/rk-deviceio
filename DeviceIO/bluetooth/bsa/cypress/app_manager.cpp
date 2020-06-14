@@ -4,8 +4,8 @@
 **
 **  Description:    Bluetooth Manager application
 **
-**  Copyright (c) 2010-2015, Broadcom Corp., All Rights Reserved.
-**  Broadcom Bluetooth Core. Proprietary and confidential.
+**  Copyright (c) 2019, Cypress Semiconductor., All Rights Reserved.
+**  Cypress Bluetooth Core. Proprietary and confidential.
 **
 *****************************************************************************/
 #include <stdio.h>
@@ -1190,6 +1190,36 @@ int app_mgr_sec_unpair(BD_ADDR bd_addr)
 
 /*******************************************************************************
  **
+ ** Function         app_mgr_use_128bits_uuid
+ **
+ ** Description      Add or Remove 128bits UUID in EIR
+ **
+ ** Parameters
+ **
+ ** Returns          void
+ **
+ *******************************************************************************/
+void app_mgr_use_128bits_uuid(int isAdd,UINT8 uuid[LEN_UUID_128])
+{
+    tBSA_DM_SET_CONFIG bsa_dm_set_config;
+    if (BSA_DmSetConfigInit(&bsa_dm_set_config) != BSA_SUCCESS)
+    {
+        APP_ERROR0("BSA_DmSetConfigInit failed");
+        return;
+    }
+    bsa_dm_set_config.add_remove_eir_param.isAdd = (BOOLEAN)isAdd;
+    bsa_dm_set_config.add_remove_eir_param.UUID.len = LEN_UUID_128;
+    memcpy(bsa_dm_set_config.add_remove_eir_param.UUID.uu.uuid128,uuid,LEN_UUID_128);
+    bsa_dm_set_config.config_mask = BSA_DM_CONFIG_UUID128_EIR_MASK;
+    if (BSA_DmSetConfig(&bsa_dm_set_config) != BSA_SUCCESS)
+    {
+        APP_ERROR0("BSA_DmSetConfig failed");
+        return;
+    }
+}
+
+/*******************************************************************************
+ **
  ** Function         app_mgr_set_discoverable
  **
  ** Description      Set the device discoverable for a specific time
@@ -1372,6 +1402,41 @@ int app_mgr_di_discovery(void)
 
 /*******************************************************************************
 **
+** Function         app_mgr_set_local_name
+**
+** Description      Set local device Name
+**
+** Parameters       name, name_len
+**
+** Returns          int
+**
+*******************************************************************************/
+int app_mgr_set_local_name(char *name, unsigned int name_len)
+{
+    int status;
+    tBSA_DM_SET_CONFIG bt_config;
+
+    status = BSA_DmSetConfigInit(&bt_config);
+
+    APP_DEBUG1("app_mgr_set_local_name name:%s", name);
+
+    bt_config.config_mask = BSA_DM_CONFIG_NAME_MASK;
+    strncpy((char *)bt_config.name, (char *)name, (size_t)name_len);
+    bt_config.name[sizeof(bt_config.name) - 1] = '\0';
+
+    APP_DEBUG1("Name:%s", bt_config.name);
+
+    status = BSA_DmSetConfig(&bt_config);
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_DmSetConfig failed:%d", status);
+        return(-1);
+    }
+    return 0;
+}
+
+/*******************************************************************************
+**
 ** Function         app_mgr_set_local_di
 **
 ** Description      Set local device Id
@@ -1386,7 +1451,7 @@ int app_mgr_set_local_di(void)
     tBSA_STATUS bsa_status;
     tBSA_DM_SET_DI di;
 
-    di.vendor_id = 0x000F;
+    di.vendor_id = 0x0131; // 0x0131 - Cypress Semiconductor
     di.product_id = 0x4356;
     di.primary = TRUE;
     di.vendor_id_source = 0x0001; // 0x0001 - Bluetooth SIG, 0x0002 -- USB Forum
@@ -1840,10 +1905,14 @@ const char *app_mgr_get_dual_stack_mode_desc(void)
 int app_mgr_discovery_test(void)
 {
     int choice;
+    int index;
+    BD_ADDR bd_addr;
+    int services;
 
     APP_INFO0("Select the parameter to modify:");
     APP_INFO0("\t0: Update type");
     APP_INFO0("\t1: Inquiry TX power");
+    APP_INFO0("\t2: bd address and service discovery");
     choice = app_get_choice("Choice");
 
     switch(choice)
@@ -1863,6 +1932,15 @@ int app_mgr_discovery_test(void)
 
         return app_disc_start_power((INT8)choice);
 
+        break;
+
+    case 2:
+        APP_INFO0("select device:");
+        app_disc_display_devices();
+        index = app_get_choice("Select device");
+        bdcpy(bd_addr, app_discovery_cb.devs[index].device.bd_addr);
+        services = BSA_ALL_SERVICE_MASK;
+        return app_disc_start_bdaddr_services(bd_addr, services, NULL);
         break;
 
     default:
