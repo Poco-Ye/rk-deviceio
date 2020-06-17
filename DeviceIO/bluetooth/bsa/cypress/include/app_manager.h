@@ -412,6 +412,19 @@ void app_mgr_set_link_policy(BD_ADDR bd_addr, tBSA_DM_LP_MASK policy_mask, BOOLE
  *******************************************************************************/
 int app_mgr_set_sleep_mode_param(void);
 
+/*******************************************************************************
+ **
+ ** Function         app_mgr_send_hci_cmd
+ **
+ ** Description      This function is used to send a HCI Command
+ **
+ ** Parameters
+ **
+ ** Returns          int
+ **
+ *******************************************************************************/
+int app_mgr_send_hci_cmd(char *cmd);
+
 void app_mgr_register_disc_cb(RK_BT_DISCOVERY_CALLBACK cb);
 void app_mgr_deregister_disc_cb();
 void app_mgr_register_dev_found_cb(RK_BT_DEV_FOUND_CALLBACK cb);

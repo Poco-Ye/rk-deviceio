@@ -1209,6 +1209,11 @@ int rk_ble_client_get_eir_data(char *addr, char *eir_data, int len)
     return app_ble_client_get_eir_data(bd_addr, eir_data, len);
 }
 
+int rk_ble_client_default_data_length()
+{
+    return app_mgr_send_hci_cmd("2420041b004801");
+}
+
 /******************************************/
 /*              A2DP SOURCE               */
 /******************************************/
