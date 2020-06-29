@@ -232,7 +232,6 @@ void ble_state_send(RK_BLE_STATE status)
 	memset(name, 0, 256);
 	bt_get_device_addr_by_proxy(ble_dev, addr, 18);
 	bt_get_device_name_by_proxy(ble_dev, name, 256);
-	pr_info("%s: status = %d\n", __func__, status);
 	g_bt_callback.ble_state_cb(addr, name, status);
 }
 
@@ -1385,6 +1384,11 @@ static void device_connected_handler(GDBusProxy *proxy,
 			device_changed(proxy, iter, user_data);
 	} else if(bdc == BT_Device_Class::BT_BLE_DEVICE) {
 		if(ble_is_open()) {
+			if(connected) {
+				ble_connected_handler(proxy);
+				return;
+			}
+
 			if(ble_dev != proxy)
 				pr_info("%s: ble_dev(%p) != proxy(%p)\n", __func__, ble_dev, proxy);
 
