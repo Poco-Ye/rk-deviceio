@@ -1227,11 +1227,6 @@ int ble_set_address(char *address)
 	if(!address)
 		return -1;
 
-	if(strlen(address) != DEVICE_ADDR_LEN) {
-		pr_err("%s: address len(%d) != DEVICE_ADDR_LEN(%d)\n", __func__, strlen(address), DEVICE_ADDR_LEN);
-		return -1;
-	}
-
 	memset(g_cmd_ra, 0, 256);
 	if(sprintf(g_cmd_ra, "%s %02hhx %02hhx %02hhx %02hhx %02hhx %02hhx", CMD_RA,
 			address[0], address[1], address[2],
