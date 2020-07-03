@@ -515,7 +515,6 @@ static DBusMessage *chr_read_value(DBusConnection *conn, DBusMessage *msg,
 	DBusMessage *reply;
 	DBusMessageIter iter;
 	const char *device;
-	char str[BT_ATT_MAX_LE_MTU];
 	pr_info("=== chr_read_value enter ===\n");
 
 	if (!dbus_message_iter_init(msg, &iter))
@@ -533,13 +532,12 @@ static DBusMessage *chr_read_value(DBusConnection *conn, DBusMessage *msg,
 
 	dbus_message_iter_init_append(reply, &iter);
 
+	//an empty response
+	chr->vlen = 0;
+	chr_read(chr, &iter);
+
 	if(ble_content_internal->cb_ble_request_data)
 		ble_content_internal->cb_ble_request_data(chr->uuid);
-
-	chr_read(chr, &iter);
-	memcpy(str, chr->value, chr->vlen);
-	str[chr->vlen] = '\0';
-	pr_info("chr_read_value[%d]: %s\n", chr->vlen, str);
 
 	pr_info("=== chr_read_value exit ===\n");
 	return reply;
