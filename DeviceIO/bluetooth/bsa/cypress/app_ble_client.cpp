@@ -4,7 +4,7 @@
 **
 **  Description:    Bluetooth BLE Client general application
 **
-**  Copyright (c) 2016, Cypress Semiconductor., All Rights Reserved.
+**  Copyright (c) 2018, Cypress Semiconductor., All Rights Reserved.
 **  Proprietary and confidential.
 **
 *****************************************************************************/
@@ -596,6 +596,280 @@ int app_ble_client_service_search_ex(tBT_UUID service_uuid)
     return 0;
 }
 
+/*******************************************************************************
+ **
+ ** Function        app_ble_client_get_first_char
+ **
+ ** Description     This is the ble get first characteristic from ble server
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+int app_ble_client_get_first_char(void)
+{
+    tBSA_STATUS status;
+    tBSA_BLE_CL_GET_FIRST_CHAR get_first_char;
+    int client_num, ser_inst_id, is_primary;
+    UINT16 service;
+
+    status = BSA_BleClGetFirstCharInit(&get_first_char);
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_BleClGetFirstCharInit failed status = %d", status);
+    }
+    APP_INFO0("Select Client:");
+    app_ble_client_display(0);
+    client_num = app_get_choice("Select");
+
+    if((client_num < 0) || (client_num >= BSA_BLE_CLIENT_MAX))
+    {
+        APP_ERROR1("BSA_BleClGetFirstChar failed Invalid client_num:%d", client_num);
+        return -1;
+    }
+    get_first_char.conn_id= app_ble_cb.ble_client[client_num].conn_id;
+    service = app_get_choice("Enter Service UUID of First Char(eg. x1800)");
+    is_primary = app_get_choice("Enter Is_primary value(eg:0,1)");
+    ser_inst_id = app_get_choice("Enter Instance ID for Service UUID(eg. 0,1,2..)");
+    get_first_char.service_uuid.id.uuid.len = 2;
+    get_first_char.service_uuid.id.uuid.uu.uuid16 = service;
+    get_first_char.service_uuid.id.inst_id = ser_inst_id;
+    get_first_char.service_uuid.is_primary = is_primary;
+
+    get_first_char.char_uuid_cond.len = 0;  // 0 means get the first characeristic of the service
+
+    status = BSA_BleClGetFirstChar(&get_first_char);
+
+    if (status == GATT_ERROR)
+    {
+        APP_INFO0("No more Characeristic found!!");
+        return 0;
+    }
+
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_BleClGetFirstChar failed with status:%d", status);
+        return -1;
+    }
+    APP_INFO1("GetFirstChar  %s  (uuid:0x%04x) id:%d prop:0x%X",
+            app_ble_display_service_name(get_first_char.char_result.char_id.uuid.uu.uuid16),
+            get_first_char.char_result.char_id.uuid.uu.uuid16,
+            get_first_char.char_result.char_id.inst_id,
+            get_first_char.property);
+    return 0;
+}
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_client_get_next_char
+ **
+ ** Description     This is the ble get next characteristic from ble server
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+int app_ble_client_get_next_char(void)
+{
+    tBSA_STATUS status;
+    tBSA_BLE_CL_GET_NEXT_CHAR get_next_char;
+    int client_num, ser_inst_id, is_primary, char_inst_id;
+    UINT16 service, char_id;
+
+    status = BSA_BleClGetNextCharInit(&get_next_char);
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_BleClGetNextCharInit failed status = %d", status);
+    }
+    APP_INFO0("Select Client:");
+    app_ble_client_display(0);
+    client_num = app_get_choice("Select");
+
+    if((client_num < 0) || (client_num >= BSA_BLE_CLIENT_MAX))
+    {
+        APP_ERROR1("BSA_BleClGetNextChar failed Invalid client_num:%d", client_num);
+        return -1;
+    }
+    get_next_char.conn_id= app_ble_cb.ble_client[client_num].conn_id;
+    service = app_get_choice("Enter Service UUID to read(eg. x1800)");
+    is_primary = app_get_choice("Enter Is_primary value(eg:0,1)");
+    ser_inst_id = app_get_choice("Enter Instance ID for Service UUID(eg. 0,1,2..)");
+    get_next_char.start_char_id.srvc_id.id.uuid.len = 2;
+    get_next_char.start_char_id.srvc_id.id.uuid.uu.uuid16 = service;
+    get_next_char.start_char_id.srvc_id.id.inst_id = ser_inst_id;
+    get_next_char.start_char_id.srvc_id.is_primary = is_primary;
+    char_id = app_get_choice("Enter the Start Char UUID(eg. x2a00)");
+    char_inst_id = app_get_choice("Enter Instance ID for Char UUID(eg. 0,1,2..)");
+    get_next_char.start_char_id.char_id.uuid.len = 2;
+    get_next_char.start_char_id.char_id.uuid.uu.uuid16 = char_id;
+    get_next_char.start_char_id.char_id.inst_id = char_inst_id;
+    get_next_char.char_uuid_cond.len = 0;  // 0 means get the next characeristic of the start char
+
+    status = BSA_BleClGetNextChar(&get_next_char);
+
+    if (status == GATT_ERROR)
+    {
+        APP_INFO0("No more Characeristic found!!");
+        return 0;
+    }
+
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_BleClGetNextChar failed with status:%d", status);
+        return -1;
+    }
+    APP_INFO1("GetNextChar  %s  (uuid:0x%04x) id:%d prop:0x%X",
+            app_ble_display_service_name(get_next_char.char_result.char_id.uuid.uu.uuid16),
+            get_next_char.char_result.char_id.uuid.uu.uuid16,
+            get_next_char.char_result.char_id.inst_id,
+            get_next_char.property);
+    return 0;
+}
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_client_get_first_char_descr
+ **
+ ** Description     This is the ble get first characteristic descriptor from ble server
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+int app_ble_client_get_first_char_descr(void)
+{
+    tBSA_STATUS status;
+    tBSA_BLE_CL_GET_FIRST_CHAR_DESCR get_first_char_descr;
+    int client_num, ser_inst_id, is_primary, char_inst_id;
+    UINT16 service, characeristic;
+
+    status = BSA_BleClGetFirstCharDescrInit(&get_first_char_descr);
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_BleClGetFirstCharDescrInit failed status = %d", status);
+    }
+    APP_INFO0("Select Client:");
+    app_ble_client_display(0);
+    client_num = app_get_choice("Select");
+
+    if((client_num < 0) || (client_num >= BSA_BLE_CLIENT_MAX))
+    {
+        APP_ERROR1("BSA_BleClGetFirstCharDescr failed Invalid client_num:%d", client_num);
+        return -1;
+    }
+    get_first_char_descr.conn_id= app_ble_cb.ble_client[client_num].conn_id;
+    service = app_get_choice("Enter Service UUID of Char(eg. x1800)");
+    is_primary = app_get_choice("Enter Is_primary value(eg:0,1)");
+    ser_inst_id = app_get_choice("Enter Instance ID for Service UUID(eg. 0,1,2..)");
+    get_first_char_descr.char_id.srvc_id.id.uuid.uu.uuid16 = service;
+    get_first_char_descr.char_id.srvc_id.id.uuid.len = 2;
+    get_first_char_descr.char_id.srvc_id.id.inst_id = ser_inst_id;
+    get_first_char_descr.char_id.srvc_id.is_primary = is_primary;
+
+    characeristic = app_get_choice("Enter Char UUID (eg. x2A00)");
+    char_inst_id = app_get_choice("Enter Instance ID for Char UUID(eg. 0,1,2..)");
+    get_first_char_descr.char_id.char_id.uuid.uu.uuid16 = characeristic;
+    get_first_char_descr.char_id.char_id.uuid.len = 2;
+    get_first_char_descr.char_id.char_id.inst_id = char_inst_id;
+    get_first_char_descr.descr_uuid_cond.len = 0;  // 0 means get the first descriptor of the characeristic
+
+    status = BSA_BleClGetFirstCharDescr(&get_first_char_descr);
+
+    if (status == GATT_ERROR)
+    {
+        APP_INFO0("No more Characeristic Descriptor found!!");
+        return 0;
+    }
+
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_BleClGetFirstCharDescr failed with status:%d", status);
+        return -1;
+    }
+    APP_INFO1("GetFirstCharDescr uuid:0x%04x id:%d ",
+            get_first_char_descr.descr_result.descr_id.uuid.uu.uuid16,
+            get_first_char_descr.descr_result.descr_id.inst_id);
+
+    return 0;
+}
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_client_get_next_char_descr
+ **
+ ** Description     This is the ble get next characteristic descriptor from ble server
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+int app_ble_client_get_next_char_descr(void)
+{
+    tBSA_STATUS status;
+    tBSA_BLE_CL_GET_NEXT_CHAR_DESCR get_next_char_descr;
+    int client_num, ser_inst_id, is_primary, char_inst_id, descr_inst_id;
+    UINT16 service, characeristic, descr;
+
+    status = BSA_BleClGetNextCharDescrInit(&get_next_char_descr);
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_BleClGetNextCharDescrInit failed status = %d", status);
+    }
+    APP_INFO0("Select Client:");
+    app_ble_client_display(0);
+    client_num = app_get_choice("Select");
+
+    if((client_num < 0) || (client_num >= BSA_BLE_CLIENT_MAX))
+    {
+        APP_ERROR1("BSA_BleClGetNextCharDescr failed Invalid client_num:%d", client_num);
+        return -1;
+    }
+    get_next_char_descr.conn_id= app_ble_cb.ble_client[client_num].conn_id;
+    service = app_get_choice("Enter Service UUID of Char(eg. x1800)");
+    is_primary = app_get_choice("Enter Is_primary value(eg:0,1)");
+    ser_inst_id = app_get_choice("Enter Instance ID for Service UUID(eg. 0,1,2..)");
+    get_next_char_descr.start_descr_id.char_id.srvc_id.id.uuid.uu.uuid16 = service;
+    get_next_char_descr.start_descr_id.char_id.srvc_id.id.uuid.len = 2;
+    get_next_char_descr.start_descr_id.char_id.srvc_id.id.inst_id = ser_inst_id;
+    get_next_char_descr.start_descr_id.char_id.srvc_id.is_primary = is_primary;
+
+    characeristic = app_get_choice("Enter Char UUID (eg. x2A00)");
+    char_inst_id = app_get_choice("Enter Instance ID for Char UUID(eg. 0,1,2..)");
+    get_next_char_descr.start_descr_id.char_id.char_id.uuid.uu.uuid16 = characeristic;
+    get_next_char_descr.start_descr_id.char_id.char_id.uuid.len = 2;
+    get_next_char_descr.start_descr_id.char_id.char_id.inst_id = char_inst_id;
+
+    descr = app_get_choice("Enter Descr UUID (eg. x2A00)");
+    descr_inst_id = app_get_choice("Enter Instance ID for Descr UUID(eg. 0,1,2..)");
+    get_next_char_descr.start_descr_id.descr_id.uuid.uu.uuid16 = descr;
+    get_next_char_descr.start_descr_id.descr_id.uuid.len = 2;
+    get_next_char_descr.start_descr_id.descr_id.inst_id = descr_inst_id;
+    get_next_char_descr.descr_uuid_cond.len = 0;  // 0 means get the first next descriptor of the characeristic
+
+    status = BSA_BleClGetNextCharDescr(&get_next_char_descr);
+
+    if (status == GATT_ERROR)
+    {
+        APP_INFO0("No more Characeristic Descriptor found!!");
+        return 0;
+    }
+
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_BleClGetNextCharDescr failed with status:%d", status);
+        return -1;
+    }
+    APP_INFO1("GetNextCharDescr uuid:0x%04x id:%d ",
+            get_next_char_descr.descr_result.descr_id.uuid.uu.uuid16,
+            get_next_char_descr.descr_result.descr_id.inst_id);
+
+    return 0;
+}
+
 static int app_ble_client_find_dafault_conn()
 {
     int client_num;
@@ -779,8 +1053,7 @@ int app_ble_client_prepare_write(void)
     UINT16 len, char_id, index, service, descr_id;
     int client_num, is_descript;
     UINT8 data[100];
-    int ser_inst_id, char_inst_id, is_primary;
-    UINT8 desc_value;
+    int ser_inst_id, char_inst_id, is_primary, desc_inst_id;
 
     APP_INFO0("Select Client:");
     app_ble_client_display(0);
@@ -819,40 +1092,43 @@ int app_ble_client_prepare_write(void)
     is_descript = app_get_choice("select descriptor? (yes=1 or no=0)");
     if(is_descript == 1)
     {
-        ble_write_param.descr_id.char_id.char_id.uuid.len=2;
-        ble_write_param.descr_id.char_id.char_id.uuid.uu.uuid16 = char_id;
         ble_write_param.descr_id.char_id.srvc_id.id.uuid.len=2;
         ble_write_param.descr_id.char_id.srvc_id.id.uuid.uu.uuid16 = service;
+        ble_write_param.descr_id.char_id.srvc_id.id.inst_id= ser_inst_id;
         ble_write_param.descr_id.char_id.srvc_id.is_primary = is_primary;
 
+        ble_write_param.descr_id.char_id.char_id.uuid.len=2;
+        ble_write_param.descr_id.char_id.char_id.uuid.uu.uuid16 = char_id;
+        ble_write_param.descr_id.char_id.char_id.inst_id = char_inst_id;
+
         descr_id = app_get_choice("Enter Descriptor type UUID to write(eg. x2902)");
-        desc_value = app_get_choice("Enter Descriptor value to write(eg. x01)");
-        ble_write_param.descr_id.descr_id.uuid.uu.uuid16 = descr_id;
+        desc_inst_id = app_get_choice("Enter Instance ID for Desc UUID(eg. 0,1,2..)");
+
         ble_write_param.descr_id.descr_id.uuid.len = 2;
-        ble_write_param.len = 1;
-        ble_write_param.value[0] = desc_value;
+        ble_write_param.descr_id.descr_id.uuid.uu.uuid16 = descr_id;
+        ble_write_param.descr_id.descr_id.inst_id = desc_inst_id;
         ble_write_param.descr = TRUE;
     }
     else
     {
-        len = app_get_choice("Enter number of bytes to write (eg. 1 or 2)");
-        for (index = 0; index < len ; index++)
-        {
-            data[index]= app_get_choice("Enter data in byte (eg. 1 or 2)");
-            ble_write_param.value[index] = data[index];
-        }
-        ble_write_param.len = len;
-        ble_write_param.descr = FALSE;
-        ble_write_param.char_id.srvc_id.id.inst_id= ser_inst_id;
-        ble_write_param.char_id.srvc_id.id.uuid.uu.uuid16 = service;
         ble_write_param.char_id.srvc_id.id.uuid.len = 2;
+        ble_write_param.char_id.srvc_id.id.uuid.uu.uuid16 = service;
+        ble_write_param.char_id.srvc_id.id.inst_id= ser_inst_id;
         ble_write_param.char_id.srvc_id.is_primary = is_primary;
 
-        ble_write_param.char_id.char_id.inst_id = char_inst_id;
-        ble_write_param.char_id.char_id.uuid.uu.uuid16 = char_id;
         ble_write_param.char_id.char_id.uuid.len = 2;
+        ble_write_param.char_id.char_id.uuid.uu.uuid16 = char_id;
+        ble_write_param.char_id.char_id.inst_id = char_inst_id;
+        ble_write_param.descr = FALSE;
     }
 
+    len = app_get_choice("Enter number of bytes to write (eg. 1 or 2)");
+    for (index = 0; index < len ; index++)
+    {
+        data[index]= app_get_choice("Enter data in byte (eg. 1 or 2)");
+        ble_write_param.value[index] = data[index];
+    }
+    ble_write_param.len = len;
     ble_write_param.conn_id = app_ble_cb.ble_client[client_num].conn_id;
     ble_write_param.auth_req = BTA_GATT_AUTH_REQ_NONE;
 
@@ -862,9 +1138,9 @@ int app_ble_client_prepare_write(void)
         APP_ERROR1("BSA_BleClWrite failed status = %d", status);
         return -1;
     }
+
     return 0;
 }
-
 
 /*******************************************************************************
  **
@@ -1142,6 +1418,53 @@ int app_ble_client_refresh(void)
 
 /*******************************************************************************
  **
+ ** Function         app_ble_paired_device_display
+ **
+ ** Description      Display BLE paired device
+ **
+ ** Parameters
+ **
+ ** Returns          void
+ **
+ *******************************************************************************/
+void app_ble_paired_device_display(int detail)
+{
+    int index;
+    tAPP_BLE_CLIENT_DB_ELEMENT *p_blecl_db_elmt;
+
+    APP_INFO0("BLE PAIRED DEVICE LIST");
+    for(index = 0; index < APP_MAX_NB_REMOTE_STORED_DEVICES; index++)
+    {
+        if(app_xml_remote_devices_db[index].device_type == BT_DEVICE_TYPE_BLE)
+        {
+            if(app_xml_remote_devices_db[index].in_use == TRUE)
+            {
+                APP_INFO1("Index:%d BDA:%02X:%02X:%02X:%02X:%02X:%02X",
+                    index,
+                    app_xml_remote_devices_db[index].bd_addr[0],
+                    app_xml_remote_devices_db[index].bd_addr[1],
+                    app_xml_remote_devices_db[index].bd_addr[2],
+                    app_xml_remote_devices_db[index].bd_addr[3],
+                    app_xml_remote_devices_db[index].bd_addr[4],
+                    app_xml_remote_devices_db[index].bd_addr[5]);
+                if(detail)
+                {
+                    p_blecl_db_elmt = app_ble_client_db_find_by_bda(app_xml_remote_devices_db[index].bd_addr);
+                    if(p_blecl_db_elmt)
+                    {
+                        app_ble_client_display_attr(p_blecl_db_elmt);
+                    }
+                }
+            }
+        }
+    }
+    APP_INFO0("");
+
+}
+
+
+/*******************************************************************************
+ **
  ** Function        app_ble_client_unpair
  **
  ** Description     Unpair an LE device
@@ -1151,134 +1474,99 @@ int app_ble_client_refresh(void)
  ** Returns         status: 0 if success / -1 otherwise
  **
  *******************************************************************************/
-int app_ble_client_unpair(BD_ADDR bd_addr)
+int app_ble_client_unpair(void)
 {
     tBSA_STATUS status;
     tBSA_SEC_REMOVE_DEV sec_remove_dev;
     tBSA_BLE_CL_CLOSE ble_close_param;
-    int client_num;
+    int client_num, xml_idx;
     tAPP_BLE_CLIENT_DB_ELEMENT *p_blecl_db_elmt;
 
-    client_num = app_ble_client_find_index_by_addr(bd_addr);
-    if((client_num < 0) || (client_num >= BSA_BLE_CLIENT_MAX) ||
-       (app_ble_cb.ble_client[client_num].enabled == FALSE)) {
-        APP_ERROR1("Wrong client number! = %d", client_num);
+    APP_INFO0("app_ble_client_unpair");
+
+    /* Find index from BD address at XML */
+    app_read_xml_remote_devices();
+    app_ble_paired_device_display(FALSE);
+
+    xml_idx = app_get_choice("Select");
+    if(xml_idx < 0 || xml_idx >= APP_MAX_NB_REMOTE_STORED_DEVICES)
+    {
+        APP_ERROR1("Wrong index number! = %d", xml_idx);
+        return -1;
+    }
+
+    if(app_xml_remote_devices_db[xml_idx].device_type != BT_DEVICE_TYPE_BLE ||
+        app_xml_remote_devices_db[xml_idx].in_use != TRUE)
+    {
+        APP_ERROR1("Wrong device index! = %d", xml_idx);
         return -1;
     }
 
     /*First close any active connection if exist*/
-    if(app_ble_cb.ble_client[client_num].conn_id != BSA_BLE_INVALID_CONN) {
-        status = BSA_BleClCloseInit(&ble_close_param);
-        if (status != BSA_SUCCESS) {
-            APP_ERROR1("BSA_BleClCLoseInit failed status = %d", status);
-            return -1;
-        }
-        ble_close_param.conn_id = app_ble_cb.ble_client[client_num].conn_id;
-        status = BSA_BleClClose(&ble_close_param);
-        if (status != BSA_SUCCESS) {
-            APP_ERROR1("BSA_BleClClose failed status = %d", status);
-            return -1;
+    for(client_num = 0; client_num < APP_MAX_NB_REMOTE_STORED_DEVICES; client_num++)
+    {
+        if((bdcmp(app_xml_remote_devices_db[xml_idx].bd_addr,
+            app_ble_cb.ble_client[client_num].server_addr) == 0) &&
+            app_ble_cb.ble_client[client_num].conn_id != BSA_BLE_INVALID_CONN)
+        {
+            status = BSA_BleClCloseInit(&ble_close_param);
+            if (status != BSA_SUCCESS)
+            {
+                APP_ERROR1("BSA_BleClCLoseInit failed status = %d", status);
+                return -1;
+            }
+            ble_close_param.conn_id = app_ble_cb.ble_client[client_num].conn_id;
+            status = BSA_BleClClose(&ble_close_param);
+            if (status != BSA_SUCCESS)
+            {
+                APP_ERROR1("BSA_BleClClose failed status = %d", status);
+                return -1;
+            }
         }
     }
 
     /* Remove the device from Security database (BSA Server) */
     BSA_SecRemoveDeviceInit(&sec_remove_dev);
-
-    /* Read the XML file which contains all the bonded devices */
-    app_read_xml_remote_devices();
-
-    if ((client_num >= 0) &&
-        (client_num < APP_MAX_NB_REMOTE_STORED_DEVICES) &&
-        (app_xml_remote_devices_db[client_num].in_use != FALSE)) {
-        bdcpy(sec_remove_dev.bd_addr, app_xml_remote_devices_db[client_num].bd_addr);
-        status = BSA_SecRemoveDevice(&sec_remove_dev);
-    } else {
-        APP_ERROR1("Wrong input [%d]",client_num);
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_SecRemoveDeviceInit failed status = %d", status);
         return -1;
     }
 
-    if (status != BSA_SUCCESS) {
-        APP_ERROR1("BSA_SecRemoveDevice Operation Failed with status [%d]",status);
+    bdcpy(sec_remove_dev.bd_addr, app_xml_remote_devices_db[xml_idx].bd_addr);
+    status = BSA_SecRemoveDevice(&sec_remove_dev);
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("BSA_SecRemoveDevice Operation Failed with status = %d", status);
         return -1;
-    } else {
-        /* delete the device from database */
-        app_xml_remote_devices_db[client_num].in_use = FALSE;
-        app_write_xml_remote_devices();
     }
+
+    /* delete the device from database */
+    app_xml_remote_devices_db[xml_idx].in_use = FALSE;
+    app_write_xml_remote_devices();
 
     APP_INFO0("Remove device from BLE DB");
     APP_DEBUG1("BDA:%02X:%02X:%02X:%02X:%02X:%02X",
-              app_xml_remote_devices_db[client_num].bd_addr[0], app_xml_remote_devices_db[client_num].bd_addr[1],
-              app_xml_remote_devices_db[client_num].bd_addr[2], app_xml_remote_devices_db[client_num].bd_addr[3],
-              app_xml_remote_devices_db[client_num].bd_addr[4], app_xml_remote_devices_db[client_num].bd_addr[5]);
+              app_xml_remote_devices_db[xml_idx].bd_addr[0],
+              app_xml_remote_devices_db[xml_idx].bd_addr[1],
+              app_xml_remote_devices_db[xml_idx].bd_addr[2],
+              app_xml_remote_devices_db[xml_idx].bd_addr[3],
+              app_xml_remote_devices_db[xml_idx].bd_addr[4],
+              app_xml_remote_devices_db[xml_idx].bd_addr[5]);
 
     /* search BLE DB */
-    p_blecl_db_elmt = app_ble_client_db_find_by_bda(app_xml_remote_devices_db[client_num].bd_addr);
-    if(p_blecl_db_elmt != NULL) {
+    p_blecl_db_elmt = app_ble_client_db_find_by_bda(app_xml_remote_devices_db[xml_idx].bd_addr);
+    if(p_blecl_db_elmt != NULL)
+    {
         APP_DEBUG0("Device present in DB, So clear it!!");
-        app_ble_client_db_clear_by_bda(app_xml_remote_devices_db[client_num].bd_addr);
+        app_ble_client_db_clear_by_bda(app_xml_remote_devices_db[xml_idx].bd_addr);
         app_ble_client_db_save();
-    } else {
+    }
+    else
+    {
         APP_DEBUG0("No device present");
     }
-    return 0;
-}
 
-int app_ble_client_remove_device_info(BD_ADDR bd_addr)
-{
-    tBSA_STATUS status;
-    tBSA_SEC_REMOVE_DEV sec_remove_dev;
-    tBSA_BLE_CL_CLOSE ble_close_param;
-    int client_num;
-    tAPP_BLE_CLIENT_DB_ELEMENT *p_blecl_db_elmt;
-
-    client_num = app_ble_client_find_index_by_addr(bd_addr);
-    if((client_num < 0) || (client_num >= BSA_BLE_CLIENT_MAX) ||
-       (app_ble_cb.ble_client[client_num].enabled == FALSE)) {
-        APP_ERROR1("Wrong client number! = %d", client_num);
-        return -1;
-    }
-
-    /* Remove the device from Security database (BSA Server) */
-    BSA_SecRemoveDeviceInit(&sec_remove_dev);
-
-    /* Read the XML file which contains all the bonded devices */
-    app_read_xml_remote_devices();
-
-    if ((client_num >= 0) &&
-        (client_num < APP_MAX_NB_REMOTE_STORED_DEVICES) &&
-        (app_xml_remote_devices_db[client_num].in_use != FALSE)) {
-        bdcpy(sec_remove_dev.bd_addr, app_xml_remote_devices_db[client_num].bd_addr);
-        status = BSA_SecRemoveDevice(&sec_remove_dev);
-    } else {
-        APP_ERROR1("Wrong input [%d]",client_num);
-        return -1;
-    }
-
-    if (status != BSA_SUCCESS) {
-        APP_ERROR1("BSA_SecRemoveDevice Operation Failed with status [%d]",status);
-        return -1;
-    } else {
-        /* delete the device from database */
-        app_xml_remote_devices_db[client_num].in_use = FALSE;
-        app_write_xml_remote_devices();
-    }
-
-    APP_INFO0("Remove device from BLE DB");
-    APP_DEBUG1("BDA:%02X:%02X:%02X:%02X:%02X:%02X",
-              app_xml_remote_devices_db[client_num].bd_addr[0], app_xml_remote_devices_db[client_num].bd_addr[1],
-              app_xml_remote_devices_db[client_num].bd_addr[2], app_xml_remote_devices_db[client_num].bd_addr[3],
-              app_xml_remote_devices_db[client_num].bd_addr[4], app_xml_remote_devices_db[client_num].bd_addr[5]);
-
-    /* search BLE DB */
-    p_blecl_db_elmt = app_ble_client_db_find_by_bda(app_xml_remote_devices_db[client_num].bd_addr);
-    if(p_blecl_db_elmt != NULL) {
-        APP_DEBUG0("Device present in DB, So clear it!!");
-        app_ble_client_db_clear_by_bda(app_xml_remote_devices_db[client_num].bd_addr);
-        app_ble_client_db_save();
-    } else {
-        APP_DEBUG0("No device present");
-    }
     return 0;
 }
 

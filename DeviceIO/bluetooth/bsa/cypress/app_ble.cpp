@@ -30,6 +30,7 @@ tAPP_BLE_CB app_ble_cb;
  */
 static int app_ble_config_bdaddr_for_wakeup(BD_ADDR tgt_addr);
 
+static void app_ble_common_cback(tBSA_BLE_EVT event, tBSA_BLE_MSG *p_data);
 /*
  * BLE common functions
  */
@@ -45,7 +46,7 @@ static int app_ble_config_bdaddr_for_wakeup(BD_ADDR tgt_addr);
  
 /*******************************************************************************
  **
- ** Function         app_av_display_vendor_commands
+ ** Function         app_ble_display_service_name
  **
  ** Description      This function display the name of vendor dependent command
  **
@@ -197,6 +198,8 @@ int app_ble_start(void)
     APP_INFO0("app_ble_start");
 
     BSA_BleEnableInit(&enable_param);
+
+    enable_param.p_cback = app_ble_common_cback;
 
     status = BSA_BleEnable(&enable_param);
     if (status != BSA_SUCCESS)
@@ -538,6 +541,220 @@ int app_ble_apcf_cfg(void)
 
     return 0;
 }
+
+/*******************************************************************************
+**
+** Function         app_ble_common_cback
+**
+** Description      BLE common events callback.
+**
+** Returns          void
+**
+*******************************************************************************/
+static void app_ble_common_cback(tBSA_BLE_EVT event, tBSA_BLE_MSG *p_data)
+{
+    APP_DEBUG1("app_ble_common_cback event = %d ", event);
+
+    switch (event)
+    {
+    case BSA_BLE_APCF_ENABLE_EVT:
+        APP_INFO1("APCF %s, status %d",
+            (p_data->apcf_enable.enable ? "Enable" : "Disable"),
+            p_data->apcf_enable.status);
+        break;
+
+    case BSA_BLE_APCF_CFG_EVT:
+        if (p_data->apcf_cfg.status == BSA_SUCCESS)
+        {
+            if (p_data->apcf_cfg.cond_type == BSA_BLE_APCF_FILTER_SETTING)
+            {
+                APP_INFO1("status : %d cond : %d action : %d the remainder filter is : %d",
+                    p_data->apcf_cfg.status, p_data->apcf_cfg.cond_type,
+                    p_data->apcf_cfg.action, p_data->apcf_cfg.num_avail);
+            }
+            else
+            {
+                APP_INFO1("status : %d cond : %d action : %d the remainder condition is : %d",
+                    p_data->apcf_cfg.status, p_data->apcf_cfg.cond_type,
+                    p_data->apcf_cfg.action, p_data->apcf_cfg.num_avail);
+            }
+        }
+        else
+        {
+            APP_INFO1("status : %d cond : %d action : %d",
+                p_data->apcf_cfg.status, p_data->apcf_cfg.cond_type,
+                p_data->apcf_cfg.action);
+        }
+        break;
+#if (defined APP_BLE_2M_PHY_INCLUDED) && (APP_BLE_2M_PHY_INCLUDED == TRUE)
+    case BSA_BLE_PHY_INFO_EVT:
+        APP_INFO0("BSA_BLE_PHY_INFO_EVT");
+        APP_INFO1("%02X:%02X:%02X:%02X:%02X:%02X",
+            p_data->phy_info.bd_addr[0], p_data->phy_info.bd_addr[1],
+            p_data->phy_info.bd_addr[2], p_data->phy_info.bd_addr[3],
+            p_data->phy_info.bd_addr[4], p_data->phy_info.bd_addr[5]);
+        APP_DEBUG1("status:0x%x, tx phy:0x%x, rx phy:0x%x",
+            p_data->phy_info.status, p_data->phy_info.tx_phy, p_data->phy_info.rx_phy);
+        break;
+    case BSA_BLE_PHY_UPDATE_EVT:
+        APP_INFO1("BSA_BLE_PHY_UPDATE_EVT, is_preference:%d", p_data->phy_info.is_preference);
+        if (p_data->phy_info.is_preference == TRUE)
+        {
+            APP_DEBUG1("set preference, status:0x%x", p_data->phy_info.status);
+        }
+        else
+        {
+            APP_INFO1("%02X:%02X:%02X:%02X:%02X:%02X",
+                p_data->phy_info.bd_addr[0], p_data->phy_info.bd_addr[1],
+                p_data->phy_info.bd_addr[2], p_data->phy_info.bd_addr[3],
+                p_data->phy_info.bd_addr[4], p_data->phy_info.bd_addr[5]);
+            APP_DEBUG1("status:0x%x, tx phy:0x%x, rx phy:0x%x",
+                p_data->phy_info.status, p_data->phy_info.tx_phy, p_data->phy_info.rx_phy);
+        }
+        break;
+#endif
+    case BSA_BLE_CONN_PARAM_UPDATE_EVT:
+        APP_INFO0("BSA_BLE_CONN_PARAM_UPDATE_EVT");
+        APP_INFO1("%02X:%02X:%02X:%02X:%02X:%02X",
+            p_data->conn_update.bd_addr[0], p_data->conn_update.bd_addr[1],
+            p_data->conn_update.bd_addr[2], p_data->conn_update.bd_addr[3],
+            p_data->conn_update.bd_addr[4], p_data->conn_update.bd_addr[5]);
+        APP_INFO1("status:%d, conn_interval:%d, conn_latency:%d conn_timeout:%d",
+            p_data->conn_update.status,
+            p_data->conn_update.conn_interval,
+            p_data->conn_update.conn_latency,
+            p_data->conn_update.conn_timeout);
+        break;
+    default:
+        break;
+    }
+}
+
+#if (defined APP_BLE_2M_PHY_INCLUDED) && (APP_BLE_2M_PHY_INCLUDED == TRUE)
+/*******************************************************************************
+ **
+ ** Function        app_ble_read_phy
+ **
+ ** Description     read current phy status for active connection
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+int app_ble_read_phy(void)
+{
+    tBSA_STATUS status;
+    tBSA_BLE_READ_PHY read_phy_param;
+
+    status = BSA_BleReadPhyInit(&read_phy_param);
+
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("app_ble_read_phy failed status = %d", status);
+        return -1;
+    }
+
+    APP_INFO0("Enter the BD address to read phy status (AA.BB.CC.DD.EE.FF):");
+    if (scanf("%hhx.%hhx.%hhx.%hhx.%hhx.%hhx",
+        &read_phy_param.bd_addr[0], &read_phy_param.bd_addr[1],
+        &read_phy_param.bd_addr[2], &read_phy_param.bd_addr[3],
+        &read_phy_param.bd_addr[4], &read_phy_param.bd_addr[5]) != 6)
+    {
+        APP_ERROR0("BD address not entered correctly");
+        return -1;
+    }
+
+    status = BSA_BleReadPhy(&read_phy_param);
+
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("app_ble_read_phy failed status = %d", status);
+        return -1;
+    }
+    return 0;
+}
+
+/*******************************************************************************
+ **
+ ** Function        app_ble_set_phy
+ **
+ ** Description     set current phy status for active connection/preference
+ **
+ ** Parameters      None
+ **
+ ** Returns         status: 0 if success / -1 otherwise
+ **
+ *******************************************************************************/
+int app_ble_set_phy(void)
+{
+    tBSA_STATUS status;
+    tBSA_BLE_SET_PHY set_phy_param;
+    UINT8 rx_phy, tx_phy;
+    UINT16 phy_opt;
+
+    status = BSA_BleSetPhyInit(&set_phy_param);
+
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("app_ble_set_phy failed status = %d", status);
+        return -1;
+    }
+
+    set_phy_param.preference = app_get_choice("Is this default preference value?(0 = no, 1 = yes)");
+
+    tx_phy = app_get_choice("Set preferred phy mask for TX: (e.g. bit0: no preference, bit1: 1M preferred, bit2: 2M preferrred");
+    if (tx_phy > 7)
+    {
+        APP_ERROR0("app_ble_set_phy : Invalid phy entered, should be 0~7");
+        return -1;
+    }
+
+    rx_phy = app_get_choice("Set preferred phy mask for RX: (e.g. bit0: no preference, bit1: 1M preferred, bit2: 2M preferrred");
+    if (rx_phy > 7)
+    {
+        APP_ERROR0("app_ble_set_phy : Invalid phy entered, should be 0~7");
+        return -1;
+    }
+
+    if (set_phy_param.preference != TRUE)
+    {
+        /*
+            0 = the Host has no preferred coding when transmitting on the LE Coded PHY
+            1 = the Host prefers that S=2 coding be used when transmitting on the LE Coded PHY
+            2 = the Host prefers that S=8 coding be used when transmitting on the LE Coded PHY
+        */
+        phy_opt = app_get_choice("Enter phy options: (e.g. 0: no coding preference, 1: S2, 2: S8");
+        if (phy_opt > 2)
+        {
+            APP_ERROR0("app_ble_set_phy : Invalid phy option entered, should be 0~2");
+            return -1;
+        }
+
+        APP_INFO0("Enter the BD address to set phy status (AA.BB.CC.DD.EE.FF):");
+        if (scanf("%hhx.%hhx.%hhx.%hhx.%hhx.%hhx",
+            &set_phy_param.bd_addr[0], &set_phy_param.bd_addr[1],
+            &set_phy_param.bd_addr[2], &set_phy_param.bd_addr[3],
+            &set_phy_param.bd_addr[4], &set_phy_param.bd_addr[5]) != 6)
+        {
+            APP_ERROR0("BD address not entered correctly");
+            return -1;
+        }
+    }
+
+    set_phy_param.tx_phy = tx_phy;
+    set_phy_param.rx_phy = rx_phy;
+    set_phy_param.phy_opt = phy_opt;
+
+    status = BSA_BleSetPhy(&set_phy_param);
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("app_ble__set_phy failed status = %d", status);
+        return -1;
+    }
+    return status;
+}
+#endif
 
 int app_ble_string_to_uuid16(UINT16 *uuid, const char *string)
 {

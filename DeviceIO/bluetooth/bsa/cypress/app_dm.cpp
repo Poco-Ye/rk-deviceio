@@ -4,8 +4,8 @@
  **
  **  Description:        Device Management utility functions for applications
  **
- **  Copyright (c) 2015, Broadcom Corp., All Rights Reserved.
- **  Broadcom Bluetooth Core. Proprietary and confidential.
+ **  COPYRIGHT (C) 2018, CYPRESS SEMICONDUCTOR, ALL RIGHTS RESERVED.
+ **  PROPRIETARY AND CONFIDENTIAL.
  **
  *****************************************************************************/
 
@@ -482,6 +482,7 @@ int app_dm_set_ble_adv_param(tBSA_DM_BLE_ADV_PARAM *p_req)
     bt_config.ble_adv_param.adv_int_min = p_req->adv_int_min;
     bt_config.ble_adv_param.adv_int_max = p_req->adv_int_max;
     bt_config.ble_adv_param.inst_id = p_req->inst_id;
+    bt_config.ble_adv_param.tx_power = p_req->tx_power;
 
     bsa_status = BSA_DmSetConfig(&bt_config);
     if (bsa_status != BSA_SUCCESS)
