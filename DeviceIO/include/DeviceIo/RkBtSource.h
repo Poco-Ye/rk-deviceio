@@ -53,6 +53,7 @@ typedef enum {
 
 typedef void (*RK_BT_SOURCE_CALLBACK)(void *userdata, const char *bd_addr, const char *name, const RK_BT_SOURCE_EVENT event);
 
+int rk_bt_source_register_status_cb(void *userdata, RK_BT_SOURCE_CALLBACK cb);
 int rk_bt_source_auto_connect_start(void *userdata, RK_BT_SOURCE_CALLBACK cb);
 int rk_bt_source_auto_connect_stop(void);
 int rk_bt_source_open(void);
@@ -60,12 +61,11 @@ int rk_bt_source_close(void);
 int rk_bt_source_get_device_name(char *name, int len);
 int rk_bt_source_get_device_addr(char *addr, int len);
 int rk_bt_source_get_status(RK_BT_SOURCE_STATUS *pstatus, char *name, int name_len, char *addr, int addr_len);
-int rk_bt_source_scan(BtScanParam *data, RK_BT_SCAN_TYPE scan_type);
+int rk_bt_source_scan(BtScanParam *data);
 int rk_bt_source_connect_by_addr(char *address);
 int rk_bt_source_disconnect_by_addr(char *address);
 int rk_bt_source_disconnect();
 int rk_bt_source_remove(char *address);
-int rk_bt_source_register_status_cb(void *userdata, RK_BT_SOURCE_CALLBACK cb);
 int rk_bt_source_resume(void);
 int rk_bt_source_stop(void);
 int rk_bt_source_pause(void);

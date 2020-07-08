@@ -123,7 +123,7 @@ static void rk_bt_discovery_status_cb(RK_BT_DISCOVERY_STATE status)
 static void rk_bt_dev_found_cb(const char *address, const char *name, unsigned int bt_class, int rssi)
 {
 	/*INVALID = 0, SOURCE = 1, SINK = 2*/
-	if(rk_bt_get_playrole_by_addr(address) == 2) {
+	if(rk_bt_get_playrole_by_addr(address) == PLAYROLE_TYPE_SINK) {
 		int i, name_len, scan_msg_len = 0;
 		scan_devices_t *scan_devices;
 		scan_msg_t *scan_msg;

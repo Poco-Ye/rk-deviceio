@@ -157,14 +157,6 @@ static int btmg_sink_callback(RK_BT_SINK_STATE state)
 	switch(state) {
 		case RK_BT_SINK_STATE_IDLE:
 			break;
-#if 0
-		case RK_BT_SINK_STATE_CONNECTING:
-			_btmg_sink_conn_state_cb(bd_addr, BTMG_A2DP_SINK_CONNECTING);
-			break;
-		case RK_BT_SINK_STATE_DISCONNECTING:
-			_btmg_sink_conn_state_cb(bd_addr, BTMG_A2DP_SINK_DISCONNECTING);
-			break;
-#endif
 		case RK_BT_SINK_STATE_CONNECT:
 			_btmg_sink_conn_state_cb(bd_addr, BTMG_A2DP_SINK_CONNECTED);
 			break;

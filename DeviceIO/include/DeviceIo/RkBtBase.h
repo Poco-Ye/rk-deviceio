@@ -38,6 +38,12 @@ enum {
 	BLE_ADVDATA_TYPE_SYSTEM
 };
 
+typedef enum {
+	PLAYROLE_TYPE_UNKNOWN,
+	PLAYROLE_TYPE_SOURCE,
+	PLAYROLE_TYPE_SINK,
+} RK_BT_PLAYROLE_TYPE;
+
 /*BT state*/
 typedef enum {
 	RK_BT_STATE_OFF,
@@ -131,9 +137,7 @@ int rk_bt_free_paired_devices(RkBtScanedDevice *dev_list);
 void rk_bt_display_paired_devices();
 int rk_bt_set_visibility(const int visiable, const int connectable);
 bool rk_bt_get_connected_properties(char *addr);
-
-/*INVALID = 0, SOURCE = 1, SINK = 2*/
-int rk_bt_get_playrole_by_addr(char *addr);
+RK_BT_PLAYROLE_TYPE rk_bt_get_playrole_by_addr(char *addr);
 
 //for bsa, default /usr/bin/bsa_server.sh
 void rk_bt_set_bsa_server_path(char *path);

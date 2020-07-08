@@ -342,8 +342,12 @@ int rk_ble_client_notify(const char *uuid, bool is_indicate, bool enable)
 
 int rk_ble_client_get_eir_data(char *address, char *eir_data, int len)
 {
-	pr_info("bluez don't support %s\n", __func__);
-	return -1;
+	if(!ble_client_is_open()) {
+		pr_err("ble client isn't open, please open\n");
+		return -1;
+	}
+
+	return gatt_client_get_eir_data(address, eir_data, len);
 }
 
 int rk_ble_client_default_data_length()
@@ -376,7 +380,7 @@ static void* _btmaster_autoscan_and_connect(void *data)
 
 scan_retry:
 	pr_info("=== BT_SOURCE_SCAN ===\n");
-	ret = rk_bt_source_scan(&scan_param, SCAN_TYPE_BREDR);
+	ret = rk_bt_source_scan(&scan_param);
 	if (ret && (scan_cnt--)) {
 		sleep(1);
 		goto scan_retry;
@@ -538,7 +542,7 @@ int rk_bt_source_close()
 	return bt_hal_source_close(true);
 }
 
-int rk_bt_source_scan(BtScanParam *data, RK_BT_SCAN_TYPE scan_type)
+int rk_bt_source_scan(BtScanParam *data)
 {
 	if (!bt_source_is_open()) {
 		pr_info("%s: bt source isn't open, please open\n", __func__);
@@ -546,7 +550,7 @@ int rk_bt_source_scan(BtScanParam *data, RK_BT_SCAN_TYPE scan_type)
 	}
 
 	source_set_reconnect_tag(false);
-	return a2dp_master_scan(data, sizeof(BtScanParam), scan_type);
+	return a2dp_master_scan(data, sizeof(BtScanParam), SCAN_TYPE_BREDR);
 }
 
 int rk_bt_source_connect_by_addr(char *address)
@@ -1447,7 +1451,7 @@ int rk_bt_free_paired_devices(RkBtScanedDevice *dev_list)
 	return bt_free_scaned_devices(dev_list);
 }
 
-int rk_bt_get_playrole_by_addr(char *addr)
+RK_BT_PLAYROLE_TYPE rk_bt_get_playrole_by_addr(char *addr)
 {
 	if (!bt_is_open()) {
 		pr_info("%s: Please open bt!!!\n", __func__);

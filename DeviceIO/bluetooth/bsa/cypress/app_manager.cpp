@@ -1785,7 +1785,7 @@ int app_mgt_set_cod(int cod)
 {
     tBSA_DM_SET_CONFIG bsa_dm_set_config;
 
-    if (cod <= 0) {
+    if (cod < 0) {
         APP_ERROR1("invalid cod value: %d", cod);
         return -1;
     }
@@ -2354,10 +2354,11 @@ static int app_mgr_list_push_back(RkBtScanedDevice **dev_list, BD_ADDR bd_addr, 
 
 int app_mgr_get_scaned_devices(RkBtScanedDevice **dev_list,int *count, bool paired)
 {
-    int i, index;
+    int i, ret, index;
     bool is_connected;
 
-    if(app_mgr_read_remote_devices() < 0)
+    ret = app_mgr_read_remote_devices();
+    if(paired && (ret < 0))
         return -1;
 
     if(paired) {
@@ -2372,8 +2373,11 @@ int app_mgr_get_scaned_devices(RkBtScanedDevice **dev_list,int *count, bool pair
         }
     } else {
         for (index = 0; index < APP_DISC_NB_DEVICES; index++) {
-            if (app_discovery_cb.devs[index].in_use != FALSE) {
-                is_connected = false;
+            if(app_discovery_cb.devs[index].in_use == FALSE)
+                continue;
+
+            is_connected = false;
+            if(!ret) {
                 for(i = 0; i < APP_NUM_ELEMENTS(app_xml_remote_devices_db); i++) {
                     if(app_xml_remote_devices_db[i].in_use
                         && !bdcmp(app_xml_remote_devices_db[i].bd_addr, app_discovery_cb.devs[index].device.bd_addr)) {
@@ -2381,12 +2385,12 @@ int app_mgr_get_scaned_devices(RkBtScanedDevice **dev_list,int *count, bool pair
                             break;
                         }
                 }
-
-                if(!app_mgr_list_push_back(dev_list, app_discovery_cb.devs[index].device.bd_addr,
-                        app_discovery_cb.devs[index].device.name, is_connected,
-                        app_discovery_cb.devs[index].device.class_of_device))
-                    (*count)++;
             }
+
+            if(!app_mgr_list_push_back(dev_list, app_discovery_cb.devs[index].device.bd_addr,
+                    app_discovery_cb.devs[index].device.name, is_connected,
+                    app_discovery_cb.devs[index].device.class_of_device))
+                (*count)++;
         }
     }
 
@@ -2437,24 +2441,46 @@ int app_mgr_xml_display_devices()
 
 void app_mgr_register_name_callback(RK_BT_NAME_CHANGE_CALLBACK cb)
 {
-	app_mgr_name_change_cb = cb;
+    app_mgr_name_change_cb = cb;
 }
 
 void app_mgr_deregister_name_callback()
 {
-	app_mgr_name_change_cb = NULL;
+    app_mgr_name_change_cb = NULL;
 }
 
 int app_mgr_name_change_send(BD_ADDR bd_addr, BD_NAME bd_name)
 {
-	char address[BT_DEVICE_ADDRESS_LEN];
+    char address[BT_DEVICE_ADDRESS_LEN];
 
-	if(!app_mgr_name_change_cb)
-		return -1;
+    if(!app_mgr_name_change_cb)
+        return -1;
 
-	if(app_mgr_bd2str(bd_addr, address, BT_DEVICE_ADDRESS_LEN) < 0)
-		return -1;
+    if(app_mgr_bd2str(bd_addr, address, BT_DEVICE_ADDRESS_LEN) < 0)
+        return -1;
 
-	app_mgr_name_change_cb(address, (char *)bd_name);
-	return 0;
+    app_mgr_name_change_cb(address, (char *)bd_name);
+    return 0;
+}
+
+RK_BT_PLAYROLE_TYPE app_mgr_get_playrole_by_addr(BD_ADDR bd_addr)
+{
+    int index;
+    RK_BT_PLAYROLE_TYPE ret = PLAYROLE_TYPE_UNKNOWN;
+
+    for (index = 0; index < APP_DISC_NB_DEVICES; index++) {
+        if (app_discovery_cb.devs[index].in_use) {
+            if(bdcmp(bd_addr, app_discovery_cb.devs[index].device.bd_addr))
+                continue;
+
+            if(strstr((char *)app_discovery_cb.devs[index].device.playrole, "Audio Sink") != NULL)
+                ret = PLAYROLE_TYPE_SINK;
+            else if(strstr((char *)app_discovery_cb.devs[index].device.playrole, "Audio Source") != NULL)
+                ret = PLAYROLE_TYPE_SOURCE;
+
+            break;
+        }
+    }
+
+    return ret;
 }

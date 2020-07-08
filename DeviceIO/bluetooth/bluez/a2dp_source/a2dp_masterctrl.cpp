@@ -99,10 +99,7 @@ GDBusProxy *default_attr = NULL;
 GList *ctrl_list;
 
 GDBusClient *btsrc_client = NULL;
-/* For scan cmd */
-#define BTSRC_SCAN_PROFILE_INVALID 0
-#define BTSRC_SCAN_PROFILE_SOURCE  1
-#define BTSRC_SCAN_PROFILE_SINK    2
+
 /* For connect cmd */
 #define BTSRC_CONNECT_IDLE   0
 #define BTSRC_CONNECT_DOING  1
@@ -488,7 +485,7 @@ static void print_device(GDBusProxy *proxy, const char *description)
 	else
 		name = "<unknown>";
 
-	pr_info("%s%s%sDevice %s %s\n",
+	printf("%s%s%sDevice %s %s\n",
 				description ? "[" : "",
 				description ? : "",
 				description ? "] " : "",
@@ -3435,16 +3432,16 @@ static int a2dp_master_get_rssi(GDBusProxy *proxy)
 	return rssi;
 }
 
-static int a2dp_master_get_playrole(GDBusProxy *proxy)
+static RK_BT_PLAYROLE_TYPE a2dp_master_get_playrole(GDBusProxy *proxy)
 {
-	int ret = BTSRC_SCAN_PROFILE_INVALID;
+	int ret = PLAYROLE_TYPE_UNKNOWN;
 	enum BT_Device_Class device_class;
 
 	device_class = dist_dev_class(proxy);
 	if (device_class == BT_Device_Class::BT_SINK_DEVICE)
-		ret = BTSRC_SCAN_PROFILE_SINK;
+		ret = PLAYROLE_TYPE_SINK;
 	else if (device_class == BT_Device_Class::BT_SOURCE_DEVICE)
-		ret = BTSRC_SCAN_PROFILE_SOURCE;
+		ret = PLAYROLE_TYPE_SOURCE;
 
 	return ret;
 }
@@ -3504,9 +3501,9 @@ int a2dp_master_scan(void *arg, int len, RK_BT_SCAN_TYPE scan_type)
 		}
 		/* Get bluetooth AudioProfile */
 		ret = a2dp_master_get_playrole(proxy);
-		if (ret == BTSRC_SCAN_PROFILE_SINK)
+		if (ret == PLAYROLE_TYPE_SINK)
 			memcpy(start->playrole, "Audio Sink", strlen("Audio Sink"));
-		else if (ret == BTSRC_SCAN_PROFILE_SOURCE)
+		else if (ret == PLAYROLE_TYPE_SOURCE)
 			memcpy(start->playrole, "Audio Source", strlen("Audio Source"));
 		else
 			memcpy(start->playrole, "Unknow", strlen("Unknow"));
@@ -4665,7 +4662,7 @@ bool bt_is_connected()
 	return ret;
 }
 
-int bt_get_playrole_by_addr(char *addr)
+RK_BT_PLAYROLE_TYPE bt_get_playrole_by_addr(char *addr)
 {
 	GDBusProxy *proxy;
 

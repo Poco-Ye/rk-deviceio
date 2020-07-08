@@ -605,10 +605,26 @@ int rk_bt_free_paired_devices(RkBtScanedDevice *dev_list)
     return app_mgr_free_scaned_devices(dev_list);
 }
 
-int rk_bt_get_playrole_by_addr(char *addr)
+RK_BT_PLAYROLE_TYPE rk_bt_get_playrole_by_addr(char *addr)
 {
-    APP_DEBUG1("bsa don't support %s", __func__);
-    return 0;
+    BD_ADDR bd_addr;
+
+    if(!addr || (strlen(addr) < 17)) {
+        APP_ERROR0("invalid address");
+        return -1;
+    }
+
+    if(!bt_is_open()) {
+        APP_DEBUG0("bluetooth is not inited, please init");
+        return -1;
+    }
+
+    if(app_mgr_str2bd(addr, bd_addr) < 0) {
+        APP_ERROR1("unpair device(%s)failed", addr);
+        return -1;
+    }
+
+    return app_mgr_get_playrole_by_addr(bd_addr);
 }
 
 int rk_bt_set_visibility(const int visiable, const int connect)
@@ -1333,7 +1349,7 @@ int rk_bt_source_close()
     return 0;
 }
 
-int rk_bt_source_scan(BtScanParam *data, RK_BT_SCAN_TYPE scan_type)
+int rk_bt_source_scan(BtScanParam *data)
 {
     if(!a2dp_source_is_open()) {
         APP_DEBUG0("a2dp source is not inited, please init");

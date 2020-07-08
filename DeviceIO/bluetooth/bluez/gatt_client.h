@@ -22,6 +22,7 @@ int gatt_client_read(char *uuid, int offset);
 int gatt_client_write(char *uuid, char *data, int data_len, int offset);
 bool gatt_client_is_notifying(const char *uuid);
 int gatt_client_notify(const char *uuid, bool enable);
+int gatt_client_get_eir_data(char *address, char *eir_data, int eir_len);
 
 #ifdef __cplusplus
 }

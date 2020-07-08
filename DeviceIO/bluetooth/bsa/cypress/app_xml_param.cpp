@@ -2027,8 +2027,8 @@ int app_xml_display_devices(const tAPP_XML_REM_DEVICE *p_stored_device_db,
     {
         if (p_stored_device_db[index].in_use != FALSE)
         {
-            APP_INFO1("Dev:%d", index);
-            APP_INFO1("\tBdaddr:%02x:%02x:%02x:%02x:%02x:%02x",
+            printf("Dev:%d\n", index);
+            printf("\tBdaddr:%02x:%02x:%02x:%02x:%02x:%02x\n",
                     p_stored_device_db[index].bd_addr[0],
                     p_stored_device_db[index].bd_addr[1],
                     p_stored_device_db[index].bd_addr[2],
@@ -2036,9 +2036,9 @@ int app_xml_display_devices(const tAPP_XML_REM_DEVICE *p_stored_device_db,
                     p_stored_device_db[index].bd_addr[4],
                     p_stored_device_db[index].bd_addr[5]);
 #if (defined(BLE_INCLUDED) && BLE_INCLUDED == TRUE)
-            APP_INFO1("\tLatest Connect:%d", p_stored_device_db[index].latest_connect);
-            APP_INFO1("\tConnected:%d", p_stored_device_db[index].is_connected);
-            APP_INFO1("\tIdentity Bdaddr:%02x:%02x:%02x:%02x:%02x:%02x",
+            printf("\tLatest Connect:%d\n", p_stored_device_db[index].latest_connect);
+            printf("\tConnected:%d\n", p_stored_device_db[index].is_connected);
+            printf("\tIdentity Bdaddr:%02x:%02x:%02x:%02x:%02x:%02x\n",
                     p_stored_device_db[index].pid_static_addr[0],
                     p_stored_device_db[index].pid_static_addr[1],
                     p_stored_device_db[index].pid_static_addr[2],
@@ -2046,21 +2046,21 @@ int app_xml_display_devices(const tAPP_XML_REM_DEVICE *p_stored_device_db,
                     p_stored_device_db[index].pid_static_addr[4],
                     p_stored_device_db[index].pid_static_addr[5]);
 #endif
-            APP_INFO1("\tName:%s", p_stored_device_db[index].name);
-            APP_INFO1("\tClassOfDevice:%02x:%02x:%02x => %s",
+            printf("\tName:%s\n", p_stored_device_db[index].name);
+            printf("\tClassOfDevice:%02x:%02x:%02x => %s\n",
                     p_stored_device_db[index].class_of_device[0],
                     p_stored_device_db[index].class_of_device[1],
                     p_stored_device_db[index].class_of_device[2],
                     app_get_cod_string(
                             p_stored_device_db[index].class_of_device));
-            APP_INFO1("\tTrusted Services:%x",
+            printf("\tTrusted Services:%x\n",
                     (int) p_stored_device_db[index].trusted_services);
             if (p_stored_device_db[index].link_key_present != FALSE)
-                APP_INFO0("\tLink Key present:TRUE");
+                printf("\tLink Key present:TRUE\n");
             else
-                APP_INFO0("\tLink Key present:FALSE");
+                printf("\tLink Key present:FALSE\n");
 
-            APP_INFO1("\tPid:%x Vid:%d", p_stored_device_db[index].pid,
+            printf("\tPid:%x Vid:%d\n", p_stored_device_db[index].pid,
                     p_stored_device_db[index].vid);
         }
     }

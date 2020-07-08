@@ -116,31 +116,31 @@ void app_disc_display_devices(void)
     {
         if (app_discovery_cb.devs[index].in_use != FALSE)
         {
-            APP_INFO1("Dev:%d", index);
-            APP_INFO1("\tBdaddr:%02x:%02x:%02x:%02x:%02x:%02x",
+            printf("Dev:%d\n", index);
+            printf("\tBdaddr:%02x:%02x:%02x:%02x:%02x:%02x\n",
                     app_discovery_cb.devs[index].device.bd_addr[0],
                     app_discovery_cb.devs[index].device.bd_addr[1],
                     app_discovery_cb.devs[index].device.bd_addr[2],
                     app_discovery_cb.devs[index].device.bd_addr[3],
                     app_discovery_cb.devs[index].device.bd_addr[4],
                     app_discovery_cb.devs[index].device.bd_addr[5]);
-            APP_INFO1("\tName:%s", app_discovery_cb.devs[index].device.name);
-            APP_INFO1("\tClassOfDevice:%02x:%02x:%02x => %s",
+            printf("\tName:%s\n", app_discovery_cb.devs[index].device.name);
+            printf("\tClassOfDevice:%02x:%02x:%02x => %s\n",
                     app_discovery_cb.devs[index].device.class_of_device[0],
                     app_discovery_cb.devs[index].device.class_of_device[1],
                     app_discovery_cb.devs[index].device.class_of_device[2],
                     app_get_cod_string(
                             app_discovery_cb.devs[index].device.class_of_device));
-            APP_INFO1("\tRssi:%d", app_discovery_cb.devs[index].device.rssi);
+            printf("\tRssi:%d\n", app_discovery_cb.devs[index].device.rssi);
             if (app_discovery_cb.devs[index].device.eir_vid_pid[0].valid)
             {
-                APP_INFO1("\tVidSrc:%d Vid:0x%04X Pid:0x%04X Version:0x%04X",
+                printf("\tVidSrc:%d Vid:0x%04X Pid:0x%04X Version:0x%04X\n",
                         app_discovery_cb.devs[index].device.eir_vid_pid[0].vendor_id_source,
                         app_discovery_cb.devs[index].device.eir_vid_pid[0].vendor,
                         app_discovery_cb.devs[index].device.eir_vid_pid[0].product,
                         app_discovery_cb.devs[index].device.eir_vid_pid[0].version);
             }
-            APP_INFO1("\tPlayrole: %s", app_discovery_cb.devs[index].device.playrole);
+            printf("\tPlayrole: %s\n", app_discovery_cb.devs[index].device.playrole);
         }
     }
 }

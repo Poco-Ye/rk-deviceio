@@ -74,7 +74,7 @@ bool bt_is_connected();
 int ble_disconnect(void);
 void ble_clean(void);
 int remove_ble_device();
-int bt_get_playrole_by_addr(char *addr);
+RK_BT_PLAYROLE_TYPE bt_get_playrole_by_addr(char *addr);
 void dev_found_send(GDBusProxy *proxy, RK_BT_DEV_FOUND_CALLBACK cb);
 struct GDBusProxy *find_device_by_address(char *address);
 void set_default_attribute(GDBusProxy *proxy);

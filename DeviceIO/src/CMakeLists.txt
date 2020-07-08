@@ -102,6 +102,6 @@ target_include_directories(DeviceIo PUBLIC
 		"${DeviceIo_SOURCE_DIR}/include"
 		"${RAPIDJSON_INCLUDE_DIR}")
 
-add_definitions("-Wall -g -O0 -fpermissive -Wno-unused-variable -Wno-write-strings -Wno-unused-function -Wno-write-strings")
+add_definitions("-Wall -rdynamic -g -gdwarf -O0 -fpermissive -Wno-unused-variable -Wno-write-strings -Wno-unused-function -Wno-write-strings")
 # install target
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)

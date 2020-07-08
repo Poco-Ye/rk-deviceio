@@ -88,9 +88,6 @@ static void bt_test_state_cb(RK_BT_STATE state)
 			break;
 		case RK_BT_STATE_ON:
 			printf("++++++++++ RK_BT_STATE_ON ++++++++++\n");
-			//rk_bt_enable_reconnect(1);
-			//bt_test_source_open(NULL);
-			//bt_test_start_discovery(NULL);
 			break;
 		case RK_BT_STATE_TURNING_OFF:
 			printf("++++++++++ RK_BT_STATE_TURNING_OFF ++++++++++\n");
@@ -542,14 +539,6 @@ int bt_sink_callback(RK_BT_SINK_STATE state)
 		case RK_BT_SINK_STATE_IDLE:
 			printf("++++++++++++ BT SINK EVENT: idle ++++++++++\n");
 			break;
-#if 0
-		case RK_BT_SINK_STATE_CONNECTING:
-			printf("++++++++++++ BT SINK EVENT: connecting ++++++++++\n");
-			break;
-		case RK_BT_SINK_STATE_DISCONNECTING:
-			printf("++++++++++++ BT SINK EVENT: disconnecting ++++++++++\n");
-			break;
-#endif
 		case RK_BT_SINK_STATE_CONNECT:
 			printf("++++++++++++ BT SINK EVENT: connect sucess ++++++++++\n");
 			break;
@@ -785,6 +774,7 @@ void bt_test_source_status_callback(void *userdata, const char *bd_addr,
 			break;
 		case BT_SOURCE_EVENT_CONNECTED:
 			printf("+++++ BT_SOURCE_EVENT_CONNECTED: %s, %s +++++\n", name, bd_addr);
+			printf("+++++ device playrole: %d\n", rk_bt_get_playrole_by_addr(bd_addr));
 			break;
 		case BT_SOURCE_EVENT_AUTO_RECONNECTING:
 			printf("+++++ BT_SOURCE_EVENT_AUTO_RECONNECTING: %s, %s +++++\n", name, bd_addr);
@@ -922,10 +912,32 @@ static void bt_test_ble_recv_data_callback(const char *uuid, char *data, int len
 	}
 }
 
+void *_send_data(void *data)
+{
+	char *uuid = (char *)data;
+
+	rk_ble_write(uuid, "abcd", 4);
+	usleep(100000);
+	rk_ble_write(uuid, "wwww", 4);
+	usleep(100000);
+	rk_ble_write(uuid, "zzzz", 4);
+}
+
+void send_data(char *uuid)
+{
+	pthread_t tid = 0;
+	if (pthread_create(&tid, NULL, _send_data, (void *)uuid)) {
+		printf("Create _send_data pthread failed\n");
+		return;
+	}
+}
+
 static void bt_test_ble_request_data_callback(const char *uuid)
 {
 	printf("=== %s uuid: %s===\n", __func__, uuid);
-	rk_ble_write(uuid, "Hello Rockchip", strlen("Hello Rockchip"));
+	//rk_ble_write(uuid, "Hello Rockchip", strlen("Hello Rockchip"));
+
+	send_data(uuid);
 }
 
 static void bt_test_mtu_callback(const char *bd_addr, unsigned int mtu)
@@ -993,7 +1005,7 @@ void bt_test_ble_write(char *data)
 		write_buf[i] = '0' + i % 10;
 	write_buf[write_len - 1] = '\0';
 
-	rk_ble_write(BLE_UUID_SEND, write_buf, write_len);
+	rk_ble_write(BLE_UUID_WIFI_CHAR, write_buf, write_len);
 	free(write_buf);
 }
 
@@ -1029,16 +1041,6 @@ void bt_test_ble_disconnect(char *data) {
 /******************************************/
 /*               BLE CLIENT               */
 /******************************************/
-static void ble_client_test_dev_found_cb(const char *address,const char *name, unsigned int bt_class, int rssi)
-{
-	printf("++++++++++++ BLE device is found ++++++++++++\n");
-	printf("    address: %s\n", address);
-	printf("    name: %s\n", name);
-	printf("    class: 0x%x\n", bt_class);
-	printf("    rssi: %d\n", rssi);
-	printf("+++++++++++++++++++++++++++++++++++++++++\n");
-}
-
 void ble_client_test_state_callback(const char *bd_addr, const char *name, RK_BLE_CLIENT_STATE state)
 {
 	switch(state)
@@ -1203,7 +1205,17 @@ void bt_test_ble_client_notify_off(char *data)
 void bt_test_ble_client_get_eir_data(char *data)
 {
 	char eir_data[300];
+	int i;
+
 	rk_ble_client_get_eir_data(data, eir_data, 300);
+#if 0
+	for(i = 0; i < 300; i++) {
+		printf("%02x ", eir_data[i]);
+		if((i != 0) && (i % 20 == 0))
+			printf("\n");
+	}
+	printf("\n");
+#endif
 }
 /******************************************/
 /*                  SPP                   */

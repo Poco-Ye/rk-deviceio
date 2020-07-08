@@ -197,3 +197,61 @@ int gatt_client_notify(const char *uuid, bool enable)
 
 	return gatt_notify_attribute(default_attr, enable ? true : false);
 }
+
+int gatt_client_get_eir_data(char *address, char *eir_data, int eir_len)
+{
+	DBusMessageIter iter;
+	DBusMessageIter array;
+	unsigned char *data;
+	int len, data_len = 0;
+	struct GDBusProxy *proxy;
+
+	if(!address || (strlen(address) < 17)) {
+		pr_err("%s: invalid address\n", __func__);
+		return -1;
+	}
+
+	if(!eir_data || len <= 0) {
+		pr_err("%s: invalid eir_data buf, len = %d\n", __func__, len);
+		return -1;
+	}
+
+	proxy = find_device_by_address(address);
+	if(proxy == NULL)
+		return -1;
+
+	if (g_dbus_proxy_get_property(proxy, "EirData", &iter) == FALSE) {
+		pr_err("%s: get broadcast data failed\n", __func__);
+		return- 1;
+	}
+
+	if (dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_ARRAY) {
+		pr_err("%s: iter type != DBUS_TYPE_ARRAY\n", __func__);
+		return -1;
+	}
+
+	dbus_message_iter_recurse(&iter, &array);
+
+	if (!dbus_type_is_fixed(dbus_message_iter_get_arg_type(&array))) {
+		pr_err("%s: dbus type isn't fixed\n", __func__);
+		return -1;
+	}
+
+	if(dbus_message_iter_get_arg_type(&array) != DBUS_TYPE_BYTE) {
+		pr_err("%s: iter type != DBUS_TYPE_BYTE\n", __func__);
+		return -1;
+	}
+
+	dbus_message_iter_get_fixed_array(&array, &data, &data_len);
+	if (data_len <= 0) {
+		pr_err("%s: get broadcast data failed, len = %d\n", __func__, data_len);
+		return -1;
+	}
+
+	bt_shell_hexdump((void *)data, data_len * sizeof(*data));
+
+	len = data_len > eir_len ? eir_len : data_len;
+	memset(eir_data, 0, eir_len);
+	memcpy(eir_data, data, len);
+	return 0;
+}

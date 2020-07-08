@@ -471,5 +471,6 @@ int app_mgr_xml_display_devices(void);
 void app_mgr_register_name_callback(RK_BT_NAME_CHANGE_CALLBACK cb);
 void app_mgr_deregister_name_callback();
 int app_mgr_name_change_send(BD_ADDR bd_addr, BD_NAME bd_name);
+RK_BT_PLAYROLE_TYPE app_mgr_get_playrole_by_addr(BD_ADDR bd_addr);
 
 #endif /* __APP_MANAGER_H__ */

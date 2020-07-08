@@ -12,8 +12,6 @@ typedef struct btmg_track_info_t BtTrackInfo;
 
 typedef enum {
 	RK_BT_SINK_STATE_IDLE = 0,
-	//RK_BT_SINK_STATE_CONNECTING,
-	//RK_BT_SINK_STATE_DISCONNECTING,
 	RK_BT_SINK_STATE_CONNECT,
 	RK_BT_SINK_STATE_DISCONNECT,
 
