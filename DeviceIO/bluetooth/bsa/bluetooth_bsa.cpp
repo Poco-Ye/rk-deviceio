@@ -29,6 +29,10 @@
 #include "bluetooth_bsa.h"
 #include "utility.h"
 
+#ifdef BROADCOM_BSA
+#include "app_pbc.h"
+#endif
+
 typedef struct {
     bool is_bt_open;
     bool is_ble_open;
@@ -37,12 +41,13 @@ typedef struct {
     bool is_a2dp_source_open;
     bool is_spp_open;
     bool is_hfp_open;
+    bool is_pbap_open;
     RK_BT_STATE_CALLBACK bt_state_cb;
     RK_BT_BOND_CALLBACK bt_bond_cb;
 } bt_control_t;
 
 volatile bt_control_t g_bt_control = {
-    false, false, false, false, false, false, false, NULL, NULL,
+    false, false, false, false, false, false, false, false, NULL, NULL,
 };
 
 static char *g_bsa_server_path = NULL;
@@ -332,6 +337,7 @@ int rk_bt_deinit()
 
     bsa_bt_state_send(RK_BT_STATE_TURNING_OFF);
 
+    rk_bt_obex_pbap_deinit();
     rk_bt_sink_close();
     rk_ble_stop();
     rk_ble_client_close();
@@ -1013,7 +1019,7 @@ void rk_ble_client_register_mtu_callback(RK_BT_MTU_CALLBACK cb)
     app_ble_client_register_mtu_callback(cb);
 }
 
-int rk_ble_client_open()
+int rk_ble_client_open(bool mtu_change)
 {
     if(!bt_is_open()) {
         APP_DEBUG0("bluetooth is not inited, please init");
@@ -1030,7 +1036,7 @@ int rk_ble_client_open()
         rk_ble_stop();
     }
 
-    if(app_ble_client_start() < 0) {
+    if(app_ble_client_start(mtu_change) < 0) {
         APP_ERROR0("ble client failed");
         return -1;
     }
@@ -1631,49 +1637,129 @@ int rk_bt_hfp_disconnect()
 /*****************************************************************
  *            Rockchip bluetooth obex api                        *
  *****************************************************************/
+static bool pbap_is_open()
+{
+    return g_bt_control.is_pbap_open;
+}
+
 void rk_bt_obex_register_status_cb(RK_BT_OBEX_STATE_CALLBACK cb)
 {
-    APP_DEBUG1("bsa don't support %s", __func__);
+#ifdef BROADCOM_BSA
+    app_pbc_register_status_cb(cb);
+#else
+    APP_DEBUG1("cypress bsa don't support %s", __func__);
+#endif
 }
 
 int rk_bt_obex_init(char *path)
 {
+    if(!bt_is_open()) {
+        APP_DEBUG0("bluetooth is not inited, please init");
+        return -1;
+    }
+
     APP_DEBUG1("bsa don't support %s", __func__);
     return 0;
 }
 
 int rk_bt_obex_pbap_init()
 {
-    APP_DEBUG1("bsa don't support %s", __func__);
+#ifdef BROADCOM_BSA
+    if(!bt_is_open()) {
+        APP_DEBUG0("bluetooth is not inited, please init");
+        return -1;
+    }
+
+    if(pbap_is_open()) {
+        APP_ERROR0("pbap has been opened");
+        return 0;
+    }
+
+    if(app_pbc_enable() < 0) {
+        APP_ERROR0("app_pbc_init failed");
+        return -1;
+    }
+
+    g_bt_control.is_pbap_open = true;
+#else
+    APP_DEBUG1("cypress bsa don't support %s", __func__);
+#endif
     return 0;
 }
 
-int rk_bt_obex_pbap_connect(char *btaddr)
+int rk_bt_obex_pbap_connect(char *addr)
 {
-    APP_DEBUG1("bsa don't support %s", __func__);
+#ifdef BROADCOM_BSA
+    if(!pbap_is_open()) {
+        APP_ERROR0("pbap don't open, please open");
+        return -1;
+    }
+
+    return app_pbc_connect(addr);
+#else
+    APP_DEBUG1("cypress bsa don't support %s", __func__);
+#endif
     return 0;
 }
 
 int rk_bt_obex_pbap_get_vcf(char *dir_name, char *dir_file)
 {
-    APP_DEBUG1("bsa don't support %s", __func__);
+#ifdef BROADCOM_BSA
+    if(!pbap_is_open()) {
+        APP_ERROR0("pbap don't open, please open");
+        return -1;
+    }
+
+    return app_pbc_get_vcf(dir_name, dir_file);
+#else
+    APP_DEBUG1("cypress bsa don't support %s", __func__);
+#endif
     return 0;
 }
 
-int rk_bt_obex_pbap_disconnect(char *btaddr)
+int rk_bt_obex_pbap_disconnect(char *addr)
 {
-    APP_DEBUG1("bsa don't support %s", __func__);
+#ifdef BROADCOM_BSA
+    if(!pbap_is_open()) {
+        APP_ERROR0("pbap don't open, please open");
+        return -1;
+    }
+
+    return app_pbc_disconnect(addr);
+#else
+    APP_DEBUG1("cypress bsa don't support %s", __func__);
+#endif
     return 0;
 }
 
 int rk_bt_obex_pbap_deinit()
 {
-    APP_DEBUG1("bsa don't support %s", __func__);
+#ifdef BROADCOM_BSA
+    if(!pbap_is_open()) {
+        APP_DEBUG0("bt pbap has been closed.");
+        return 0;
+    }
+
+    if(app_pbc_disable() < 0) {
+        APP_ERROR0("app_pbc_deinit failed");
+        return -1;
+    }
+
+    g_bt_control.is_pbap_open = false;
+    app_pbc_deregister_status_cb();
+#else
+    APP_DEBUG1("cypress bsa don't support %s", __func__);
+#endif
     return 0;
 }
 
 int rk_bt_obex_deinit()
 {
+    if(!bt_is_open()) {
+        APP_DEBUG0("bluetooth is not inited, please init");
+        return -1;
+    }
+
     APP_DEBUG1("bsa don't support %s", __func__);
     return 0;
 }

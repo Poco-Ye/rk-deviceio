@@ -1081,7 +1081,8 @@ void bt_test_ble_client_open(char *data)
 	rk_ble_client_register_state_callback(ble_client_test_state_callback);
 	rk_ble_client_register_recv_callback(bt_test_ble_client_recv_data_callback);
 	rk_ble_client_register_mtu_callback(bt_test_mtu_callback);
-	rk_ble_client_open();
+	rk_ble_client_open(true);
+	rk_ble_client_default_data_length();
 }
 
 void bt_test_ble_client_close(char *data)
@@ -1967,12 +1968,12 @@ static void  obex_pbap_event_cb(const char *bd_addr, RK_BT_OBEX_STATE state)
 
 void bt_test_obex_init(char *data)
 {
-	rk_bt_obex_register_status_cb(obex_pbap_event_cb);
 	rk_bt_obex_init(data);
 }
 
 void bt_test_obex_pbap_init(char *data)
 {
+	rk_bt_obex_register_status_cb(obex_pbap_event_cb);
 	rk_bt_obex_pbap_init();
 }
 
@@ -2001,9 +2002,19 @@ void bt_test_obex_pbap_get_mch_vcf(char *data)
 	rk_bt_obex_pbap_get_vcf("mch", "/data/mch.vcf");
 }
 
+void bt_test_obex_pbap_get_spd_vcf(char *data)
+{
+	rk_bt_obex_pbap_get_vcf("spd", "/data/spd.vcf");
+}
+
+void bt_test_obex_pbap_get_fav_vcf(char *data)
+{
+	rk_bt_obex_pbap_get_vcf("fav", "/data/fav.vcf");
+}
+
 void bt_test_obex_pbap_disconnect(char *data)
 {
-	rk_bt_obex_pbap_disconnect(NULL);
+	rk_bt_obex_pbap_disconnect(data);
 }
 
 void bt_test_obex_pbap_deinit(char *data)

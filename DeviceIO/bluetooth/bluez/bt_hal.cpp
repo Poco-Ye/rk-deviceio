@@ -216,7 +216,7 @@ void rk_ble_client_register_mtu_callback(RK_BT_MTU_CALLBACK cb)
 	ble_register_mtu_callback(cb);
 }
 
-int rk_ble_client_open()
+int rk_ble_client_open(bool mtu_change)
 {
 	if (!bt_is_open()) {
 		pr_info("%s: Please open bt!!!\n", __func__);

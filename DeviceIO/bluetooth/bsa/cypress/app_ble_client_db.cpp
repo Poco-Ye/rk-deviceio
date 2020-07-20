@@ -530,6 +530,7 @@ int app_ble_client_db_find_attr(tAPP_BLE_CLIENT_DB_CHAR *char_id, BD_ADDR bd_add
 
                         if(is_find) {
                             memcpy(&char_id->char_uuid, &attr->attr_UUID, sizeof(tBT_UUID));
+                            char_id->char_prop = attr->prop;
                             return 0;
                         }
                     }

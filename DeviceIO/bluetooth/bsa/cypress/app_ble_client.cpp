@@ -42,10 +42,11 @@ typedef struct {
     RK_BLE_CLIENT_RECV_CALLBACK recv_cb;
     RK_BT_MTU_CALLBACK mtu_cb;
     RK_BLE_CLIENT_STATE state;
+    bool mtu_change;
 } tAPP_BLE_CLIENT_CONTROL;
 
 static tAPP_BLE_CLIENT_CONTROL app_ble_client_ctl = {
-    NULL, NULL, NULL, RK_BLE_CLIENT_STATE_IDLE,
+    NULL, NULL, NULL, RK_BLE_CLIENT_STATE_IDLE, false,
 };
 
 static BOOLEAN service_search_pending = FALSE;
@@ -1024,9 +1025,13 @@ int app_ble_client_write(char *char_uuid, char *data, int data_len, BOOLEAN is_d
     ble_write_param.is_prep = FALSE;
     ble_write_param.conn_id = app_ble_cb.ble_client[client_num].conn_id;
     ble_write_param.auth_req = BTA_GATT_AUTH_REQ_NONE;
-    //ble_write_param.write_type = BTA_GATTC_TYPE_WRITE_NO_RSP;
-    ble_write_param.write_type = BTA_GATTC_TYPE_WRITE;
 
+    if(char_id.char_prop & BT_GATT_CHRC_PROP_WRITE_WITHOUT_RESP)
+        ble_write_param.write_type = BTA_GATTC_TYPE_WRITE_NO_RSP;
+    else
+        ble_write_param.write_type = BTA_GATTC_TYPE_WRITE;
+
+    APP_DEBUG1("ble_write_param.write_type: %d", ble_write_param.write_type);
     status = BSA_BleClWrite(&ble_write_param);
     if (status != BSA_SUCCESS) {
         APP_ERROR1("BSA_BleClWrite failed status = %d", status);
@@ -1911,6 +1916,11 @@ static int app_ble_client_mtu_req(UINT16 conn_id)
 {
     tBSA_BLE_CL_CFG_MTU cfg_mtu;
     tBSA_STATUS status;
+
+    if(!app_ble_client_ctl.mtu_change) {
+        APP_INFO0("don't mtu change");
+        return -1;
+    }
 
     status = BSA_BleClCfgMtuInit(&cfg_mtu);
     if(status != BSA_SUCCESS) {
@@ -3599,7 +3609,7 @@ int app_ble_client_read_system_id(void)
     return 0;
 }
 
-int app_ble_client_start()
+int app_ble_client_start(bool mtu_change)
 {
     int status;
 
@@ -3622,6 +3632,7 @@ int app_ble_client_start()
     }
 
     app_ble_client_ctl.state = RK_BLE_CLIENT_STATE_IDLE;
+    app_ble_client_ctl.mtu_change = mtu_change;
     return 0;
 }
 

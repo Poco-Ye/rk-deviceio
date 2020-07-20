@@ -40,6 +40,7 @@ typedef struct {
     tBT_UUID                 service_uuid;
     tBT_UUID                 char_uuid;
     BOOLEAN                  is_primary;
+    UINT8                    char_prop;
 } tAPP_BLE_CLIENT_DB_CHAR;
 
 /*******************************************************************************

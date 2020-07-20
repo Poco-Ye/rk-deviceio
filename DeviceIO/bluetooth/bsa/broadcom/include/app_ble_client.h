@@ -501,7 +501,7 @@ void app_ble_client_register_mtu_callback(RK_BT_MTU_CALLBACK cb);
 
 RK_BLE_CLIENT_STATE app_ble_client_get_state();
 
-int app_ble_client_start(void);
+int app_ble_client_start(bool mtu_change);
 
 void app_ble_client_stop(void);
 

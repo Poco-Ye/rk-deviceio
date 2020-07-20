@@ -174,6 +174,8 @@ static command_bt_t bt_command_table[] = {
 	{"bt_test_obex_pbap_get_ich_vcf", bt_test_obex_pbap_get_ich_vcf},
 	{"bt_test_obex_pbap_get_och_vcf", bt_test_obex_pbap_get_och_vcf},
 	{"bt_test_obex_pbap_get_mch_vcf", bt_test_obex_pbap_get_mch_vcf},
+	{"bt_test_obex_pbap_get_spd_vcf", bt_test_obex_pbap_get_spd_vcf},
+	{"bt_test_obex_pbap_get_fav_vcf", bt_test_obex_pbap_get_fav_vcf},
 	{"bt_test_obex_pbap_disconnect", bt_test_obex_pbap_disconnect},
 	{"bt_test_obex_pbap_deinit", bt_test_obex_pbap_deinit},
 	{"bt_test_obex_deinit", bt_test_obex_deinit},

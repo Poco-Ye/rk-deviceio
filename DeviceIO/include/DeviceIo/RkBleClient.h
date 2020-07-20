@@ -105,7 +105,7 @@ typedef void (*RK_BLE_CLIENT_RECV_CALLBACK)(const char *uuid, char *data, int le
 void rk_ble_client_register_state_callback(RK_BLE_CLIENT_STATE_CALLBACK cb);
 void rk_ble_client_register_recv_callback(RK_BLE_CLIENT_RECV_CALLBACK cb);
 void rk_ble_client_register_mtu_callback(RK_BT_MTU_CALLBACK cb);
-int rk_ble_client_open(void);
+int rk_ble_client_open(bool mtu_change);
 void rk_ble_client_close(void);
 RK_BLE_CLIENT_STATE rk_ble_client_get_state();
 int rk_ble_client_get_service_info(char *address, RK_BLE_CLIENT_SERVICE_INFO *info);

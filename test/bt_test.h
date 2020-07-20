@@ -129,6 +129,8 @@ void bt_test_obex_pbap_get_ich_vcf(char *data);
 void bt_test_obex_pbap_get_och_vcf(char *data);
 void bt_test_obex_pbap_get_mch_vcf(char *data);
 void bt_test_obex_pbap_disconnect(char *data);
+void bt_test_obex_pbap_get_spd_vcf(char *data);
+void bt_test_obex_pbap_get_fav_vcf(char *data);
 void bt_test_obex_pbap_deinit(char *data);
 void bt_test_obex_deinit(char *data);
 
