@@ -788,11 +788,10 @@ void app_generic_disc_cback(tBSA_DISC_EVT event, tBSA_DISC_MSG *p_data)
             }
         }
         /* If this is a new device */
-        if (index >= APP_DISC_NB_DEVICES)
-        {
+        if (index >= APP_DISC_NB_DEVICES) {
             APP_INFO0("No room to save new discovered");
         } else {
-            memset((char *)app_discovery_cb.devs[index].device.playrole, 0, 25);
+            memset((char *)app_discovery_cb.devs[index].device.playrole, 0, PLAYROLE_LEN);
             memcpy((char *)app_discovery_cb.devs[index].device.playrole,
                     "Unknow", strlen("Unknow"));
         }

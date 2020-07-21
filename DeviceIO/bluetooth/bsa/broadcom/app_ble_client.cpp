@@ -1507,7 +1507,7 @@ void app_ble_client_profile_cback(tBSA_BLE_EVT event,  tBSA_BLE_MSG *p_data)
                 }
                 app_ble_cb.ble_client[client_num].conn_id = p_data->cli_open.conn_id;
 
-                APP_DEBUG1("+++++ %02X:%02X:%02X:%02X:%02X:%02X",
+                APP_DEBUG1("%02X:%02X:%02X:%02X:%02X:%02X",
                       app_ble_cb.ble_client[client_num].server_addr[0],
                       app_ble_cb.ble_client[client_num].server_addr[1],
                       app_ble_cb.ble_client[client_num].server_addr[2],

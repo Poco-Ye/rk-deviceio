@@ -84,8 +84,6 @@ tBSA_SEC_SET_REMOTE_OOB bsa_sec_set_remote_oob;
 
 tBSA_SEC_PASSKEY_REPLY g_passkey_reply;
 
-static DEV_CLASS app_mgr_cod = {0, 0, 0};
-
 static tAPP_MGR_CALLBACK app_mgr_cb_control = {
 	NULL, NULL, NULL,
 };
@@ -1493,6 +1491,41 @@ int app_get_cod(DEV_CLASS cod)
     return 0;
 }
 
+static bool app_mgr_name_change(const char *bt_name)
+{
+    int len;
+
+    if(!bt_name)
+        return false;
+
+    if(strcmp(bt_name, app_xml_config.name) != 0) {
+        APP_DEBUG1("bt_name: %s", bt_name);
+        len = (BD_NAME_LEN + 1) > strlen(bt_name) ? strlen(bt_name) : (BD_NAME_LEN + 1);
+        strncpy((char *)app_xml_config.name, bt_name, len);
+        app_xml_config.name[len] = '\0';
+        return true;
+    }
+
+    return false;
+}
+
+static bool app_mgr_address_change(const char *bt_addr)
+{
+    BD_ADDR bd_addr;
+
+    if(!bt_addr)
+        return false;
+
+    if(!app_mgr_str2bd(bt_addr, bd_addr)) {
+        if(bdcmp(app_xml_config.bd_addr, bd_addr) != 0) {
+            bdcpy(app_xml_config.bd_addr, bd_addr);
+            return true;
+        }
+    }
+
+    return false;
+}
+
 /*******************************************************************************
  **
  ** Function         app_mgr_config
@@ -1506,10 +1539,10 @@ int app_get_cod(DEV_CLASS cod)
  *******************************************************************************/
 int app_mgr_config(const char *bt_name, const char *bt_addr, app_mgr_callback cb)
 {
-    int                 status;
-    int                 index;
-    DEV_CLASS           local_class_of_device = APP_DEFAULT_CLASS_OF_DEVICE;
-    tBSA_SEC_ADD_DEV    bsa_add_dev_param;
+    int status, index;
+    bool name_change = false, addr_change = false;
+    DEV_CLASS local_class_of_device = APP_DEFAULT_CLASS_OF_DEVICE;
+    tBSA_SEC_ADD_DEV bsa_add_dev_param;
     tBSA_SEC_ADD_SI_DEV bsa_add_si_dev_param;
 
     /*
@@ -1521,31 +1554,28 @@ int app_mgr_config(const char *bt_name, const char *bt_addr, app_mgr_callback cb
      * Local Bluetooth configuration
      * */
     status = app_mgr_read_config();
-    if (status < 0)
-    {
+    name_change = app_mgr_name_change(bt_name);
+    addr_change = app_mgr_address_change(bt_addr);
+    APP_DEBUG1("status: %d, name_change: %d, addr_change: %d", status, name_change, addr_change);
+
+    if (status < 0) {
         APP_DEBUG0("Creating default XML config file");
         app_xml_config.enable = TRUE;
         app_xml_config.discoverable = TRUE;
         app_xml_config.connectable = TRUE;
-        memset((char *)app_xml_config.name, 0, BD_NAME_LEN + 1);
-        app_mgr_get_bt_config(NULL, 0, (char *)app_xml_config.bd_addr, BD_ADDR_LEN);
 
-        if(bt_addr) {
-            BD_ADDR address;
-            if(!app_mgr_str2bd(bt_addr, address))
-                bdcpy(app_xml_config.bd_addr, address);
+        if(!bt_addr)
+            app_mgr_get_bt_config(NULL, 0, (char *)app_xml_config.bd_addr, BD_ADDR_LEN);
+
+        if(!bt_name){
+            memset((char *)app_xml_config.name, 0, BD_NAME_LEN + 1);
+            sprintf((char *)app_xml_config.name, "%s %02X%02X\0", APP_DEFAULT_BT_NAME,
+                app_xml_config.bd_addr[4], app_xml_config.bd_addr[5]);
         }
 
-        if(bt_name)
-            sprintf((char *)app_xml_config.name, "%s", bt_name);
-        else
-            sprintf((char *)app_xml_config.name, "%s %02X%02X", APP_DEFAULT_BT_NAME,
-                app_xml_config.bd_addr[4], app_xml_config.bd_addr[5]);
-
-        if(!app_mgr_cod[0] && !app_mgr_cod[1] && !app_mgr_cod[2])
+        if(!app_xml_config.class_of_device[0] && !app_xml_config.class_of_device[1]
+            && !app_xml_config.class_of_device[2])
             memcpy(app_xml_config.class_of_device, local_class_of_device, sizeof(DEV_CLASS));
-        else
-            memcpy(app_xml_config.class_of_device, app_mgr_cod, sizeof(DEV_CLASS));
 
         strncpy(app_xml_config.root_path, APP_DEFAULT_ROOT_PATH, sizeof(app_xml_config.root_path));
         app_xml_config.root_path[sizeof(app_xml_config.root_path) - 1] = '\0';
@@ -1554,10 +1584,11 @@ int app_mgr_config(const char *bt_name, const char *bt_addr, app_mgr_callback cb
         app_xml_config.pin_code[APP_DEFAULT_PIN_LEN] = '\0';
         app_xml_config.pin_len = APP_DEFAULT_PIN_LEN;
         app_xml_config.io_cap = APP_SEC_IO_CAPABILITIES;
+    }
 
+    if(status < 0 || name_change || addr_change) {
         status = app_mgr_write_config();
-        if (status < 0)
-        {
+        if (status < 0) {
             APP_ERROR0("Unable to Create default XML config file");
             app_mgt_close();
             return status;
@@ -1567,22 +1598,13 @@ int app_mgr_config(const char *bt_name, const char *bt_addr, app_mgr_callback cb
     /* Example of function to read the database of remote devices */
     status = app_mgr_read_remote_devices();
     if (status < 0)
-    {
         APP_ERROR0("No remote device database found");
-    }
     else
-    {
-        app_xml_display_devices(app_xml_remote_devices_db,
-                APP_NUM_ELEMENTS(app_xml_remote_devices_db));
-    }
-
-     /* Example of function to get the Local Bluetooth configuration */
-    //app_mgr_get_bt_config(NULL, 0);
+        app_xml_display_devices(app_xml_remote_devices_db, APP_NUM_ELEMENTS(app_xml_remote_devices_db));
 
     /* Example of function to set the Bluetooth Security */
     status = app_mgr_sec_set_security();
-    if (status < 0)
-    {
+    if (status < 0) {
         APP_ERROR1("app_mgr_sec_set_security failed:%d", status);
         app_mgt_close();
         return status;
@@ -1591,10 +1613,8 @@ int app_mgr_config(const char *bt_name, const char *bt_addr, app_mgr_callback cb
     /* Add every devices found in remote device database */
     /* They will be able to connect to our device */
     APP_INFO0("Add all devices found in database");
-    for (index = 0 ; index < APP_NUM_ELEMENTS(app_xml_remote_devices_db) ; index++)
-    {
-        if (app_xml_remote_devices_db[index].in_use != FALSE)
-        {
+    for (index = 0 ; index < APP_NUM_ELEMENTS(app_xml_remote_devices_db); index++) {
+        if (app_xml_remote_devices_db[index].in_use != FALSE) {
             APP_INFO1("Adding:%s", app_xml_remote_devices_db[index].name);
             BSA_SecAddDeviceInit(&bsa_add_dev_param);
             bdcpy(bsa_add_dev_param.bd_addr,
@@ -1614,8 +1634,7 @@ int app_mgr_config(const char *bt_name, const char *bt_addr, app_mgr_callback cb
             bsa_add_dev_param.ble_addr_type = app_xml_remote_devices_db[index].ble_addr_type;
             bsa_add_dev_param.device_type = app_xml_remote_devices_db[index].device_type;
             bsa_add_dev_param.inq_result_type = app_xml_remote_devices_db[index].inq_result_type;
-            if(app_xml_remote_devices_db[index].ble_link_key_present)
-            {
+            if(app_xml_remote_devices_db[index].ble_link_key_present) {
                 bsa_add_dev_param.ble_link_key_present = TRUE;
 
                 /* Fill PENC Key */
@@ -1665,10 +1684,8 @@ int app_mgr_config(const char *bt_name, const char *bt_addr, app_mgr_callback cb
 
     /* Add stored SI devices to BSA server */
     app_read_xml_si_devices();
-    for (index = 0 ; index < APP_NUM_ELEMENTS(app_xml_si_devices_db) ; index++)
-    {
-        if (app_xml_si_devices_db[index].in_use)
-        {
+    for (index = 0 ; index < APP_NUM_ELEMENTS(app_xml_si_devices_db) ; index++) {
+        if (app_xml_si_devices_db[index].in_use) {
             BSA_SecAddSiDevInit(&bsa_add_si_dev_param);
             bdcpy(bsa_add_si_dev_param.bd_addr, app_xml_si_devices_db[index].bd_addr);
             bsa_add_si_dev_param.platform = app_xml_si_devices_db[index].platform;
@@ -1678,7 +1695,6 @@ int app_mgr_config(const char *bt_name, const char *bt_addr, app_mgr_callback cb
 
     /* Example of function to set the Local Bluetooth configuration */
     app_mgr_set_bt_config(app_xml_config.enable);
-
     app_mgr_cb_control.bt_notify_cb = cb;
 
     return 0;
@@ -1704,19 +1720,35 @@ int app_mgt_set_cod(int cod)
         return -1;
     }
 
-    app_mgr_cod[2] = cod & 0x000000FF;
-    app_mgr_cod[1] = (cod & 0x0000FF00) >> 8;
-    app_mgr_cod[0] = (cod & 0x00FF0000) >> 16;
+    app_xml_config.class_of_device[2] = cod & 0x000000FF;
+    app_xml_config.class_of_device[1] = (cod & 0x0000FF00) >> 8;
+    app_xml_config.class_of_device[0] = (cod & 0x00FF0000) >> 16;
 
     if (BSA_DmSetConfigInit(&bsa_dm_set_config) != BSA_SUCCESS) {
         APP_ERROR0("BSA_DmSetConfigInit failed");
         return -1;
     }
 
-    memcpy(bsa_dm_set_config.class_of_device, app_mgr_cod, sizeof(DEV_CLASS));
+    memcpy(bsa_dm_set_config.class_of_device, app_xml_config.class_of_device, sizeof(DEV_CLASS));
     bsa_dm_set_config.config_mask = BSA_DM_CONFIG_DEV_CLASS_MASK;
     if (BSA_DmSetConfig(&bsa_dm_set_config) != BSA_SUCCESS) {
         APP_ERROR0("BSA_DmSetConfig failed");
+        return -1;
+    }
+
+    if (app_mgr_write_config() < 0)
+        APP_ERROR0("Unable to write XML config file");
+
+    return 0;
+}
+
+int app_mgr_save_visibility(BOOLEAN discoverable, BOOLEAN connectable)
+{
+    app_xml_config.discoverable = discoverable;
+    app_xml_config.connectable = connectable;
+
+    if (app_mgr_write_config() < 0) {
+        APP_ERROR0("Unable to write XML config file");
         return -1;
     }
 
@@ -2254,7 +2286,6 @@ int app_manager_init(const char *bt_name, const char *bt_addr, app_mgr_callback 
 
 int app_manager_deinit()
 {
-    memset(app_mgr_cod, 0, sizeof(DEV_CLASS));
     app_mgr_cb_control.bt_notify_cb = NULL;
 
     return app_mgt_close();
@@ -2375,15 +2406,20 @@ int app_mgt_set_device_name(char *name)
         return -1;
     }
 
-    memset((char *)bsa_dm_set_config.name, 0, sizeof(bsa_dm_set_config.name));
-    name_len = sizeof(bsa_dm_set_config.name) > strlen(name) ? strlen(name) : sizeof(bsa_dm_set_config.name);
+    name_len = BD_NAME_LEN > strlen(name) ? strlen(name) : BD_NAME_LEN;
     strncpy((char *)bsa_dm_set_config.name, name, name_len);
+    bsa_dm_set_config.name[name_len] = '\0';
 
     bsa_dm_set_config.config_mask = BSA_DM_CONFIG_NAME_MASK;
     if (BSA_DmSetConfig(&bsa_dm_set_config) != BSA_SUCCESS) {
         APP_ERROR0("BSA_DmSetConfig failed");
         return -1;
     }
+
+    strncpy((char *)app_xml_config.name, name, name_len);
+    app_xml_config.name[name_len] = '\0';
+    if (app_mgr_write_config() < 0)
+        APP_ERROR0("Unable to write XML config file");
 
     return 0;
 }

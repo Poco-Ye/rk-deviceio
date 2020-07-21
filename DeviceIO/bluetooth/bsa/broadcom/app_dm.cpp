@@ -14,6 +14,7 @@
 #include "app_utils.h"
 #include "app_xml_param.h"
 #include "app_xml_utils.h"
+#include "app_manager.h"
 
 /*******************************************************************************
  **
@@ -562,11 +563,13 @@ int app_dm_set_visibility(BOOLEAN discoverable, BOOLEAN connectable)
     bt_config.discoverable = discoverable;
 
     bsa_status = BSA_DmSetConfig(&bt_config);
-    if (bsa_status != BSA_SUCCESS)
-    {
+    if (bsa_status != BSA_SUCCESS) {
         APP_ERROR1("BSA_DmSetConfig failed status:%d ", bsa_status);
         return(-1);
     }
+
+    app_mgr_save_visibility(discoverable, connectable);
+
     return 0;
 }
 
