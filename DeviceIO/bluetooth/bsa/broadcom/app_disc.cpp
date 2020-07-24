@@ -380,23 +380,20 @@ static void app_disc_parse_eir_ble_appearance(UINT8 *p_eir, UINT8 data_length)
  ** Returns          void
  **
  *******************************************************************************/
-static void app_disc_parse_eir_name(const char *p_type, UINT8 *p_eir, UINT8 data_length)
+static void app_disc_parse_eir_name(const char *p_type, UINT8 *p_eir, UINT8 data_length, char *name)
 {
     char buffer[200];
-    unsigned int pos;
+    unsigned int pos = 0;
 
     memset(buffer, 0, sizeof(buffer));
-    pos = snprintf(buffer, sizeof(buffer), "\t    %s: ", p_type);
-
-    while ((pos < sizeof(buffer)) &&
-           (data_length > 0))
-    {
+    while ((pos < sizeof(buffer)) && (data_length > 0)) {
         buffer[pos++] = *p_eir++;
         data_length--;
     }
     buffer[sizeof(buffer) - 1] = '\0';
 
-    APP_INFO1("%s", buffer);
+    strcpy(name, buffer);
+    APP_INFO1("\t    %s: %s", p_type, buffer);
 }
 
 
@@ -577,7 +574,7 @@ static void app_disc_parse_eir_device_id(UINT8 *p_eir, UINT8 data_length)
  ** Returns          void
  **
  *******************************************************************************/
-void app_disc_parse_eir(UINT8 *p_eir, UINT8 *playrole)
+void app_disc_parse_eir(UINT8 *p_eir, char *full_name, char *short_name, UINT8 *playrole)
 {
     UINT8 *p = p_eir;
     UINT8 eir_length;
@@ -622,10 +619,10 @@ void app_disc_parse_eir(UINT8 *p_eir, UINT8 *playrole)
             app_disc_parse_eir_uuid128("Complete Service", p, eir_length);
             break;
         case HCI_EIR_SHORTENED_LOCAL_NAME_TYPE:
-            app_disc_parse_eir_name("ShortName", p, eir_length);
+            app_disc_parse_eir_name("ShortName", p, eir_length, short_name);
             break;
         case HCI_EIR_COMPLETE_LOCAL_NAME_TYPE:
-            app_disc_parse_eir_name("FullName", p, eir_length);
+            app_disc_parse_eir_name("FullName", p, eir_length, full_name);
             break;
         case HCI_EIR_TX_POWER_LEVEL_TYPE:
             app_disc_parse_eir_tx_power(p, eir_length);
@@ -755,6 +752,9 @@ static void app_disc_get_playrole_by_cod(UINT8 *playrole, DEV_CLASS class_of_dev
 void app_generic_disc_cback(tBSA_DISC_EVT event, tBSA_DISC_MSG *p_data)
 {
     int index;
+    char *device_name = NULL;
+    char full_name[BD_NAME_LEN + 1];
+    char short_name[BD_NAME_LEN + 1];
 
     /* If User provided a callback, let's call it */
     if (app_disc_cb.p_disc_cback) {
@@ -765,6 +765,9 @@ void app_generic_disc_cback(tBSA_DISC_EVT event, tBSA_DISC_MSG *p_data)
     {
     /* a New Device has been discovered */
     case BSA_DISC_NEW_EVT:
+        memset(full_name, 0, BD_NAME_LEN + 1);
+        memset(short_name, 0, BD_NAME_LEN + 1);
+
         /* check if this device has already been received (update) */
         for (index = 0; index < APP_DISC_NB_DEVICES; index++)
         {
@@ -838,7 +841,8 @@ void app_generic_disc_cback(tBSA_DISC_EVT event, tBSA_DISC_MSG *p_data)
 
         if (index < APP_DISC_NB_DEVICES) {
             if (p_data->disc_new.eir_data[0])
-                app_disc_parse_eir(p_data->disc_new.eir_data, app_discovery_cb.devs[index].device.playrole);
+                app_disc_parse_eir(p_data->disc_new.eir_data, full_name, short_name,
+                    app_discovery_cb.devs[index].device.playrole);
 
             if(strcmp((char *)app_discovery_cb.devs[index].device.playrole, "Unknow") == 0)
                 app_disc_get_playrole_by_cod(app_discovery_cb.devs[index].device.playrole,
@@ -847,10 +851,20 @@ void app_generic_disc_cback(tBSA_DISC_EVT event, tBSA_DISC_MSG *p_data)
             APP_INFO1("playrole: %s", app_discovery_cb.devs[index].device.playrole);
         }
 
-        app_mgr_dev_found_send(p_data->disc_new.bd_addr,
-                            p_data->disc_new.name,
-                            p_data->disc_new.class_of_device,
-                            p_data->disc_new.rssi);
+#if (defined(BLE_INCLUDED) && BLE_INCLUDED == TRUE)
+        if(p_data->disc_new.device_type == BT_DEVICE_TYPE_BLE) {
+            if(full_name[0])
+                device_name = full_name;
+            else if(short_name[0])
+                device_name = short_name;
+        }
+#endif
+
+        if(p_data->disc_new.device_type != BT_DEVICE_TYPE_BLE)
+            device_name = (char *)(p_data->disc_new.name);
+
+        app_mgr_dev_found_send(p_data->disc_new.bd_addr, device_name,
+                            p_data->disc_new.class_of_device, p_data->disc_new.rssi);
         break;
 
     case BSA_DISC_CMPL_EVT: /* Discovery complete. */

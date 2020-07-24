@@ -1082,7 +1082,6 @@ void bt_test_ble_client_open(char *data)
 	rk_ble_client_register_recv_callback(bt_test_ble_client_recv_data_callback);
 	rk_ble_client_register_mtu_callback(bt_test_mtu_callback);
 	rk_ble_client_open(true);
-	rk_ble_client_default_data_length();
 }
 
 void bt_test_ble_client_close(char *data)

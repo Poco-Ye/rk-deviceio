@@ -113,19 +113,28 @@ void app_mgr_deregister_disc_cb()
 
 void app_mgr_dev_found_send(BD_ADDR bd_addr, char *name, DEV_CLASS class_of_device, int rssi)
 {
-    if(app_mgr_cb_control.bt_dev_found_cb) {
-        unsigned int bt_class;
-        char address[18];
+    unsigned int bt_class;
+    char address[18];
+    char *device_name;
 
-        bt_class = (class_of_device[0] << 16)
-            + (class_of_device[1] << 8)
-            + class_of_device[2];
-
-        if(app_mgr_bd2str(bd_addr, address, 18) < 0)
-            memcpy(address, "unknown", strlen("unknown"));
-
-        app_mgr_cb_control.bt_dev_found_cb(address, name, bt_class, rssi);
+    if(!app_mgr_cb_control.bt_dev_found_cb) {
+        APP_INFO0("there is no register device found cback");
+        return;
     }
+
+    bt_class = (class_of_device[0] << 16)
+        + (class_of_device[1] << 8)
+        + class_of_device[2];
+
+    if(app_mgr_bd2str(bd_addr, address, 18) < 0)
+        memcpy(address, "unknown", strlen("unknown"));
+
+    if(name)
+        device_name = name;
+    else
+        device_name = "";
+
+    app_mgr_cb_control.bt_dev_found_cb(address, device_name, bt_class, rssi);
 }
 
 void app_mgr_register_dev_found_cb(RK_BT_DEV_FOUND_CALLBACK cb)
