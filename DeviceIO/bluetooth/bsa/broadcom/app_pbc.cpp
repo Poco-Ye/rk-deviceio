@@ -151,11 +151,6 @@ static void app_pbc_uipc_cback(BT_HDR *p_msg)
         close(fd);
     }
 
-    if(p_msg->len != 1024 && app_pbc_cb.is_transfer) {
-        app_pbc_cb.is_transfer = false;
-        app_pbc_send_state(RK_BT_OBEX_TRANSFER_COMPLETE);
-    }
-
     /* APP_DUMP("PBC Data", p_buffer, p_msg->len); */
     GKI_freebuf(p_msg);
 }
@@ -259,8 +254,7 @@ static void app_pbc_get_evt(tBSA_PBC_MSG *p_data)
 
     case BSA_PBC_GET_PARAM_FILE_TRANSFER_STATUS:
         APP_DEBUG0("GET EVT BSA_PBC_GET_PARAM_FILE_TRANSFER_STATUS");
-        if(app_pbc_cb.is_transfer)
-            sleep(1);
+        sleep(1);
 
         if(app_pbc_cb.is_transfer) {
             app_pbc_cb.is_transfer = false;
