@@ -20,6 +20,7 @@ typedef enum {
     RK_BT_HFP_HANGUP_EVT,               /* Call has been hung up */
     RK_BT_HFP_VOLUME_EVT,               /* Speaker volume change */
     RK_BT_HFP_BCS_EVT,                  /* Codec selection from AG */
+    RK_BT_HFP_CLIP_EVT,                 /* Calling subscriber information from AG */
 } RK_BT_HFP_EVENT;
 
 typedef int (*RK_BT_HFP_CALLBACK)(const char *bd_addr, RK_BT_HFP_EVENT event, void *data);

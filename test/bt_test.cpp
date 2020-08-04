@@ -1843,6 +1843,23 @@ int bt_test_hfp_hp_cb(const char *bd_addr, RK_BT_HFP_EVENT event, void *data)
 			sco_codec = (RK_BT_SCO_CODEC_TYPE)codec_type;
 			break;
 		}
+		case RK_BT_HFP_CLIP_EVT:
+		{
+			char *p1, *p2 = NULL;
+			char c = '\"';
+			char *str = (char *)data;
+			char number[20];
+
+			printf("+++++ BT HFP CLIP EVENT: %s +++++\n", str);
+
+			p1 = strstr(str, "\"");
+			p2 = strstr(p1 + 1, "\"");
+			memset(number, 0, 20);
+			strncpy(number, p1 + 1, p2 - (p1 + 1));
+			printf("Call number: %s\n", number);
+			break;
+		}
+
 		default:
 			break;
 	}

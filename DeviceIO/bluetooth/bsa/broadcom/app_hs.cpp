@@ -1361,7 +1361,8 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         break;
 
     case BSA_HS_CLIP_EVT:
-        APP_INFO0("BSA_HS_CLIP_EVT");
+        APP_INFO1("BSA_HS_CLIP_EVT %d, %s", p_data->val.num, p_data->val.str);
+        app_hs_send_event(p_conn->connected_bd_addr, RK_BT_HFP_CLIP_EVT, p_data->val.str);
         break;
 
     case BSA_HS_BSIR_EVT:
