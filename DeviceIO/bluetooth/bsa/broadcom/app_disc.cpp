@@ -1089,16 +1089,22 @@ int app_disc_start_ble_regular(tBSA_DISC_CBACK *p_custom_disc_cback, int duratio
  ** Returns          int
  **
  *******************************************************************************/
-int app_disc_start_services(tBSA_SERVICE_MASK services)
+int app_disc_start_services(tBSA_SERVICE_MASK services, int duration)
 {
     int status;
     tBSA_DISC_START disc_start_param;
+
+    APP_INFO0("Start Service Discovery");
 
     BSA_DiscStartInit(&disc_start_param);
 
     disc_start_param.cback = app_generic_disc_cback;
     disc_start_param.nb_devices = 0;
-    disc_start_param.duration = 4;
+
+    if(!duration)
+        disc_start_param.duration = 4;
+    else
+        disc_start_param.duration = duration;
 
     disc_start_param.services = services;
     memset(app_discovery_cb.devs, 0, sizeof(app_discovery_cb.devs));

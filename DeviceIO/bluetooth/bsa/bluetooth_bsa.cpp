@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include "bsa_api.h"
 #include "bsa_disc_api.h"
+#include "bsa_pan_api.h"
 #include "app_xml_utils.h"
 #include "app_dm.h"
 #include "app_mgt.h"
@@ -31,6 +32,7 @@
 
 #ifdef BROADCOM_BSA
 #include "app_pbc.h"
+#include "app_pan.h"
 #endif
 
 typedef struct {
@@ -42,12 +44,13 @@ typedef struct {
     bool is_spp_open;
     bool is_hfp_open;
     bool is_pbap_open;
+    bool is_pan_open;
     RK_BT_STATE_CALLBACK bt_state_cb;
     RK_BT_BOND_CALLBACK bt_bond_cb;
 } bt_control_t;
 
 volatile bt_control_t g_bt_control = {
-    false, false, false, false, false, false, false, false, NULL, NULL,
+    false, false, false, false, false, false, false, false, false, NULL, NULL,
 };
 
 static char *g_bsa_server_path = NULL;
@@ -344,6 +347,7 @@ int rk_bt_deinit()
     rk_bt_source_close();
     rk_bt_spp_close();
     rk_bt_hfp_close();
+    rk_bt_pan_close();
 
     /* Close BSA before exiting (to release resources) */
     app_manager_deinit();
@@ -432,6 +436,9 @@ int rk_bt_start_discovery(unsigned int mseconds, RK_BT_SCAN_TYPE scan_type)
                 return app_disc_start_bredr_regular(bt_disc_cback, duration);
             case SCAN_TYPE_LE:
                 return app_disc_start_ble_regular(NULL, duration);
+            case SCAN_TYPE_PAN:
+                return app_disc_start_services(BSA_PANU_SERVICE_MASK |
+                    BSA_NAP_SERVICE_MASK | BSA_GN_SERVICE_MASK, duration);
             default:
                 APP_DEBUG1("invalid scan_type(%d)", scan_type);
                 return -1;
@@ -1545,7 +1552,6 @@ int rk_bt_hfp_sink_open()
 {
     rk_bt_sink_open();
     rk_bt_hfp_open();
-
     return 0 ;
 }
 
@@ -1755,13 +1761,136 @@ int rk_bt_obex_pbap_deinit()
 
 int rk_bt_obex_deinit()
 {
+    APP_DEBUG1("bsa don't support %s", __func__);
+    return 0;
+}
+
+/*****************************************************************
+ *            Rockchip bluetooth pan api                        *
+ *****************************************************************/
+bool pan_is_open()
+{
+    return g_bt_control.is_pan_open;
+}
+
+void rk_bt_pan_register_event_cb(RK_BT_PAN_EVENT_CALLBACK cb)
+{
+#ifdef BROADCOM_BSA
+	app_pan_register_event_cb(cb);
+#else
+    APP_DEBUG1("cypress bsa don't support %s", __func__);
+#endif
+}
+
+int rk_bt_pan_open()
+{
     if(!bt_is_open()) {
         APP_DEBUG0("bluetooth is not inited, please init");
         return -1;
     }
 
-    APP_DEBUG1("bsa don't support %s", __func__);
+    if(pan_is_open()) {
+        APP_ERROR0("PAN has been opened");
+        return 0;
+    }
+
+#ifdef BROADCOM_BSA
+    if (app_pan_init() < 0) {
+        APP_ERROR0("Unable to init PAN");
+        return -1;
+    }
+
+    if (app_pan_start() < 0) {
+        APP_ERROR0("Unable to start PAN");
+        return -1;
+    }
+
+    app_pan_set_role(BSA_PAN_ROLE_PANU);
+    g_bt_control.is_pan_open = true;
+#else
+    APP_DEBUG1("cypress bsa don't support %s", __func__);
+#endif
+
     return 0;
+}
+
+int rk_bt_pan_close()
+{
+    if(!pan_is_open()) {
+        APP_ERROR0("PAN has been closed");
+        return 0;
+    }
+
+#ifdef BROADCOM_BSA
+    if (app_pan_stop() < 0) {
+        APP_ERROR0("Unable to stop PAN");
+        return -1;
+    }
+
+    g_bt_control.is_pan_open = false;
+#else
+    APP_DEBUG1("cypress bsa don't support %s", __func__);
+#endif
+
+    return 0;
+}
+
+int rk_bt_pan_connect(char *address)
+{
+    BD_ADDR bd_addr;
+
+    if(!pan_is_open()) {
+        APP_ERROR0("PAN don't open, please open");
+        return -1;
+    }
+
+#ifdef BROADCOM_BSA
+    if(address == NULL) {
+        APP_ERROR0("address is null");
+        return -1;
+    }
+
+    if(app_mgr_str2bd(address, bd_addr) < 0)
+        return -1;
+
+    APP_ERROR1("connect bd_addr: %02X:%02X:%02X:%02X:%02X:%02X",
+        bd_addr[0], bd_addr[1], bd_addr[2],
+        bd_addr[3], bd_addr[4], bd_addr[5]);
+
+    return app_pan_open(bd_addr);
+#else
+    APP_DEBUG1("cypress bsa don't support %s", __func__);
+    return 0;
+#endif
+}
+
+int rk_bt_pan_disconnect(char *address)
+{
+    BD_ADDR bd_addr;
+
+    if(!pan_is_open()) {
+        APP_ERROR0("PAN don't open, please open");
+        return -1;
+    }
+
+#ifdef BROADCOM_BSA
+    if(address == NULL) {
+        APP_ERROR0("address is null");
+        return -1;
+    }
+
+    if(app_mgr_str2bd(address, bd_addr) < 0)
+        return -1;
+
+    APP_ERROR1("connect bd_addr: %02X:%02X:%02X:%02X:%02X:%02X",
+        bd_addr[0], bd_addr[1], bd_addr[2],
+        bd_addr[3], bd_addr[4], bd_addr[5]);
+
+    return app_pan_close(bd_addr);
+#else
+    APP_DEBUG1("cypress bsa don't support %s", __func__);
+    return 0;
+#endif
 }
 
 int rk_bt_control(DeviceIOFramework::BtControl cmd, void *data, int len)

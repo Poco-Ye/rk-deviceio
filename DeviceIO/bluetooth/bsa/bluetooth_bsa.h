@@ -23,7 +23,8 @@
 #include "DeviceIo/RkBleClient.h"
 #include "DeviceIo/RkBtSpp.h"
 #include "DeviceIo/RkBtHfp.h"
-#include <DeviceIo/RkBtObex.h>
+#include "DeviceIo/RkBtObex.h"
+#include "DeviceIo/RkBtPan.h"
 #include <DeviceIo/Rk_socket_app.h>
 #include "utility.h"
 

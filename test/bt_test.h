@@ -24,6 +24,7 @@ void bt_test_free_paired_devices(char *data);
 void bt_test_start_discovery(char *data);
 void bt_test_start_discovery_bredr(char *data);
 void bt_test_start_discovery_le(char *data);
+void bt_test_start_discovery_pan(char *data);
 void bt_test_cancel_discovery(char *data);
 void bt_test_is_discovering(char *data);
 void bt_test_display_devices(char *data);
@@ -119,7 +120,7 @@ void bt_test_hfp_hp_close(char *data);
 void bt_test_hfp_hp_disconnect(char *data);
 
 /******************************************/
-/*              OBEX Test             */
+/*              OBEX Test                 */
 /******************************************/
 void bt_test_obex_init(char *data);
 void bt_test_obex_pbap_init(char *data);
@@ -133,6 +134,14 @@ void bt_test_obex_pbap_get_spd_vcf(char *data);
 void bt_test_obex_pbap_get_fav_vcf(char *data);
 void bt_test_obex_pbap_deinit(char *data);
 void bt_test_obex_deinit(char *data);
+
+/******************************************/
+/*              PAN Test                  */
+/******************************************/
+void bt_test_pan_init(char *data);
+void bt_test_pan_deinit(char *data);
+void bt_test_pan_connect(char *data);
+void bt_test_pan_disconnect(char *data);
 
 #ifdef __cplusplus
 }

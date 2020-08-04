@@ -14,6 +14,7 @@
 #include <DeviceIo/RkBtHfp.h>
 #include <DeviceIo/RkBleClient.h>
 #include <DeviceIo/RkBtObex.h>
+#include <DeviceIo/RkBtPan.h>
 
 #include "bt_test.h"
 
@@ -145,13 +146,6 @@ static void bt_test_dev_found_cb(const char *address,const char *name, unsigned 
 	printf("    class: 0x%x\n", bt_class);
 	printf("    rssi: %d\n", rssi);
 	printf("+++++++++++++++++++++++++++++++++++++++++\n");
-
-#if 0
-	if(!strcmp(address, "88:2D:53:CC:DC:63")) {
-		printf("%s: connect 88:2D:53:CC:DC:63\n", __func__);
-		bt_test_source_connect_by_addr("88:2D:53:CC:DC:63");
-	}
-#endif
 }
 
 static void bt_test_name_change_cb(const char *bd_addr, const char *name)
@@ -170,7 +164,7 @@ void *bt_test_bluetooth_init_thread(void *)
 {
 	printf("%s: BT BLUETOOTH INIT\n", __func__);
 	memset(&bt_content, 0, sizeof(RkBtContent));
-	bt_content.bt_name = "ROCKCHIP_AUDIO";
+	bt_content.bt_name = "ROCKCHIP_TEST";
 	//bt_content.bt_addr = "11:22:33:44:55:66";
 
 	bt_content.ble_content.ble_name = "ROCKCHIP_AUDIO BLE";
@@ -473,6 +467,26 @@ void bt_test_start_discovery_le(char *data)
 	rk_bt_register_discovery_callback(bt_test_discovery_status_cb);
 	rk_bt_register_dev_found_callback(bt_test_dev_found_cb);
 	rk_bt_start_discovery(time, SCAN_TYPE_LE);
+}
+
+void bt_test_start_discovery_pan(char *data)
+{
+	int time;
+
+	if(data == NULL) {
+		printf("Please enter the scan time\n");
+		return;
+	}
+
+	time = atoi(data);
+	if(time < 10000) {
+		printf("Scan time is too short(%d), reset to 10000ms\n", time);
+		time = 10000;
+	}
+
+	rk_bt_register_discovery_callback(bt_test_discovery_status_cb);
+	rk_bt_register_dev_found_callback(bt_test_dev_found_cb);
+	rk_bt_start_discovery(time, SCAN_TYPE_PAN);
 }
 
 void bt_test_cancel_discovery(char *data)
@@ -2024,4 +2038,45 @@ void bt_test_obex_pbap_deinit(char *data)
 void bt_test_obex_deinit(char *data)
 {
 	rk_bt_obex_deinit();
+}
+
+/******************************************/
+/*                 PAN                    */
+/******************************************/
+static void pan_event_cb(RK_BT_PAN_EVENT event, char *bd_addr)
+{
+	switch(event) {
+		case RK_BT_PAN_CONNECT_FAILED:
+			printf("----- RK_BT_PAN_CONNECT_FAILED(%s) -----\n", bd_addr);
+			break;
+
+		case RK_BT_PAN_CONNECT:
+			printf("----- RK_BT_PAN_CONNECT(%s) -----\n", bd_addr);
+			break;
+
+		case RK_BT_PAN_DISCONNECT:
+			printf("----- RK_BT_PAN_DISCONNECT(%s) -----\n", bd_addr);
+			break;
+	}
+}
+
+void bt_test_pan_init(char *data)
+{
+	rk_bt_pan_register_event_cb(pan_event_cb);
+	rk_bt_pan_open();
+}
+
+void bt_test_pan_deinit(char *data)
+{
+	rk_bt_pan_close();
+}
+
+void bt_test_pan_connect(char *data)
+{
+	rk_bt_pan_connect(data);
+}
+
+void bt_test_pan_disconnect(char *data)
+{
+	rk_bt_pan_disconnect(data);
 }

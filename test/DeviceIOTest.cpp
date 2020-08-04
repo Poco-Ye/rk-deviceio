@@ -94,6 +94,7 @@ static command_bt_t bt_command_table[] = {
 	{"bt_test_start_discovery", bt_test_start_discovery},
 	{"bt_test_start_discovery_le", bt_test_start_discovery_le},
 	{"bt_test_start_discovery_bredr", bt_test_start_discovery_bredr},
+	{"bt_test_start_discovery_pan", bt_test_start_discovery_pan},
 	{"bt_test_cancel_discovery", bt_test_cancel_discovery},
 	{"bt_test_is_discovering", bt_test_is_discovering},
 	{"bt_test_display_devices", bt_test_display_devices},
@@ -179,6 +180,10 @@ static command_bt_t bt_command_table[] = {
 	{"bt_test_obex_pbap_disconnect", bt_test_obex_pbap_disconnect},
 	{"bt_test_obex_pbap_deinit", bt_test_obex_pbap_deinit},
 	{"bt_test_obex_deinit", bt_test_obex_deinit},
+	{"bt_test_pan_init", bt_test_pan_init},
+	{"bt_test_pan_deinit", bt_test_pan_deinit},
+	{"bt_test_pan_connect", bt_test_pan_connect},
+	{"bt_test_pan_disconnect", bt_test_pan_disconnect},
 	{"bt_server_close", bt_test_bluetooth_deinit},
 };
 

@@ -61,7 +61,8 @@ typedef enum {
 typedef enum {
 	SCAN_TYPE_AUTO, //LE, BR/EDR, or both
 	SCAN_TYPE_BREDR,
-	SCAN_TYPE_LE
+	SCAN_TYPE_LE,
+	SCAN_TYPE_PAN
 } RK_BT_SCAN_TYPE;
 
 /*BT discovery state*/

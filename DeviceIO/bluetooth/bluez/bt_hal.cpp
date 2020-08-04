@@ -18,6 +18,7 @@
 #include <DeviceIo/RkBtHfp.h>
 #include <DeviceIo/RkBleClient.h>
 #include <DeviceIo/RkBtObex.h>
+#include <DeviceIo/RkBtPan.h>
 
 #include "avrcpctrl.h"
 #include "bluez_ctrl.h"
@@ -1901,4 +1902,36 @@ int rk_bt_obex_pbap_deinit()
 int rk_bt_obex_deinit()
 {
 	return kill_task("obexd");
+}
+
+/*****************************************************************
+ *            Rockchip bluetooth pan api                         *
+ *****************************************************************/
+void rk_bt_pan_register_event_cb(RK_BT_PAN_EVENT_CALLBACK cb)
+{
+	pr_info("bluez don't support %s\n", __func__);
+}
+
+int rk_bt_pan_open()
+{
+	pr_info("bluez don't support %s\n", __func__);
+	return -1;
+}
+
+int rk_bt_pan_close()
+{
+	pr_info("bluez don't support %s\n", __func__);
+	return -1;
+}
+
+int rk_bt_pan_connect(char *address)
+{
+	pr_info("bluez don't support %s\n", __func__);
+	return -1;
+}
+
+int rk_bt_pan_disconnect(char *address)
+{
+	pr_info("bluez don't support %s\n", __func__);
+	return -1;
 }
