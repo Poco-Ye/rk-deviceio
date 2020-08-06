@@ -7,6 +7,8 @@
 **  Copyright (c) 2013, Broadcom Corp., All Rights Reserved.
 **  Broadcom Bluetooth Core. Proprietary and confidential.
 **
+**  Copyright (C) 2018 Cypress Semiconductor Corporation
+**
 *****************************************************************************/
 
 #include <stdio.h>
@@ -27,15 +29,17 @@
 #include "app_utils.h"
 #include "app_manager.h"
 #include "app_pbc.h"
+#include "bd.h"
 
 #define MAX_PATH_LENGTH 512
-#define DEFAULT_SEC_MASK (BSA_SEC_AUTHENTICATION | BSA_SEC_ENCRYPTION)
+#define MAX_PATH_LENGTH         512
+#define DEFAULT_SEC_MASK        (BSA_SEC_AUTHENTICATION | BSA_SEC_ENCRYPTION)
 
-#define APP_PBC_FEATURES    ( BSA_PBC_FEA_DOWNLOADING | BSA_PBC_FEA_BROWSING | \
-                    BSA_PBC_FEA_DATABASE_ID | BSA_PBC_FEA_FOLDER_VER_COUNTER | \
-                    BSA_PBC_FEA_VCARD_SELECTING | BSA_PBC_FEA_ENH_MISSED_CALLS | \
-                    BSA_PBC_FEA_UCI_VCARD_FIELD | BSA_PBC_FEA_UID_VCARD_FIELD | \
-                    BSA_PBC_FEA_CONTACT_REF | BSA_PBC_FEA_DEF_CONTACT_IMAGE_FORMAT )
+#define APP_PBC_FEATURES        (BSA_PBC_FEA_DOWNLOADING | BSA_PBC_FEA_BROWSING | \
+                                BSA_PBC_FEA_DATABASE_ID | BSA_PBC_FEA_FOLDER_VER_COUNTER | \
+                                BSA_PBC_FEA_VCARD_SELECTING | BSA_PBC_FEA_ENH_MISSED_CALLS | \
+                                BSA_PBC_FEA_UCI_VCARD_FIELD | BSA_PBC_FEA_UID_VCARD_FIELD | \
+                                BSA_PBC_FEA_CONTACT_REF | BSA_PBC_FEA_DEF_CONTACT_IMAGE_FORMAT)
 
 #define APP_PBC_SETPATH_ROOT    "/"
 #define APP_PBC_SETPATH_UP      ".."
@@ -46,13 +50,17 @@
 typedef struct
 {
     BOOLEAN             is_open;
-    tBSA_STATUS         last_open_status;
-    tBSA_STATUS         last_start_status;
     volatile BOOLEAN    open_pending; /* Indicate that there is an open pending */
-    BD_ADDR             bda_connected;
+    BD_ADDR             peer_addr;
     BOOLEAN             is_channel_open;
     tUIPC_CH_ID         uipc_pbc_channel;
     BOOLEAN             remove;
+} tAPP_PBC_CONN;
+
+
+typedef struct
+{
+    tAPP_PBC_CONN       conn[APP_PBC_MAX_CONN];
     char                save_path[MAX_PATH_LENGTH];
     bool                is_transfer;
 } tAPP_PBC_CB;
@@ -61,32 +69,132 @@ typedef struct
  * Global Variables
  */
 tAPP_PBC_CB app_pbc_cb;
-
 static RK_BT_OBEX_STATE_CALLBACK app_pbc_state_cb = NULL;
 
 static void app_pbc_send_state(RK_BT_OBEX_STATE state)
 {
+	int i;
     char address[20];
 
     if(!app_pbc_state_cb)
         return;
 
-    if(bdcmp(app_pbc_cb.bda_connected, bd_addr_null))
-        app_mgr_bd2str(app_pbc_cb.bda_connected, address, 20);
+    for(i = 0; i < APP_PBC_MAX_CONN; i++) {
+        if((app_pbc_cb.conn[i].is_open == TRUE) && (app_pbc_cb.conn[i].open_pending == FALSE))
+            break;
+    }
+
+    if(i == APP_PBC_MAX_CONN) {
+        APP_ERROR0("not find connected device");
+        return -1;
+    }
+
+    if(bdcmp(app_pbc_cb.conn[i].peer_addr, bd_addr_null))
+        app_mgr_bd2str(app_pbc_cb.conn[i].peer_addr, address, 20);
     else
         memset(address, 0, 20);
 
     app_pbc_state_cb(address, state);
 }
 
-static void app_pbc_uipc_close()
+/*******************************************************************************
+**
+** Function         app_pbc_get_conn_by_bd_addr
+**
+** Description      Get the connection control block by BD address
+**
+** Parameters       bd_addr - BD address of the device
+**
+** Returns          tAPP_PBC_CONN *
+**
+*******************************************************************************/
+static tAPP_PBC_CONN *app_pbc_get_conn_by_bd_addr(BD_ADDR bd_addr)
 {
-    if(app_pbc_cb.is_channel_open) {
-        /* close the UIPC channel receiving data */
-        UIPC_Close(app_pbc_cb.uipc_pbc_channel);
-        app_pbc_cb.uipc_pbc_channel = UIPC_CH_ID_BAD;
-        app_pbc_cb.is_channel_open = FALSE;
+    tAPP_PBC_CONN *p_conn = NULL;
+    UINT8 i;
+
+    for (i = 0; i < APP_PBC_MAX_CONN; i++)
+    {
+        if (!bdcmp(app_pbc_cb.conn[i].peer_addr, bd_addr))
+        {
+            p_conn = &app_pbc_cb.conn[i];
+            break;
+        }
     }
+
+    if (p_conn == NULL)
+    {
+        APP_INFO0("app_pbc_get_conn_by_bd_addr could not find connection");
+    }
+
+    return p_conn;
+}
+
+/*******************************************************************************
+**
+** Function         app_pbc_get_conn_by_uipc_channel_id
+**
+** Description      Get the connection control block by UIPC channel id
+**
+** Parameters       channel_id - UIPC channel ID
+**
+** Returns          tAPP_PBC_CONN *
+**
+*******************************************************************************/
+static tAPP_PBC_CONN *app_pbc_get_conn_by_uipc_channel_id(tUIPC_CH_ID channel_id)
+{
+    tAPP_PBC_CONN *p_conn = NULL;
+    UINT8 i;
+
+    for (i = 0 ; i < APP_PBC_MAX_CONN; i++)
+    {
+        if (app_pbc_cb.conn[i].uipc_pbc_channel == channel_id)
+        {
+            p_conn = &app_pbc_cb.conn[i];
+            break;
+        }
+    }
+
+    if (p_conn == NULL)
+    {
+        APP_INFO0("app_pbc_get_conn_by_uipc_channel_id could not find connection");
+    }
+
+    return p_conn;
+}
+
+/*******************************************************************************
+**
+** Function         app_pbc_get_available_conn
+**
+** Description      Get an available connection control block
+**
+** Parameters       bd_addr - BD address of the device
+**
+** Returns          tAPP_PBC_CONN *
+**
+*******************************************************************************/
+static tAPP_PBC_CONN *app_pbc_get_available_conn(BD_ADDR bd_addr)
+{
+    tAPP_PBC_CONN *p_conn = NULL;
+    UINT8 i;
+
+    for (i = 0; i < APP_PBC_MAX_CONN; i++)
+    {
+        if ((bdcmp(app_pbc_cb.conn[i].peer_addr, bd_addr) != 0) &&
+            (app_pbc_cb.conn[i].is_open == FALSE) && (app_pbc_cb.conn[i].open_pending == FALSE))
+        {
+            p_conn = &app_pbc_cb.conn[i];
+            break;
+        }
+    }
+
+    if (p_conn == NULL)
+    {
+        APP_INFO0("app_pbc_get_available_conn could not find empty entry");
+    }
+
+    return p_conn;
 }
 
 /*******************************************************************************
@@ -102,27 +210,37 @@ static void app_pbc_uipc_close()
  *******************************************************************************/
 static void app_pbc_uipc_cback(BT_HDR *p_msg)
 {
-    UINT8 *p_buffer = NULL;
-    int dummy = 0;
-    int fd = -1;
+    tAPP_PBC_CONN   *p_conn;
+    UINT8           *p_buffer = NULL;
+    int             dummy = 0;
+    int             fd = -1;
+    tUIPC_CH_ID     uipc_channel;
 
-    APP_DEBUG1("response received... p_msg = %x", p_msg);
+    APP_INFO1("app_pbc_uipc_cback response received... p_msg = %x", p_msg);
+
     if (p_msg == NULL)
         return;
 
-    /* Make sure we are only handling UIPC_RX_DATA_EVT and other UIPC events. Ignore UIPC_OPEN_EVT and UIPC_CLOSE_EVT */
-    if(p_msg->event != UIPC_RX_DATA_EVT) {
-        APP_DEBUG1("response received...event = %d", p_msg->event);
+    uipc_channel = p_msg->layer_specific;
+    if (((p_conn = app_pbc_get_conn_by_uipc_channel_id(uipc_channel)) == NULL) ||
+        (uipc_channel < UIPC_CH_ID_PBC_FIRST) || (uipc_channel > UIPC_CH_ID_PBC_LAST)) {
+        APP_ERROR1("app_pbc_uipc_cback response received...event = %d, uipc channel = %d", p_msg->event, uipc_channel);
         GKI_freebuf(p_msg);
         return;
     }
 
-    /* APP_DEBUG1("response received...msg len = %d, p_buffer = %s", p_msg->len, p_buffer); */
-    APP_DEBUG1("response received...event = %d, msg len = %d", p_msg->event, p_msg->len);
+    /* Make sure we are only handling UIPC_RX_DATA_EVT and other UIPC events. Ignore UIPC_OPEN_EVT and UIPC_CLOSE_EVT */
+    if(p_msg->event != UIPC_RX_DATA_EVT) {
+        APP_ERROR1("app_pbc_uipc_cback response received...event = %d",p_msg->event);
+        GKI_freebuf(p_msg);
+        return;
+    }
+
+    APP_INFO1("app_pbc_uipc_cback response received...event = %d, msg len = %d",p_msg->event, p_msg->len);
 
     /* Check msg len */
     if(!(p_msg->len)) {
-        APP_DEBUG0("response received. DATA Len = 0");
+        APP_INFO0("app_pbc_uipc_cback response received. DATA Len = 0");
         GKI_freebuf(p_msg);
         return;
     }
@@ -131,12 +249,12 @@ static void app_pbc_uipc_cback(BT_HDR *p_msg)
     p_buffer = ((UINT8 *)(p_msg + 1)) + p_msg->offset;
 
     /* Write received buffer to file */
-     APP_DEBUG1("save file path = %s", app_pbc_cb.save_path);
+    APP_INFO1("app_pbc_uipc_cback file path = %s", app_pbc_cb.save_path);
 
     /* Delete temporary file */
-    if(app_pbc_cb.remove) {
+    if(p_conn->remove) {
         unlink(app_pbc_cb.save_path);
-        app_pbc_cb.remove = FALSE;
+        p_conn->remove = FALSE;
 
         app_pbc_cb.is_transfer = true;
         app_pbc_send_state(RK_BT_OBEX_TRANSFER_ACTIVE);
@@ -144,10 +262,12 @@ static void app_pbc_uipc_cback(BT_HDR *p_msg)
 
     /* Save incoming data in temporary file */
     fd = open(app_pbc_cb.save_path, O_WRONLY | O_CREAT | O_APPEND, 0666);
-    APP_DEBUG1("fd = %d", fd);
+    APP_INFO1("app_pbc_uipc_cback fd = %d", fd);
+
     if(fd != -1) {
         dummy = write(fd, p_buffer, p_msg->len);
-        APP_DEBUG1("dummy = %d err = %d", dummy, errno);
+        APP_INFO1("app_pbc_uipc_cback dummy = %d err = %d", dummy, errno);
+        (void)dummy;
         close(fd);
     }
 
@@ -168,22 +288,24 @@ static void app_pbc_uipc_cback(BT_HDR *p_msg)
 *******************************************************************************/
 static void app_pbc_handle_list_evt(tBSA_PBC_LIST_MSG *p_data)
 {
-    UINT8 * p_buf = p_data->data;
-    UINT16 Index;
+    UINT8   *p_buf = p_data->data;
+    UINT16  Index;
 
-    if(p_data->is_xml) {
-        for(Index = 0; Index < p_data->len; Index++) {
-            printf("%c", p_buf[Index]);
-        }
-        printf("\n");
-    } else {
-        for (Index = 0;Index < p_data->num_entry * 2; Index++) {
-            APP_DEBUG1("%s", p_buf);
+    if(p_data->is_xml)
+    {
+        p_buf[p_data->len] = 0;
+        APP_INFO1("%s", p_buf);
+    }
+    else
+    {
+        for (Index = 0;Index < p_data->num_entry * 2; Index++)
+        {
+            APP_INFO1("%s", p_buf);
             p_buf += 1+strlen((char *) p_buf);
         }
     }
 
-    APP_DEBUG1("BSA_PBC_LIST_EVT num entry %d,is final %d, xml %d, len %d",
+    APP_INFO1("BSA_PBC_LIST_EVT num entry %d,is final %d, xml %d, len %d",
         p_data->num_entry, p_data->final, p_data->is_xml, p_data->len);
 }
 
@@ -203,6 +325,8 @@ static void app_pbc_auth(tBSA_PBC_MSG *p_data)
     tBSA_PBC_AUTHRSP auth_cmd;
 
     BSA_PbcAuthRspInit(&auth_cmd);
+
+    bdcpy(auth_cmd.bd_addr, p_data->auth.bd_addr);
 
     /* Provide userid and password for authorization */
     strcpy(auth_cmd.password, "0000");
@@ -228,7 +352,7 @@ static void app_pbc_auth(tBSA_PBC_MSG *p_data)
 *******************************************************************************/
 static void app_pbc_get_evt(tBSA_PBC_MSG *p_data)
 {
-    APP_DEBUG1("GET EVT response received... p_data = %x", p_data);
+    APP_INFO1("app_pbc_get_evt GET EVT response received... p_data = %x, type = %x", p_data, p_data->get.type);
 
     if(!p_data)
         return;
@@ -249,10 +373,10 @@ static void app_pbc_get_evt(tBSA_PBC_MSG *p_data)
         break;
 
     case BSA_PBC_GET_PARAM_PHONEBOOK:       /* Phonebook paramm - Indicates Phonebook transfer complete */
-        APP_DEBUG0("GET EVT BSA_PBC_GET_PARAM_PHONEBOOK");
+        APP_INFO0("GET EVT  BSA_PBC_GET_PARAM_PHONEBOOK received");
         break;
 
-    case BSA_PBC_GET_PARAM_FILE_TRANSFER_STATUS:
+    case BSA_PBC_GET_PARAM_FILE_TRANSFER_STATUS:    /* File transfer status */
         APP_DEBUG0("GET EVT BSA_PBC_GET_PARAM_FILE_TRANSFER_STATUS");
         sleep(1);
 
@@ -280,7 +404,7 @@ static void app_pbc_get_evt(tBSA_PBC_MSG *p_data)
 *******************************************************************************/
 static void app_pbc_set_evt(tBSA_PBC_MSG *p_data)
 {
-    APPL_TRACE_DEBUG0("app_pbc_set_evt SET EVT response received...");
+    APP_INFO0("app_pbc_set_evt SET EVT response received...");
 }
 
 /*******************************************************************************
@@ -296,9 +420,8 @@ static void app_pbc_set_evt(tBSA_PBC_MSG *p_data)
 *******************************************************************************/
 static void app_pbc_abort_evt(tBSA_PBC_MSG *p_data)
 {
-    APPL_TRACE_DEBUG0("app_pbc_abort_evt received...");
+    APP_INFO0("app_pbc_abort_evt received...");
 }
-
 
 /*******************************************************************************
 **
@@ -313,30 +436,37 @@ static void app_pbc_abort_evt(tBSA_PBC_MSG *p_data)
 *******************************************************************************/
 static void app_pbc_open_evt(tBSA_PBC_MSG *p_data)
 {
-    APPL_TRACE_DEBUG0("app_pbc_open_evt received...");
+    tAPP_PBC_CONN *p_conn = NULL;
 
-    app_pbc_cb.last_open_status = p_data->open.status;
+    APP_INFO0("app_pbc_open_evt received...");
+
+    if ((p_conn = app_pbc_get_conn_by_bd_addr(p_data->open.bd_addr)) == NULL)
+    {
+        APP_ERROR0("Could not find connection control block");
+        return;
+    }
 
     if (p_data->open.status == BSA_SUCCESS) {
-        app_pbc_cb.is_open = TRUE;
+        p_conn->is_open = TRUE;
         app_pbc_send_state(RK_BT_OBEX_CONNECTED);
     } else {
-        app_pbc_cb.is_open = FALSE;
+        p_conn->is_open = FALSE;
+        bdcpy(p_conn->peer_addr, bd_addr_null);
         app_pbc_send_state(RK_BT_OBEX_CONNECT_FAILED);
     }
 
-    app_pbc_cb.open_pending = FALSE;
+    p_conn->open_pending = FALSE;
 
-    if(p_data->open.status == BSA_SUCCESS && !app_pbc_cb.is_channel_open) {
+    if(p_data->open.status == BSA_SUCCESS && !p_conn->is_channel_open ) {
         /* Once connected to PBAP Server, UIPC channel is returned. */
         /* Open the channel and register a callback to get phone book data. */
         /* Save UIPC channel */
-        app_pbc_cb.uipc_pbc_channel = p_data->open.uipc_channel;
-        app_pbc_cb.is_channel_open = TRUE;
+        p_conn->uipc_pbc_channel = p_data->open.uipc_channel;
+        p_conn->is_channel_open = TRUE;
 
         /* open the UIPC channel to receive data */
         if (UIPC_Open(p_data->open.uipc_channel, app_pbc_uipc_cback) == FALSE) {
-            app_pbc_cb.is_channel_open = FALSE;
+            p_conn->is_channel_open = FALSE;
             APP_ERROR0("Unable to open UIPC channel");
             return;
         }
@@ -356,14 +486,26 @@ static void app_pbc_open_evt(tBSA_PBC_MSG *p_data)
 *******************************************************************************/
 static void app_pbc_close_evt(tBSA_PBC_MSG *p_data)
 {
-    APPL_TRACE_DEBUG1("app_pbc_close_evt received... Reason = %d", p_data->close.status);
+    tAPP_PBC_CONN *p_conn = NULL;
 
-    app_pbc_uipc_close();
+    APP_INFO1("app_pbc_close_evt received... Reason = %d", p_data->close.status);
+
+    if ((p_conn = app_pbc_get_conn_by_bd_addr(p_data->close.bd_addr)) == NULL) {
+        APP_ERROR0("Could not find connection control block");
+        return;
+    }
+
+    if(p_conn->is_channel_open) {
+        /* close the UIPC channel receiving data */
+        UIPC_Close(p_conn->uipc_pbc_channel);
+        p_conn->uipc_pbc_channel = UIPC_CH_ID_BAD;
+        p_conn->is_channel_open = FALSE;
+    }
+
     app_pbc_send_state(RK_BT_OBEX_DISCONNECTED);
-
-    app_pbc_cb.is_open = FALSE;
-    app_pbc_cb.open_pending = FALSE;
-    bdcpy(app_pbc_cb.bda_connected, bd_addr_null);
+    p_conn->is_open = FALSE;
+    p_conn->open_pending = FALSE;
+    bdcpy(p_conn->peer_addr, bd_addr_null);
 }
 
 /*******************************************************************************
@@ -392,7 +534,7 @@ static void app_pbc_cback(tBSA_PBC_EVT event, tBSA_PBC_MSG *p_data)
         break;
 
     case BSA_PBC_DISABLE_EVT: /* PBAP Client module disabled*/
-        APP_INFO0("BSA_PBC_DISABLE_EVT\n");
+        APP_INFO0("BSA_PBC_DISABLE_EVT");
         break;
 
     case BSA_PBC_AUTH_EVT: /* Authorization */
@@ -416,7 +558,7 @@ static void app_pbc_cback(tBSA_PBC_EVT event, tBSA_PBC_MSG *p_data)
         break;
 
     default:
-        APP_INFO1("unknown event:%d", event);
+        APP_ERROR1("app_pbc_cback unknown event:%d", event);
         break;
     }
 }
@@ -429,17 +571,24 @@ static void app_pbc_cback(tBSA_PBC_EVT event, tBSA_PBC_MSG *p_data)
 **
 ** Parameters
 **
-** Returns          void
+** Returns          0 if successful, error code otherwise
 **
 *******************************************************************************/
 int app_pbc_enable()
 {
-    tBSA_STATUS status = BSA_SUCCESS;
+    tBSA_STATUS     status = BSA_SUCCESS;
     tBSA_PBC_ENABLE enable_param;
+    UINT8           i;
+
+    APP_INFO0("app_pbc_enable");
 
     /* Initialize the control structure */
     memset(&app_pbc_cb, 0, sizeof(app_pbc_cb));
-    app_pbc_cb.uipc_pbc_channel = UIPC_CH_ID_BAD;
+
+    for (i = 0; i < APP_PBC_MAX_CONN; i++)
+    {
+        app_pbc_cb.conn[i].uipc_pbc_channel = UIPC_CH_ID_BAD;
+    }
 
     status = BSA_PbcEnableInit(&enable_param);
 
@@ -447,8 +596,10 @@ int app_pbc_enable()
     enable_param.local_features = APP_PBC_FEATURES;
 
     status = BSA_PbcEnable(&enable_param);
+    APP_INFO1("app_pbc_enable Status: %d", status);
+
     if (status != BSA_SUCCESS) {
-        APP_ERROR1("Unable to enable PBC status:%d", status);
+        APP_ERROR1("app_pbc_enable: Unable to enable PBC status:%d", status);
         return -1;
     }
 
@@ -463,20 +614,31 @@ int app_pbc_enable()
 **
 ** Parameters
 **
-** Returns          void
+** Returns          0 if successful, error code otherwise
 **
 *******************************************************************************/
-int app_pbc_disable()
+tBSA_STATUS app_pbc_disable()
 {
-    tBSA_STATUS status;
-    tBSA_PBC_DISABLE disable_param;
+    tBSA_PBC_DISABLE    disable_param;
+    tBSA_STATUS         status;
+    UINT8               i;
 
-    app_pbc_uipc_close();
+    APP_INFO0("app_stop_pbc");
+
+    for (i = 0; i < APP_PBC_MAX_CONN; i++) {
+        if(app_pbc_cb.conn[i].is_channel_open) {
+            /* close the UIPC channel receiving data */
+            UIPC_Close(app_pbc_cb.conn[i].uipc_pbc_channel);
+            app_pbc_cb.conn[i].uipc_pbc_channel = UIPC_CH_ID_BAD;
+            app_pbc_cb.conn[i].is_channel_open = FALSE;
+        }
+    }
 
     status = BSA_PbcDisableInit(&disable_param);
     status = BSA_PbcDisable(&disable_param);
+
     if (status != BSA_SUCCESS) {
-        APP_ERROR1("app_stop_pbc: Error: %d", status);
+        APP_ERROR1("app_stop_pbc: Error:%d", status);
         return -1;
     }
 
@@ -491,33 +653,36 @@ int app_pbc_disable()
 **
 ** Parameters
 **
-** Returns          void
+** Returns          0 if successful, error code otherwise
 **
 *******************************************************************************/
-int app_pbc_open(BD_ADDR bda)
+tBSA_STATUS app_pbc_open(BD_ADDR bd_addr)
 {
-    tBSA_STATUS status = BSA_SUCCESS;
-    tBSA_PBC_OPEN param;
+    tAPP_PBC_CONN   *p_conn;
+    tBSA_STATUS     status = BSA_SUCCESS;
+    tBSA_PBC_OPEN   param;
 
-    if(app_pbc_cb.open_pending || app_pbc_cb.is_open) {
-        APP_DEBUG1("pbc connecting or connected: open_pending = %d, is_open: %d",
-            app_pbc_cb.open_pending, app_pbc_cb.is_open);
+    APP_INFO0("app_pbc_open");
+
+    if ((p_conn = app_pbc_get_available_conn(bd_addr)) == NULL) {
+        APP_ERROR1("not find available conn, ERROR: %d", BSA_ERROR_CLI_BAD_PARAM);
         return -1;
     }
 
-    app_pbc_cb.open_pending = TRUE;
-    bdcpy(app_pbc_cb.bda_connected, bda);
+    bdcpy(p_conn->peer_addr, bd_addr);
+    p_conn->open_pending = TRUE;
 
     BSA_PbcOpenInit(&param);
 
-    bdcpy(param.bd_addr, bda);
+    bdcpy(param.bd_addr, bd_addr);
     param.sec_mask = DEFAULT_SEC_MASK;
+
     status = BSA_PbcOpen(&param);
 
     if (status != BSA_SUCCESS) {
-        APP_ERROR1("BSA_PbcOpen Error:%d", status);
-        bdcpy(app_pbc_cb.bda_connected, bd_addr_null);
-        app_pbc_cb.open_pending = FALSE;
+        APP_ERROR1("app_pbc_open: Error:%d", status);
+        bdcpy(p_conn->peer_addr, bd_addr_null);
+        p_conn->open_pending = FALSE;
         return -1;
     }
 
@@ -530,30 +695,33 @@ int app_pbc_open(BD_ADDR bda)
 **
 ** Description      Example of function to disconnect current connection
 **
-** Parameters
+** Parameters       bd_addr     - BD address of the device
 **
-** Returns          void
+** Returns          0 if successful, error code otherwise
 **
 *******************************************************************************/
-int app_pbc_close(BD_ADDR bd_addr)
+tBSA_STATUS app_pbc_close(BD_ADDR bd_addr)
 {
-    tBSA_STATUS status;
+    tAPP_PBC_CONN   *p_conn;
+    tBSA_PBC_CLOSE  close_param;
+    tBSA_STATUS     status;
 
-    tBSA_PBC_CLOSE close_param;
+    APP_INFO0("app_pbc_close");
 
-    if(bdcmp(app_pbc_cb.bda_connected, bd_addr)) {
-        APP_ERROR1("not find connected device(%02X:%02X:%02X:%02X:%02X:%02X)",
-            bd_addr[0], bd_addr[1], bd_addr[2],
-            bd_addr[3], bd_addr[4], bd_addr[5]);
-        return -1;
-    }
-
-    app_pbc_uipc_close();
+    if ((p_conn = app_pbc_get_conn_by_bd_addr(bd_addr)) == NULL){
+       APP_ERROR1("not get conn by address, ERROR: %d", BSA_ERROR_CLI_BAD_PARAM);
+       return -1;
+   }
 
     status = BSA_PbcCloseInit(&close_param);
+
+    bdcpy(close_param.bd_addr, bd_addr);
+
     status = BSA_PbcClose(&close_param);
-    if (status != BSA_SUCCESS) {
-        APP_ERROR1("BSA_PbcClose Error: %d", status);
+
+    if (status != BSA_SUCCESS)
+    {
+        APP_ERROR1("app_pbc_close: Error:%d", status);
         return -1;
     }
 
@@ -562,30 +730,69 @@ int app_pbc_close(BD_ADDR bd_addr)
 
 /*******************************************************************************
 **
+** Function         app_pbc_close_all
+**
+** Description      release all pbc connections
+**
+** Returns          0 if successful, error code otherwise
+**
+*******************************************************************************/
+tBSA_STATUS app_pbc_close_all(void)
+{
+    tBSA_PBC_CLOSE  close_param;
+    tBSA_STATUS     status;
+    UINT16          cb_index;
+
+    APPL_TRACE_EVENT0("app_pbc_close_all");
+
+    for(cb_index = 0; cb_index < APP_PBC_MAX_CONN; cb_index++)
+    {
+        /* Prepare parameters */
+        BSA_PbcCloseInit(&close_param);
+        bdcpy(close_param.bd_addr, app_pbc_cb.conn[cb_index].peer_addr);
+
+
+        status = BSA_PbcClose(&close_param);
+        if (status != BSA_SUCCESS)
+        {
+            APP_ERROR1("failed with status : %d", status);
+        }
+    }
+
+    return status;
+}
+
+/*******************************************************************************
+**
 ** Function         app_pbc_abort
 **
 ** Description      Example of function to abort current actions
 **
-** Parameters
+** Parameters       bd_addr     - BD address of the device
 **
-** Returns          void
+** Returns          0 if successful, error code otherwise
 **
 *******************************************************************************/
-tBSA_STATUS app_pbc_abort(void)
+tBSA_STATUS app_pbc_abort(BD_ADDR bd_addr)
 {
-    tBSA_STATUS status;
+    tAPP_PBC_CONN   *p_conn;
+    tBSA_PBC_ABORT  abort_param;
+    tBSA_STATUS     status;
 
-    tBSA_PBC_ABORT abort_param;
+    APP_INFO0("app_pbc_abort");
 
-    printf("app_pbc_abort\n");
+    if ((p_conn = app_pbc_get_conn_by_bd_addr(bd_addr)) == NULL)
+        return BSA_ERROR_CLI_BAD_PARAM;
 
     status = BSA_PbcAbortInit(&abort_param);
+
+    bdcpy(abort_param.bd_addr, bd_addr);
 
     status = BSA_PbcAbort(&abort_param);
 
     if (status != BSA_SUCCESS)
     {
-        fprintf(stderr, "app_pbc_abort: Error:%d\n", status);
+        APP_ERROR1("app_pbc_abort: Error:%d", status);
     }
     return status;
 }
@@ -596,24 +803,31 @@ tBSA_STATUS app_pbc_abort(void)
 **
 ** Description      cancel connections
 **
-** Returns          0 if success -1 if failure
+** Returns          0 if successful, error code otherwise
+**
 *******************************************************************************/
-tBSA_STATUS app_pbc_cancel(void)
+tBSA_STATUS app_pbc_cancel(BD_ADDR bd_addr)
 {
-    tBSA_PBC_CANCEL param;
-    tBSA_STATUS status;
+    tAPP_PBC_CONN   *p_conn;
+    tBSA_PBC_CANCEL cancel_param;
+    tBSA_STATUS     status;
+
+    APP_INFO0("app_pbc_cancel");
+
+    if ((p_conn = app_pbc_get_conn_by_bd_addr(bd_addr)) == NULL)
+        return BSA_ERROR_CLI_BAD_PARAM;
 
     /* Prepare parameters */
-    BSA_PbcCancelInit(&param);
+    BSA_PbcCancelInit(&cancel_param);
 
-    status = BSA_PbcCancel(&param);
+    bdcpy(cancel_param.bd_addr, bd_addr);
+
+    status = BSA_PbcCancel(&cancel_param);
     if (status != BSA_SUCCESS)
     {
         APP_ERROR1("app_pbc_cancel - failed with status : %d", status);
-        return -1;
     }
-
-    return 0;
+    return status;
 }
 
 /*******************************************************************************
@@ -624,34 +838,40 @@ tBSA_STATUS app_pbc_cancel(void)
 **
 ** Parameters
 **
-** Returns          void
+** Returns          0 if successful, error code otherwise
 **
 *******************************************************************************/
-tBSA_STATUS app_pbc_get_vcard(const char* file_name)
+tBSA_STATUS app_pbc_get_vcard(BD_ADDR bd_addr, const char* file_name)
 {
-    tBSA_STATUS status = 0;
-    tBSA_PBC_GET pbcGet;
+    tAPP_PBC_CONN           *p_conn;
+    tBSA_STATUS             status = 0;
+    tBSA_PBC_GET            pbcGet;
+    tBSA_PBC_FILTER_MASK    filter = BSA_PBC_FILTER_ALL;
+    tBSA_PBC_FORMAT         format =  BSA_PBC_FORMAT_CARD_21;
+    UINT16                  len = strlen(file_name) + 1;
+    char                    *p_path;
 
-    tBSA_PBC_FILTER_MASK filter = BSA_PBC_FILTER_ALL;
-    tBSA_PBC_FORMAT format =  BSA_PBC_FORMAT_CARD_21;
+    APP_INFO0("app_pbc_get_vcard");
 
-    UINT16   len = strlen(file_name) + 1;
-    char    *p_path;
-    if(  (p_path = (char *) GKI_getbuf(MAX_PATH_LENGTH + 1)) == NULL)
+    if ((p_conn = app_pbc_get_conn_by_bd_addr(bd_addr)) == NULL)
+        return BSA_ERROR_CLI_BAD_PARAM;
+
+    if ((p_path = (char *) GKI_getbuf(MAX_PATH_LENGTH + 1)) == NULL)
     {
         return FALSE;
     }
 
     memset(p_path, 0, MAX_PATH_LENGTH + 1);
     sprintf(p_path, "/%s", file_name); /* Choosing the root folder */
-    APPL_TRACE_DEBUG3("GET vCard Entry p_path = %s,  file name = %s, len = %d",
+    APP_INFO1("GET vCard Entry p_path = %s,  file name = %s, len = %d",
         p_path, file_name, len);
 
-    app_pbc_cb.remove = TRUE;
+    p_conn->remove = TRUE;
 
     status = BSA_PbcGetInit(&pbcGet);
 
     pbcGet.type = BSA_PBC_GET_CARD;
+    bdcpy(pbcGet.bd_addr, bd_addr);
     strncpy(pbcGet.param.get_card.remote_name, file_name, BSA_PBC_FILENAME_MAX - 1);
     pbcGet.param.get_card.filter = filter;
     pbcGet.param.get_card.format = format;
@@ -660,7 +880,7 @@ tBSA_STATUS app_pbc_get_vcard(const char* file_name)
 
     if (status != BSA_SUCCESS)
     {
-        fprintf(stderr, "app_pbc_get_vcard: Error:%d\n", status);
+        APP_ERROR1("app_pbc_get_vcard: Error:%d", status);
     }
 
     GKI_freebuf(p_path);
@@ -677,25 +897,29 @@ tBSA_STATUS app_pbc_get_vcard(const char* file_name)
 **
 ** Parameters
 **
-** Returns          void
+** Returns          0 if successful, error code otherwise
 **
 *******************************************************************************/
-tBSA_STATUS app_pbc_get_list_vcards(const char* string_dir, tBSA_PBC_ORDER  order,
-    tBSA_PBC_ATTR  attr, const char* searchvalue, UINT16 max_list_count,
+tBSA_STATUS app_pbc_get_list_vcards(BD_ADDR bd_addr, const char* string_dir,
+    tBSA_PBC_ORDER  order, tBSA_PBC_ATTR  attr, const char* searchvalue, UINT16 max_list_count,
     BOOLEAN is_reset_missed_calls, tBSA_PBC_FILTER_MASK selector, tBSA_PBC_OP selector_op)
 {
-    UINT16 list_start_offset = 0;
+    tAPP_PBC_CONN   *p_conn;
+    UINT16          list_start_offset = 0;
+    tBSA_STATUS     status = 0;
+    tBSA_PBC_GET    pbcGet;
+    int             is_xml = 1;
 
-    tBSA_STATUS status = 0;
-    tBSA_PBC_GET pbcGet;
-    int is_xml = 1;
+    APP_INFO0("app_pbc_get_list_vcards");
 
-    APP_DEBUG0("app_pbc_get_list_vcards");
+    if ((p_conn = app_pbc_get_conn_by_bd_addr(bd_addr)) == NULL)
+        return BSA_ERROR_CLI_BAD_PARAM;
 
     status = BSA_PbcGetInit(&pbcGet);
 
     pbcGet.type = BSA_PBC_GET_LIST_CARDS;
     pbcGet.is_xml = is_xml;
+    bdcpy(pbcGet.bd_addr, bd_addr);
 
     strncpy( pbcGet.param.list_cards.dir, string_dir, BSA_PBC_ROOT_PATH_LEN_MAX - 1);
     pbcGet.param.list_cards.order = order;
@@ -711,7 +935,7 @@ tBSA_STATUS app_pbc_get_list_vcards(const char* string_dir, tBSA_PBC_ORDER  orde
 
     if (status != BSA_SUCCESS)
     {
-        fprintf(stderr, "app_pbc_get_list_vcards: Error:%d\n", status);
+        APP_ERROR1("app_pbc_get_list_vcards: Error:%d", status);
     }
 
     return status;
@@ -725,25 +949,30 @@ tBSA_STATUS app_pbc_get_list_vcards(const char* string_dir, tBSA_PBC_ORDER  orde
 **
 ** Parameters
 **
-** Returns          void
+** Returns          0 if successful, error code otherwise
 **
 *******************************************************************************/
-tBSA_STATUS app_pbc_get_phonebook(const char* file_name,
+tBSA_STATUS app_pbc_get_phonebook(BD_ADDR bd_addr, const char* file_name,
     BOOLEAN is_reset_missed_calls, tBSA_PBC_FILTER_MASK selector, tBSA_PBC_OP selector_op)
 {
-    tBSA_STATUS status = 0;
-    tBSA_PBC_GET pbcGet;
+    tAPP_PBC_CONN           *p_conn;
+    tBSA_STATUS             status = 0;
+    tBSA_PBC_GET            pbcGet;
+    tBSA_PBC_FILTER_MASK    filter = BSA_PBC_FILTER_ALL;
+    tBSA_PBC_FORMAT         format =  BSA_PBC_FORMAT_CARD_30;
+    UINT16                  max_list_count = 65535;
+    UINT16                  list_start_offset = 0;
+    UINT16                  len = strlen(file_name) + 1;
+    char                    *p_path;
+    char                    *p = file_name;
+    char                    *p_name = NULL;
 
-    tBSA_PBC_FILTER_MASK filter = BSA_PBC_FILTER_ALL;
-    tBSA_PBC_FORMAT format =  BSA_PBC_FORMAT_CARD_30;
+    APP_INFO0("app_pbc_get_phonebook");
 
-    UINT16 max_list_count = 65535;
-    UINT16 list_start_offset = 0;
-
-    UINT16 len = strlen(file_name) + 1;
-    char *p_path;
-    char *p = file_name;
-    char *p_name = NULL;
+    if ((p_conn = app_pbc_get_conn_by_bd_addr(bd_addr)) == NULL) {
+       APP_ERROR1("not get conn by address, ERROR: %d", BSA_ERROR_CLI_BAD_PARAM);
+        return -1;
+    }
 
     do {
         /* double check the specified phonebook is correct */
@@ -755,23 +984,23 @@ tBSA_STATUS app_pbc_get_phonebook(const char* file_name,
         p_name = p;
         if(strcmp(p, "pb.vcf") && strcmp(p, "fav.vcf") && strcmp(p, "spd.vcf")) {
             p++;
-            if(strcmp(p, "ch.vcf") != 0) /* this covers rest of the ich, och,mch,cch */
+            if(strcmp(p, "ch.vcf") != 0) /* this covers rest of the ich,och,mch,cch */
                 break;
         }
 
-        if ((p_path = (char *) GKI_getbuf(MAX_PATH_LENGTH + 1)) == NULL) {
+        if ((p_path = (char *) GKI_getbuf(MAX_PATH_LENGTH + 1)) == NULL)
             break;
-        }
 
         memset(p_path, 0, MAX_PATH_LENGTH + 1);
         sprintf(p_path, "/%s", p_name); /* Choosing the root folder */
-        APPL_TRACE_DEBUG1("GET PhoneBook p_path = %s", p_path);
-        APPL_TRACE_DEBUG2("file name = %s, len = %d", file_name, len);
+        APP_INFO1("GET PhoneBook p_path = %s", p_path);
+        APP_INFO1("file name = %s, len = %d", file_name, len);
 
-        app_pbc_cb.remove = TRUE;
+        p_conn->remove = TRUE;
 
         status = BSA_PbcGetInit(&pbcGet);
         pbcGet.type = BSA_PBC_GET_PHONEBOOK;
+        bdcpy(pbcGet.bd_addr, bd_addr);
         strncpy(pbcGet.param.get_phonebook.remote_name, file_name, BSA_PBC_MAX_REALM_LEN - 1);
         pbcGet.param.get_phonebook.filter = filter;
         pbcGet.param.get_phonebook.format = format;
@@ -783,7 +1012,7 @@ tBSA_STATUS app_pbc_get_phonebook(const char* file_name,
 
         status = BSA_PbcGet(&pbcGet);
         if (status != BSA_SUCCESS)
-            APP_ERROR1("BSA_PbcGet Error:%d", status);
+            APP_ERROR1("app_pbc_get_phonebook: Error:%d", status);
 
         GKI_freebuf(p_path);
     } while(0);
@@ -799,15 +1028,20 @@ tBSA_STATUS app_pbc_get_phonebook(const char* file_name,
 **
 ** Parameters
 **
-** Returns          void
+** Returns          0 if successful, error code otherwise
 **
 *******************************************************************************/
-tBSA_STATUS app_pbc_set_chdir(const char *string_dir)
+tBSA_STATUS app_pbc_set_chdir(BD_ADDR bd_addr, const char *string_dir)
 {
-   tBSA_STATUS status = BSA_SUCCESS;
-   tBSA_PBC_SET set_param;
+   tAPP_PBC_CONN    *p_conn;
+   tBSA_PBC_SET     set_param;
+   tBSA_STATUS      status = BSA_SUCCESS;
 
-    APPL_TRACE_EVENT1("app_pbc_set_chdir: path= %s", string_dir);
+    APP_INFO1("app_pbc_set_chdir: path= %s", string_dir);
+
+    if ((p_conn = app_pbc_get_conn_by_bd_addr(bd_addr)) == NULL)
+        return BSA_ERROR_CLI_BAD_PARAM;
+
     status = BSA_PbcSetInit(&set_param);
     if (strcmp(string_dir, APP_PBC_SETPATH_ROOT) == 0)
     {
@@ -822,83 +1056,66 @@ tBSA_STATUS app_pbc_set_chdir(const char *string_dir)
         strncpy(set_param.param.ch_dir.dir, string_dir, BSA_PBC_ROOT_PATH_LEN_MAX - 1);
         set_param.param.ch_dir.flag = BSA_PBC_FLAG_NONE;
     }
+    bdcpy(set_param.bd_addr, bd_addr);
     status = BSA_PbcSet(&set_param);
 
     if (status != BSA_SUCCESS)
     {
-        fprintf(stderr, "app_pbc_set_chdir: Error:%d\n", status);
+        APP_ERROR1("app_pbc_set_chdir: Error:%d", status);
     }
     return status;
 }
 
 /*******************************************************************************
 **
-** Function         pbc_is_open_pending
+** Function         app_pbc_choose_connected_devices
 **
-** Description      Check if pbc Open is pending
+** Description      Display connected devices and select a device
 **
-** Parameters
+** Parameters       bd addr to copy
 **
-** Returns          TRUE if open is pending, FALSE otherwise
+** Returns          TRUE if found
 **
 *******************************************************************************/
-BOOLEAN pbc_is_open_pending()
+BOOLEAN app_pbc_choose_connected_devices(BD_ADDR *addr)
 {
-    return app_pbc_cb.open_pending;
-}
+    UINT8   i, device_index, num_conn = 0;
+    int     choice;
+    BOOLEAN is_found = FALSE;
 
-/*******************************************************************************
-**
-** Function         pbc_set_open_pending
-**
-** Description      Set pbc open pending
-**
-** Parameters
-**
-** Returns          void
-**
-*******************************************************************************/
-void pbc_set_open_pending(BOOLEAN bopenpend)
-{
-    app_pbc_cb.open_pending = bopenpend;
-}
-
-/*******************************************************************************
-**
-** Function         pbc_is_open
-**
-** Description      Check if pbc is open
-**
-** Parameters
-**
-** Returns          TRUE if pbc is open, FALSE otherwise. Return BDA of the connected device
-**
-*******************************************************************************/
-BOOLEAN pbc_is_open(BD_ADDR *bda)
-{
-    BOOLEAN bopen = app_pbc_cb.is_open;
-    if(bopen)
+    for (i = 0; i < APP_PBC_MAX_CONN; i++)
     {
-        bdcpy(*bda, app_pbc_cb.bda_connected);
+        if(app_pbc_cb.conn[i].is_open)
+        {
+            num_conn++;
+            APP_INFO1("Connection index %d:%02X:%02X:%02X:%02X:%02X:%02X",
+                i,
+                app_pbc_cb.conn[i].peer_addr[0], app_pbc_cb.conn[i].peer_addr[1],
+                app_pbc_cb.conn[i].peer_addr[2], app_pbc_cb.conn[i].peer_addr[3],
+                app_pbc_cb.conn[i].peer_addr[4], app_pbc_cb.conn[i].peer_addr[5]);
+        }
     }
 
-    return bopen;
-}
+    if (num_conn)
+    {
+        APP_INFO0("Choose connection index");
+        device_index = app_get_choice("\n");
+        if ((device_index < APP_PBC_MAX_CONN) && (app_pbc_cb.conn[device_index].is_open == TRUE))
+        {
+            bdcpy(*addr, app_pbc_cb.conn[device_index].peer_addr);
+            is_found = TRUE;
+        }
+        else
+        {
+            APP_INFO0("Unknown choice");
+        }
+    }
+    else
+    {
+        APP_INFO0("No connections");
+    }
 
-/*******************************************************************************
-**
-** Function         pbc_last_open_status
-**
-** Description      Get the last pbc open status
-**
-** Parameters
-**
-** Returns          open status
-**
-*******************************************************************************/
-tBSA_STATUS pbc_last_open_status()
-{
-    return app_pbc_cb.last_open_status;
+    return is_found;
 }
 
 void app_pbc_register_status_cb(RK_BT_OBEX_STATE_CALLBACK cb)
@@ -952,11 +1169,21 @@ int app_pbc_disconnect(char *address)
 int app_pbc_get_vcf(char *dir_name, char *dir_file)
 {
     char file_name[MAX_PATH_LENGTH];
-    int len;
+    int len, i;
     tBSA_STATUS status;
 
     if (!dir_name || !dir_file) {
         APP_ERROR1("Invalid dir_name or dir_file");
+        return -1;
+    }
+
+    for(i = 0; i < APP_PBC_MAX_CONN; i++) {
+        if((app_pbc_cb.conn[i].is_open == TRUE) && (app_pbc_cb.conn[i].open_pending == FALSE))
+            break;
+    }
+
+    if(i == APP_PBC_MAX_CONN) {
+        APP_ERROR0("not find connected device");
         return -1;
     }
 
@@ -968,7 +1195,9 @@ int app_pbc_get_vcf(char *dir_name, char *dir_file)
     sprintf(file_name, "%s%s%s", "telecom/", dir_name, ".vcf");
     //sprintf(file_name, "%s%s%s", "SIM1/telecom/", dir_name, ".vcf");
     APP_DEBUG1("file_name: %s", file_name);
-    status = app_pbc_get_phonebook(file_name, 1, BSA_PBC_FILTER_ALL, BSA_PBC_OP_OR);
+
+    status = app_pbc_get_phonebook(app_pbc_cb.conn[i].peer_addr, file_name, 1, 
+        BSA_PBC_FILTER_ALL, BSA_PBC_OP_OR);
     if(status != BSA_SUCCESS)
         return -1;
 

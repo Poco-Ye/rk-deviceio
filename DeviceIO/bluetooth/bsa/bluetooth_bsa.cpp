@@ -26,12 +26,12 @@
 #include "app_ble_rk_server.h"
 #include "app_hs.h"
 #include "app_ble_client.h"
+#include "app_pbc.h"
 #include "../bluetooth.h"
 #include "bluetooth_bsa.h"
 #include "utility.h"
 
 #ifdef BROADCOM_BSA
-#include "app_pbc.h"
 #include "app_pan.h"
 #endif
 
@@ -231,7 +231,7 @@ void rk_bt_set_bsa_server_path(char *path)
 	}
 
 	len = strlen(path) + 1;
-	g_bsa_server_path = malloc(len);
+	g_bsa_server_path = (char*)malloc(len);
 	if(!g_bsa_server_path) {
 		APP_DEBUG0("malloc bsa server path failed");
 		return;
@@ -1650,11 +1650,7 @@ static bool pbap_is_open()
 
 void rk_bt_obex_register_status_cb(RK_BT_OBEX_STATE_CALLBACK cb)
 {
-#ifdef BROADCOM_BSA
     app_pbc_register_status_cb(cb);
-#else
-    APP_DEBUG1("cypress bsa don't support %s", __func__);
-#endif
 }
 
 int rk_bt_obex_init(char *path)
@@ -1670,7 +1666,6 @@ int rk_bt_obex_init(char *path)
 
 int rk_bt_obex_pbap_init()
 {
-#ifdef BROADCOM_BSA
     if(!bt_is_open()) {
         APP_DEBUG0("bluetooth is not inited, please init");
         return -1;
@@ -1687,60 +1682,41 @@ int rk_bt_obex_pbap_init()
     }
 
     g_bt_control.is_pbap_open = true;
-#else
-    APP_DEBUG1("cypress bsa don't support %s", __func__);
-#endif
     return 0;
 }
 
 int rk_bt_obex_pbap_connect(char *addr)
 {
-#ifdef BROADCOM_BSA
     if(!pbap_is_open()) {
         APP_ERROR0("pbap don't open, please open");
         return -1;
     }
 
     return app_pbc_connect(addr);
-#else
-    APP_DEBUG1("cypress bsa don't support %s", __func__);
-#endif
-    return 0;
 }
 
 int rk_bt_obex_pbap_get_vcf(char *dir_name, char *dir_file)
 {
-#ifdef BROADCOM_BSA
     if(!pbap_is_open()) {
         APP_ERROR0("pbap don't open, please open");
         return -1;
     }
 
     return app_pbc_get_vcf(dir_name, dir_file);
-#else
-    APP_DEBUG1("cypress bsa don't support %s", __func__);
-#endif
-    return 0;
 }
 
 int rk_bt_obex_pbap_disconnect(char *addr)
 {
-#ifdef BROADCOM_BSA
     if(!pbap_is_open()) {
         APP_ERROR0("pbap don't open, please open");
         return -1;
     }
 
     return app_pbc_disconnect(addr);
-#else
-    APP_DEBUG1("cypress bsa don't support %s", __func__);
-#endif
-    return 0;
 }
 
 int rk_bt_obex_pbap_deinit()
 {
-#ifdef BROADCOM_BSA
     if(!pbap_is_open()) {
         APP_DEBUG0("bt pbap has been closed.");
         return 0;
@@ -1753,9 +1729,6 @@ int rk_bt_obex_pbap_deinit()
 
     g_bt_control.is_pbap_open = false;
     app_pbc_deregister_status_cb();
-#else
-    APP_DEBUG1("cypress bsa don't support %s", __func__);
-#endif
     return 0;
 }
 
