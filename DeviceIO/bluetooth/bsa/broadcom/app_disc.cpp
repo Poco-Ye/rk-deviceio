@@ -1096,6 +1096,8 @@ int app_disc_start_services(tBSA_SERVICE_MASK services, int duration)
 
     APP_INFO0("Start Service Discovery");
 
+    app_discovery_complete = APP_DISCOVERYING;
+
     BSA_DiscStartInit(&disc_start_param);
 
     disc_start_param.cback = app_generic_disc_cback;
@@ -1112,12 +1114,14 @@ int app_disc_start_services(tBSA_SERVICE_MASK services, int duration)
     APP_INFO0("Start Services filtered Discovery");
     APP_INFO1("Look for (%s) services", app_service_mask_to_string(services));
     status = BSA_DiscStart(&disc_start_param);
-    if (status != BSA_SUCCESS)
-    {
+    if (status != BSA_SUCCESS) {
         APP_ERROR1("BSA_DiscStart failed status:%d", status);
+        app_discovery_complete = APP_DISCOVERY_IDEL;
+        app_mgr_disc_state_send(RK_BT_DISC_START_FAILED);
         return -1;
     }
 
+    app_mgr_disc_state_send(RK_BT_DISC_STARTED);
     return 0;
 }
 
