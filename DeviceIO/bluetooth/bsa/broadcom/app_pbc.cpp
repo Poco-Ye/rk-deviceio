@@ -54,7 +54,6 @@ typedef struct
     tUIPC_CH_ID         uipc_pbc_channel;
     BOOLEAN             remove;
     char                save_path[MAX_PATH_LENGTH];
-    bool                is_transfer;
 } tAPP_PBC_CB;
 
 /*
@@ -138,7 +137,6 @@ static void app_pbc_uipc_cback(BT_HDR *p_msg)
         unlink(app_pbc_cb.save_path);
         app_pbc_cb.remove = FALSE;
 
-        app_pbc_cb.is_transfer = true;
         app_pbc_send_state(RK_BT_OBEX_TRANSFER_ACTIVE);
     }
 
@@ -255,11 +253,7 @@ static void app_pbc_get_evt(tBSA_PBC_MSG *p_data)
     case BSA_PBC_GET_PARAM_FILE_TRANSFER_STATUS:
         APP_DEBUG0("GET EVT BSA_PBC_GET_PARAM_FILE_TRANSFER_STATUS");
         sleep(1);
-
-        if(app_pbc_cb.is_transfer) {
-            app_pbc_cb.is_transfer = false;
-            app_pbc_send_state(RK_BT_OBEX_TRANSFER_COMPLETE);
-        }
+        app_pbc_send_state(RK_BT_OBEX_TRANSFER_COMPLETE);
         break;
 
     default:
