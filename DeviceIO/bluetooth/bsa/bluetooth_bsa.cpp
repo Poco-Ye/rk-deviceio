@@ -665,7 +665,7 @@ int rk_bt_read_remote_device_name(char *addr, int transport)
     }
 
     if(app_mgr_str2bd(addr, bd_addr) < 0) {
-        APP_ERROR1("read remote device(%s) name failed", addr);
+        APP_ERROR1("app_mgr_str2bd failed");
         return -1;
     }
 
@@ -675,6 +675,23 @@ int rk_bt_read_remote_device_name(char *addr, int transport)
     }
 
     return app_disc_read_remote_device_name(bd_addr, tBSA_TRANSPORT(transport));
+}
+
+RK_BT_DEV_PLATFORM_TYPE rk_bt_get_dev_platform(char *addr)
+{
+    BD_ADDR bd_addr;
+
+    if(!bt_is_open()) {
+        APP_DEBUG0("bluetooth is not inited, please init");
+        return -1;
+    }
+
+    if(app_mgr_str2bd(addr, bd_addr) < 0) {
+        APP_ERROR1("app_mgr_str2bd failed");
+        return -1;
+    }
+
+    return (RK_BT_DEV_PLATFORM_TYPE)app_mgr_get_dev_platform(bd_addr);
 }
 
 /******************************************/

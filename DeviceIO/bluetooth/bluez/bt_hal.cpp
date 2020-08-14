@@ -1500,6 +1500,16 @@ int rk_bt_read_remote_device_name(char *addr, int transport)
 	return -1;
 }
 
+RK_BT_DEV_PLATFORM_TYPE rk_bt_get_dev_platform(char *addr)
+{
+	if (!bt_is_open()) {
+		pr_info("%s: Please open bt!!!\n", __func__);
+		return -1;
+	}
+
+	return (RK_BT_DEV_PLATFORM_TYPE)get_dev_platform(addr);
+}
+
 /*****************************************************************
  *            Rockchip bluetooth hfp-hf api                      *
  *****************************************************************/

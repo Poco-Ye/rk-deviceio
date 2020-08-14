@@ -103,6 +103,15 @@ typedef struct
     BOOLEAN            is_pick_up;
 } tAPP_HS_CB;
 
+typedef struct {
+    const char *no_calls_active;         //No calls (held or active)
+    const char *call_present_active;     //Call is present (active or held)
+    const char *no_call_progress;        //No call setup in progress
+    const char *incoming_call_progress;  //Incoming call setup in progress
+    const char *outgoing_call_dialing;   //Outgoing call setup in dialing state
+    const char *outgoing_call_alerting;  //Outgoing call setup in alerting state
+} tAPP_HS_CIEV_STATE;
+
 /*
  * Globales Variables
  */
@@ -162,6 +171,7 @@ static int app_hs_close_alsa_duplex(void);
 
 static RK_BT_HFP_EVENT app_hs_state = RK_BT_HFP_DISCONNECT_EVT;
 static RK_BT_HFP_CALLBACK app_hs_send_cb = NULL;
+static tAPP_HS_CIEV_STATE app_hs_ciev_state;
 static void app_hs_send_event(BD_ADDR bd_addr, RK_BT_HFP_EVENT event, void *data) {
     char address[BT_DEVICE_ADDRESS_LEN];
 
@@ -1122,32 +1132,50 @@ int app_hs_play_file(char * filename)
     return 0;
 }
 
-static void app_hs_process_ciev_msg(BD_ADDR bd_addr, char *msg, UINT8 dev_platform)
+static void app_hs_config_ciev(UINT8 dev_platform)
 {
     if(dev_platform == BSA_DEV_PLATFORM_IOS) {
-        if(strstr(msg, "2,1")) {
-            app_hs_cb.is_pick_up = TRUE;
-            app_hs_send_event(bd_addr, RK_BT_HFP_PICKUP_EVT, NULL);
-        } else if(strstr(msg, "2,0")) {
-            app_hs_send_event(bd_addr, RK_BT_HFP_HANGUP_EVT, NULL);
-        } else if(strstr(msg, "3,0")) {
-            if(!app_hs_cb.is_pick_up)
-                app_hs_send_event(bd_addr, RK_BT_HFP_HANGUP_EVT, NULL);
-            else
-                app_hs_cb.is_pick_up = FALSE;
-        }
+        app_hs_ciev_state.no_calls_active = "2,0";
+        app_hs_ciev_state.call_present_active = "2,1";
+        app_hs_ciev_state.no_call_progress = "3,0";
+        app_hs_ciev_state.incoming_call_progress = "3,1";
+        app_hs_ciev_state.outgoing_call_dialing = "3,2";
+        app_hs_ciev_state.outgoing_call_alerting = "3,3";
     } else {
-        if(strstr(msg, "1,1")) {
-            app_hs_cb.is_pick_up = TRUE;
-            app_hs_send_event(bd_addr, RK_BT_HFP_PICKUP_EVT, NULL);
-        } else if(strstr(msg, "1,0")) {
+        app_hs_ciev_state.no_calls_active = "1,0";
+        app_hs_ciev_state.call_present_active = "1,1";
+        app_hs_ciev_state.no_call_progress = "2,0";
+        app_hs_ciev_state.incoming_call_progress = "2,1";
+        app_hs_ciev_state.outgoing_call_dialing = "2,2";
+        app_hs_ciev_state.outgoing_call_alerting = "2,3";
+    }
+}
+
+static void app_hs_process_ciev_msg(BD_ADDR bd_addr, char *msg)
+{
+    if(!msg)
+        return;
+
+    if(!app_hs_ciev_state.no_calls_active) {
+        APP_DEBUG0("app_hs_ciev_state info is NULL, don't receive BSA_HS_CONN_EVT ???");
+        return;
+    }
+
+    if(strstr(msg, app_hs_ciev_state.call_present_active)) {
+        app_hs_cb.is_pick_up = TRUE;
+        app_hs_send_event(bd_addr, RK_BT_HFP_PICKUP_EVT, NULL);
+    } else if(strstr(msg, app_hs_ciev_state.no_calls_active)) {
+        app_hs_send_event(bd_addr, RK_BT_HFP_HANGUP_EVT, NULL);
+    } else if(strstr(msg, app_hs_ciev_state.no_call_progress)) {
+        if(!app_hs_cb.is_pick_up)
             app_hs_send_event(bd_addr, RK_BT_HFP_HANGUP_EVT, NULL);
-        } else if(strstr(msg, "2,0")) {
-            if(!app_hs_cb.is_pick_up)
-                app_hs_send_event(bd_addr, RK_BT_HFP_HANGUP_EVT, NULL);
-            else
-                app_hs_cb.is_pick_up = FALSE;
-        }
+        else
+            app_hs_cb.is_pick_up = FALSE;
+    } else if(strstr(msg, app_hs_ciev_state.outgoing_call_dialing)) {
+        app_hs_send_event(bd_addr, RK_BT_HFP_OUTGOING_CALL_DIAL_EVT, NULL);
+        app_hs_send_clcc_cmd();
+    } else if(strstr(msg, app_hs_ciev_state.outgoing_call_alerting)) {
+        app_hs_send_event(bd_addr, RK_BT_HFP_OUTGOING_CALL_RING_EVT, NULL);
     }
 }
 
@@ -1223,6 +1251,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         p_conn->dev_platform = app_mgr_get_dev_platform(p_data->conn.bd_addr);
         APP_DEBUG1("device platform is %s",
             p_conn->dev_platform == BSA_DEV_PLATFORM_UNKNOWN ? "Unknown Platform" : "Apple IOS");
+        app_hs_config_ciev(p_conn->dev_platform);
 
         /* Read the Remote device xml file to have a fresh view */
         app_read_xml_remote_devices();
@@ -1264,6 +1293,13 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
 
         app_dm_set_visibility(TRUE, TRUE);
         app_hs_state = RK_BT_HFP_DISCONNECT_EVT;
+
+        app_hs_ciev_state.no_calls_active = NULL;
+        app_hs_ciev_state.call_present_active = NULL;
+        app_hs_ciev_state.no_call_progress = NULL;
+        app_hs_ciev_state.incoming_call_progress = NULL;
+        app_hs_ciev_state.outgoing_call_dialing = NULL;
+        app_hs_ciev_state.outgoing_call_alerting = NULL;
         app_hs_send_event(p_conn->connected_bd_addr, RK_BT_HFP_DISCONNECT_EVT, NULL);
         break;
 
@@ -1336,7 +1372,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         strncpy(buf, p_data->val.str, 4);
         buf[5] ='\0';
         APP_INFO1("Call Ind Status %s",buf);
-        app_hs_process_ciev_msg(p_conn->connected_bd_addr, buf, p_conn->dev_platform);
+        app_hs_process_ciev_msg(p_conn->connected_bd_addr, buf);
         break;
 
     case BSA_HS_CIND_EVT:                /* CIND event */
@@ -1412,6 +1448,7 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
 
     case BSA_HS_CLCC_EVT:
         APP_INFO1("BSA_HS_CLCC_EVT:%s", p_data->val.str);
+        app_hs_send_event(p_conn->connected_bd_addr, RK_BT_HFP_CLCC_EVT, p_data->val.str);
         break;
 
     case BSA_HS_UNAT_EVT:

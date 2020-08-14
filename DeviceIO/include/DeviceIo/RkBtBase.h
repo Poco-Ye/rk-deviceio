@@ -73,6 +73,11 @@ typedef enum {
 	RK_BT_DISC_STOPPED_BY_USER,
 } RK_BT_DISCOVERY_STATE;
 
+typedef enum {
+	RK_BT_DEV_PLATFORM_UNKNOWN = 0, /* unknown platform */
+	RK_BT_DEV_PLATFORM_IOS,         /* Apple iOS */
+} RK_BT_DEV_PLATFORM_TYPE;
+
 typedef struct {
 	Ble_Uuid_Type_t server_uuid;
 	Ble_Uuid_Type_t chr_uuid[12];
@@ -139,6 +144,7 @@ void rk_bt_display_paired_devices();
 int rk_bt_set_visibility(const int visiable, const int connectable);
 bool rk_bt_get_connected_properties(char *addr);
 RK_BT_PLAYROLE_TYPE rk_bt_get_playrole_by_addr(char *addr);
+RK_BT_DEV_PLATFORM_TYPE rk_bt_get_dev_platform(char *addr);
 
 //for bsa, default /usr/bin/bsa_server.sh
 void rk_bt_set_bsa_server_path(char *path);

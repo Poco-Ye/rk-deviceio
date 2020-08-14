@@ -1803,11 +1803,37 @@ static void hfp_close_audio_duplex()
 	hfp_close_bt_duplex();
 }
 
+static void get_call_info(char *str)
+{
+	char *p1, *p2 = NULL;
+	char number[20];
+	char name[256];
+
+	if(!str)
+		return;
+
+	printf("Call info: %s\n", str);
+
+	p1 = strstr(str, "\"");
+	p2 = strstr(p1 + 1, "\"");
+	memset(number, 0, 20);
+	strncpy(number, p1 + 1, p2 - (p1 + 1));
+	printf("Call number: %s\n", number);
+
+	p1 = strstr(p2 + 1, "\"");
+	p2 = strstr(p1 + 1, "\"");
+	memset(name, 0, 20);
+	strncpy(name, p1 + 1, p2 - (p1 + 1));
+	printf("Call name: %s\n", name);
+}
+
 int bt_test_hfp_hp_cb(const char *bd_addr, RK_BT_HFP_EVENT event, void *data)
 {
 	switch(event) {
 		case  RK_BT_HFP_CONNECT_EVT:
 			printf("+++++ BT HFP HP CONNECT(%s) +++++\n", bd_addr);
+			printf("device platform is %s\n", rk_bt_get_dev_platform(bd_addr) == RK_BT_DEV_PLATFORM_UNKNOWN ?
+				"Unknown Platform" : "Apple IOS");
 			break;
 		case RK_BT_HFP_DISCONNECT_EVT:
 			printf("+++++ BT HFP HP DISCONNECT(%s) +++++\n", bd_addr);
@@ -1845,21 +1871,24 @@ int bt_test_hfp_hp_cb(const char *bd_addr, RK_BT_HFP_EVENT event, void *data)
 		}
 		case RK_BT_HFP_CLIP_EVT:
 		{
-			char *p1, *p2 = NULL;
-			char c = '\"';
-			char *str = (char *)data;
-			char number[20];
-
-			printf("+++++ BT HFP CLIP EVENT: %s +++++\n", str);
-
-			p1 = strstr(str, "\"");
-			p2 = strstr(p1 + 1, "\"");
-			memset(number, 0, 20);
-			strncpy(number, p1 + 1, p2 - (p1 + 1));
-			printf("Call number: %s\n", number);
+			printf("+++++ BT HFP CLIP EVENT(%s) +++++\n", bd_addr);
+			get_call_info((char *)data);
 			break;
 		}
 
+		case RK_BT_HFP_OUTGOING_CALL_DIAL_EVT:
+			printf("+++++ BT HFP OUTGOING CALL DIAL EVT(%s) +++++\n", bd_addr);
+			break;
+
+		case RK_BT_HFP_OUTGOING_CALL_RING_EVT:
+			printf("+++++ BT HFP OUTGOING CALL RING EVT(%s) +++++\n", bd_addr);
+			break;
+
+		case RK_BT_HFP_CLCC_EVT:
+		{
+			printf("+++++ BT HFP CLCC EVENT(%s) +++++\n", bd_addr);
+			get_call_info((char *)data);
+		}
 		default:
 			break;
 	}

@@ -21,6 +21,9 @@ typedef enum {
     RK_BT_HFP_VOLUME_EVT,               /* Speaker volume change */
     RK_BT_HFP_BCS_EVT,                  /* Codec selection from AG */
     RK_BT_HFP_CLIP_EVT,                 /* Calling subscriber information from AG */
+    RK_BT_HFP_OUTGOING_CALL_DIAL_EVT,   /* Outgoing call setup in dialing state */
+    RK_BT_HFP_OUTGOING_CALL_RING_EVT,   /* Outgoing call setup in alerting state */
+    RK_BT_HFP_CLCC_EVT,                 /* Current active call list info */
 } RK_BT_HFP_EVENT;
 
 typedef int (*RK_BT_HFP_CALLBACK)(const char *bd_addr, RK_BT_HFP_EVENT event, void *data);
