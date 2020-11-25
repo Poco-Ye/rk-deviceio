@@ -1051,10 +1051,10 @@ static void le_proxy_added(GDBusProxy *proxy)
 		return;
 
 	bdc = dist_dev_class(proxy);
-	if(bdc == BT_Device_Class::BT_SINK_DEVICE || bdc == BT_Device_Class::BT_SOURCE_DEVICE) {
-		pr_info("%s: bdc(%d) != ble\n", __func__, bdc);
-		return;
-	}
+	//if(bdc == BT_Device_Class::BT_SINK_DEVICE || bdc == BT_Device_Class::BT_SOURCE_DEVICE) {
+	//	pr_info("%s: bdc(%d) != ble\n", __func__, bdc);
+	//	return;
+	//}
 
 	pr_info("%s: ble_service_cnt = %d\n", __func__, ble_service_cnt);
 	if (ble_service_cnt == 0) {
