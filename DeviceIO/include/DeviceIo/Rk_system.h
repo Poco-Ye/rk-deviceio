@@ -6,6 +6,19 @@ extern "C" {
 #endif
 
 /*
+ *Version 1.3.6 Release 2020/12/02
+  1.add rk_bt_get_dev_platform api
+  2.bluez: don't judge COD when ble connect
+  3.bsa: add pbap client api
+  4.bsa: rk_ble_client_open add mtu_change parameter
+  5.bsa: fix write failed when the chrc uuid only has WRITE_WITHOUT_RESP prop
+  6.bsa: fix set device name failed
+  7.bsa: hfp: call number report
+  8.bsa: hfp: outgoing call event report
+  9.bsa: hfp: outgoing call ring event report
+  10.bsa: hfp: current active call list info report
+  11.broadcom bsa: get ble device name from FullName/ShortName
+  12.broadcom bsa: add PAN profile api
  *Version 1.3.5 Release 2020/07/02
   1.bluez: modify avrcp event report to use the standard bluetoothd process
   2.bluez: fix the class of device judgment
@@ -141,7 +154,7 @@ extern "C" {
  *Version 1.0.0 Release 2018/12/22
  */
 
-#define DEVICEIO_VERSION "V1.3.5"
+#define DEVICEIO_VERSION "V1.3.6"
 
 int RK_read_chip_id(char *buffer, const int size);
 int RK_read_version(char *buffer, const int size);
