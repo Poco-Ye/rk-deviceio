@@ -204,6 +204,8 @@ void *bt_test_bluetooth_init_thread(void *)
 	rk_bt_register_bond_callback(bt_test_bond_state_cb);
 	rk_bt_register_name_change_callback(bt_test_name_change_cb);
 	rk_bt_init(&bt_content);
+
+	return NULL;
 }
 #else
 //BLE_ADVDATA_TYPE_USER demo
@@ -297,6 +299,8 @@ void *bt_test_bluetooth_init_thread(void *)
 	rk_bt_register_state_callback(bt_test_state_cb);
 	rk_bt_register_bond_callback(bt_test_bond_state_cb);
 	rk_bt_init(&bt_content);
+
+	return NULL;
 }
 
 #endif
