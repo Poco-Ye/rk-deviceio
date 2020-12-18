@@ -746,34 +746,6 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
         connection->is_rc_open = FALSE;
         break;
 
-    case BSA_AVK_RC_BROWSING_OPEN_EVT:
-        APP_DEBUG1("BSA_AVK_RC_BROWSING_OPEN_EVT status=%d", p_data->rc_browsing_open.status);
-        if(p_data->rc_browsing_open.status == BSA_SUCCESS)
-        {
-            connection = app_avk_find_connection_by_bd_addr(p_data->rc_browsing_open.bd_addr);
-            if(connection == NULL)
-            {
-                APP_DEBUG0("BSA_AVK_RC_BROWSING_OPEN_EVT could not allocate connection");
-                break;
-            }
-            connection->is_rc_browsing_open = TRUE;
-        }
-        break;
-
-    case BSA_AVK_RC_BROWSING_CLOSE_EVT:
-        APP_DEBUG1("BSA_AVK_RC_BROWSING_CLOSE_EVT status=%d", p_data->rc_browsing_close.status);
-        if(p_data->rc_browsing_close.status == BSA_SUCCESS)
-        {
-            connection = app_avk_find_connection_by_bd_addr(p_data->rc_browsing_close.bd_addr);
-            if(connection == NULL)
-            {
-                APP_DEBUG0("BSA_AVK_RC_BROWSING_CLOSE_EVT could not allocate connection");
-                break;
-            }
-            connection->is_rc_browsing_open = FALSE;
-        }
-        break;
-
     case BSA_AVK_REMOTE_RSP_EVT:
         APP_DEBUG0("BSA_AVK_REMOTE_RSP_EVT");
         break;
@@ -1123,15 +1095,6 @@ static void app_avk_cback(tBSA_AVK_EVT event, tBSA_AVK_MSG *p_data)
             APP_INFO1("attr_id:0x%x", p_data->item_attr.rsp.attr_entry[i].attr_id);
             APP_INFO1("name:%s", p_data->item_attr.rsp.attr_entry[i].name.data);
         }
-        break;
-
-    case BSA_AVK_SEARCH_ITEMS_EVT:
-        APP_DEBUG0("BSA_AVK_SEARCH_ITEMS_EVT");
-        APP_INFO1("status:0x%x, uid counter:%d, num of items:%d, handle:0x%x",
-                p_data->search_items.status,
-                p_data->search_items.uid_counter,
-                p_data->search_items.num_items,
-                p_data->search_items.handle);
         break;
 
     case BSA_AVK_PLAY_ITEM_EVT:
@@ -2982,50 +2945,6 @@ void app_avk_rc_get_items_attr(UINT8  scope, tAVRC_UID  uid, UINT16  uid_counter
     if (status != BSA_SUCCESS)
     {
         APP_ERROR1("Unable to Send app_avk_rc_get_items_attr %d", status);
-    }
-}
-
-/*******************************************************************************
- **
- ** Function         app_avk_rc_search_items
- **
- ** Description      Example of search items
- **
- ** Returns          void
- **
- *******************************************************************************/
-void app_avk_rc_search_items(UINT16 str_len, char* search_str, UINT8 rc_handle)
-{
-    int status;
-    tBSA_AVK_SEARCH_ITEMS bsa_search_items;
-
-    /* Send command */
-    status = BSA_AvkSearchItemsCmdInit(&bsa_search_items);
-    if (status != BSA_SUCCESS)
-    {
-        APP_ERROR1("Unable to initialize app_avk_rc_search_items %d", status);
-        return;
-    }
-
-    bsa_search_items.rc_handle = rc_handle;
-    bsa_search_items.label = app_avk_get_label(); /* Just used to distinguish commands */
-
-    bsa_search_items.charset_id = 0x006A; /*The value of UTF-8 defined in IANA character set*/
-    if (str_len <= BSA_RC_MAX_PARAM_LEN)
-    {
-        memcpy(bsa_search_items.p_str, search_str, str_len);
-        bsa_search_items.str_len = str_len;
-    }
-    else
-    {
-        APP_ERROR1("Invalid string length:%d", str_len);
-        return;
-    }
-
-    status = BSA_AvkSearchItemsCmd(&bsa_search_items);
-    if (status != BSA_SUCCESS)
-    {
-        APP_ERROR1("Unable to Send app_avk_rc_search_items %d", status);
     }
 }
 

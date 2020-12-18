@@ -84,6 +84,7 @@ enum
 #define BSA_HS_RESETSTATUS(p,m)      ((p)->status &= (~(m)))
 #define BSA_HS_GETSTATUS(p,m)        ((p)->status & m)
 
+#define MAX_BATTERY_LEVEL          100
 
 /* HS APP main control block */
 typedef struct
@@ -496,6 +497,33 @@ int app_hs_send_unat(UINT16 handle, char *cCmd);
 **
 *******************************************************************************/
 int app_hs_send_ind_cmd(UINT16 handle);
+
+/*******************************************************************************
+**
+** Function         app_hs_send_eds_ind
+**
+** Description      Send Enhanced Safety Indicator
+**
+** Parameters       Handle
+**
+** Returns          0 if successful execution, error code else
+**
+*******************************************************************************/
+int app_hs_send_eds_ind(UINT16 handle);
+
+/*******************************************************************************
+**
+** Function         app_hs_send_bl_ind
+**
+** Description      Send Battery Level Indicator
+**
+** Parameters       Handle
+**                         Battery Level
+**
+** Returns          0 if successful execution, error code else
+**
+*******************************************************************************/
+int app_hs_send_bl_ind(UINT16 handle, UINT8 battery_level);
 
 /*******************************************************************************
 **

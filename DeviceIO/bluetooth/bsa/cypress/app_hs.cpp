@@ -67,8 +67,8 @@ enum
 
 #define APP_HS_FEATURES  ( BSA_HS_FEAT_ECNR | BSA_HS_FEAT_3WAY | BSA_HS_FEAT_CLIP | \
                            BSA_HS_FEAT_VREC | BSA_HS_FEAT_RVOL | BSA_HS_FEAT_ECS | \
-                           BSA_HS_FEAT_ECC | BSA_HS_FEAT_CODEC | BSA_HS_FEAT_UNAT )
-
+                           BSA_HS_FEAT_ECC | BSA_HS_FEAT_CODEC | BSA_HS_FEAT_UNAT | \
+                           BSA_HS_FEAT_HF_IND)
 #define APP_HS_MIC_VOL  7
 #define APP_HS_SPK_VOL  7
 
@@ -1756,6 +1756,10 @@ void app_hs_cback(tBSA_HS_EVT event, tBSA_HS_MSG *p_data)
         APP_INFO1("BSA_HS_UNAT_EVT : handle %d", handle);
         break;
 
+    case BSA_HS_BIND_EVT:
+        APP_INFO1("BSA_HS_BIND_EVT:%s, handle %d\n", p_data->val.str, handle);
+        break;
+
     case BSA_HS_OK_EVT:
         APP_INFO1("BSA_HS_OK_EVT: command value %d, %s, handle %d", p_data->val.num, p_data->val.str, handle);
 #if 0
@@ -2186,10 +2190,81 @@ int app_hs_send_ind_cmd(UINT16 handle)
         return -1;
     }
 
-
     BSA_HsCommandInit(&cmd_param);
     cmd_param.hndl = p_conn->handle;
     cmd_param.command = BSA_HS_CIND_CMD;
+    BSA_HsCommand(&cmd_param);
+    return 0;
+}
+
+/*******************************************************************************
+**
+** Function         app_hs_send_eds_ind
+**
+** Description      Send Enhanced Safety Indicator
+**
+** Parameters       Handle
+**
+** Returns          0 if successful execution, error code else
+**
+*******************************************************************************/
+int app_hs_send_eds_ind(UINT16 handle)
+{
+    APP_DEBUG0("");
+    tBSA_HS_COMMAND cmd_param;
+    tAPP_HS_CONNECTION *p_conn = NULL;
+
+    /* If no connection exist, error */
+    p_conn = app_hs_get_conn_by_handle(handle);
+    if (p_conn == NULL) {
+        APP_ERROR0("no connection available");
+        return -1;
+    }
+
+    BSA_HsCommandInit(&cmd_param);
+    cmd_param.hndl = p_conn->handle;
+    cmd_param.command = BSA_HS_BIEV_CMD;
+    cmd_param.data.num = UUID_HF_IND_EDS;
+    BSA_HsCommand(&cmd_param);
+    return 0;
+}
+
+/*******************************************************************************
+**
+** Function         app_hs_send_bl_ind
+**
+** Description      Send Battery Level Indicator
+**
+** Parameters       Handle
+**                         Battery Level
+**
+** Returns          0 if successful execution, error code else
+**
+*******************************************************************************/
+int app_hs_send_bl_ind(UINT16 handle, UINT8 battery_level)
+{
+    APP_DEBUG0("");
+    tBSA_HS_COMMAND cmd_param;
+    tAPP_HS_CONNECTION *p_conn=NULL;
+
+    /* If no connection exist, error */
+    p_conn = app_hs_get_conn_by_handle(handle);
+    if (p_conn == NULL)
+    {
+        APP_ERROR0("no connection available");
+        return -1;
+    }
+    if (battery_level > MAX_BATTERY_LEVEL)
+    {
+        APP_ERROR0("battery level value too large");
+        return -1;
+    }
+
+    BSA_HsCommandInit(&cmd_param);
+    cmd_param.hndl = p_conn->handle;
+    cmd_param.command = BSA_HS_BIEV_CMD;
+    cmd_param.data.num = UUID_HF_IND_BL;
+    cmd_param.data.str[2] = battery_level; // battery level
     BSA_HsCommand(&cmd_param);
     return 0;
 }

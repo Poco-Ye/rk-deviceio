@@ -54,7 +54,6 @@ typedef struct
 
     UINT8 rc_handle;        /* AVRCP handle */
     BOOLEAN is_rc_open;     /* TRUE if AVRCP is open */
-    BOOLEAN is_rc_browsing_open;       /* TRUE if AVRCP Browsing channel is open */
     tBSA_AVK_FEAT peer_features;       /* peer AVRCP features mask */
     UINT16 peer_version;    /* Peer AVRCP version */
 
@@ -499,17 +498,6 @@ void app_avk_rc_get_items_attr(UINT8  scope, tAVRC_UID  uid, UINT16  uid_counter
 
 /*******************************************************************************
  **
- ** Function         app_avk_rc_search_items
- **
- ** Description      Example of search items
- **
- ** Returns          void
- **
- *******************************************************************************/
-void app_avk_rc_search_items(UINT16 str_len, char* search_str, UINT8 rc_handle);
-
-/*******************************************************************************
- **
  ** Function         app_avk_rc_play_item
  **
  ** Description      Example of play_item
@@ -518,7 +506,6 @@ void app_avk_rc_search_items(UINT16 str_len, char* search_str, UINT8 rc_handle);
  **
  *******************************************************************************/
 void app_avk_rc_play_item(UINT8  scope, tAVRC_UID  uid, UINT16  uid_counter, UINT8 rc_handle);
-
 
 /*******************************************************************************
  **

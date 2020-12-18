@@ -642,6 +642,15 @@ void app_disc_parse_eir(UINT8 *p_eir, UINT8 *playrole)
         case BTM_BLE_AD_TYPE_APPEARANCE:
             app_disc_parse_eir_ble_appearance(p, eir_length);
             break;
+        case BTM_BLE_AD_TYPE_MESH_PB_ADV:
+            APP_DUMP("Mesh:Provision ADV", p - 1 , eir_length + 1);
+            break;
+        case BTM_BLE_AD_TYPE_MESH_MSG:
+            APP_DUMP("Mesh: Message ADV", p - 1 , eir_length + 1);
+            break;
+        case BTM_BLE_AD_TYPE_MESH_BEACON:
+            APP_DUMP("Mesh: Beacon ADV", p - 1 , eir_length + 1);
+            break;
         default:
             APP_DUMP("Unknown EIR (Tag and data)", p - 1 , eir_length + 1);
             break;
@@ -1031,14 +1040,15 @@ int app_disc_start_ble_regular(tBSA_DISC_CBACK *p_custom_disc_cback, int duratio
 
     disc_start_param.cback = app_generic_disc_cback;
     disc_start_param.nb_devices = app_disc_cb.nb_devices;
+    disc_start_param.mode = BSA_BLE_GENERAL_INQUIRY;
+    disc_start_param.update = BSA_DISC_UPDATE_ANY;
+    disc_start_param.skip_name_request = TRUE;
 
     // duration * 1.28s
     if(duration > 0)
         disc_start_param.duration = duration;
     else
         disc_start_param.duration = 8;
-
-    disc_start_param.mode = BSA_BLE_GENERAL_INQUIRY;
 
     /* Save the provided custom callback */
     app_disc_cb.p_disc_cback = p_custom_disc_cback;
