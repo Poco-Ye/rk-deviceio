@@ -1809,25 +1809,37 @@ static void hfp_close_audio_duplex()
 
 static void get_call_info(char *str)
 {
-	char *p1, *p2 = NULL;
 	char number[20];
 	char name[256];
+	int  i = 0;
+	char *p0=str;
+	char *p1=number;
+	char *p2=name;
 
 	if(!str)
 		return;
 
+	while(*p0!='\0')
+	{
+
+		if(*p0=='\"')
+		i++;
+		if(i==1)
+		{
+			if(*p0!='\"')
+			{*p1=*p0;p1++;}
+		}
+		if(i==3)
+		{
+			if(*p0!='\"')
+			{*p2=*p0;p2++;}
+		}
+		p0++;
+	}
 	printf("Call info: %s\n", str);
-
-	p1 = strstr(str, "\"");
-	p2 = strstr(p1 + 1, "\"");
-	memset(number, 0, 20);
-	strncpy(number, p1 + 1, p2 - (p1 + 1));
+	if(i>0)
 	printf("Call number: %s\n", number);
-
-	p1 = strstr(p2 + 1, "\"");
-	p2 = strstr(p1 + 1, "\"");
-	memset(name, 0, 20);
-	strncpy(name, p1 + 1, p2 - (p1 + 1));
+	if(i>2)
 	printf("Call name: %s\n", name);
 }
 
