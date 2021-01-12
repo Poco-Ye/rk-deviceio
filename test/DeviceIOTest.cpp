@@ -153,6 +153,8 @@ static command_bt_t bt_command_table[] = {
 	{"bt_test_ble_client_is_notify", bt_test_ble_client_is_notify},
 	{"bt_test_ble_client_notify_on", bt_test_ble_client_notify_on},
 	{"bt_test_ble_client_notify_off", bt_test_ble_client_notify_off},
+	{"bt_test_ble_client_indicate_on", bt_test_ble_client_indicate_on},
+	{"bt_test_ble_client_indicate_off", bt_test_ble_client_indicate_off},
 	{"bt_test_ble_client_get_eir_data", bt_test_ble_client_get_eir_data},
 	{"bt_test_spp_open", bt_test_spp_open},
 	{"bt_test_spp_write", bt_test_spp_write},

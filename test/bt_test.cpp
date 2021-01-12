@@ -1212,10 +1212,20 @@ void bt_test_ble_client_is_notify(char *data)
 
 void bt_test_ble_client_notify_on(char *data)
 {
-	rk_ble_client_notify(data, true, true);
+	rk_ble_client_notify(data, false, true);
 }
 
 void bt_test_ble_client_notify_off(char *data)
+{
+	rk_ble_client_notify(data, false, false);
+}
+
+void bt_test_ble_client_indicate_on(char *data)
+{
+	rk_ble_client_notify(data, true, true);
+}
+
+void bt_test_ble_client_indicate_off(char *data)
 {
 	rk_ble_client_notify(data, true, false);
 }
